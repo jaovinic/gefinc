@@ -48,11 +48,11 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'categories',
-        loadComponent: () => import('./categories/categories-page').then((m) => m.CategoriesPage),
+        loadComponent: () => import('@gefinc/ui-shared').then((m) => m.CategoriesPage),
       },
       {
         path: 'accounts',
-        loadComponent: () => import('./accounts/accounts-page').then((m) => m.AccountsPage),
+        loadComponent: () => import('@gefinc/ui-shared').then((m) => m.AccountsPage),
       },
       {
         path: 'settings',

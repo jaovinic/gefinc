@@ -1,7 +1,8 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CATEGORY_TYPES, ERROR_CODES, type Category, type CategoryType } from '@gefinc/core-models';
-import { CategoriesApi, EmptyView, ErrorView, LoadingView, ReferenceData, messageFor, toProblem } from '@gefinc/ui-shared';
+import { CategoriesApi, ReferenceData, messageFor, toProblem } from '../api';
+import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 
 const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME: 'Receitas' };
 
@@ -86,8 +87,8 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
                     {{ category.name }}
                   </span>
                   <span class="space-x-3">
-                    <button type="button" class="gef-link" (click)="startEdit(category)">Editar</button>
-                    <button type="button" class="text-gefinc-danger hover:underline" (click)="remove(category)">Excluir</button>
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + category.name" (click)="startEdit(category)">Editar</button>
+                    <button type="button" class="gef-action text-gefinc-danger hover:underline" [attr.aria-label]="'Excluir ' + category.name" (click)="remove(category)">Excluir</button>
                   </span>
                 </li>
               }

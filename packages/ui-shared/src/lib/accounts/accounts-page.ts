@@ -1,6 +1,8 @@
 import { Component, OnInit, effect, inject, signal, untracked } from '@angular/core';
 import type { Account } from '@gefinc/core-models';
-import { AccountsApi, EmptyView, ErrorView, LoadingView, NoticeService, messageFor, toProblem } from '@gefinc/ui-shared';
+import { AccountsApi, NoticeService, messageFor, toProblem } from '../api';
+import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
+import { Viewport } from '../viewport/viewport';
 import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
 
 /** Cadastro de contas bancárias, dinheiro e cartões de crédito (FR-011 a FR-013). */
@@ -36,6 +38,34 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
         <gef-empty title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </gef-empty>
+      } @else if (viewport.compact()) {
+        <ul class="space-y-3">
+          @for (account of accounts(); track account.id) {
+            <li data-testid="account-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-semibold">{{ account.name }}</p>
+                  <p class="text-caption text-gefinc-muted">
+                    {{ labels[account.type] }}
+                    @if (account.closingDay) {
+                      · Fecha dia {{ account.closingDay }} · vence dia {{ account.dueDay }}
+                    }
+                  </p>
+                </div>
+                <span [class]="account.active ? 'text-gefinc-primary' : 'text-gefinc-muted'">
+                  {{ account.active ? 'Ativa' : 'Inativa' }}
+                </span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-1 border-t border-gefinc-border pt-2">
+                <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
+                <button type="button" class="gef-link gef-action" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
+                  {{ account.active ? 'Inativar' : 'Reativar' }}
+                </button>
+                <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + account.name" (click)="remove(account)">Excluir</button>
+              </div>
+            </li>
+          }
+        </ul>
       } @else {
         <div class="overflow-x-auto rounded-xl border border-gefinc-border">
           <table class="w-full text-left text-body-base">
@@ -82,6 +112,7 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
 export class AccountsPage implements OnInit {
   private readonly api = inject(AccountsApi);
   private readonly notices = inject(NoticeService);
+  protected readonly viewport = inject(Viewport);
 
   protected readonly labels = ACCOUNT_TYPE_LABELS;
   protected readonly accounts = signal<Account[]>([]);

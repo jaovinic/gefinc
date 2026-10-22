@@ -1,0 +1,57 @@
+import { APIRequestContext, Page, expect } from '@playwright/test';
+
+export const API = 'http://localhost:8080/api/v1';
+export const PASSWORD = 'senha-forte-123';
+
+export interface TestUser {
+  email: string;
+  token: string;
+  headers: { Authorization: string };
+}
+
+/** Cria um usuário novo pela API (a tela do app só é usada para o que está sendo verificado). */
+export async function newUser(request: APIRequestContext): Promise<TestUser> {
+  const email = `mobile.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+  await request.post(`${API}/auth/register`, { data: { email, password: PASSWORD } });
+  const login = await (await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })).json();
+  return { email, token: login.accessToken, headers: { Authorization: `Bearer ${login.accessToken}` } };
+}
+
+export async function apiPost(request: APIRequestContext, user: TestUser, path: string, data: unknown) {
+  const response = await request.post(`${API}${path}`, { headers: user.headers, data });
+  expect(response.ok(), `${path}: ${response.status()}`).toBeTruthy();
+  return response.json();
+}
+
+export async function apiGet(request: APIRequestContext, user: TestUser, path: string) {
+  const response = await request.get(`${API}${path}`, { headers: user.headers });
+  expect(response.ok(), `${path}: ${response.status()}`).toBeTruthy();
+  return response.json();
+}
+
+export async function signIn(page: Page, email: string) {
+  await page.goto('/login');
+  await page.getByLabel('E-mail').fill(email);
+  await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: /Resumo de/ })).toBeVisible();
+}
+
+/** Abre uma área pela barra de abas inferior. */
+export async function openTab(page: Page, label: string) {
+  await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: label }).click();
+}
+
+/** Abre uma área do menu Mais. */
+export async function openFromMore(page: Page, label: string) {
+  await openTab(page, 'Mais');
+  await page.getByRole('main').getByRole('link', { name: label }).click();
+}
+
+/** Id da categoria inicial pelo nome. */
+export async function categoryId(request: APIRequestContext, user: TestUser, name: string): Promise<number> {
+  const categories = (await apiGet(request, user, '/categories')) as { id: number; name: string }[];
+  const found = categories.find((c) => c.name === name);
+  expect(found, `categoria ${name}`).toBeTruthy();
+  return found!.id;
+}

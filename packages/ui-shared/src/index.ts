@@ -8,3 +8,5 @@ export * from './lib/charts/category-donut';
 export * from './lib/charts/chart-slice';
 export * from './lib/viewport/viewport';
 export * from './lib/layout/sheet';
+export * from './lib/accounts/accounts-page';
+export * from './lib/categories/categories-page';

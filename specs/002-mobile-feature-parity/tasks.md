@@ -62,13 +62,13 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Menu principal funcional, contas, cartões e categorias completos no app
 
-- [ ] T018 [P] [US1] [Teste] Mover (`git mv`) `apps/web-app/src/app/accounts/accounts-page.spec.ts` e `apps/web-app/src/app/categories/categories-page.spec.ts` para `packages/ui-shared/src/lib/accounts/` e `packages/ui-shared/src/lib/categories/` e acrescentar casos de layout compacto (cartões em vez de tabela, ações editar e inativar acessíveis, aviso de recálculo ao mudar dias do cartão, mensagem de inativação em vez de exclusão); ver falhar
-- [ ] T019 [P] [US1] [Teste] Criar `apps/mobile-app-e2e/src/support.ts` (cadastro, login e semente de dados pela API, login pela interface do app) e `apps/mobile-app-e2e/src/accounts-categories.spec.ts`: criar conta, cartão (dias inválidos recusados mantendo o digitado), categoria; editar; inativar conta com lançamentos; categoria em uso; ver falhar
-- [ ] T020 [US1] Mover `apps/web-app/src/app/accounts/accounts-page.ts` e `account-form.ts` para `packages/ui-shared/src/lib/accounts/` com layout responsivo (tabela no desktop, cartões com `gef-sheet` para o formulário no celular) e exportar em `packages/ui-shared/src/index.ts`
-- [ ] T021 [US1] Mover `apps/web-app/src/app/categories/categories-page.ts` para `packages/ui-shared/src/lib/categories/` com layout responsivo e exportar em `packages/ui-shared/src/index.ts`
-- [ ] T022 [US1] Garantir nas telas de contas e categorias os avisos e regras exigidos: recálculo apenas de fixos pendentes futuros ao mudar os dias do cartão (FR-006), inativar em vez de excluir conta com lançamentos (FR-005) e reatribuição ao excluir categoria em uso (FR-007)
-- [ ] T023 [US1] Ligar as rotas: `apps/web-app/src/app/app.routes.ts` do web passa a importar as telas de `@gefinc/ui-shared`; `apps/mobile-app/src/app/app.routes.ts` do mobile ganha `contas` e `categorias` sob o shell, com entradas na barra de abas e no menu Mais
-- [ ] T024 [US1] Executar `npx nx e2e web-app-e2e` (accounts e categories continuam verdes) e `npx nx e2e mobile-app-e2e` (accounts-categories verde); corrigir regressões
+- [X] T018 [P] [US1] [Teste] Mover (`git mv`) `apps/web-app/src/app/accounts/accounts-page.spec.ts` e `apps/web-app/src/app/categories/categories-page.spec.ts` para `packages/ui-shared/src/lib/accounts/` e `packages/ui-shared/src/lib/categories/` e acrescentar casos de layout compacto (cartões em vez de tabela, ações editar e inativar acessíveis, aviso de recálculo ao mudar dias do cartão, mensagem de inativação em vez de exclusão); ver falhar
+- [X] T019 [P] [US1] [Teste] Criar `apps/mobile-app-e2e/src/support.ts` (cadastro, login e semente de dados pela API, login pela interface do app) e `apps/mobile-app-e2e/src/accounts-categories.spec.ts`: criar conta, cartão (dias inválidos recusados mantendo o digitado), categoria; editar; inativar conta com lançamentos; categoria em uso; ver falhar
+- [X] T020 [US1] Mover `apps/web-app/src/app/accounts/accounts-page.ts` e `account-form.ts` para `packages/ui-shared/src/lib/accounts/` com layout responsivo (tabela no desktop, cartões com `gef-sheet` para o formulário no celular) e exportar em `packages/ui-shared/src/index.ts`
+- [X] T021 [US1] Mover `apps/web-app/src/app/categories/categories-page.ts` para `packages/ui-shared/src/lib/categories/` com layout responsivo e exportar em `packages/ui-shared/src/index.ts`
+- [X] T022 [US1] Garantir nas telas de contas e categorias os avisos e regras exigidos: recálculo apenas de fixos pendentes futuros ao mudar os dias do cartão (FR-006), inativar em vez de excluir conta com lançamentos (FR-005) e reatribuição ao excluir categoria em uso (FR-007)
+- [X] T023 [US1] Ligar as rotas: `apps/web-app/src/app/app.routes.ts` do web passa a importar as telas de `@gefinc/ui-shared`; `apps/mobile-app/src/app/app.routes.ts` do mobile ganha `contas` e `categorias` sob o shell, com entradas na barra de abas e no menu Mais
+- [X] T024 [US1] Executar `npx nx e2e web-app-e2e` (accounts e categories continuam verdes) e `npx nx e2e mobile-app-e2e` (accounts-categories verde); corrigir regressões
 
 ---
 

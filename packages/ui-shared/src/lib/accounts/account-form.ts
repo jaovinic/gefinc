@@ -1,7 +1,7 @@
 import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ACCOUNT_TYPES, type Account, type AccountType } from '@gefinc/core-models';
-import { AccountsApi, messageFor, toProblem } from '@gefinc/ui-shared';
+import { AccountsApi, messageFor, toProblem } from '../api';
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   CHECKING: 'Conta bancária',
@@ -67,6 +67,12 @@ function cardDays(group: AbstractControl): ValidationErrors | null {
               <p class="gef-field-error">Informe um dia entre 1 e 31.</p>
             }
           </div>
+        }
+        @if (account()?.type === 'CREDIT_CARD') {
+          <p class="text-caption text-gefinc-muted sm:col-span-2" data-testid="card-days-notice">
+            Ao mudar os dias, só as ocorrências de lançamentos fixos pendentes e com vencimento futuro serão
+            recalculadas; o restante permanece como está.
+          </p>
         }
       </div>
       <div class="flex gap-3">

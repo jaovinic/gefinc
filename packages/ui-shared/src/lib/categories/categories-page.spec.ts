@@ -1,6 +1,6 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../test/testbed';
+import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
 import { CategoriesPage } from './categories-page';
 
 describe('CategoriesPage', () => {
@@ -62,5 +62,14 @@ describe('CategoriesPage', () => {
     http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
     http.expectOne((r) => r.url === `${API}/accounts`).flush([]);
     http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+  });
+
+  it('as ações de cada categoria têm rótulo acessível com o nome e área de toque confortável', async () => {
+    const { el } = await setup();
+    for (const label of ['Editar Alimentação', 'Excluir Alimentação', 'Editar Salário']) {
+      const button = el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+      expect(button).not.toBeNull();
+      expect(button.className).toContain('gef-action');
+    }
   });
 });

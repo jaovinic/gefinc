@@ -1,22 +1,19 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import {
-  API_BASE_URL,
-  CLIENT_KIND,
-  MemoryTokenStore,
-  TokenStore,
-  authInterceptor,
-} from '@gefinc/ui-shared';
+import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authInterceptor } from '../api';
+import { Viewport } from '../viewport/viewport';
 import { AccountsPage } from './accounts-page';
 
 const API = '/api/v1';
 const nubank = { id: 1, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, active: true, version: 0 };
 const carteira = { id: 2, name: 'Carteira', type: 'CASH', active: true, version: 3 };
 
-function setup() {
+function setup(compact = false) {
   TestBed.configureTestingModule({
     providers: [
+      { provide: Viewport, useValue: { compact: signal(compact) } },
       provideHttpClient(withInterceptors([authInterceptor])),
       provideHttpClientTesting(),
       { provide: API_BASE_URL, useValue: API },
@@ -143,5 +140,58 @@ describe('AccountsPage', () => {
     fixture.detectChanges();
 
     expect(el.textContent).toContain('Inativa');
+  });
+
+  describe('no celular (layout compacto)', () => {
+    it('mostra cartões em vez de tabela, com os dados do cartão e ações acessíveis', async () => {
+      const { el, fixture, expectList } = setup(true);
+      expectList(false).flush([nubank, carteira]);
+      fixture.detectChanges();
+
+      expect(el.querySelector('table')).toBeNull();
+      const cards = el.querySelectorAll('[data-testid="account-card"]');
+      expect(cards).toHaveLength(2);
+      expect(cards[0].textContent).toContain('Nubank');
+      expect(cards[0].textContent).toContain('Cartão de crédito');
+      expect(cards[0].textContent).toContain('Fecha dia 10');
+      expect(cards[0].textContent).toContain('vence dia 17');
+      expect(cards[1].textContent).toContain('Dinheiro');
+      for (const label of ['Editar Nubank', 'Inativar Nubank', 'Excluir Nubank', 'Editar Carteira']) {
+        expect(el.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+      }
+    });
+
+    it('as ações do cartão funcionam como na tabela (inativar envia a versão)', async () => {
+      const { http, el, fixture, expectList } = setup(true);
+      expectList(false).flush([carteira]);
+      fixture.detectChanges();
+
+      (el.querySelector('button[aria-label="Inativar Carteira"]') as HTMLButtonElement).click();
+      const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/2` });
+      expect(put.request.body).toMatchObject({ active: false, version: 3 });
+      put.flush({ ...carteira, active: false, version: 4 });
+      expectList(false).flush([]);
+    });
+  });
+
+  it('no desktop continua com a tabela', async () => {
+    const { el, fixture, expectList } = setup(false);
+    expectList(false).flush([nubank]);
+    fixture.detectChanges();
+
+    expect(el.querySelector('table')).not.toBeNull();
+    expect(el.querySelector('[data-testid="account-card"]')).toBeNull();
+  });
+
+  it('ao editar um cartão avisa que só as ocorrências fixas pendentes e futuras são recalculadas (FR-006)', async () => {
+    const { el, fixture, expectList } = setup();
+    expectList(false).flush([nubank]);
+    fixture.detectChanges();
+
+    click(el, 'Editar');
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="card-days-notice"]')?.textContent).toContain('lançamentos fixos pendentes');
+    expect(el.querySelector('[data-testid="card-days-notice"]')?.textContent).toContain('vencimento futuro');
   });
 });
