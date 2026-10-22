@@ -1,0 +1,1146 @@
+openapi: 3.1.0
+info:
+  title: GEFINC API
+  version: 1.0.0
+  description: |
+    Contrato da API REST do GEFINC (gestão financeira pessoal).
+
+    Convenções:
+    - Valores monetários são **strings decimais** com 2 casas (`"1234.56"`), nunca números JSON.
+    - Datas de negócio usam `YYYY-MM-DD`; meses usam `YYYY-MM`.
+    - Erros seguem RFC 7807 (`application/problem+json`) com o campo estável `code`.
+    - Todo recurso pertence ao usuário do token; recurso de outro usuário responde `404`.
+servers:
+  - url: http://localhost:8080/api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Categories
+  - name: Transaction Groups
+  - name: Transactions
+  - name: Invoices
+  - name: Dashboard
+
+paths:
+  # ---------------------------------------------------------------- Auth
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Cria uma conta (FR-001)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Conta criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Autentica o usuário (FR-002)
+      description: |
+        Com o cabeçalho `X-Client: web`, o refresh token é entregue em cookie
+        `HttpOnly; Secure; SameSite=Strict` e omitido do corpo. Sem ele (mobile), vem no corpo.
+        Conta com exclusão pendente responde `423` (`ACCOUNT_DELETION_PENDING`) sem emitir tokens.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ClientHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '200':
+          description: Autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '423':
+          description: Exclusão da conta pendente
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/DeletionPendingProblem' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renova a sessão com rotação do refresh token (FR-002)
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ClientHeader'
+      requestBody:
+        description: Obrigatório no mobile; no web o token vem do cookie.
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Novos tokens
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Encerra a sessão e revoga o refresh token
+      responses:
+        '204': { description: Sessão encerrada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/password-reset/request:
+    post:
+      tags: [Auth]
+      summary: Solicita link de redefinição de senha (FR-006, FR-007)
+      description: Resposta idêntica para e-mails cadastrados e não cadastrados. Limite de 3 por hora por e-mail.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: Solicitação aceita }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Define nova senha com o token recebido por e-mail (FR-006)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, format: password, minLength: 10 }
+      responses:
+        '204': { description: Senha alterada; sessões anteriores encerradas }
+        '400':
+          description: Token inválido, usado ou expirado (`INVALID_RESET_TOKEN`)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/account-deletion:
+    post:
+      tags: [Auth]
+      summary: Solicita a exclusão da conta com carência de 30 dias (FR-008)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, format: password }
+      responses:
+        '202':
+          description: Exclusão agendada; sessões encerradas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deletionDate]
+                properties:
+                  deletionDate:
+                    type: string
+                    format: date
+                    description: Data limite para desistir (hoje + 30 dias)
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/account-deletion/cancel:
+    post:
+      tags: [Auth]
+      summary: Cancela a exclusão pendente (FR-009)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        '204': { description: Exclusão cancelada; faça login normalmente }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: Não há exclusão pendente
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ------------------------------------------------------------ Accounts
+  /accounts:
+    get:
+      tags: [Accounts]
+      summary: Lista contas e cartões (FR-011)
+      parameters:
+        - name: includeInactive
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Lista de contas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Account' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Accounts]
+      summary: Cadastra conta ou cartão (FR-011, FR-012)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountInput' }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /accounts/{accountId}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [Accounts]
+      summary: Consulta uma conta
+      responses:
+        '200':
+          description: Conta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Accounts]
+      summary: Edita ou inativa/reativa conta (FR-011)
+      description: Novos dias de fechamento/vencimento valem só para lançamentos futuros.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountUpdate' }
+      responses:
+        '200':
+          description: Atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Accounts]
+      summary: Exclui conta sem lançamentos (FR-013)
+      responses:
+        '204': { description: Excluída }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Conta com lançamentos (`ACCOUNT_IN_USE`); inative em vez de excluir
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ---------------------------------------------------------- Categories
+  /categories:
+    get:
+      tags: [Categories]
+      summary: Lista categorias (FR-014)
+      parameters:
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/CategoryType' }
+      responses:
+        '200':
+          description: Lista de categorias
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+    post:
+      tags: [Categories]
+      summary: Cria categoria (FR-014)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '201':
+          description: Criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /categories/{categoryId}:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    put:
+      tags: [Categories]
+      summary: Edita categoria
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+      responses:
+        '200':
+          description: Atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Categories]
+      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-015)
+      parameters:
+        - name: reassignTo
+          in: query
+          description: Categoria que receberá os lançamentos da excluída (mesmo tipo)
+          schema: { type: integer, format: int64 }
+      responses:
+        '204': { description: Excluída }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Categoria em uso sem `reassignTo` (`CATEGORY_IN_USE`)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # --------------------------------------------------- Transaction groups
+  /transaction-groups:
+    post:
+      tags: [Transaction Groups]
+      summary: Registra lançamento fixo, avulso ou parcelado (FR-016 a FR-023)
+      description: |
+        Gera as ocorrências conforme `recurrenceType`:
+        - `VARIABLE`: 1 ocorrência em `firstDueDate`.
+        - `INSTALLMENT`: N parcelas; no cartão, vencimentos pelo fechamento/vencimento da fatura
+          (o `firstDueDate` é calculado pelo servidor e o enviado é ignorado); nas demais contas,
+          mensais a partir de `firstDueDate`. Soma = `totalAmount` (resto na última parcela).
+        - `FIXED`: ocorrências mensais para os próximos 12 meses.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionGroupInput' }
+      responses:
+        '201':
+          description: Grupo e ocorrências geradas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /transaction-groups/{groupId}:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Transaction Groups]
+      summary: Consulta um grupo com suas ocorrências
+      responses:
+        '200':
+          description: Grupo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Transaction Groups]
+      summary: Edita descrição, categoria e conta das ocorrências pendentes (FR-024)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionGroupUpdate' }
+      responses:
+        '200':
+          description: Atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Transaction Groups]
+      summary: Exclui o grupo e as ocorrências pendentes (FR-024)
+      description: |
+        Exige `confirm=true`. Ocorrências já pagas são preservadas; consulte antes
+        `/transaction-groups/{groupId}/impact`. Se a exclusão violar o saldo de uma fatura
+        (restante < 0), responde `409 INVOICE_BALANCE_VIOLATION`.
+      parameters:
+        - name: confirm
+          in: query
+          required: true
+          schema: { type: boolean }
+      responses:
+        '204': { description: Excluído }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /transaction-groups/{groupId}/impact:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      tags: [Transaction Groups]
+      summary: Mostra o efeito de excluir ou alterar o grupo sobre parcelas pagas (FR-024)
+      responses:
+        '200':
+          description: Impacto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GroupImpact' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /transaction-groups/{groupId}/amount-changes:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    post:
+      tags: [Transaction Groups]
+      summary: Altera o valor de um lançamento fixo a partir de um mês (FR-019)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fromMonth, amount]
+              properties:
+                fromMonth: { $ref: '#/components/schemas/Month' }
+                amount: { $ref: '#/components/schemas/Money' }
+      responses:
+        '200':
+          description: Ocorrências pendentes a partir do mês foram atualizadas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /transaction-groups/{groupId}/end:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    post:
+      tags: [Transaction Groups]
+      summary: Encerra um lançamento fixo (FR-019)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endMonth]
+              properties:
+                endMonth:
+                  allOf:
+                    - $ref: '#/components/schemas/Month'
+                  description: Último mês com ocorrência; as pendentes posteriores são removidas
+      responses:
+        '200':
+          description: Encerrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # --------------------------------------------------------- Transactions
+  /transactions:
+    get:
+      tags: [Transactions]
+      summary: Lista lançamentos com filtros (FR-026)
+      parameters:
+        - name: month
+          in: query
+          description: Mês de vencimento
+          schema: { $ref: '#/components/schemas/Month' }
+        - name: accountId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: categoryId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: kind
+          in: query
+          schema: { $ref: '#/components/schemas/CategoryType' }
+        - name: recurrenceType
+          in: query
+          schema: { $ref: '#/components/schemas/RecurrenceType' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TransactionStatus' }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Página de lançamentos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionPage' }
+
+  /transactions/{transactionId}:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    get:
+      tags: [Transactions]
+      summary: Consulta um lançamento
+      responses:
+        '200':
+          description: Lançamento
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Transactions]
+      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-024)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransactionPatch' }
+      responses:
+        '200':
+          description: Atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /transactions/{transactionId}/pay:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      summary: Marca o lançamento como pago (FR-018)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paymentDate]
+              properties:
+                paymentDate: { type: string, format: date }
+      responses:
+        '200':
+          description: Pago
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /transactions/{transactionId}/unpay:
+    parameters:
+      - $ref: '#/components/parameters/TransactionId'
+    post:
+      tags: [Transactions]
+      summary: Reverte o pagamento do lançamento (FR-018)
+      responses:
+        '200':
+          description: Voltou para pendente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transaction' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ------------------------------------------------------------- Invoices
+  /accounts/{accountId}/invoices/{month}:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/MonthPath'
+    get:
+      tags: [Invoices]
+      summary: Consulta uma fatura de cartão com itens, pagos e restante (FR-027, FR-034)
+      responses:
+        '200':
+          description: Fatura
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /accounts/{accountId}/invoices/{month}/payments:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/MonthPath'
+    post:
+      tags: [Invoices]
+      summary: Registra pagamento total ou parcial da fatura (FR-033 a FR-037)
+      description: |
+        Valor deve ser > 0 e ≤ restante. Se o restante chegar a zero, todos os itens
+        pendentes passam a pagos (FR-035). Acima do restante: `409 INVOICE_BALANCE_VIOLATION`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvoicePaymentInput' }
+      responses:
+        '201':
+          description: Pagamento registrado; retorna a fatura atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /accounts/{accountId}/invoices/{month}/payments/settle:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+      - $ref: '#/components/parameters/MonthPath'
+    post:
+      tags: [Invoices]
+      summary: Paga a fatura pelo saldo restante total (FR-036)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paidAt]
+              properties:
+                paidAt: { type: string, format: date }
+      responses:
+        '201':
+          description: Fatura quitada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /invoice-payments/{paymentId}:
+    parameters:
+      - name: paymentId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    delete:
+      tags: [Invoices]
+      summary: Desfaz um pagamento de fatura (FR-036)
+      description: Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos.
+      responses:
+        '200':
+          description: Fatura atualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /invoices/projection:
+    get:
+      tags: [Invoices]
+      summary: Projeção de faturas futuras por cartão (FR-027)
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Month' }
+        - name: months
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 24, default: 12 }
+        - name: accountId
+          in: query
+          description: Restringe a um cartão
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Totais por cartão e mês
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceProjection' }
+
+  # ------------------------------------------------------------ Dashboard
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Indicadores e gráficos do mês, por vencimento (FR-029, FR-030)
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Month' }
+      responses:
+        '200':
+          description: Painel do mês
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+
+  /cashflow:
+    get:
+      tags: [Dashboard]
+      summary: Saldo residual por mês = receitas previstas − despesas previstas (FR-028)
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Month' }
+        - name: months
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 24, default: 12 }
+      responses:
+        '200':
+          description: Fluxo de caixa mensal
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CashflowMonth' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ClientHeader:
+      name: X-Client
+      in: header
+      description: "`web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo"
+      schema: { type: string, enum: [web] }
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    GroupId:
+      name: groupId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    MonthPath:
+      name: month
+      in: path
+      required: true
+      description: Mês do vencimento da fatura
+      schema: { $ref: '#/components/schemas/Month' }
+
+  responses:
+    Unauthorized:
+      description: Credenciais ausentes, inválidas ou expiradas
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Recurso inexistente ou de outro usuário
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Conflito de regra de negócio ou versão desatualizada (`STALE_VERSION`, `INVOICE_BALANCE_VIOLATION`, …)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ValidationError:
+      description: Dados inválidos
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblem' }
+    TooManyRequests:
+      description: Limite de solicitações excedido
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      example: '1234.56'
+    Month:
+      type: string
+      pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+      example: '2026-11'
+    AccountType:
+      type: string
+      enum: [CHECKING, CASH, CREDIT_CARD]
+    CategoryType:
+      type: string
+      enum: [INCOME, EXPENSE]
+    RecurrenceType:
+      type: string
+      enum: [FIXED, VARIABLE, INSTALLMENT]
+    TransactionStatus:
+      type: string
+      enum: [PENDING, PAID]
+
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          type: string
+          description: Código estável legível por máquina
+          example: INVOICE_BALANCE_VIOLATION
+        remainingBalance:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Presente em `INVOICE_BALANCE_VIOLATION`
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            errors:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+    DeletionPendingProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [deletionDate]
+          properties:
+            deletionDate: { type: string, format: date }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, format: password, minLength: 10, maxLength: 72 }
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    TokenResponse:
+      type: object
+      required: [accessToken, expiresIn]
+      properties:
+        accessToken: { type: string }
+        expiresIn: { type: integer, description: Segundos até expirar (900) }
+        refreshToken:
+          type: string
+          description: Presente apenas fora do modo web
+    UserProfile:
+      type: object
+      required: [id, email, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+        createdAt: { type: string, format: date-time }
+
+    Account:
+      type: object
+      required: [id, name, type, active, version]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/AccountType' }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+        active: { type: boolean }
+        version: { type: integer, format: int64 }
+    AccountInput:
+      type: object
+      required: [name, type]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        type: { $ref: '#/components/schemas/AccountType' }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+      description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos."
+    AccountUpdate:
+      allOf:
+        - $ref: '#/components/schemas/AccountInput'
+        - type: object
+          required: [active, version]
+          properties:
+            active: { type: boolean }
+            version: { type: integer, format: int64 }
+
+    Category:
+      type: object
+      required: [id, name, type, colorHex]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/CategoryType' }
+        colorHex: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+    CategoryInput:
+      type: object
+      required: [name, type, colorHex]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+        type: { $ref: '#/components/schemas/CategoryType' }
+        colorHex: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+
+    TransactionGroupInput:
+      type: object
+      required: [description, recurrenceType, totalAmount, accountId, categoryId, purchaseDate, firstDueDate]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 120 }
+        recurrenceType: { $ref: '#/components/schemas/RecurrenceType' }
+        totalAmount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Valor total (INSTALLMENT), valor mensal (FIXED) ou valor único (VARIABLE)
+        totalInstallments:
+          type: integer
+          minimum: 1
+          maximum: 120
+          default: 1
+          description: Obrigatório (≥ 2) para INSTALLMENT; 1 nos demais
+        accountId: { type: integer, format: int64 }
+        categoryId: { type: integer, format: int64 }
+        purchaseDate: { type: string, format: date }
+        firstDueDate:
+          type: string
+          format: date
+          description: Ignorado em INSTALLMENT no cartão (calculado pelo servidor)
+    TransactionGroupUpdate:
+      type: object
+      required: [description, categoryId, version]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 120 }
+        categoryId: { type: integer, format: int64 }
+        version: { type: integer, format: int64 }
+    TransactionGroupDetail:
+      type: object
+      required: [id, description, recurrenceType, totalInstallments, totalAmount, accountId, categoryId, purchaseDate, version, transactions]
+      properties:
+        id: { type: integer, format: int64 }
+        description: { type: string }
+        recurrenceType: { $ref: '#/components/schemas/RecurrenceType' }
+        totalInstallments: { type: integer }
+        totalAmount: { $ref: '#/components/schemas/Money' }
+        accountId: { type: integer, format: int64 }
+        categoryId: { type: integer, format: int64 }
+        purchaseDate: { type: string, format: date }
+        endMonth: { $ref: '#/components/schemas/Month' }
+        version: { type: integer, format: int64 }
+        transactions:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+    GroupImpact:
+      type: object
+      required: [paidCount, pendingCount, paidAmount, pendingAmount]
+      properties:
+        paidCount: { type: integer }
+        pendingCount: { type: integer }
+        paidAmount: { $ref: '#/components/schemas/Money' }
+        pendingAmount: { $ref: '#/components/schemas/Money' }
+
+    Transaction:
+      type: object
+      required: [id, groupId, accountId, categoryId, description, installmentNumber, totalInstallments, amount, dueDate, status, overdue, version]
+      properties:
+        id: { type: integer, format: int64 }
+        groupId: { type: integer, format: int64 }
+        accountId: { type: integer, format: int64 }
+        categoryId: { type: integer, format: int64 }
+        description: { type: string }
+        recurrenceType: { $ref: '#/components/schemas/RecurrenceType' }
+        installmentNumber: { type: integer }
+        totalInstallments: { type: integer }
+        amount: { $ref: '#/components/schemas/Money' }
+        dueDate: { type: string, format: date }
+        paymentDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/TransactionStatus' }
+        settledByInvoicePayment:
+          type: boolean
+          description: Verdadeiro se foi marcado como pago pela quitação da fatura
+        overdue:
+          type: boolean
+          description: Pendente com vencimento anterior a hoje
+        version: { type: integer, format: int64 }
+    TransactionPatch:
+      type: object
+      required: [version]
+      properties:
+        amount: { $ref: '#/components/schemas/Money' }
+        dueDate: { type: string, format: date }
+        version: { type: integer, format: int64 }
+    TransactionPage:
+      type: object
+      required: [content, page, size, totalElements]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+
+    Invoice:
+      type: object
+      required: [accountId, month, dueDate, total, paidIndividually, paidByInvoicePayments, remaining, items, payments]
+      properties:
+        accountId: { type: integer, format: int64 }
+        month: { $ref: '#/components/schemas/Month' }
+        dueDate: { type: string, format: date }
+        total: { $ref: '#/components/schemas/Money' }
+        paidIndividually: { $ref: '#/components/schemas/Money' }
+        paidByInvoicePayments: { $ref: '#/components/schemas/Money' }
+        remaining:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: total − paidIndividually − paidByInvoicePayments (nunca negativo)
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Transaction' }
+        payments:
+          type: array
+          items: { $ref: '#/components/schemas/InvoicePayment' }
+    InvoicePayment:
+      type: object
+      required: [id, amount, paidAt]
+      properties:
+        id: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/Money' }
+        paidAt: { type: string, format: date }
+    InvoicePaymentInput:
+      type: object
+      required: [amount, paidAt]
+      properties:
+        amount: { $ref: '#/components/schemas/Money' }
+        paidAt: { type: string, format: date }
+    InvoiceProjection:
+      type: object
+      required: [months, cards]
+      properties:
+        months:
+          type: array
+          items: { $ref: '#/components/schemas/Month' }
+        cards:
+          type: array
+          items:
+            type: object
+            required: [accountId, name, invoices, totalCommitted]
+            properties:
+              accountId: { type: integer, format: int64 }
+              name: { type: string }
+              totalCommitted:
+                allOf:
+                  - $ref: '#/components/schemas/Money'
+                description: Soma do restante das faturas do intervalo
+              invoices:
+                type: array
+                items:
+                  type: object
+                  required: [month, total, remaining]
+                  properties:
+                    month: { $ref: '#/components/schemas/Month' }
+                    total: { $ref: '#/components/schemas/Money' }
+                    remaining: { $ref: '#/components/schemas/Money' }
+
+    Dashboard:
+      type: object
+      required: [month, totalMonth, totalToDue, totalPaid, overdueTotal, byCategory, byCard]
+      properties:
+        month: { $ref: '#/components/schemas/Month' }
+        totalMonth:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Despesas com vencimento no mês
+        totalToDue:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Ainda pendente (após itens pagos e pagamentos de fatura) e não vencido
+        totalPaid:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Itens pagos + pagamentos de fatura
+        overdueTotal: { $ref: '#/components/schemas/Money' }
+        byCategory:
+          type: array
+          items:
+            type: object
+            required: [categoryId, name, colorHex, amount]
+            properties:
+              categoryId: { type: integer, format: int64 }
+              name: { type: string }
+              colorHex: { type: string }
+              amount: { $ref: '#/components/schemas/Money' }
+        byCard:
+          type: array
+          items:
+            type: object
+            required: [accountId, name, amount]
+            properties:
+              accountId: { type: integer, format: int64 }
+              name: { type: string }
+              amount: { $ref: '#/components/schemas/Money' }
+    CashflowMonth:
+      type: object
+      required: [month, expectedIncome, expectedExpense, residual]
+      properties:
+        month: { $ref: '#/components/schemas/Month' }
+        expectedIncome: { $ref: '#/components/schemas/Money' }
+        expectedExpense: { $ref: '#/components/schemas/Money' }
+        residual:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: expectedIncome − expectedExpense (pode ser negativo)

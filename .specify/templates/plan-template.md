@@ -31,7 +31,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Verify against `.specify/memory/constitution.md` (v1.0.0):
+Verify against `.specify/memory/constitution.md` (versão vigente):
 
 - [ ] **I. Monorepo**: code placed in the correct `apps/` or `packages/` project; no app-to-app imports; shared DTOs/enums in `core-models`
 - [ ] **II. Financial integrity**: `BigDecimal`/`NUMERIC(19,2)` for money; installments sum exactly to total; closing/due day rules covered
