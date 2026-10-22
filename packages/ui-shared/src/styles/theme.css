@@ -68,6 +68,13 @@ table td {
   .gef-link {
     @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;
   }
+  .gef-sheet-backdrop {
+    @apply fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center;
+  }
+  .gef-sheet {
+    @apply max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-gefinc-border bg-gefinc-surface p-4 md:max-w-lg md:rounded-2xl;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
   .gef-field-error {
     @apply mt-1 text-caption text-gefinc-danger;
   }

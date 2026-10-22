@@ -7,3 +7,4 @@ export * from './lib/charts/card-bars';
 export * from './lib/charts/category-donut';
 export * from './lib/charts/chart-slice';
 export * from './lib/viewport/viewport';
+export * from './lib/layout/sheet';

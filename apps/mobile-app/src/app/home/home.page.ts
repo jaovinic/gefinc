@@ -1,10 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { IonContent } from '@ionic/angular';
 import { RouterLink } from '@angular/router';
 import type { Dashboard } from '@gefinc/core-models';
 import { DashboardApi, ErrorView, LoadingView, messageFor, toProblem } from '@gefinc/ui-shared';
 import { currentMonth, formatBRL } from '@gefinc/utils';
-import { LogoutAction } from '../core/logout';
 
 /**
  * Tela inicial do app: resumo do mês e o botão "Nova despesa", ponto de partida do lançamento rápido
@@ -12,13 +10,9 @@ import { LogoutAction } from '../core/logout';
  */
 @Component({
   selector: 'gef-home-page',
-  imports: [IonContent, ErrorView, LoadingView, RouterLink],
+  imports: [ErrorView, LoadingView, RouterLink],
   template: `
-    <ion-content>
-      <header class="gef-app-header">
-        <span class="text-title-md font-extrabold tracking-wide text-gefinc-primary">GEFINC</span>
-        <button type="button" class="gef-btn-secondary" (click)="logout.run()">Sair</button>
-      </header>
+    <div>
       <section class="space-y-4 p-4 pb-28">
         <h1 class="text-title-lg font-bold">Resumo de {{ monthLabel() }}</h1>
         @if (loading()) {
@@ -51,12 +45,11 @@ import { LogoutAction } from '../core/logout';
         class="gef-fab"
         >+ Nova despesa</a
       >
-    </ion-content>
+    </div>
   `,
 })
 export class HomePage implements OnInit {
   private readonly api = inject(DashboardApi);
-  protected readonly logout = inject(LogoutAction);
 
   protected readonly summary = signal<Dashboard | null>(null);
   protected readonly loading = signal(true);

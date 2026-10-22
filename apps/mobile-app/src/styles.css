@@ -33,6 +33,40 @@
   }
   .gef-fab {
     @apply fixed right-6 rounded-full bg-gefinc-primary px-6 py-4 text-body-base font-bold text-gefinc-bg shadow-lg;
-    bottom: calc(env(safe-area-inset-bottom) + 1.5rem);
+    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1.5rem);
+  }
+}
+
+/* Casca do app: cabeçalho, conteúdo rolável e barra de abas (altura em --gef-tabbar-h). */
+.gef-shell {
+  --gef-tabbar-h: 3.5rem;
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  background: var(--color-gefinc-bg);
+}
+.gef-shell-main {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@layer components {
+  .gef-tabbar {
+    @apply flex border-t border-gefinc-border bg-gefinc-surface;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .gef-tab {
+    @apply flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-caption text-gefinc-muted;
+  }
+  .gef-tab-active {
+    @apply font-semibold text-gefinc-primary;
+  }
+  .gef-page {
+    @apply p-4;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 6rem);
+  }
+  .gef-menu-item {
+    @apply flex min-h-12 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text;
   }
 }
