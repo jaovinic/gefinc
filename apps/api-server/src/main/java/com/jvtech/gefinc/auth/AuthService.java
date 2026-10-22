@@ -24,6 +24,7 @@ public class AuthService {
   private final JwtService jwt;
   private final TokenService tokens;
   private final Clock clock;
+  private final LoginAttemptLimiter limiter;
   private final String dummyHash;
 
   public AuthService(
@@ -31,23 +32,28 @@ public class AuthService {
       PasswordEncoder encoder,
       JwtService jwt,
       TokenService tokens,
-      Clock clock) {
+      Clock clock,
+      LoginAttemptLimiter limiter) {
     this.users = users;
     this.encoder = encoder;
     this.jwt = jwt;
     this.tokens = tokens;
     this.clock = clock;
+    this.limiter = limiter;
     // Comparação "de fachada" quando o e-mail não existe, para o tempo de resposta não revelá-lo.
     this.dummyHash = encoder.encode("senha-de-fachada-para-igualar-o-tempo");
   }
 
   @Transactional
-  public Session login(String email, String password) {
+  public Session login(String email, String password, String clientIp) {
+    limiter.checkAllowed(email, clientIp);
     User user = users.findByEmail(email.strip()).orElse(null);
     boolean matches = matches(password, user == null ? dummyHash : user.getPasswordHash());
     if (user == null || !matches) {
+      limiter.recordFailure(email, clientIp);
       throw invalidCredentials();
     }
+    limiter.recordSuccess(email);
     if (user.isDeletionPending()) {
       throw deletionPending(user);
     }

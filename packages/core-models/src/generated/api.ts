@@ -60,6 +60,8 @@ export interface paths {
          * @description Com o cabeçalho `X-Client: web`, o refresh token é entregue em cookie
          *     `HttpOnly; Secure; SameSite=Strict` e omitido do corpo. Sem ele (mobile), vem no corpo.
          *     Conta com exclusão pendente responde `423` (`ACCOUNT_DELETION_PENDING`) sem emitir tokens.
+         *     Depois de 5 falhas por e-mail ou 20 por IP em 15 minutos, responde `429` com `Retry-After`,
+         *     mesmo que a senha esteja certa (FR-002).
          */
         post: {
             parameters: {
@@ -96,6 +98,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["DeletionPendingProblem"];
                     };
                 };
+                429: components["responses"]["TooManyRequests"];
             };
         };
         delete?: never;
@@ -382,6 +385,7 @@ export interface paths {
                         "application/problem+json": components["schemas"]["Problem"];
                     };
                 };
+                429: components["responses"]["TooManyRequests"];
             };
         };
         delete?: never;
@@ -1640,7 +1644,7 @@ export interface components {
             recurrenceType: components["schemas"]["RecurrenceType"];
             /** @description Valor total (INSTALLMENT), valor mensal (FIXED) ou valor único (VARIABLE) */
             totalAmount: components["schemas"]["Money"];
-            /** @description Obrigatório (≥ 2) para INSTALLMENT; nos demais tipos é 1 e pode ser omitido */
+            /** @description Obrigatório para INSTALLMENT (1 vira um avulso; até 120); nos demais tipos é 1 e pode ser omitido */
             totalInstallments?: number;
             /** Format: int64 */
             accountId: number;

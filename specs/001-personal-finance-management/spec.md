@@ -198,7 +198,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 **Acesso e privacidade**
 
 - **FR-001**: O sistema MUST permitir que uma pessoa crie uma conta com e-mail e senha, recusando e-mails já cadastrados ou inválidos e senhas fora das regras de segurança.
-- **FR-002**: O sistema MUST permitir login e logout, mantendo a sessão ativa sem exigir novo login a cada acesso, e MUST renovar a sessão automaticamente enquanto a renovação for válida.
+- **FR-002**: O sistema MUST permitir login e logout, mantendo a sessão ativa sem exigir novo login a cada acesso, e MUST renovar a sessão automaticamente enquanto a renovação for válida, além de limitar tentativas de login que falharam (5 por e-mail e 20 por IP em 15 minutos, com resposta `429` e `Retry-After`).
 - **FR-003**: O sistema MUST armazenar senhas de forma irreversível e MUST NOT exibir senhas ou credenciais em mensagens, telas ou registros de log.
 - **FR-004**: O sistema MUST garantir que cada usuário acesse, liste, altere e exclua somente os próprios dados (contas, categorias, lançamentos).
 - **FR-005**: O sistema MUST manter a sessão do aplicativo móvel em armazenamento seguro do dispositivo.
