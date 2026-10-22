@@ -136,7 +136,7 @@ A pessoa abre o aplicativo sem conexão (metrô, avião, sinal fraco), consulta 
 **Acceptance Scenarios**:
 
 1. **Given** dados já sincronizados, **When** o usuário abre o aplicativo sem conexão, **Then** vê painel, lançamentos, faturas, contas e categorias da última sincronização, com aviso claro da data e hora desses dados.
-2. **Given** o aplicativo sem conexão, **When** o usuário registra um lançamento (avulso, fixo ou parcelado) ou marca/desfaz o pagamento de um item, **Then** a operação é guardada no aparelho, aparece como "pendente de envio" e a tela já reflete o efeito esperado.
+2. **Given** o aplicativo sem conexão, **When** o usuário registra um lançamento (avulso, fixo ou parcelado) ou marca/desfaz o pagamento de um item, **Then** a operação é guardada no aparelho e aparece como "pendente de envio" na lista de lançamentos, que já reflete o efeito esperado; painel, faturas e fluxo de caixa mostram o aviso de que não incluem as operações pendentes até o envio.
 3. **Given** operações pendentes, **When** a conexão volta, **Then** o aplicativo as envia sozinho, na ordem em que foram feitas, e cada uma é registrada exatamente uma vez, mesmo se o envio for interrompido e repetido.
 4. **Given** uma operação pendente que o servidor recusa (por exemplo, o item já foi pago no web, a conta foi inativada ou o valor ficou inválido), **When** o envio ocorre, **Then** o aplicativo avisa qual operação falhou e por quê, mantém o que foi digitado e permite corrigir ou descartar.
 5. **Given** o aplicativo sem conexão, **When** o usuário tenta uma ação que exige conexão (editar ou excluir lançamentos, contas, categorias, pagar fatura, excluir conta, recuperar senha), **Then** o aplicativo explica que precisa de conexão e não perde nada.
@@ -189,7 +189,7 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 - Operações feitas sem conexão em dois aparelhos ao mesmo tempo, ou alteradas no web antes do envio: cada operação é validada pelo servidor; conflitos são mostrados ao usuário e nunca sobrescrevem dados em silêncio.
 - Relógio do aparelho errado ou mudança de fuso: datas e avisos seguem o fuso do Brasil usado pelo sistema.
 - Muitos lançamentos pendentes de envio: o envio acontece em lotes e mostra o progresso, sem travar a tela.
-- Biometria alterada no aparelho (nova digital ou novo rosto cadastrado): o aplicativo pede a senha novamente antes de reativar o bloqueio.
+- Biometria removida ou indisponível no aparelho depois de ativada (por exemplo, todas as digitais apagadas): o aplicativo desliga o bloqueio, pede e-mail e senha e avisa o motivo.
 - Aparelho reiniciado ou aplicativo encerrado pelo sistema: os lembretes continuam agendados e as operações pendentes não se perdem.
 - Sessão expirada ou revogada enquanto o usuário usa o aplicativo (por exemplo, após pedir exclusão de conta em outro aparelho): o aplicativo leva à tela de entrada com aviso claro.
 - Dados alterados no web enquanto o aplicativo está aberto: ao voltar à tela ou ao puxar para atualizar, os dados mostram o estado atual.
@@ -259,7 +259,7 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 
 - **FR-034**: O aplicativo MUST oferecer o bloqueio por biometria do aparelho como opção desligada por padrão, ativada e desativada em Minha conta, com tempo de bloqueio escolhido (imediato, 1 minuto ou 5 minutos em segundo plano).
 - **FR-035**: Com o bloqueio ativo, o aplicativo MUST ocultar todo o conteúdo financeiro, inclusive na visão de aplicativos recentes do sistema, até a biometria ser confirmada.
-- **FR-036**: O aplicativo MUST oferecer a entrada por e-mail e senha como alternativa quando a biometria falhar, for recusada, ficar indisponível ou mudar no aparelho, e nesse caso MUST encerrar a sessão anterior.
+- **FR-036**: O aplicativo MUST oferecer a entrada por e-mail e senha como alternativa quando a biometria falhar, for recusada ou ficar indisponível no aparelho, e nesse caso MUST encerrar a sessão anterior.
 - **FR-037**: A biometria MUST NOT substituir a senha em ações que já a exigem (exclusão de conta) e MUST NOT ser armazenada nem enviada ao servidor.
 
 **Lembretes**
@@ -299,7 +299,7 @@ Esta feature não cria entidades novas; ela expõe no celular as entidades da fe
 - **SC-010**: Em 100% dos testes, operações registradas sem conexão aparecem exatamente uma vez no servidor depois que a conexão volta, inclusive quando o envio é interrompido e repetido, e 100% das recusas são mostradas ao usuário com o motivo.
 - **SC-011**: Sem conexão, painel, lançamentos e faturas da última sincronização abrem em até 2 segundos.
 - **SC-012**: Com o bloqueio ativo, o usuário desbloqueia o aplicativo em até 3 segundos com a biometria, e em nenhum teste o conteúdo financeiro fica visível antes do desbloqueio, inclusive na visão de aplicativos recentes.
-- **SC-013**: Em pelo menos 95% dos testes, o lembrete aparece no horário escolhido (margem de 5 minutos), e em 100% dos testes não aparece lembrete de item já pago.
+- **SC-013**: Em pelo menos 95% dos testes, o lembrete aparece no horário escolhido (margem de 15 minutos, por limitação dos alarmes do sistema operacional), e em 100% dos testes não aparece lembrete de item já pago.
 
 ## Assumptions
 
