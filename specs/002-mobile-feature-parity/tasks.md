@@ -172,13 +172,13 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Planejamento puro dos avisos, agendamento local, preferências e toque que abre a lista
 
-- [ ] T072 [P] [US9] [Teste] Escrever `packages/utils/src/lib/reminders.spec.ts` para `planReminders`: horizonte de 14 dias, "vencem amanhã" na véspera e "vencem hoje" no dia no horário escolhido, resumo diário de atrasados por até 7 dias, tipos desligados não geram aviso, no máximo 35 avisos, ids determinísticos `AAAAMMDD*10+tipo`, singular e plural, texto sem valores nem nomes, virada de mês e de ano; ver falhar
-- [ ] T073 [P] [US9] [Teste] Escrever `apps/mobile-app/src/app/reminders/reminders.service.spec.ts`: pedir permissão só ao ativar, permissão negada explica como liberar, cancelar tudo e reagendar, reagendar ao abrir, sincronizar, pagar ou desfazer e mudar preferências, toque no aviso navega para `/lancamentos` com os filtros; ver falhar
-- [ ] T074 [P] [US9] [Teste] Criar `apps/mobile-app-e2e/src/reminders.spec.ts` (E2E mobile com dublê de notificações): ativar lembretes, avisos agendados para o que vence amanhã, pagar o item remove o aviso, desligar um tipo, permissão negada; ver falhar
-- [ ] T075 [US9] Implementar `packages/utils/src/lib/reminders.ts` (`planReminders`) e exportar em `packages/utils/src/index.ts`
-- [ ] T076 [US9] Implementar `apps/mobile-app/src/app/reminders/reminders.service.ts` (`@capacitor/local-notifications`, `DueSummaryApi`, reagendamento total com ids determinísticos e canal de notificação no Android) e ligá-lo ao `SyncEngine`, à abertura do app e às ações de pagar e desfazer
-- [ ] T077 [US9] Tratar o toque no aviso (`localNotificationActionPerformed`) abrindo `/lancamentos` com `status=PENDING` e a data; acrescentar em `apps/mobile-app/src/app/settings/settings.page.ts` a seção de lembretes (tipos, horário, estado da permissão) e persistir as preferências
-- [ ] T078 [US9] Executar `npx nx test utils`, `npx nx test mobile-app` e `npx nx e2e mobile-app-e2e` (reminders)
+- [X] T072 [P] [US9] [Teste] Escrever `packages/utils/src/lib/reminders.spec.ts` para `planReminders`: horizonte de 14 dias, "vencem amanhã" na véspera e "vencem hoje" no dia no horário escolhido, resumo diário de atrasados por até 7 dias, tipos desligados não geram aviso, no máximo 35 avisos, ids determinísticos `AAAAMMDD*10+tipo`, singular e plural, texto sem valores nem nomes, virada de mês e de ano; ver falhar
+- [X] T073 [P] [US9] [Teste] Escrever `apps/mobile-app/src/app/reminders/reminders.service.spec.ts`: pedir permissão só ao ativar, permissão negada explica como liberar, cancelar tudo e reagendar, reagendar ao abrir, sincronizar, pagar ou desfazer e mudar preferências, toque no aviso navega para `/lancamentos` com os filtros; ver falhar
+- [X] T074 [P] [US9] [Teste] Criar `apps/mobile-app-e2e/src/reminders.spec.ts` (E2E mobile com dublê de notificações): ativar lembretes, avisos agendados para o que vence amanhã, pagar o item remove o aviso, desligar um tipo, permissão negada; ver falhar
+- [X] T075 [US9] Implementar `packages/utils/src/lib/reminders.ts` (`planReminders`) e exportar em `packages/utils/src/index.ts`
+- [X] T076 [US9] Implementar `apps/mobile-app/src/app/reminders/reminders.service.ts` (`@capacitor/local-notifications`, `DueSummaryApi`, reagendamento total com ids determinísticos e canal de notificação no Android) e ligá-lo ao `SyncEngine`, à abertura do app e às ações de pagar e desfazer
+- [X] T077 [US9] Tratar o toque no aviso (`localNotificationActionPerformed`) abrindo `/lancamentos` com `status=PENDING` e a data; acrescentar em `apps/mobile-app/src/app/settings/settings.page.ts` a seção de lembretes (tipos, horário, estado da permissão) e persistir as preferências
+- [X] T078 [US9] Executar `npx nx test utils`, `npx nx test mobile-app` e `npx nx e2e mobile-app-e2e` (reminders)
 
 ---
 

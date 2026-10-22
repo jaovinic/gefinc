@@ -89,11 +89,13 @@ export const offlineInterceptor: HttpInterceptorFn = (req, next) => {
   const key = crypto.randomUUID();
   const enqueue = (): Observable<HttpEvent<unknown>> =>
     from(queue.enqueue({ ...op, id: key })).pipe(switchMap(() => of(new HttpResponse({ status: 202, body: {} }))));
+  const enqueueAndNotify = (): Observable<HttpEvent<unknown>> => enqueue().pipe(tap(() => state.mutated()));
   if (!network.online()) {
-    return enqueue();
+    return enqueueAndNotify();
   }
   return next(req.clone({ setHeaders: { 'Idempotency-Key': key } })).pipe(
-    catchError((error: unknown) => (isNetworkError(error) ? enqueue() : throwError(() => error))),
+    tap((event) => event instanceof HttpResponse && state.mutated()),
+    catchError((error: unknown) => (isNetworkError(error) ? enqueueAndNotify() : throwError(() => error))),
   );
 };
 

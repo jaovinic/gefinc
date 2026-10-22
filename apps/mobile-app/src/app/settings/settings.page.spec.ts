@@ -7,11 +7,17 @@ import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, SessionService, TokenStore
 import { LogoutAction } from '../core/logout';
 import { AppLockService } from '../lock/app-lock.service';
 import { DevicePreferences } from '../lock/device-preferences';
+import { RemindersService } from '../reminders/reminders.service';
 import { SettingsPage } from './settings.page';
 
 describe('Minha conta (app móvel)', () => {
   const logout = { run: jest.fn() };
   const lockPrefs = signal({ enabled: false, timeoutMinutes: 1 });
+  const reminderPrefs = signal({ dueTomorrow: false, dueToday: false, overdue: false, hour: 9 });
+  const remindersService = {
+    setKind: jest.fn(async (): Promise<unknown> => ({ ok: true })),
+    setHour: jest.fn(async () => undefined),
+  };
   const lockService = {
     enable: jest.fn(async (): Promise<unknown> => ({ ok: true })),
     disable: jest.fn(async (): Promise<unknown> => ({ ok: true })),
@@ -27,7 +33,8 @@ describe('Minha conta (app móvel)', () => {
         { provide: CLIENT_KIND, useValue: 'mobile' },
         { provide: TokenStore, useClass: MemoryTokenStore },
         { provide: LogoutAction, useValue: logout },
-        { provide: DevicePreferences, useValue: { lock: lockPrefs, reminders: signal({ dueTomorrow: false, dueToday: false, overdue: false, hour: 9 }) } },
+        { provide: DevicePreferences, useValue: { lock: lockPrefs, reminders: reminderPrefs } },
+        { provide: RemindersService, useValue: remindersService },
         { provide: AppLockService, useValue: lockService },
       ],
     });
@@ -39,6 +46,9 @@ describe('Minha conta (app móvel)', () => {
   beforeEach(() => {
     logout.run.mockReset();
     lockPrefs.set({ enabled: false, timeoutMinutes: 1 });
+    reminderPrefs.set({ dueTomorrow: false, dueToday: false, overdue: false, hour: 9 });
+    remindersService.setKind.mockClear().mockResolvedValue({ ok: true });
+    remindersService.setHour.mockClear();
     lockService.enable.mockClear().mockResolvedValue({ ok: true });
     lockService.disable.mockClear().mockResolvedValue({ ok: true });
   });
@@ -141,6 +151,53 @@ describe('Minha conta (app móvel)', () => {
       fixture.detectChanges();
 
       expect(lockService.disable).toHaveBeenCalled();
+    });
+  });
+
+  describe('lembretes de vencimento', () => {
+    const sw = (el: HTMLElement, label: string) => el.querySelector(`input[role="switch"][aria-label="${label}"]`) as HTMLInputElement;
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it('mostra os três tipos de aviso desligados e o horário padrão das 9h', () => {
+      const { el } = setup();
+
+      for (const label of ['Contas que vencem amanhã', 'Contas que vencem hoje', 'Contas atrasadas']) {
+        expect(sw(el, label).checked).toBe(false);
+      }
+      const hour = el.querySelector('select[aria-label="Horário dos lembretes"]') as HTMLSelectElement;
+      expect(hour.value).toBe('9');
+      expect(el.textContent).toContain('só quantidade');
+    });
+
+    it('ligar um tipo pede ao serviço (que cuida da permissão) e vale na hora', async () => {
+      const { el } = setup();
+
+      sw(el, 'Contas que vencem hoje').click();
+      await flush();
+
+      expect(remindersService.setKind).toHaveBeenCalledWith('dueToday', true);
+    });
+
+    it('permissão negada mostra como liberar e desfaz a chave', async () => {
+      remindersService.setKind.mockResolvedValue({ ok: false, message: 'Libere as notificações nas configurações do aparelho.' });
+      const { el, fixture } = setup();
+
+      sw(el, 'Contas atrasadas').click();
+      await flush();
+      fixture.detectChanges();
+
+      expect(el.querySelector('[data-testid="reminders-feedback"]')?.textContent).toContain('configurações do aparelho');
+      expect(sw(el, 'Contas atrasadas').checked).toBe(false);
+    });
+
+    it('mudar o horário reagenda', async () => {
+      const { el } = setup();
+      const hour = el.querySelector('select[aria-label="Horário dos lembretes"]') as HTMLSelectElement;
+      hour.value = '20';
+      hour.dispatchEvent(new Event('change'));
+      await flush();
+
+      expect(remindersService.setHour).toHaveBeenCalledWith(20);
     });
   });
 });

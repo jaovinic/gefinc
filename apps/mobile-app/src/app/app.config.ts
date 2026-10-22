@@ -9,6 +9,7 @@ import { appRoutes } from './app.routes';
 import { provideLock } from './lock/lock.providers';
 import { offlineInterceptor } from './offline/offline.interceptor';
 import { provideOffline } from './offline/offline.providers';
+import { provideReminders } from './reminders/reminders.providers';
 import { provideSession } from './core/session.providers';
 
 registerLocaleData(localePt);
@@ -24,5 +25,6 @@ export const appConfig: ApplicationConfig = {
     provideSession(),
     provideOffline(),
     provideLock(),
+    provideReminders(),
   ],
 };

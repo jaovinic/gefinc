@@ -152,6 +152,18 @@ describe('offlineInterceptor', () => {
       expect(queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({ id: key, kind: 'PAY' }));
     });
 
+    it('avisa que houve alteração (para reagendar os lembretes) quando a operação é enviada ou enfileirada', async () => {
+      const before = state.mutationCount();
+      http.post(`${API}/transactions/9/pay`, { paymentDate: '2026-11-10' }).subscribe();
+      backend.expectOne(`${API}/transactions/9/pay`).flush({ id: 9 });
+      expect(state.mutationCount()).toBe(before + 1);
+
+      online.set(false);
+      http.post(`${API}/transactions/8/unpay`, null).subscribe();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(state.mutationCount()).toBe(before + 2);
+    });
+
     it('recusa do servidor com conexão não é enfileirada', async () => {
       const result = new Promise<unknown>((resolve) => http.post(`${API}/transactions/9/pay`, {}).subscribe({ error: resolve }));
       backend.expectOne(`${API}/transactions/9/pay`).flush({ code: 'CONFLICT' }, { status: 409, statusText: 'Conflict' });

@@ -1,6 +1,7 @@
 import { InjectionToken, isDevMode } from '@angular/core';
 import { BiometricAuth, BiometryError } from '@aparajita/capacitor-biometric-auth';
 import { PrivacyScreen } from '@capacitor-community/privacy-screen';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 export type BiometricFailureCode = 'cancelled' | 'failed' | 'lockout' | 'unavailable';
 
@@ -101,3 +102,85 @@ export function privacyPort(): PrivacyPort {
 
 export const BIOMETRIC_PORT = new InjectionToken<BiometricPort>('BIOMETRIC_PORT', { providedIn: 'root', factory: () => biometricPort() });
 export const PRIVACY_PORT = new InjectionToken<PrivacyPort>('PRIVACY_PORT', { providedIn: 'root', factory: () => privacyPort() });
+
+export type NotificationPermission = 'granted' | 'denied' | 'prompt';
+
+export interface ScheduledNotification {
+  id: number;
+  at: Date;
+  title: string;
+  body: string;
+  /** Rota aberta ao tocar no aviso. */
+  route: string;
+}
+
+export interface NotificationsPort {
+  permission(): Promise<NotificationPermission>;
+  requestPermission(): Promise<NotificationPermission>;
+  cancelAll(): Promise<void>;
+  schedule(items: ScheduledNotification[]): Promise<void>;
+  /** Chamado quando o usuário toca em um aviso. */
+  onTap(listener: (route: string) => void): Promise<void>;
+}
+
+const CHANNEL = 'vencimentos';
+
+const toPermission = (display: string): NotificationPermission => (display === 'granted' ? 'granted' : display === 'denied' ? 'denied' : 'prompt');
+
+export function notificationsPort(): NotificationsPort {
+  const double = nativeDoubles()?.notifications;
+  if (double) {
+    return {
+      permission: async () => double.permission,
+      requestPermission: async () => {
+        if (double.permission === 'prompt') {
+          double.permission = 'granted';
+        }
+        return double.permission;
+      },
+      cancelAll: async () => void (double.scheduled.length = 0),
+      schedule: async (items) => void double.scheduled.push(...items.map((i) => ({ id: i.id, at: i.at.toISOString(), title: i.title, body: i.body, route: i.route }))),
+      onTap: async (listener) => void (double.tapListeners ??= []).push(listener),
+    };
+  }
+  return {
+    permission: async () => toPermission((await LocalNotifications.checkPermissions()).display),
+    requestPermission: async () => toPermission((await LocalNotifications.requestPermissions()).display),
+    cancelAll: async () => {
+      const { notifications } = await LocalNotifications.getPending();
+      if (notifications.length > 0) {
+        await LocalNotifications.cancel({ notifications });
+      }
+    },
+    schedule: async (items) => {
+      if (items.length === 0) {
+        return;
+      }
+      try {
+        await LocalNotifications.createChannel({ id: CHANNEL, name: 'Lembretes de vencimento', importance: 3 });
+      } catch {
+        // iOS e navegador não têm canais.
+      }
+      await LocalNotifications.schedule({
+        notifications: items.map((i) => ({
+          id: i.id,
+          title: i.title,
+          body: i.body,
+          channelId: CHANNEL,
+          schedule: { at: i.at, allowWhileIdle: true },
+          extra: { route: i.route },
+        })),
+      });
+    },
+    onTap: async (listener) => {
+      await LocalNotifications.addListener('localNotificationActionPerformed', (event) => {
+        const route = (event.notification.extra as { route?: string } | undefined)?.route;
+        if (route) {
+          listener(route);
+        }
+      });
+    },
+  };
+}
+
+export const NOTIFICATIONS_PORT = new InjectionToken<NotificationsPort>('NOTIFICATIONS_PORT', { providedIn: 'root', factory: () => notificationsPort() });
