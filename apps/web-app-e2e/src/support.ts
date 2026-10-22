@@ -13,7 +13,7 @@ export async function register(page: Page, email: string, password = PASSWORD) {
   await page.getByLabel('Senha', { exact: true }).fill(password);
   await page.getByLabel('Confirme a senha').fill(password);
   await page.getByRole('button', { name: 'Criar conta' }).click();
-  await expect(page.getByText('Tudo pronto para começar')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
 }
 
 export async function login(page: Page, email: string, password: string) {

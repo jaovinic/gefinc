@@ -279,17 +279,23 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 6 (MANDATORY) ⚠️
 
-- [ ] T098 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
-- [ ] T099 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
+- [X] T098 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
+- [X] T099 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
 
 ### Implementation for User Story 6
 
-- [ ] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
-- [ ] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
-- [ ] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
-- [ ] T103 [P] [US6] Teste E2E `apps/web-app-e2e/src/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
+- [X] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
+- [X] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
+- [X] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
+- [X] T103 [P] [US6] Teste E2E `apps/web-app-e2e/src/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
 
 **Checkpoint**: Painel mensal completo
+
+> **Notas de implementação da US6**
+> - O painel substitui a página inicial provisória do web (`/`); o mobile terá o resumo do mês na US7.
+> - Os gráficos (Chart.js 4) mostram sempre uma legenda textual acessível com os valores em reais; os testes
+>   simulam o Chart.js, pois o jsdom não tem canvas.
+> - Teste de desempenho: 6.000 lançamentos, p95 do painel, da projeção e do fluxo de caixa abaixo de 2 s.
 
 ---
 

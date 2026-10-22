@@ -52,6 +52,7 @@ export class Shell {
 
   /** Itens de navegação; cada história acrescenta os seus. */
   protected readonly nav: { path: string; label: string }[] = [
+    { path: '/', label: 'Painel' },
     { path: '/transactions', label: 'Lançamentos' },
     { path: '/invoices', label: 'Faturas' },
     { path: '/cashflow', label: 'Fluxo de caixa' },

@@ -29,7 +29,11 @@ export const appRoutes: Route[] = [
     component: Shell,
     canActivate: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) },
+      {
+        path: '',
+        pathMatch: 'full',
+        loadComponent: () => import('./dashboard/dashboard-page').then((m) => m.DashboardPage),
+      },
       {
         path: 'transactions',
         loadComponent: () => import('./transactions/transactions-page').then((m) => m.TransactionsPage),

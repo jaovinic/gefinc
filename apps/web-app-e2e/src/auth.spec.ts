@@ -10,7 +10,7 @@ test.describe('acesso seguro', () => {
     await expect(page).toHaveURL(/\/login$/);
 
     await login(page, email, PASSWORD);
-    await expect(page.getByText('Tudo pronto para começar')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
   });
 
   test('credenciais erradas mostram mensagem genérica e rota protegida redireciona ao login', async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe('acesso seguro', () => {
     await login(page, email, PASSWORD);
     await expect(page.getByRole('alert')).toContainText('E-mail ou senha incorretos.');
     await login(page, email, 'nova-senha-segura-456');
-    await expect(page.getByText('Tudo pronto para começar')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
 
     // o link é de uso único
     await page.goto(link);
@@ -63,6 +63,6 @@ test.describe('acesso seguro', () => {
     await login(page, email, PASSWORD);
     await expect(page.getByText('A exclusão desta conta está agendada para')).toBeVisible();
     await page.getByRole('button', { name: 'Cancelar a exclusão e entrar' }).click();
-    await expect(page.getByText('Tudo pronto para começar')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
   });
 });
