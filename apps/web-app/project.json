@@ -26,6 +26,7 @@
           }
         ],
         "styles": [
+          "node_modules/@fontsource-variable/plus-jakarta-sans/index.css",
           "apps/web-app/src/styles.css"
         ]
       },
@@ -60,7 +61,8 @@
       "executor": "@angular/build:dev-server",
       "defaultConfiguration": "development",
       "options": {
-        "port": 4200
+        "port": 4200,
+        "proxyConfig": "apps/web-app/proxy.conf.json"
       },
       "configurations": {
         "production": {

@@ -1,13 +1,9 @@
 import { Component } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { NxWelcome } from './nx-welcome';
+import { RouterOutlet } from '@angular/router';
 
 @Component({
-  imports: [NxWelcome, RouterModule],
+  imports: [RouterOutlet],
   selector: 'gef-root',
-  templateUrl: './app.html',
-  styleUrl: './app.css',
+  template: '<router-outlet />',
 })
-export class App {
-  protected title = 'web-app';
-}
+export class App {}

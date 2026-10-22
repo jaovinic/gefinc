@@ -1,13 +1,9 @@
 import { Component } from '@angular/core';
-import { RouterModule } from '@angular/router';
-import { NxWelcome } from './nx-welcome';
+import { IonApp, IonRouterOutlet } from '@ionic/angular';
 
 @Component({
-  imports: [NxWelcome, RouterModule],
+  imports: [IonApp, IonRouterOutlet],
   selector: 'gef-root',
-  templateUrl: './app.html',
-  styleUrl: './app.css',
+  template: '<ion-app><ion-router-outlet /></ion-app>',
 })
-export class App {
-  protected title = 'mobile-app';
-}
+export class App {}

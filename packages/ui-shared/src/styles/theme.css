@@ -1,0 +1,49 @@
+/*
+ * Tema GEFINC (manual de identidade visual, seção 3 a 5). Tailwind v4: os tokens viram utilitários
+ * como `bg-gefinc-surface`, `text-gefinc-muted` e `border-gefinc-border`. O produto é dark-first.
+ */
+@theme {
+  --color-gefinc-bg: #090d16;
+  --color-gefinc-surface: #131b2e;
+  --color-gefinc-border: #1e293b;
+  --color-gefinc-muted: #94a3b8;
+  --color-gefinc-text: #f8fafc;
+  --color-gefinc-primary: #00e599;
+  --color-gefinc-secondary: #00b4d8;
+  --color-gefinc-accent: #7c3aed;
+  --color-gefinc-danger: #f43f5e;
+  --color-gefinc-warning: #f59e0b;
+
+  --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, system-ui, sans-serif;
+
+  --text-display-1: 2rem;
+  --text-display-1--line-height: 2.375rem;
+  --text-title-lg: 1.5rem;
+  --text-title-lg--line-height: 1.875rem;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.5rem;
+  --text-body-base: 0.875rem;
+  --text-body-base--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 0.75rem;
+}
+
+html,
+body {
+  background-color: var(--color-gefinc-bg);
+  color: var(--color-gefinc-text);
+  font-family: var(--font-sans);
+  color-scheme: dark;
+}
+
+/* Algarismos tabulares: valores e tabelas não oscilam de largura (manual, seção 4.2). */
+.financial-value,
+.currency-display,
+table td {
+  font-feature-settings:
+    'tnum' on,
+    'lnum' on;
+}

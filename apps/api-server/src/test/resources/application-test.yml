@@ -1,0 +1,10 @@
+spring:
+  mail:
+    host: localhost
+    port: 3025
+
+app:
+  base-url: http://localhost:4200
+  security:
+    jwt-secret: segredo-de-teste-com-pelo-menos-32-caracteres-ok
+    bcrypt-strength: 4

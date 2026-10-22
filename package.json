@@ -44,6 +44,7 @@
     "jest-preset-angular": "~17.0.0",
     "jest-util": "~30.3.0",
     "nx": "24.0.0",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.31",
     "tailwindcss": "^4.3.3",
     "ts-jest": "^29.4.7",
@@ -60,11 +61,19 @@
     "@angular/platform-browser": "~22.2.0",
     "@angular/platform-browser-dynamic": "~22.2.0",
     "@angular/router": "~22.2.0",
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "^8.5.3",
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@ionic/angular": "^9.0.9",
     "rxjs": "~7.8.0"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
