@@ -27,11 +27,11 @@ let nextId = 0;
       (click)="openList()"
     >
       @if (selected(); as account) {
-        <gef-account-badge [account]="account" [showHolder]="true" [showBank]="true" />
+        <gef-account-badge class="min-w-0 flex-1" [account]="account" [showHolder]="true" [showBank]="true" />
       } @else {
         <span class="text-gefinc-muted">{{ placeholder() }}</span>
       }
-      <gef-icon name="chevron-down" [size]="16" />
+      <gef-icon class="shrink-0" name="chevron-down" [size]="16" />
     </button>
     <gef-sheet [heading]="label()" [open]="opened()" (closed)="opened.set(false)">
       @if (options().length === 0) {

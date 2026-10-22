@@ -17,7 +17,7 @@ export type AccountLike = Pick<Account, 'name' | 'type'> &
   template: `
     <span class="flex min-w-0 items-center gap-2">
       <span class="gef-account-tile" [class]="tone()"><gef-icon [name]="iconName()" [size]="18" /></span>
-      <span class="flex min-w-0 flex-col">
+      <span class="flex min-w-0 flex-1 flex-col">
         <span class="flex min-w-0 items-center gap-2">
           <span class="truncate font-medium" data-name [attr.title]="account().name">{{ account().name }}</span>
           @if (showHolder() && account().holderType; as holder) {

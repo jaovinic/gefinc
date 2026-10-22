@@ -72,6 +72,7 @@ test.describe('menu lateral do web', () => {
     await expect(drawer).toBeHidden();
 
     await page.getByRole('button', { name: 'Abrir menu' }).click();
+    await expect(drawer).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(drawer).toBeHidden();
   });

@@ -46,7 +46,8 @@ test('fatura do cartão com pagamento parcial e conferência dos totais do paine
   await page.getByRole('link', { name: 'Painel', exact: true }).click();
   await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 340,00');
   await expect(page.locator('[data-indicator="paid"]')).toContainText('R$ 120,00');
-  await expect(page.locator('canvas[role="img"]')).toHaveCount(2);
+  await expect(page.locator('canvas[role="img"]')).toHaveCount(1); // rosca por categoria
+  await expect(page.getByTestId('card-share-row')).toHaveCount(1); // barras por cartão (HTML)
   await expect(page.getByLabel('Legenda do gráfico por cartão')).toContainText('Nubank');
   await expect(page.getByLabel('Legenda do gráfico por categoria')).toContainText('Alimentação');
 });

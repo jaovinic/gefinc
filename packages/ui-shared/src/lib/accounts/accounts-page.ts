@@ -13,12 +13,12 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
   imports: [AccountBadge, AccountForm, EmptyView, ErrorView, LoadingView, Sheet],
   template: `
     <section class="space-y-4">
-      <header class="flex flex-wrap items-center justify-between gap-3">
+      <header class="space-y-3">
         <h1 class="text-title-lg font-bold">Contas e cartões</h1>
-        <div class="flex items-center gap-4">
-          <label class="flex min-h-11 items-center gap-2 text-body-base text-gefinc-muted md:min-h-0">
-            <input type="checkbox" class="h-5 w-5" [checked]="showInactive()" (change)="toggleInactive($event)" />
-            Mostrar inativas
+        <div class="flex items-center justify-between gap-3">
+          <label class="gef-switch-row">
+            <input type="checkbox" class="gef-switch" [checked]="showInactive()" (change)="toggleInactive($event)" />
+            <span>Mostrar inativas</span>
           </label>
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </div>
@@ -42,7 +42,7 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
       @if (showHolderFilter()) {
         <div class="flex gap-2" role="radiogroup" aria-label="Filtrar por titular" data-field="holderFilter">
           @for (option of holderFilters; track option.value) {
-            <label class="gef-segment">
+            <label class="gef-segment px-2 text-center text-caption leading-tight sm:text-body-base">
               <input type="radio" name="holderFilter" [checked]="holderFilter() === option.value" (change)="holderFilter.set(option.value)" />
               <span>{{ option.label }}</span>
             </label>

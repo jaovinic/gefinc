@@ -21,8 +21,8 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
     <section class="space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-title-lg font-bold">Faturas</h1>
-        <div class="flex w-full flex-wrap items-end gap-3 sm:w-auto">
-          <div class="min-w-0 flex-1 sm:min-w-56 sm:flex-none">
+        <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+          <div class="w-full min-w-0 sm:w-72">
             <gef-account-picker label="Cartão" [accounts]="cards()" [ngModel]="cardId()" (ngModelChange)="cardId.set(+$event)" />
           </div>
           <gef-month-picker [(value)]="month" />
