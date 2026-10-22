@@ -7,7 +7,7 @@
 
 ## Contexto
 
-Hoje o aplicativo móvel oferece apenas entrar, criar conta, o resumo do mês e o lançamento rápido de despesa. Todo o restante do GEFINC (contas e cartões, categorias, lista e cadastro completo de lançamentos, faturas, projeção, fluxo de caixa, painel com gráficos e exclusão de conta) só existe na versão web. Esta feature leva ao celular **todas** as funções da versão web, com uma interface pensada para telas pequenas e toque, no Android e no iOS. As regras de negócio não mudam: os requisitos da feature `001-personal-finance-management` continuam valendo e esta feature só define como elas passam a estar disponíveis no celular.
+Hoje o aplicativo móvel oferece apenas entrar, criar conta, o resumo do mês e o lançamento rápido de despesa. Todo o restante do GEFINC (contas e cartões, categorias, lista e cadastro completo de lançamentos, faturas, projeção, fluxo de caixa, painel com gráficos e exclusão de conta) só existe na versão web. Esta feature leva ao celular **todas** as funções da versão web, com uma interface pensada para telas pequenas e toque, no Android e no iOS, e acrescenta o que é próprio do celular: uso sem internet, desbloqueio por biometria e lembretes de vencimento. As regras de negócio não mudam: os requisitos da feature `001-personal-finance-management` continuam valendo e esta feature só define como elas passam a estar disponíveis no celular.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -125,9 +125,72 @@ A pessoa usa todas as telas com conforto em aparelhos de tamanhos e versões dif
 
 ---
 
+### User Story 7 - Usar o aplicativo sem internet (Priority: P7)
+
+A pessoa abre o aplicativo sem conexão (metrô, avião, sinal fraco), consulta os últimos dados sincronizados e registra lançamentos e pagamentos que seguem para o servidor automaticamente quando a conexão volta.
+
+**Why this priority**: Registrar a despesa na hora, onde quer que esteja, é o principal ganho do celular; sem isso o hábito falha justamente nos lugares sem sinal.
+
+**Independent Test**: Sincronizar o aplicativo com a conexão ligada, desligar a conexão, consultar painel, lançamentos e faturas, registrar uma despesa e marcar um item como pago, religar a conexão e conferir que tudo aparece uma única vez no web.
+
+**Acceptance Scenarios**:
+
+1. **Given** dados já sincronizados, **When** o usuário abre o aplicativo sem conexão, **Then** vê painel, lançamentos, faturas, contas e categorias da última sincronização, com aviso claro da data e hora desses dados.
+2. **Given** o aplicativo sem conexão, **When** o usuário registra um lançamento (avulso, fixo ou parcelado) ou marca/desfaz o pagamento de um item, **Then** a operação é guardada no aparelho, aparece como "pendente de envio" e a tela já reflete o efeito esperado.
+3. **Given** operações pendentes, **When** a conexão volta, **Then** o aplicativo as envia sozinho, na ordem em que foram feitas, e cada uma é registrada exatamente uma vez, mesmo se o envio for interrompido e repetido.
+4. **Given** uma operação pendente que o servidor recusa (por exemplo, o item já foi pago no web, a conta foi inativada ou o valor ficou inválido), **When** o envio ocorre, **Then** o aplicativo avisa qual operação falhou e por quê, mantém o que foi digitado e permite corrigir ou descartar.
+5. **Given** o aplicativo sem conexão, **When** o usuário tenta uma ação que exige conexão (editar ou excluir lançamentos, contas, categorias, pagar fatura, excluir conta, recuperar senha), **Then** o aplicativo explica que precisa de conexão e não perde nada.
+6. **Given** operações pendentes, **When** o usuário sai da conta, **Then** o aplicativo avisa que há operações não enviadas e pede confirmação antes de descartá-las.
+
+---
+
+### User Story 8 - Desbloquear o aplicativo com biometria (Priority: P8)
+
+A pessoa ativa o bloqueio por biometria (digital ou rosto) e passa a entrar no aplicativo só com ela, sem digitar a senha, mantendo os dados protegidos se o aparelho for usado por outra pessoa.
+
+**Why this priority**: Aplicativo financeiro com dados pessoais precisa de uma barreira prática; a biometria dá segurança sem atrito. Depende da sessão segura já existente.
+
+**Independent Test**: Ativar o bloqueio em Minha conta, enviar o aplicativo para segundo plano além do tempo de bloqueio, voltar e desbloquear com a biometria; repetir com biometria recusada e usar a alternativa de senha.
+
+**Acceptance Scenarios**:
+
+1. **Given** um aparelho com biometria cadastrada, **When** o usuário ativa o bloqueio em Minha conta confirmando uma biometria, **Then** o recurso fica ligado e pode ser desligado a qualquer momento.
+2. **Given** o bloqueio ativo, **When** o aplicativo é aberto ou volta do segundo plano depois do tempo de bloqueio escolhido, **Then** o conteúdo fica oculto até a biometria ser confirmada.
+3. **Given** a biometria recusada várias vezes ou indisponível, **When** o usuário escolhe a alternativa, **Then** pode entrar com e-mail e senha, e a sessão antiga é encerrada.
+4. **Given** um aparelho sem biometria cadastrada, **When** o usuário abre Minha conta, **Then** o aplicativo explica que o recurso está indisponível e como habilitá-lo no aparelho.
+5. **Given** o bloqueio ativo, **When** o aplicativo aparece na lista de aplicativos recentes do sistema, **Then** o conteúdo financeiro não fica visível na miniatura.
+6. **Given** ações sensíveis (excluir a conta, desligar o bloqueio), **When** o usuário as solicita, **Then** a biometria não substitui a senha onde a senha já é exigida.
+
+---
+
+### User Story 9 - Receber lembretes de vencimento (Priority: P9)
+
+A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão atrasadas, escolhe quais avisos quer e não recebe lembrete de itens que já pagou.
+
+**Why this priority**: Evita atrasos e juros, mas é um complemento ao controle que o usuário já faz.
+
+**Independent Test**: Ativar os lembretes, ter um lançamento vencendo no dia seguinte, receber o aviso no horário configurado, pagar o item e conferir que o aviso deixa de ser enviado; desligar um tipo de aviso e conferir que ele para.
+
+**Acceptance Scenarios**:
+
+1. **Given** os lembretes ativos e a permissão concedida, **When** há itens pendentes vencendo no dia seguinte ou no próprio dia, **Then** o aparelho exibe um aviso no horário escolhido (padrão 9h).
+2. **Given** itens pagos, **When** chega a data do aviso, **Then** nada é exibido para eles, mesmo que o aviso já tivesse sido agendado.
+3. **Given** itens atrasados, **When** o usuário mantém o aviso de atraso ligado, **Then** recebe no máximo um resumo por dia.
+4. **Given** a tela de lembretes em Minha conta, **When** o usuário liga ou desliga cada tipo (vencendo, atrasado) e escolhe o horário, **Then** a escolha vale imediatamente e fica guardada.
+5. **Given** permissão de notificação negada no sistema, **When** o usuário abre os lembretes, **Then** o aplicativo explica o que falta e como liberar nas configurações do aparelho.
+6. **Given** um aviso exibido, **When** o usuário toca nele, **Then** o aplicativo abre direto na lista dos itens que vencem.
+7. **Given** a tela bloqueada, **When** o aviso aparece, **Then** o texto mostra apenas a quantidade e o tipo (por exemplo, "2 contas vencem amanhã"), sem valores nem nomes.
+
+---
+
 ### Edge Cases
 
-- Falta de internet ao abrir uma tela: o aplicativo mostra o estado de erro com a opção de tentar de novo, sem tela em branco; não há modo offline nesta versão.
+- Falta de internet na primeira abertura, sem nenhum dado sincronizado: o aplicativo mostra o estado vazio com a opção de tentar de novo, sem tela em branco.
+- Operações feitas sem conexão em dois aparelhos ao mesmo tempo, ou alteradas no web antes do envio: cada operação é validada pelo servidor; conflitos são mostrados ao usuário e nunca sobrescrevem dados em silêncio.
+- Relógio do aparelho errado ou mudança de fuso: datas e avisos seguem o fuso do Brasil usado pelo sistema.
+- Muitos lançamentos pendentes de envio: o envio acontece em lotes e mostra o progresso, sem travar a tela.
+- Biometria alterada no aparelho (nova digital ou novo rosto cadastrado): o aplicativo pede a senha novamente antes de reativar o bloqueio.
+- Aparelho reiniciado ou aplicativo encerrado pelo sistema: os lembretes continuam agendados e as operações pendentes não se perdem.
 - Sessão expirada ou revogada enquanto o usuário usa o aplicativo (por exemplo, após pedir exclusão de conta em outro aparelho): o aplicativo leva à tela de entrada com aviso claro.
 - Dados alterados no web enquanto o aplicativo está aberto: ao voltar à tela ou ao puxar para atualizar, os dados mostram o estado atual.
 - Lista com milhares de lançamentos: o aplicativo carrega por partes e continua utilizável.
@@ -183,6 +246,29 @@ A pessoa usa todas as telas com conforto em aparelhos de tamanhos e versões dif
 - **FR-026**: O aplicativo MUST oferecer o mesmo conjunto de funções e as mesmas regras de negócio no Android e no iOS.
 - **FR-027**: O aplicativo MUST usar os mesmos dados e regras da versão web: o que for criado no aplicativo aparece no web e vice-versa, sem diferença de cálculo.
 
+**Uso sem internet**
+
+- **FR-028**: O aplicativo MUST guardar no aparelho, de forma protegida, os dados da última sincronização (painel, lançamentos do período consultado, faturas, projeção, fluxo de caixa, contas, cartões e categorias) e MUST exibi-los sem conexão com a indicação da data e hora da última atualização.
+- **FR-029**: Sem conexão, o aplicativo MUST permitir registrar lançamentos (avulso, fixo e parcelado) e marcar ou desfazer o pagamento de itens, guardando cada operação em uma fila no aparelho, visível como pendente de envio.
+- **FR-030**: Ao recuperar a conexão, o aplicativo MUST enviar as operações pendentes na ordem em que foram feitas, e cada operação MUST ser registrada exatamente uma vez, mesmo com envios repetidos ou interrompidos.
+- **FR-031**: Quando o servidor recusar uma operação pendente, o aplicativo MUST informar qual foi, o motivo, preservar os dados digitados e permitir corrigir ou descartar; o aplicativo MUST NOT sobrescrever dados do servidor em silêncio.
+- **FR-032**: Ações que não estão na fila offline (editar ou excluir lançamentos, gerenciar contas e categorias, pagar fatura, exclusão de conta e recuperação de senha) MUST informar que exigem conexão sem perder o que o usuário digitou.
+- **FR-033**: Os dados guardados no aparelho e a fila de operações MUST ser removidos ao sair da conta ou ao ter a sessão revogada, depois de avisar sobre operações ainda não enviadas, e MUST NOT ser acessíveis a outros usuários do aparelho.
+
+**Biometria**
+
+- **FR-034**: O aplicativo MUST oferecer o bloqueio por biometria do aparelho como opção desligada por padrão, ativada e desativada em Minha conta, com tempo de bloqueio escolhido (imediato, 1 minuto ou 5 minutos em segundo plano).
+- **FR-035**: Com o bloqueio ativo, o aplicativo MUST ocultar todo o conteúdo financeiro, inclusive na visão de aplicativos recentes do sistema, até a biometria ser confirmada.
+- **FR-036**: O aplicativo MUST oferecer a entrada por e-mail e senha como alternativa quando a biometria falhar, for recusada, ficar indisponível ou mudar no aparelho, e nesse caso MUST encerrar a sessão anterior.
+- **FR-037**: A biometria MUST NOT substituir a senha em ações que já a exigem (exclusão de conta) e MUST NOT ser armazenada nem enviada ao servidor.
+
+**Lembretes**
+
+- **FR-038**: O aplicativo MUST oferecer lembretes no aparelho para itens pendentes que vencem no dia seguinte, que vencem no próprio dia e que estão atrasados, desligados por padrão, com a permissão do sistema pedida só quando o usuário os ativar.
+- **FR-039**: O usuário MUST poder ligar ou desligar cada tipo de lembrete e escolher o horário (padrão 9h), valendo imediatamente.
+- **FR-040**: Os lembretes MUST deixar de ser exibidos para itens pagos, excluídos ou reagendados, e MUST ser atualizados quando os dados mudarem no aplicativo ou na sincronização, enviando no máximo um aviso de atraso por dia.
+- **FR-041**: O texto dos lembretes MUST mostrar apenas quantidade e tipo de itens, sem valores, nomes de contas ou descrições; ao tocar, o aplicativo MUST abrir a lista dos itens correspondentes.
+
 ### Key Entities
 
 Esta feature não cria entidades novas; ela expõe no celular as entidades da feature 001:
@@ -193,6 +279,9 @@ Esta feature não cria entidades novas; ela expõe no celular as entidades da fe
 - **Lançamento e ocorrência**: receita ou despesa avulsa, fixa ou parcelada; cada parcela ou ocorrência mensal tem valor, vencimento e status.
 - **Fatura e pagamento de fatura**: visão mensal de um cartão e os pagamentos parciais ou totais registrados sobre ela.
 - **Painel e fluxo de caixa**: indicadores e projeções calculados a partir dos lançamentos por mês de vencimento.
+- **Operação pendente**: lançamento ou pagamento feito sem conexão, guardado no aparelho com sua ordem, estado (pendente, enviado, recusada) e identificador que garante registro único.
+- **Cópia local dos dados**: último retrato sincronizado dos dados do usuário no aparelho, com data e hora da sincronização.
+- **Preferências do aparelho**: bloqueio por biometria (ligado ou não, tempo de bloqueio) e lembretes (tipos ligados, horário), guardadas por usuário e por aparelho.
 
 ## Success Criteria *(mandatory)*
 
@@ -207,12 +296,19 @@ Esta feature não cria entidades novas; ela expõe no celular as entidades da fe
 - **SC-007**: Em 100% dos testes de falha de conexão ao salvar, o usuário não perde o que digitou.
 - **SC-008**: 90% dos testadores concluem na primeira tentativa, sem ajuda, as tarefas de pagar parte de uma fatura e de cadastrar uma compra parcelada.
 - **SC-009**: Nenhuma credencial, e-mail ou valor financeiro aparece nos registros do aplicativo em uso normal, e a sessão permanece ativa após fechar e reabrir o aplicativo em 100% dos testes.
+- **SC-010**: Em 100% dos testes, operações registradas sem conexão aparecem exatamente uma vez no servidor depois que a conexão volta, inclusive quando o envio é interrompido e repetido, e 100% das recusas são mostradas ao usuário com o motivo.
+- **SC-011**: Sem conexão, painel, lançamentos e faturas da última sincronização abrem em até 2 segundos.
+- **SC-012**: Com o bloqueio ativo, o usuário desbloqueia o aplicativo em até 3 segundos com a biometria, e em nenhum teste o conteúdo financeiro fica visível antes do desbloqueio, inclusive na visão de aplicativos recentes.
+- **SC-013**: Em pelo menos 95% dos testes, o lembrete aparece no horário escolhido (margem de 5 minutos), e em 100% dos testes não aparece lembrete de item já pago.
 
 ## Assumptions
 
 - A API e as regras de negócio já existentes são reaproveitadas; esta feature não muda o cálculo de parcelas, faturas, painel nem as regras de segurança. Ajustes de API só ocorrem se alguma função do web não estiver disponível para o celular.
 - O público são pessoas com Android 7 ou superior e iOS 15 ou superior, em celulares; tablets devem funcionar, mas não têm layout dedicado nesta versão.
-- O aplicativo exige conexão com a internet. Modo offline, sincronização posterior, notificações, biometria, widgets e publicação nas lojas ficam fora do escopo.
+- O uso sem internet cobre consulta aos dados já sincronizados e o registro de lançamentos e pagamentos; as demais ações exigem conexão (FR-032). Não há resolução automática de conflitos: o servidor valida cada operação e o usuário decide o que fazer com as recusadas.
+- Os lembretes são locais, agendados no próprio aparelho a partir dos dados sincronizados. Notificações enviadas pelo servidor (push remoto) dependem de contas externas (Firebase e Apple) que o projeto ainda não tem e ficam fora desta versão; por isso, um lembrete só é atualizado quando o aplicativo sincroniza.
+- A biometria usa o que o aparelho oferece (digital ou rosto); o aplicativo nunca vê nem guarda a biometria. Aparelhos sem biometria cadastrada continuam usando só e-mail e senha.
+- Widgets e publicação nas lojas de aplicativos ficam fora do escopo.
 - O link de redefinição de senha enviado por e-mail abre a página de redefinição no navegador; fazê-lo abrir direto no aplicativo depende de um domínio público do GEFINC e fica como evolução. O restante do fluxo (pedir a recuperação e entrar com a nova senha) acontece no aplicativo.
 - A exclusão de conta dentro do aplicativo atende também às exigências das lojas de aplicativos.
 - A verificação em iPhone exige um computador Mac com as ferramentas da Apple; sem ele, a paridade no iOS só pode ser confirmada por testes automatizados da interface compartilhada, e a verificação em aparelho fica pendente de acesso a um Mac.
