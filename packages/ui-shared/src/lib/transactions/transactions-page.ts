@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, InjectionToken, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import type {
@@ -24,6 +24,15 @@ type Panel =
   | { kind: 'delete'; tx: Transaction; impact: GroupImpact };
 
 const PAGE_SIZE = 25;
+
+/**
+ * Diz se um lançamento só existe no aparelho (criado sem conexão, ainda não enviado). O app móvel
+ * fornece; nesses itens as ações ficam desligadas até o envio. No web nunca há itens assim.
+ */
+export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('PENDING_MARKER', {
+  providedIn: 'root',
+  factory: () => () => false,
+});
 
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
@@ -187,19 +196,23 @@ const PAGE_SIZE = 25;
                   <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css">{{ badge(tx).label }}</span>
                 </div>
               </div>
+              @if (isLocal(tx)) {
+                <p class="mt-2 border-t border-gefinc-border pt-2 text-caption text-gefinc-warning">Pendente de envio</p>
+              } @else {
               <div class="mt-2 flex flex-wrap gap-1 border-t border-gefinc-border pt-2">
-                @if (tx.status === 'PENDING') {
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Pagar ' + tx.description" (click)="openPay(tx)">Pagar</button>
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
-                } @else {
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
-                }
-                @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Encerrar ' + tx.description" (click)="endHere(tx)">Encerrar aqui</button>
-                }
-                <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
-              </div>
+                  @if (tx.status === 'PENDING') {
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Pagar ' + tx.description" (click)="openPay(tx)">Pagar</button>
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
+                  } @else {
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
+                  }
+                  @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
+                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Encerrar ' + tx.description" (click)="endHere(tx)">Encerrar aqui</button>
+                  }
+                  <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
+                </div>
+              }
             </li>
           }
         </ul>
@@ -237,6 +250,9 @@ const PAGE_SIZE = 25;
                     <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css">{{ badge(tx).label }}</span>
                   </td>
                   <td class="space-x-2 px-4 py-3 text-right">
+                    @if (isLocal(tx)) {
+                      <span class="text-caption text-gefinc-warning">Pendente de envio</span>
+                    } @else {
                     @if (tx.status === 'PENDING') {
                       <button type="button" class="gef-link" (click)="openPay(tx)">Pagar</button>
                       <button type="button" class="gef-link" (click)="openEdit(tx)">Editar</button>
@@ -248,6 +264,7 @@ const PAGE_SIZE = 25;
                       <button type="button" class="gef-link" (click)="endHere(tx)">Encerrar aqui</button>
                     }
                     <button type="button" class="text-gefinc-danger hover:underline" (click)="openDelete(tx)">Excluir</button>
+                  }
                   </td>
                 </tr>
               }
@@ -273,6 +290,7 @@ export class TransactionsPage implements OnInit {
   private readonly notices = inject(NoticeService);
   protected readonly reference = inject(ReferenceData);
   protected readonly viewport = inject(Viewport);
+  protected readonly isLocal = inject(PENDING_MARKER);
   private readonly route = inject(ActivatedRoute, { optional: true });
 
   protected readonly pageSize = PAGE_SIZE;
@@ -322,7 +340,7 @@ export class TransactionsPage implements OnInit {
     });
     // Conflito de edição entre dispositivos: recarrega com a versão mais recente.
     effect(() => {
-      if (this.notices.staleVersionCount() > 0) {
+      if (this.notices.staleVersionCount() > 0 || this.notices.dataChangedCount() > 0) {
         untracked(() => this.load());
       }
     });

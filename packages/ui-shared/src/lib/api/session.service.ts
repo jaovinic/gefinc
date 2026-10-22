@@ -2,7 +2,7 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import type { Credentials, TokenResponse } from '@gefinc/core-models';
 import { Observable, catchError, finalize, firstValueFrom, map, of, shareReplay, tap } from 'rxjs';
-import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT } from './api.tokens';
+import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED, SessionEndReason } from './api.tokens';
 import { DraftService } from './draft.service';
 import { TokenStore } from './token-store';
 
@@ -14,6 +14,7 @@ export class SessionService {
   private readonly store = inject(TokenStore);
   private readonly drafts = inject(DraftService);
   private readonly redirect = inject(LOGIN_REDIRECT, { optional: true });
+  private readonly sessionEnded = inject(SESSION_ENDED, { optional: true });
 
   private refreshInFlight$: Observable<TokenResponse> | null = null;
 
@@ -64,19 +65,19 @@ export class SessionService {
     return this.http.post<void>(`${this.base}/auth/logout`, body, { headers: this.clientHeaders() }).pipe(
       catchError(() => of(undefined)),
       map(() => undefined),
-      tap(() => this.clearLocal()),
+      tap(() => this.clearLocal('logout')),
     );
   }
 
   /** Encerra só a sessão local (a API já revogou os tokens, ex.: após pedir a exclusão da conta). */
   endLocalSession(): void {
-    this.clearLocal();
+    this.clearLocal('deleted');
   }
 
   /** A sessão se perdeu (renovação recusada): guarda os rascunhos e leva ao login. */
   expire(): void {
     this.drafts.snapshotAll();
-    this.clearLocal();
+    this.clearLocal('expired');
     this.redirect?.();
   }
 
@@ -89,7 +90,13 @@ export class SessionService {
     this.authenticated.set(true);
   }
 
-  private clearLocal(): void {
+  private clearLocal(reason: SessionEndReason): void {
+    try {
+      // Antes de apagar os tokens: o app ainda sabe de quem são os dados locais a limpar.
+      void Promise.resolve(this.sessionEnded?.(reason)).catch(() => undefined);
+    } catch {
+      // Falha ao limpar dados locais não pode impedir de sair.
+    }
     void this.store.clear();
     this.authenticated.set(false);
   }

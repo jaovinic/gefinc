@@ -253,7 +253,7 @@ export class InvoicesPage implements OnInit {
       untracked(() => this.load());
     });
     effect(() => {
-      if (this.notices.staleVersionCount() > 0) {
+      if (this.notices.staleVersionCount() > 0 || this.notices.dataChangedCount() > 0) {
         untracked(() => this.load());
       }
     });

@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Dashboard } from '@gefinc/core-models';
-import { DashboardApi, messageFor, toProblem } from '../api';
+import { DashboardApi, NoticeService, messageFor, toProblem } from '../api';
 import { CardBars } from '../charts/card-bars';
 import { CategoryDonut } from '../charts/category-donut';
 import { ChartSlice } from '../charts/chart-slice';
@@ -75,6 +75,7 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
 })
 export class DashboardPage {
   private readonly api = inject(DashboardApi);
+  private readonly notices = inject(NoticeService);
   protected readonly paths = inject(APP_PATHS);
 
   protected readonly month = signal(currentMonth());
@@ -93,6 +94,12 @@ export class DashboardPage {
     effect(() => {
       this.month();
       untracked(() => this.load());
+    });
+    // Operações pendentes enviadas (app móvel): recarrega com os valores atuais.
+    effect(() => {
+      if (this.notices.dataChangedCount() > 0) {
+        untracked(() => this.load());
+      }
     });
   }
 

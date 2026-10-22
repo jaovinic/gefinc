@@ -207,3 +207,28 @@ describe('GroupForm - falha de conexão e toque duplo', () => {
     http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 201, statusText: 'Created' });
   });
 });
+
+describe('GroupForm - preenchimento inicial (corrigir uma operação recusada)', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('abre com os dados informados, que o usuário pode ajustar antes de enviar', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.componentRef.setInput('initial', {
+      description: 'Mercado', recurrenceType: 'VARIABLE', totalAmount: '150.00', accountId: 1, categoryId: 10,
+      purchaseDate: '2026-11-08', firstDueDate: '2026-11-12',
+    });
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
+    expect((el.querySelector('#accountId') as HTMLSelectElement).value).toBe('1');
+    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
+    expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('150,00');
+    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');
+  });
+});

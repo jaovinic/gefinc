@@ -13,6 +13,7 @@ jest.mock('chart.js', () => {
 
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { NoticeService } from '../api';
 import { APP_PATHS } from '../layout/app-paths';
 import { provideRouter } from '@angular/router';
 import { currentMonth } from '@gefinc/utils';
@@ -96,5 +97,14 @@ describe('DashboardPage', () => {
     for (const id of ['total-month', 'to-due', 'paid', 'overdue']) {
       expect(el.querySelector(`[data-indicator="${id}"] .financial-value`)?.className).toContain('text-title-lg');
     }
+  });
+
+  it('recarrega o painel quando os dados mudam por fora da tela', async () => {
+    const { http, fixture } = await setup(full);
+    TestBed.inject(NoticeService).dataChanged();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    http.expectOne((r) => r.url === `${API}/dashboard`).flush(full);
   });
 });

@@ -1,5 +1,8 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Sheet } from '@gefinc/ui-shared';
+import { LogoutAction } from '../core/logout';
+import { OfflineBanner } from '../offline/offline-banner';
 
 interface Tab {
   path: string;
@@ -24,12 +27,13 @@ const TABS: Tab[] = [
  */
 @Component({
   selector: 'gef-mobile-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [OfflineBanner, RouterOutlet, RouterLink, RouterLinkActive, Sheet],
   template: `
     <div class="gef-shell">
       <header class="gef-app-header">
         <span class="text-title-md font-extrabold tracking-wide text-gefinc-primary">GEFINC</span>
       </header>
+      <gef-offline-banner />
       <main class="gef-shell-main"><router-outlet /></main>
       <nav class="gef-tabbar" aria-label="Navegação principal">
         @for (tab of tabs; track tab.path) {
@@ -47,8 +51,19 @@ const TABS: Tab[] = [
         }
       </nav>
     </div>
+    <gef-sheet heading="Operações não enviadas" [open]="logout.confirming()" (closed)="logout.cancel()">
+      <p class="mb-4 text-body-base">
+        Você tem {{ logout.pending() }} {{ logout.pending() === 1 ? 'operação' : 'operações' }} que ainda não {{ logout.pending() === 1 ? 'foi enviada' : 'foram enviadas' }}.
+        Se sair agora, {{ logout.pending() === 1 ? 'ela será descartada' : 'elas serão descartadas' }}.
+      </p>
+      <div class="flex flex-col gap-3">
+        <button type="button" class="gef-btn-secondary" (click)="logout.cancel()">Voltar</button>
+        <button type="button" class="gef-btn-danger" (click)="logout.confirmDiscard()">Sair e descartar</button>
+      </div>
+    </gef-sheet>
   `,
 })
 export class MobileShell {
   protected readonly tabs = TABS;
+  protected readonly logout = inject(LogoutAction);
 }

@@ -6,6 +6,8 @@ import { provideIonicAngular } from '@ionic/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { APP_PATHS, authInterceptor } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
+import { offlineInterceptor } from './offline/offline.interceptor';
+import { provideOffline } from './offline/offline.providers';
 import { provideSession } from './core/session.providers';
 
 registerLocaleData(localePt);
@@ -15,9 +17,10 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideIonicAngular({ mode: 'ios' }),
     provideRouter(appRoutes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, offlineInterceptor])),
     { provide: LOCALE_ID, useValue: 'pt-BR' },
     { provide: APP_PATHS, useValue: { transactions: '/lancamentos' } },
     provideSession(),
+    provideOffline(),
   ],
 };

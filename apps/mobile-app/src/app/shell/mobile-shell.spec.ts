@@ -1,8 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { LogoutAction } from '../core/logout';
+import { NetworkStatus } from '../offline/network-status';
+import { PendingQueue } from '../offline/pending-queue';
+import { SyncEngine } from '../offline/sync-engine';
 import { MobileShell } from './mobile-shell';
 import { MorePage } from './more.page';
 
@@ -10,12 +13,16 @@ import { MorePage } from './more.page';
 class Dummy {}
 
 describe('shell do app móvel', () => {
-  const logout = { run: jest.fn() };
+  const confirming = signal(false);
+  const logout = { run: jest.fn(), confirming, pending: signal(2), cancel: jest.fn(), confirmDiscard: jest.fn() };
 
   async function open(url: string) {
     TestBed.configureTestingModule({
       providers: [
         { provide: LogoutAction, useValue: logout },
+        { provide: NetworkStatus, useValue: { online: signal(true) } },
+        { provide: PendingQueue, useValue: { pendingCount: signal(0), rejected: signal([]) } },
+        { provide: SyncEngine, useValue: { flush: jest.fn(), syncing: signal(false) } },
         provideRouter([
           {
             path: '',
@@ -35,7 +42,12 @@ describe('shell do app móvel', () => {
     return { harness, el: harness.routeNativeElement as HTMLElement };
   }
 
-  beforeEach(() => logout.run.mockReset());
+  beforeEach(() => {
+    logout.run.mockReset();
+    logout.cancel.mockReset();
+    logout.confirmDiscard.mockReset();
+    confirming.set(false);
+  });
 
   it('mostra a barra de abas com Painel, Lançamentos, Faturas, Contas e Mais', async () => {
     const { el } = await open('/');
@@ -78,5 +90,22 @@ describe('shell do app móvel', () => {
 
     (el.querySelector('main button') as HTMLButtonElement).click();
     expect(logout.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('com operações não enviadas, sair pede confirmação e só descarta se o usuário aceitar', async () => {
+    const { harness, el } = await open('/');
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+
+    confirming.set(true);
+    harness.detectChanges();
+    const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('aria-label')).toBe('Operações não enviadas');
+    expect(dialog.textContent).toContain('2 operações');
+    expect(dialog.textContent).toContain('serão descartadas');
+
+    (Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Voltar') as HTMLButtonElement).click();
+    expect(logout.cancel).toHaveBeenCalled();
+    (Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Sair e descartar') as HTMLButtonElement).click();
+    expect(logout.confirmDiscard).toHaveBeenCalled();
   });
 });

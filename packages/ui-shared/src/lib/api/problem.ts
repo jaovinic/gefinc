@@ -36,6 +36,9 @@ export function toProblem(error: unknown): ApiProblem {
 
 /** Mensagem amigável em português para mostrar ao usuário. */
 export function messageFor(problem: ApiProblem): string {
+  if (problem.code === 'OFFLINE_REQUIRES_CONNECTION') {
+    return 'Esta ação precisa de conexão com a internet. Conecte-se e tente de novo.';
+  }
   if (problem.status === 0) {
     return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
   }

@@ -253,7 +253,7 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 - **FR-030**: Ao recuperar a conexão, o aplicativo MUST enviar as operações pendentes na ordem em que foram feitas, e cada operação MUST ser registrada exatamente uma vez, mesmo com envios repetidos ou interrompidos.
 - **FR-031**: Quando o servidor recusar uma operação pendente, o aplicativo MUST informar qual foi, o motivo, preservar os dados digitados e permitir corrigir ou descartar; o aplicativo MUST NOT sobrescrever dados do servidor em silêncio.
 - **FR-032**: Ações que não estão na fila offline (editar ou excluir lançamentos, gerenciar contas e categorias, pagar fatura, exclusão de conta e recuperação de senha) MUST informar que exigem conexão sem perder o que o usuário digitou.
-- **FR-033**: Os dados guardados no aparelho e a fila de operações MUST ser removidos ao sair da conta ou ao ter a sessão revogada, depois de avisar sobre operações ainda não enviadas, e MUST NOT ser acessíveis a outros usuários do aparelho.
+- **FR-033**: Ao sair da conta ou excluí-la, os dados guardados no aparelho e a fila de operações MUST ser removidos, depois de avisar sobre operações ainda não enviadas. Se a sessão se perder sem o usuário sair (expirada ou revogada), a cópia local dos dados MUST ser removida, mas as operações ainda não enviadas MUST ser mantidas para o mesmo usuário continuar ao entrar de novo, para não perder o que ele registrou. Os dados locais MUST NOT ser acessíveis a outros usuários do aparelho nem legíveis fora do aplicativo.
 
 **Biometria**
 

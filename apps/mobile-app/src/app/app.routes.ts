@@ -3,6 +3,7 @@ import { AccountsPage, CashflowPage, CategoriesPage, InvoicesPage, TransactionsP
 import { ForgotPasswordPage, LoginPage, RegisterPage } from './auth/auth-pages';
 import { HomePage } from './home/home.page';
 import { MobileShell } from './shell/mobile-shell';
+import { PendingListPage } from './offline/pending-list.page';
 import { SettingsPage } from './settings/settings.page';
 import { MorePage } from './shell/more.page';
 import { QuickExpensePage } from './quick-expense/quick-expense.page';
@@ -27,6 +28,7 @@ export const appRoutes: Route[] = [
       { path: 'faturas', component: InvoicesPage },
       { path: 'fluxo-de-caixa', component: CashflowPage },
       { path: 'minha-conta', component: SettingsPage },
+      { path: 'pendencias', component: PendingListPage },
       { path: 'contas', component: AccountsPage },
       { path: 'categorias', component: CategoriesPage },
       // As demais telas (lançamentos, faturas, contas, categorias, fluxo de caixa e minha conta)

@@ -4,6 +4,8 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
 import { API, clickButton, configureHttpTesting, select } from '../../testing/testbed';
+import { NoticeService } from '../api';
+import { PENDING_MARKER } from './transactions-page';
 import { Viewport } from '../viewport/viewport';
 import { TransactionsPage } from './transactions-page';
 
@@ -266,5 +268,66 @@ describe('TransactionsPage - toque duplo', () => {
 
     ctx.http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` }).flush({ ...pending, status: 'PAID' });
     ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/transactions`).flush(page([]));
+  });
+});
+
+describe('TransactionsPage - dados que mudam por fora da tela', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('recarrega a lista quando as operações pendentes são enviadas', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/transactions`).flush(page([pending]));
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    TestBed.inject(NoticeService).dataChanged();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/transactions`).flush(page([paid]));
+  });
+});
+
+describe('TransactionsPage - itens pendentes de envio (app móvel)', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  async function setup(compact: boolean) {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Viewport, useValue: { compact: signal(compact) } },
+        { provide: PENDING_MARKER, useValue: (tx: { id: number }) => tx.id === 1 },
+      ],
+    });
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/transactions`).flush(page([pending, late]));
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('no celular, o item pendente de envio mostra o selo e não oferece ações; os demais seguem normais', async () => {
+    const el = await setup(true);
+    const cards = el.querySelectorAll('[data-testid="transaction-card"]');
+
+    expect(cards[0].textContent).toContain('Pendente de envio');
+    expect(cards[0].querySelectorAll('button')).toHaveLength(0);
+    expect(cards[1].textContent).not.toContain('Pendente de envio');
+    expect(cards[1].querySelector('button[aria-label="Pagar Luz"]')).not.toBeNull();
+  });
+
+  it('na tabela também', async () => {
+    const el = await setup(false);
+    const rows = el.querySelectorAll('tbody tr');
+
+    expect(rows[0].textContent).toContain('Pendente de envio');
+    expect(rows[0].querySelectorAll('button')).toHaveLength(0);
+    expect(rows[1].querySelector('button')).not.toBeNull();
   });
 });

@@ -26,4 +26,9 @@ describe('problem', () => {
     const problem = toProblem(http(423, { code: 'ACCOUNT_DELETION_PENDING', deletionDate: '2026-12-10' }));
     expect(problem.extras['deletionDate']).toBe('2026-12-10');
   });
+
+  it('ação que exige conexão tem mensagem própria, mesmo sendo um erro sem resposta do servidor', () => {
+    const offline = toProblem(new HttpErrorResponse({ status: 0, error: { code: 'OFFLINE_REQUIRES_CONNECTION' } }));
+    expect(messageFor(offline)).toBe('Esta ação precisa de conexão com a internet. Conecte-se e tente de novo.');
+  });
 });

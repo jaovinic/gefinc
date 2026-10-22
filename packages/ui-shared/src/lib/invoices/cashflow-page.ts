@@ -1,6 +1,6 @@
 import { Component, effect, signal, untracked, inject } from '@angular/core';
 import type { CashflowMonth } from '@gefinc/core-models';
-import { InvoicesApi, messageFor, toProblem } from '../api';
+import { InvoicesApi, NoticeService, messageFor, toProblem } from '../api';
 import { MonthPicker } from '../month-picker/month-picker';
 import { ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
@@ -73,6 +73,7 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
 })
 export class CashflowPage {
   private readonly api = inject(InvoicesApi);
+  private readonly notices = inject(NoticeService);
   protected readonly viewport = inject(Viewport);
 
   protected readonly from = signal(currentMonth());
@@ -84,6 +85,11 @@ export class CashflowPage {
     effect(() => {
       this.from();
       untracked(() => this.load());
+    });
+    effect(() => {
+      if (this.notices.dataChangedCount() > 0) {
+        untracked(() => this.load());
+      }
     });
   }
 

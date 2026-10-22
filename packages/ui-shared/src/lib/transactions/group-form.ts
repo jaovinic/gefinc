@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, output, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefinc/core-models';
 import { ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
@@ -206,6 +206,35 @@ export class GroupForm implements OnInit {
       return [];
     }
   });
+
+  /** Dados para preencher o formulário (ex.: corrigir uma operação recusada); aplicados uma vez, quando as contas e categorias chegam. */
+  readonly initial = input<TransactionGroupInput | null>(null);
+  private initialApplied = false;
+
+  constructor() {
+    effect(() => {
+      const initial = this.initial();
+      if (!initial || !this.reference.loaded() || this.initialApplied) {
+        return;
+      }
+      untracked(() => {
+        this.initialApplied = true;
+        const category = this.reference.category(initial.categoryId);
+        // Trocar a natureza zera a categoria: por isso a categoria vem depois.
+        this.form.controls.kind.setValue(category?.type ?? 'EXPENSE');
+        this.form.patchValue({
+          recurrenceType: initial.recurrenceType,
+          description: initial.description,
+          accountId: initial.accountId,
+          categoryId: initial.categoryId,
+          totalAmount: initial.totalAmount,
+          totalInstallments: initial.totalInstallments ?? 2,
+          purchaseDate: initial.purchaseDate,
+          firstDueDate: initial.firstDueDate ?? initial.purchaseDate,
+        });
+      });
+    });
+  }
 
   ngOnInit(): void {
     this.reference.refresh();
