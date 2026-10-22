@@ -28,6 +28,7 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
       </button>
     </div>
   `,
+  host: { class: 'block w-full sm:inline-block sm:w-auto' },
 })
 export class MonthPicker {
   /** Mês selecionado no formato `YYYY-MM`. */

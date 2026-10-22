@@ -171,6 +171,34 @@ describe('AccountsPage', () => {
     expect(el.textContent).toContain('Inativa');
   });
 
+  it('Nova conta abre um modal (e não um bloco entre os controles da lista)', async () => {
+    const { el, fixture, expectList } = setup();
+    expectList(false).flush([itau, inter]);
+    fixture.detectChanges();
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+
+    click(el, 'Nova conta');
+    fixture.detectChanges();
+    const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('aria-label')).toBe('Nova conta');
+    expect(dialog.querySelector('form')).not.toBeNull();
+    // o formulário não fica entre o interruptor/filtros e a lista
+    expect(el.querySelector('section > gef-account-form')).toBeNull();
+
+    (dialog.querySelector('button[aria-label="Fechar"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('editar abre o modal com o título Editar conta', async () => {
+    const { el, fixture, expectList } = setup();
+    expectList(false).flush([carteira]);
+    fixture.detectChanges();
+    click(el, 'Editar');
+    fixture.detectChanges();
+    expect(el.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Editar conta');
+  });
+
   it('mostra ícone, selo PF/PJ e a conta vinculada do cartão', async () => {
     const { el, fixture, expectList } = setup();
     expectList(false).flush([itau, inter, nubank, carteira]);

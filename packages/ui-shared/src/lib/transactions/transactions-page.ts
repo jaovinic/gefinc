@@ -42,11 +42,22 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
   imports: [AccountBadge, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-4">
-      <header class="flex flex-wrap items-center justify-between gap-3">
+      <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 class="text-title-lg font-bold">Lançamentos</h1>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
           <gef-month-picker [(value)]="month" />
-          <button type="button" class="gef-btn-secondary" (click)="formOpen.set(true)">Novo lançamento</button>
+          <div class="flex gap-3">
+            <button type="button" class="gef-btn-primary flex flex-1 items-center justify-center gap-2 md:w-auto" (click)="formOpen.set(true)">
+              <gef-icon name="plus" [size]="18" />Novo lançamento
+            </button>
+            @if (viewport.compact()) {
+              <button type="button" class="gef-btn-secondary flex items-center gap-2" (click)="filtersOpen.set(true)">
+                <gef-icon name="filter" [size]="18" />Filtros@if (activeFilters() > 0) {
+                  ({{ activeFilters() }})
+                }
+              </button>
+            }
+          </div>
         </div>
       </header>
 
@@ -56,11 +67,6 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
             <gef-group-form (saved)="onCreated()" (cancelled)="formOpen.set(false)" />
           }
         </gef-sheet>
-        <button type="button" class="gef-btn-secondary w-full" (click)="filtersOpen.set(true)">
-          Filtros@if (activeFilters() > 0) {
-            ({{ activeFilters() }})
-          }
-        </button>
         <gef-sheet heading="Filtros" [open]="filtersOpen()" (closed)="filtersOpen.set(false)">
           @if (filtersOpen()) {
             <ng-container *ngTemplateOutlet="filtersTpl" />

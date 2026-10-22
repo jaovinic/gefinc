@@ -152,17 +152,16 @@ table td {
     @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;
   }
   .gef-sheet-backdrop {
-    @apply fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4;
   }
   .gef-sheet {
-    @apply max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-gefinc-border bg-gefinc-surface p-4 md:max-w-lg md:rounded-2xl;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+    @apply max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gefinc-border bg-gefinc-surface p-4;
   }
   .gef-sheet-backdrop-left {
-    @apply items-stretch justify-start md:items-stretch;
+    @apply items-stretch justify-start p-0;
   }
   .gef-sheet-left {
-    @apply h-full max-h-none w-72 max-w-[85vw] rounded-none rounded-r-2xl p-0 md:max-w-72 md:rounded-r-2xl md:rounded-l-none;
+    @apply h-full max-h-none w-72 max-w-[85vw] rounded-none rounded-r-2xl p-0;
   }
   /* Menu lateral do web (e a mesma lista dentro da gaveta em tela estreita). */
   .gef-sidenav {

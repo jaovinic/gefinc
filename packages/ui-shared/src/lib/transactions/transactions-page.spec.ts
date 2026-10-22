@@ -249,6 +249,17 @@ describe('TransactionsPage', () => {
       }
     });
 
+    it('Novo lançamento e Filtros dividem a mesma linha e Filtros não ocupa a linha inteira', async () => {
+      const { el, http } = await setup(undefined, compact);
+      const filters = Array.from(el.querySelectorAll('header button')).find((b) => b.textContent?.includes('Filtros')) as HTMLElement;
+      const create = Array.from(el.querySelectorAll('header button')).find((b) => b.textContent?.includes('Novo lançamento')) as HTMLElement;
+      expect(filters.parentElement).toBe(create.parentElement);
+      expect(filters.className).not.toContain('w-full');
+      expect(create.className).toContain('flex-1');
+      expect(el.querySelectorAll('button.w-full').length).toBe(0);
+      http.verify();
+    });
+
     it('os filtros ficam atrás do botão Filtros e aplicam a consulta', async () => {
       const { http, el, fixture } = await setup(undefined, compact);
       expect(el.querySelector('select[aria-label="Status"]')).toBeNull();

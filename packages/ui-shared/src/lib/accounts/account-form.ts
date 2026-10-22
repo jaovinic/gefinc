@@ -44,8 +44,7 @@ function profile(group: AbstractControl): ValidationErrors | null {
   selector: 'gef-account-form',
   imports: [ReactiveFormsModule, IconPicker, AccountPicker],
   template: `
-    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" novalidate>
-      <h2 class="text-title-md font-semibold">{{ account() ? 'Editar conta' : 'Nova conta' }}</h2>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
       @if (error(); as message) {
         <p class="gef-alert-error" role="alert">{{ message }}</p>
       }

@@ -27,9 +27,9 @@ interface Draft {
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
-        <a routerLink="/" class="gef-action justify-start text-gefinc-secondary">Cancelar</a>
+        <a routerLink="/" class="gef-btn-sm">Cancelar</a>
         <h1 class="text-title-md font-bold">{{ isIncome ? 'Nova receita' : 'Nova despesa' }}</h1>
-        <span class="w-14"></span>
+        <span class="w-[5.5rem]" aria-hidden="true"></span>
       </header>
       <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4 p-4" novalidate>
         @if (error(); as message) {

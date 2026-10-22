@@ -28,16 +28,6 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
         <p class="gef-alert-error" role="alert">{{ text }}</p>
       }
 
-      @if (formOpen()) {
-        <gef-account-form
-          [account]="editing()"
-          [banks]="banks()"
-          [resetToken]="formKey()"
-          (saved)="onSaved()"
-          (cancelled)="closeForm()"
-          (newBankRequested)="newBank()"
-        />
-      }
 
       @if (showHolderFilter()) {
         <div class="flex gap-2" role="radiogroup" aria-label="Filtrar por titular" data-field="holderFilter">
@@ -127,6 +117,18 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
         </div>
       }
     </section>
+    <gef-sheet [heading]="editing() ? 'Editar conta' : 'Nova conta'" [open]="formOpen()" (closed)="closeForm()">
+      @if (formOpen()) {
+        <gef-account-form
+          [account]="editing()"
+          [banks]="banks()"
+          [resetToken]="formKey()"
+          (saved)="onSaved()"
+          (cancelled)="closeForm()"
+          (newBankRequested)="newBank()"
+        />
+      }
+    </gef-sheet>
     <gef-sheet heading="Inativar conta com cartões" [open]="!!confirming()" (closed)="confirming.set(null)">
       @if (confirming(); as bank) {
         <p class="mb-2 text-body-base">

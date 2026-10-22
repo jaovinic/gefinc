@@ -56,6 +56,8 @@ test.describe('acessibilidade (WCAG AA)', () => {
     await page.getByLabel('Tipo').selectOption('CHECKING');
     await expect(page.getByRole('radio', { name: 'Banco' })).toBeVisible();
     expect(await violations(page), 'formulário de conta').toEqual([]);
+    await page.getByRole('dialog', { name: 'Nova conta' }).getByRole('button', { name: 'Cancelar' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
     await page.setViewportSize({ width: 800, height: 900 });
     await page.getByRole('button', { name: 'Abrir menu' }).click();

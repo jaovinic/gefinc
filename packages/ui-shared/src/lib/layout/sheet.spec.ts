@@ -133,3 +133,59 @@ describe('Sheet (painel inferior)', () => {
     expect((el.querySelector('[role="dialog"]') as HTMLElement).classList.contains('gef-sheet-left')).toBe(false);
   });
 });
+
+@Component({
+  imports: [Sheet],
+  template: `
+    <gef-sheet heading="Fora" [open]="outer()" (closed)="outerClosed()">
+      <input id="outer-field" />
+      <gef-sheet heading="Dentro" [open]="inner()" (closed)="innerClosed()">
+        <input id="inner-field" />
+      </gef-sheet>
+    </gef-sheet>
+  `,
+})
+class NestedHost {
+  readonly outer = signal(true);
+  readonly inner = signal(true);
+  readonly outerClosed = jest.fn();
+  readonly innerClosed = jest.fn();
+}
+
+describe('Sheet aninhado (painel dentro de painel)', () => {
+  async function setup() {
+    const fixture = TestBed.createComponent(NestedHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, host: fixture.componentInstance };
+  }
+
+  it('Escape fecha só o painel de cima', async () => {
+    const { host } = await setup();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.innerClosed).toHaveBeenCalledTimes(1);
+    expect(host.outerClosed).not.toHaveBeenCalled();
+  });
+
+  it('depois que o de dentro fecha, Escape fecha o de fora', async () => {
+    const { fixture, host } = await setup();
+    host.inner.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.outerClosed).toHaveBeenCalledTimes(1);
+  });
+
+  it('o foco abre no painel de dentro e Tab fica nele', async () => {
+    const { fixture } = await setup();
+    const inner = fixture.nativeElement.querySelector('#inner-field') as HTMLElement;
+    const close = Array.from(fixture.nativeElement.querySelectorAll('button[aria-label="Fechar"]')).pop() as HTMLElement;
+    expect(document.activeElement).toBe(close);
+    inner.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    inner.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(close);
+  });
+});
