@@ -31,11 +31,11 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Dependências, permissões nativas e utilitário de viewport
 
-- [ ] T001 Instalar `@capacitor/local-notifications`, `@capacitor/network`, `@aparajita/capacitor-biometric-auth` e `@capacitor-community/privacy-screen` em `package.json`, rodar `npx nx run mobile-app:sync` e conferir que `apps/mobile-app/android/app/capacitor.build.gradle`, `capacitor.settings.gradle` e `apps/mobile-app/ios/App/CapApp-SPM/Package.swift` listam os plugins novos e que `./gradlew assembleDebug` conclui
-- [ ] T002 [P] Declarar permissões em `apps/mobile-app/android/app/src/main/AndroidManifest.xml` (`POST_NOTIFICATIONS`, `USE_BIOMETRIC`) e criar o ícone de notificação em `apps/mobile-app/android/app/src/main/res/drawable/ic_stat_gefinc.xml`
-- [ ] T003 [P] Declarar `NSFaceIDUsageDescription` (texto em pt-BR) em `apps/mobile-app/ios/App/App/Info.plist`; sem Mac não há build do iOS, então só conferir o XML
-- [ ] T004 [P] Escrever o teste de `Viewport` em `packages/ui-shared/src/lib/viewport/viewport.spec.ts` (sinal `compact()` verdadeiro abaixo de 768 px e reagindo a mudanças de `matchMedia`) e vê-lo falhar
-- [ ] T005 Implementar `packages/ui-shared/src/lib/viewport/viewport.ts` (serviço injetável com `compact()`) e exportá-lo em `packages/ui-shared/src/index.ts`
+- [X] T001 Instalar `@capacitor/local-notifications`, `@capacitor/network`, `@aparajita/capacitor-biometric-auth` e `@capacitor-community/privacy-screen` em `package.json`, rodar `npx nx run mobile-app:sync` e conferir que `apps/mobile-app/android/app/capacitor.build.gradle`, `capacitor.settings.gradle` e `apps/mobile-app/ios/App/CapApp-SPM/Package.swift` listam os plugins novos e que `./gradlew assembleDebug` conclui
+- [X] T002 [P] Declarar permissões em `apps/mobile-app/android/app/src/main/AndroidManifest.xml` (`POST_NOTIFICATIONS`, `USE_BIOMETRIC`) e criar o ícone de notificação em `apps/mobile-app/android/app/src/main/res/drawable/ic_stat_gefinc.xml`
+- [X] T003 [P] Declarar `NSFaceIDUsageDescription` (texto em pt-BR) em `apps/mobile-app/ios/App/App/Info.plist`; sem Mac não há build do iOS, então só conferir o XML
+- [X] T004 [P] Escrever o teste de `Viewport` em `packages/ui-shared/src/lib/viewport/viewport.spec.ts` (sinal `compact()` verdadeiro abaixo de 768 px e reagindo a mudanças de `matchMedia`) e vê-lo falhar
+- [X] T005 Implementar `packages/ui-shared/src/lib/viewport/viewport.ts` (serviço injetável com `compact()`) e exportá-lo em `packages/ui-shared/src/index.ts`
 
 ---
 

@@ -66,5 +66,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>O GEFINC usa o Face ID para desbloquear o aplicativo e proteger seus dados financeiros.</string>
 </dict>
 </plist>
