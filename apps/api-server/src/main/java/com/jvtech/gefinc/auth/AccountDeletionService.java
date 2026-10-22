@@ -19,13 +19,19 @@ public class AccountDeletionService {
   private final AuthService auth;
   private final TokenService tokens;
   private final Clock clock;
+  private final LoginAttemptLimiter limiter;
 
   public AccountDeletionService(
-      UserRepository users, AuthService auth, TokenService tokens, Clock clock) {
+      UserRepository users,
+      AuthService auth,
+      TokenService tokens,
+      Clock clock,
+      LoginAttemptLimiter limiter) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
     this.clock = clock;
+    this.limiter = limiter;
   }
 
   /** Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. */
@@ -42,11 +48,15 @@ public class AccountDeletionService {
 
   /** Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). */
   @Transactional
-  public void cancel(String email, String password) {
+  public void cancel(String email, String password, String clientIp) {
+    // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
+    limiter.checkAllowed(email, clientIp);
     User user = users.findByEmail(email.strip()).orElse(null);
     if (user == null || !auth.matches(password, user.getPasswordHash())) {
+      limiter.recordFailure(email, clientIp);
       throw AuthService.invalidCredentials();
     }
+    limiter.recordSuccess(email);
     if (!user.isDeletionPending()) {
       throw new ApiException(
           ErrorCode.NO_PENDING_DELETION, "Não há exclusão pendente nesta conta.");

@@ -25,6 +25,9 @@ spring:
     default-property-inclusion: non_null
 
 server:
+  # Atrás de proxy/balanceador, use `native` para o IP real do cliente (limite de login por IP);
+  # exposta direto, mantenha `none`, senão o cabeçalho X-Forwarded-For pode ser forjado.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     context-path: /api/v1
   error:

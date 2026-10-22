@@ -226,8 +226,8 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
 - **Decisão**: logs estruturados em JSON, com identificador de correlação por requisição, sem
   e-mail, valores ou tokens (FR-003 e Princípio III); Spring Boot Actuator só com `health` e
   `info`; CORS restrito às origens do web e do app; cabeçalhos de segurança padrão do Spring
-  Security. Limitação de tentativas de login por e-mail/IP fica como melhoria futura
-  (anotada, fora da spec atual).
+  Security. Tentativas de login que falham são limitadas por e-mail (5) e por IP (20) em 15
+  minutos, com contador em memória (instância única; ver `docs/operations.md`).
 
 ## D17. Relógio e datas
 

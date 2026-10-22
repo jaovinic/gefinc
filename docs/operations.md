@@ -14,19 +14,31 @@ expirarem. Decisão operacional recomendada:
   job de exclusão antes de reabrir a API ao público).
 - Backups devem ficar criptografados e com acesso restrito à operação.
 
-## Limitação de tentativas de login (backlog)
+## Limitação de tentativas de login
 
-Hoje só a recuperação de senha tem limite (3 pedidos por hora por e-mail, resposta idêntica para
-e-mails desconhecidos). O login **não** limita tentativas; as defesas atuais são a senha forte
-(mínimo de 10 caracteres), o BCrypt e a resposta idêntica para e-mail inexistente e senha errada.
+O login (`/auth/login`) e o cancelamento de exclusão (`/auth/account-deletion/cancel`) compartilham
+o mesmo limite de **tentativas que falharam**, em janela de 15 minutos:
 
-Melhoria planejada, ainda sem prazo:
+- **5 falhas por e-mail** (sem diferenciar maiúsculas; vale igual para e-mail cadastrado ou não, para
+  o `429` não revelar quais contas existem);
+- **20 falhas por IP**.
 
-- limite por e-mail e por IP (ex.: 5 falhas em 15 minutos), com `429` e `Retry-After`;
-- contador compartilhado (Redis ou tabela) para funcionar com mais de uma instância da API;
-- avisar o titular por e-mail depois de várias falhas seguidas.
+Passou do limite, a API responde `429` com `Retry-After` **antes de conferir a senha**, inclusive se
+ela estiver certa. Um login bem-sucedido zera a contagem do e-mail (a do IP não). Recuperação de senha
+tem limite próprio (3 pedidos por hora por e-mail).
 
-Enquanto isso não existe, recomenda-se limitar `/auth/login` no proxy ou balanceador (rate limit por IP).
+Pontos de atenção:
+
+- **IP real atrás de proxy:** por padrão a API usa o IP da conexão. Atrás de proxy ou balanceador, defina
+  `FORWARD_HEADERS_STRATEGY=native` para ler o `X-Forwarded-For`. Com a API exposta direto, mantenha
+  `none`: senão o cabeçalho pode ser forjado para escapar do limite por IP. Sem isso, todos os usuários
+  atrás do proxy dividiriam o mesmo IP e o limite de 20 falhas pegaria gente inocente.
+- **Bloqueio por terceiros:** quem sabe o e-mail de alguém pode gastar as 5 tentativas e travar o login
+  dessa pessoa por até 15 minutos. É a troca aceita por proteger contra adivinhação de senha; o
+  bloqueio some sozinho.
+- **Memória e uma instância:** as contagens ficam na memória da API; reiniciar zera e, com mais de uma
+  instância, cada uma conta separado. Para escalar na horizontal, mover o contador para Redis ou tabela.
+- Backlog: avisar o titular por e-mail depois de várias falhas seguidas.
 
 ## Logs
 

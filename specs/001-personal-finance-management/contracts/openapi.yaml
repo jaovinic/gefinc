@@ -52,6 +52,8 @@ paths:
         Com o cabeçalho `X-Client: web`, o refresh token é entregue em cookie
         `HttpOnly; Secure; SameSite=Strict` e omitido do corpo. Sem ele (mobile), vem no corpo.
         Conta com exclusão pendente responde `423` (`ACCOUNT_DELETION_PENDING`) sem emitir tokens.
+        Depois de 5 falhas por e-mail ou 20 por IP em 15 minutos, responde `429` com `Retry-After`,
+        mesmo que a senha esteja certa (FR-002).
       security: []
       parameters:
         - $ref: '#/components/parameters/ClientHeader'
@@ -67,6 +69,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '423':
           description: Exclusão da conta pendente
           content:
@@ -193,6 +196,7 @@ paths:
       responses:
         '204': { description: Exclusão cancelada; faça login normalmente }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '409':
           description: Não há exclusão pendente
           content:

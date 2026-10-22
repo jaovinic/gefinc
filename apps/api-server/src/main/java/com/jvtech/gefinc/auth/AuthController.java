@@ -71,7 +71,8 @@ public class AuthController {
       @Valid @RequestBody LoginRequest body,
       HttpServletRequest request,
       HttpServletResponse response) {
-    return respond(auth.login(body.email(), body.password()), request, response);
+    return respond(
+        auth.login(body.email(), body.password(), request.getRemoteAddr()), request, response);
   }
 
   @PostMapping("/refresh")
@@ -120,8 +121,9 @@ public class AuthController {
 
   @PostMapping("/account-deletion/cancel")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void cancelAccountDeletion(@Valid @RequestBody LoginRequest body) {
-    deletion.cancel(body.email(), body.password());
+  public void cancelAccountDeletion(
+      @Valid @RequestBody LoginRequest body, HttpServletRequest request) {
+    deletion.cancel(body.email(), body.password(), request.getRemoteAddr());
   }
 
   private TokenResponse respond(

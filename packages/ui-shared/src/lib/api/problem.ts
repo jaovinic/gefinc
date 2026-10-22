@@ -45,7 +45,7 @@ export function messageFor(problem: ApiProblem): string {
     case 'EMAIL_ALREADY_REGISTERED':
       return 'Este e-mail já está cadastrado.';
     case 'TOO_MANY_REQUESTS':
-      return 'Muitas solicitações. Tente novamente mais tarde.';
+      return 'Muitas solicitações ou tentativas. Aguarde alguns minutos e tente novamente.';
     case ERROR_CODES.invalidResetToken:
       return 'Este link é inválido, já foi usado ou expirou. Solicite um novo.';
     case ERROR_CODES.staleVersion:

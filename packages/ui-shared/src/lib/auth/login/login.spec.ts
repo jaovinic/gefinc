@@ -49,6 +49,16 @@ describe('Login', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('E-mail ou senha incorretos.');
   });
 
+  it('avisa para aguardar quando o servidor bloqueia por excesso de tentativas', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+    http.expectOne(`${API}/auth/login`).flush({ code: 'TOO_MANY_REQUESTS' }, { status: 429, statusText: 'Too Many Requests' });
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Aguarde alguns minutos');
+  });
+
   it('com exclusão pendente oferece cancelar e depois entra', async () => {
     const { el, http, navigateByUrl, fixture } = await setup();
     await fill(el);

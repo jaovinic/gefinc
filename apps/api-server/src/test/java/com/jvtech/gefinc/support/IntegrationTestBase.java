@@ -3,6 +3,7 @@ package com.jvtech.gefinc.support;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetupTest;
+import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.auth.PasswordResetRateLimiter;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,11 +51,13 @@ public abstract class IntegrationTestBase {
   @Autowired protected JdbcTemplate jdbc;
   @Autowired protected MutableClock clock;
   @Autowired private PasswordResetRateLimiter passwordResetRateLimiter;
+  @Autowired private LoginAttemptLimiter loginAttemptLimiter;
 
   @BeforeEach
   void resetState() throws Exception {
     clock.set(TestClockConfig.START);
     passwordResetRateLimiter.clear();
+    loginAttemptLimiter.clear();
     List<String> tables =
         jdbc.queryForList(
             "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
