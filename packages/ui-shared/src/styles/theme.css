@@ -54,16 +54,16 @@ table td {
     @apply mb-1 block text-caption font-medium text-gefinc-muted;
   }
   .gef-input {
-    @apply w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-body-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-primary;
+    @apply min-h-11 w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-body-base md:min-h-0 text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-primary;
   }
   .gef-btn-primary {
-    @apply w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base md:min-h-0 font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50;
   }
   .gef-btn-danger {
-    @apply w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:opacity-90 disabled:opacity-50;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50 md:min-h-0;
   }
   .gef-btn-secondary {
-    @apply rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:border-gefinc-primary disabled:opacity-50;
+    @apply min-h-11 rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:border-gefinc-primary disabled:opacity-50 md:min-h-0;
   }
   .gef-link {
     @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;

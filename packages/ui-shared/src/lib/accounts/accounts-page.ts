@@ -14,8 +14,8 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
       <header class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-title-lg font-bold">Contas e cartões</h1>
         <div class="flex items-center gap-4">
-          <label class="flex items-center gap-2 text-body-base text-gefinc-muted">
-            <input type="checkbox" [checked]="showInactive()" (change)="toggleInactive($event)" />
+          <label class="flex min-h-11 items-center gap-2 text-body-base text-gefinc-muted md:min-h-0">
+            <input type="checkbox" class="h-5 w-5" [checked]="showInactive()" (change)="toggleInactive($event)" />
             Mostrar inativas
           </label>
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>

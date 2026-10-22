@@ -222,6 +222,9 @@ export class GroupForm implements OnInit {
   }
 
   protected submit(): void {
+    if (this.busy()) {
+      return;
+    }
     const value = this.form.getRawValue();
     const card = this.selectedAccount()?.type === 'CREDIT_CARD';
     if (this.form.invalid || Number(value.accountId) === 0 || Number(value.categoryId) === 0 || !value.totalAmount) {

@@ -33,7 +33,7 @@ const PAGE_SIZE = 25;
     <section class="space-y-4">
       <header class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-title-lg font-bold">Lançamentos</h1>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <gef-month-picker [(value)]="month" />
           <button type="button" class="gef-btn-secondary" (click)="formOpen.set(true)">Novo lançamento</button>
         </div>
@@ -296,6 +296,8 @@ export class TransactionsPage implements OnInit {
     () => [this.kind() !== '', this.status() !== '', this.accountId() !== 0, this.categoryId() !== 0].filter(Boolean).length,
   );
   protected readonly panel = signal<Panel | null>(null);
+  /** Ação do painel em andamento: toques repetidos não registram a operação de novo. */
+  private readonly acting = signal(false);
 
   protected paymentDate = todayIso();
   protected editDueDate = '';
@@ -461,13 +463,21 @@ export class TransactionsPage implements OnInit {
   }
 
   private run(request: { subscribe: (observer: { next: () => void; error: (e: unknown) => void }) => unknown }): void {
+    if (this.acting()) {
+      return;
+    }
+    this.acting.set(true);
     this.message.set(null);
     request.subscribe({
       next: () => {
+        this.acting.set(false);
         this.panel.set(null);
         this.load();
       },
-      error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
+      error: (e: unknown) => {
+        this.acting.set(false);
+        this.message.set(messageFor(toProblem(e)));
+      },
     });
   }
 }

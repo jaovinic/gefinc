@@ -163,3 +163,33 @@ describe('InvoicesPage', () => {
     });
   });
 });
+
+describe('InvoicesPage - toque duplo', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('tocar duas vezes em Confirmar registra o pagamento da fatura uma única vez', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(InvoicesPage);
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/accounts/2/invoices/${month}`).flush(invoice());
+    ctx.http.expectOne((r) => r.url === `${API}/invoices/projection`).flush(projection);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    clickButton(el, 'Quitar fatura');
+    fixture.detectChanges();
+    const confirm = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Confirmar') as HTMLButtonElement;
+    confirm.click();
+    confirm.click();
+
+    ctx.http.expectOne({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments/settle` }).flush(invoice({ remaining: '0.00' }));
+    ctx.http.expectOne((r) => r.url === `${API}/accounts/2/invoices/${month}`).flush(invoice({ remaining: '0.00' }));
+    ctx.http.expectOne((r) => r.url === `${API}/invoices/projection`).flush(projection);
+  });
+});

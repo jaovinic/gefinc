@@ -124,10 +124,10 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Áreas seguras, teclado, alvos de toque, acessibilidade e preservação do digitado em todas as telas
 
-- [ ] T045 [P] [US6] [Teste] Criar `apps/mobile-app-e2e/src/comfort.spec.ts` (E2E mobile, viewports 360x640 e Pixel 7): para cada rota do app sem rolagem horizontal, alvos de toque com pelo menos 44x44 px, nenhum controle sob a barra de abas ou a área segura, campo em edição visível com o teclado simulado, `@axe-core/playwright` sem violações A e AA; ver falhar
-- [ ] T046 [P] [US6] [Teste] Estender os testes dos formulários migrados em `packages/ui-shared/src/lib/` (`accounts`, `categories`, `transactions`, `invoices`) para falha de rede ou validação preservando o digitado (`draft.service`) e toque duplo em Salvar ou Pagar registrando uma única vez; ver falhar
-- [ ] T047 [US6] Ajustar as telas migradas e o shell: `min-h-11` em `.gef-btn-*` e links de ação (`packages/ui-shared/src/styles/theme.css`), `pb-[env(safe-area-inset-bottom)]` em listas e formulários, rolagem até o campo focado, rótulos acessíveis (`aria-label`) nos controles só com ícone
-- [ ] T048 [US6] Aplicar bloqueio de reenvio (`busy`) e rascunho (`DraftService`) nos formulários que ainda não os usam, conferir estados de carregamento, vazio e erro em todas as telas (FR-022) e rodar `npx nx e2e mobile-app-e2e`
+- [X] T045 [P] [US6] [Teste] Criar `apps/mobile-app-e2e/src/comfort.spec.ts` (E2E mobile, viewports 360x640 e Pixel 7): para cada rota do app sem rolagem horizontal, alvos de toque com pelo menos 44x44 px, nenhum controle sob a barra de abas ou a área segura, campo em edição visível com o teclado simulado, `@axe-core/playwright` sem violações A e AA; ver falhar
+- [X] T046 [P] [US6] [Teste] Estender os testes dos formulários migrados em `packages/ui-shared/src/lib/` (`accounts`, `categories`, `transactions`, `invoices`) para falha de rede ou validação preservando o digitado (`draft.service`) e toque duplo em Salvar ou Pagar registrando uma única vez; ver falhar
+- [X] T047 [US6] Ajustar as telas migradas e o shell: `min-h-11` em `.gef-btn-*` e links de ação (`packages/ui-shared/src/styles/theme.css`), `pb-[env(safe-area-inset-bottom)]` em listas e formulários, rolagem até o campo focado, rótulos acessíveis (`aria-label`) nos controles só com ícone
+- [X] T048 [US6] Aplicar bloqueio de reenvio (`busy`) e rascunho (`DraftService`) nos formulários que ainda não os usam, conferir estados de carregamento, vazio e erro em todas as telas (FR-022) e rodar `npx nx e2e mobile-app-e2e`
 
 ---
 

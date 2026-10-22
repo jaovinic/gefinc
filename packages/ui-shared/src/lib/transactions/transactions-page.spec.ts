@@ -243,3 +243,28 @@ describe('TransactionsPage', () => {
     });
   });
 });
+
+describe('TransactionsPage - toque duplo', () => {
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('tocar duas vezes em Confirmar registra o pagamento uma única vez', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/transactions`).flush(page([pending]));
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    (Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Pagar') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const confirm = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Confirmar') as HTMLButtonElement;
+    confirm.click();
+    confirm.click();
+
+    ctx.http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` }).flush({ ...pending, status: 'PAID' });
+    ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/transactions`).flush(page([]));
+  });
+});

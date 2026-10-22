@@ -232,6 +232,8 @@ export class InvoicesPage implements OnInit {
   protected readonly loadError = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly paymentMode = signal<'partial' | 'settle' | null>(null);
+  /** Pagamento em andamento: toques repetidos não registram de novo. */
+  private readonly acting = signal(false);
   protected readonly paymentAmount = signal<string | null>(null);
   protected paidAt = todayIso();
 
@@ -330,6 +332,9 @@ export class InvoicesPage implements OnInit {
   }
 
   protected confirmPayment(invoice: Invoice): void {
+    if (this.acting()) {
+      return;
+    }
     const mode = this.paymentMode();
     const amount = this.paymentAmount();
     if (mode === 'partial' && !amount) {
@@ -341,9 +346,16 @@ export class InvoicesPage implements OnInit {
         ? this.api.settle(invoice.accountId, invoice.month, this.paidAt)
         : this.api.pay(invoice.accountId, invoice.month, amount as string, this.paidAt);
     this.message.set(null);
+    this.acting.set(true);
     request.subscribe({
-      next: () => this.load(),
-      error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
+      next: () => {
+        this.acting.set(false);
+        this.load();
+      },
+      error: (e: unknown) => {
+        this.acting.set(false);
+        this.message.set(messageFor(toProblem(e)));
+      },
     });
   }
 

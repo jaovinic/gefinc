@@ -161,3 +161,49 @@ describe('GroupForm parcelado', () => {
     post.flush({}, { status: 201, statusText: 'Created' });
   });
 });
+
+describe('GroupForm - falha de conexão e toque duplo', () => {
+  async function setup() {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    type(el, '#description', 'Mercado');
+    select(el, '#accountId', '1');
+    fixture.detectChanges();
+    select(el, '#categoryId', '10');
+    type(el, 'gef-money-input input', '15000');
+    type(el, '#purchaseDate', '2026-11-08');
+    type(el, '#firstDueDate', '2026-11-12');
+    fixture.detectChanges();
+    return { ...ctx, fixture, el };
+  }
+  const submitForm = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('sem conexão ao salvar avisa e mantém tudo o que foi digitado para tentar de novo', async () => {
+    const { http, el, fixture } = await setup();
+    submitForm(el);
+    http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).error(new ProgressEvent('error'), { status: 0 });
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão');
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
+    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');
+    // tentar de novo funciona
+    submitForm(el);
+    http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('enviar duas vezes seguidas registra uma única vez', async () => {
+    const { http, el } = await setup();
+    submitForm(el);
+    submitForm(el);
+    http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 201, statusText: 'Created' });
+  });
+});

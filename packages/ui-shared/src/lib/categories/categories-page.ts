@@ -170,6 +170,9 @@ export class CategoriesPage implements OnInit {
   }
 
   protected save(): void {
+    if (this.busy()) {
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

@@ -26,7 +26,7 @@ interface Draft {
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
-        <a routerLink="/" class="text-body-base text-gefinc-secondary">Cancelar</a>
+        <a routerLink="/" class="gef-action justify-start text-gefinc-secondary">Cancelar</a>
         <h1 class="text-title-md font-bold">Nova despesa</h1>
         <span class="w-14"></span>
       </header>

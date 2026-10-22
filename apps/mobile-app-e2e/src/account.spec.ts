@@ -34,7 +34,7 @@ test.describe('conta e acesso no celular', () => {
     const user = await newUser(request);
     await signIn(page, user.email);
     await openFromMore(page, 'Minha conta');
-    await expect(page.getByRole('heading', { name: 'Minha conta' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Minha conta', exact: true })).toBeVisible();
 
     // senha errada não agenda
     await page.getByLabel('Confirme com a sua senha').fill('senha-errada-123');

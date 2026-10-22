@@ -20,9 +20,9 @@ const MAX_DIGITS = 15;
         <span class="mb-1 block text-caption text-gefinc-muted">{{ label() }}</span>
       }
       <span
-        class="flex items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-3 focus-within:border-gefinc-primary"
+        class="flex min-h-11 items-stretch rounded-lg border border-gefinc-border bg-gefinc-surface px-3 focus-within:border-gefinc-primary md:min-h-0"
       >
-        <span class="text-body-base text-gefinc-muted" aria-hidden="true">R$</span>
+        <span class="flex items-center text-body-base text-gefinc-muted" aria-hidden="true">R$</span>
         <input
           #field
           class="financial-value w-full bg-transparent px-2 py-2 text-right text-body-base text-gefinc-text outline-none"
