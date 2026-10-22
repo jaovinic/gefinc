@@ -9,6 +9,8 @@ import type {
   TransactionStatus,
 } from '@gefinc/core-models';
 import { NoticeService, ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
+import { AccountBadge, type AccountLike } from '../accounts/account-badge';
+import { Icon } from '../icons/icon';
 import { Sheet } from '../layout/sheet';
 import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
@@ -37,7 +39,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
   selector: 'gef-transactions-page',
-  imports: [FormsModule, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-4">
       <header class="flex flex-wrap items-center justify-between gap-3">
@@ -170,7 +172,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (items().length === 0) {
-        <gef-empty title="Nenhum lançamento neste mês" hint="Cadastre um lançamento ou escolha outro mês.">
+        <gef-empty icon="list" title="Nenhum lançamento neste mês" hint="Cadastre um lançamento ou escolha outro mês.">
           <button type="button" class="gef-btn-secondary" (click)="formOpen.set(true)">Novo lançamento</button>
         </gef-empty>
       } @else if (viewport.compact()) {
@@ -188,12 +190,15 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                   </p>
                   <p class="mt-1 flex items-center gap-2 text-caption text-gefinc-muted">
                     <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="reference.category(tx.categoryId)?.colorHex" aria-hidden="true"></span>
-                    {{ reference.category(tx.categoryId)?.name }} · {{ reference.accountName(tx.accountId) }}
+                    {{ reference.category(tx.categoryId)?.name }}
                   </p>
+                  <gef-account-badge class="mt-2" [account]="accountOf(tx)" [showHolder]="false" />
                 </div>
                 <div class="shrink-0 text-right">
-                  <p class="financial-value font-bold" [class.text-gefinc-primary]="isIncome(tx)">{{ money(tx.amount) }}</p>
-                  <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css">{{ badge(tx).label }}</span>
+                  <p class="financial-value flex items-center justify-end gap-1 font-bold" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
+                    <gef-icon [name]="isIncome(tx) ? 'arrow-up' : 'arrow-down'" [size]="14" />{{ signed(tx) }}
+                  </p>
+                  <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css"><gef-icon [name]="badge(tx).icon" [size]="12" />{{ badge(tx).label }}</span>
                 </div>
               </div>
               @if (isLocal(tx)) {
@@ -243,11 +248,13 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                       {{ reference.category(tx.categoryId)?.name }}
                     </span>
                   </td>
-                  <td class="px-4 py-3">{{ reference.accountName(tx.accountId) }}</td>
+                  <td class="max-w-56 px-4 py-3"><gef-account-badge [account]="accountOf(tx)" [showHolder]="false" /></td>
                   <td class="px-4 py-3 text-gefinc-muted">{{ installmentLabel(tx) }}</td>
-                  <td class="financial-value px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)">{{ money(tx.amount) }}</td>
+                  <td class="financial-value px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
+                    <span class="inline-flex items-center justify-end gap-1"><gef-icon [name]="isIncome(tx) ? 'arrow-up' : 'arrow-down'" [size]="14" />{{ signed(tx) }}</span>
+                  </td>
                   <td class="px-4 py-3">
-                    <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css">{{ badge(tx).label }}</span>
+                    <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css"><gef-icon [name]="badge(tx).icon" [size]="12" />{{ badge(tx).label }}</span>
                   </td>
                   <td class="space-x-2 px-4 py-3 text-right">
                     @if (isLocal(tx)) {
@@ -384,6 +391,7 @@ export class TransactionsPage implements OnInit {
   protected onCreated(): void {
     this.formOpen.set(false);
     this.load();
+    this.notices.toast('Lançamento registrado.');
   }
 
   protected br(iso: string): string {
@@ -398,6 +406,11 @@ export class TransactionsPage implements OnInit {
     return this.reference.accounts().find((a) => a.id === tx.accountId)?.type === 'CREDIT_CARD';
   }
 
+  /** Conta do lançamento para o selo; sem a conta carregada ainda mostra um traço. */
+  protected accountOf(tx: Transaction): AccountLike {
+    return this.reference.account(tx.accountId) ?? { name: '—', type: 'CHECKING' };
+  }
+
   protected isIncome(tx: Transaction): boolean {
     return this.incomeIds().has(tx.categoryId);
   }
@@ -410,14 +423,19 @@ export class TransactionsPage implements OnInit {
   }
 
   /** Selo de status conforme o manual de identidade visual (pendente, pago, vencido). */
-  protected badge(tx: Transaction): { label: string; css: string } {
+  protected badge(tx: Transaction): { label: string; css: string; icon: string } {
     if (tx.status === 'PAID') {
-      return { label: 'Pago', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
+      return { label: 'Pago', icon: 'check', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
     }
     if (tx.overdue) {
-      return { label: 'Vencido', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
+      return { label: 'Vencido', icon: 'alert', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
     }
-    return { label: 'Pend', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+    return { label: 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+  }
+
+  /** Valor com sinal: receita com "+" e despesa com "−", para não depender só da cor. */
+  protected signed(tx: Transaction): string {
+    return `${this.isIncome(tx) ? '+' : '\u2212'} ${this.money(tx.amount)}`;
   }
 
   protected openPay(tx: Transaction): void {
@@ -444,11 +462,11 @@ export class TransactionsPage implements OnInit {
   }
 
   protected confirmPay(tx: Transaction): void {
-    this.run(this.api.pay(tx.id, this.paymentDate));
+    this.run(this.api.pay(tx.id, this.paymentDate), 'Pagamento registrado.', () => this.unpay(tx, false));
   }
 
-  protected unpay(tx: Transaction): void {
-    this.run(this.api.unpay(tx.id));
+  protected unpay(tx: Transaction, announce = true): void {
+    this.run(this.api.unpay(tx.id), announce ? 'Pagamento desfeito.' : undefined);
   }
 
   protected confirmEdit(tx: Transaction): void {
@@ -462,25 +480,30 @@ export class TransactionsPage implements OnInit {
         ...(this.isCard(tx) ? {} : { dueDate: this.editDueDate }),
         version: tx.version,
       }),
+      'Lançamento atualizado.',
     );
   }
 
   protected confirmAmount(tx: Transaction): void {
     const amount = this.editAmount();
     if (amount) {
-      this.run(this.api.changeAmount(tx.groupId, tx.dueDate.slice(0, 7), amount));
+      this.run(this.api.changeAmount(tx.groupId, tx.dueDate.slice(0, 7), amount), 'Valor atualizado.');
     }
   }
 
   protected endHere(tx: Transaction): void {
-    this.run(this.api.endGroup(tx.groupId, tx.dueDate.slice(0, 7)));
+    this.run(this.api.endGroup(tx.groupId, tx.dueDate.slice(0, 7)), 'Lançamento encerrado.');
   }
 
   protected confirmDelete(tx: Transaction): void {
-    this.run(this.api.deleteGroup(tx.groupId));
+    this.run(this.api.deleteGroup(tx.groupId), 'Lançamento excluído.');
   }
 
-  private run(request: { subscribe: (observer: { next: () => void; error: (e: unknown) => void }) => unknown }): void {
+  private run(
+    request: { subscribe: (observer: { next: () => void; error: (e: unknown) => void }) => unknown },
+    success?: string,
+    undo?: () => void,
+  ): void {
     if (this.acting()) {
       return;
     }
@@ -491,6 +514,9 @@ export class TransactionsPage implements OnInit {
         this.acting.set(false);
         this.panel.set(null);
         this.load();
+        if (success) {
+          this.notices.toast(success, { undo });
+        }
       },
       error: (e: unknown) => {
         this.acting.set(false);

@@ -6,7 +6,7 @@ import { Sheet } from './sheet';
   imports: [Sheet],
   template: `
     <button id="outside" type="button">fora</button>
-    <gef-sheet heading="Filtros" [open]="open()" (closed)="closed()">
+    <gef-sheet heading="Filtros" [side]="side()" [open]="open()" (closed)="closed()">
       <input id="first" />
       <button id="last" type="button">Aplicar</button>
     </gef-sheet>
@@ -14,6 +14,7 @@ import { Sheet } from './sheet';
 })
 class Host {
   readonly open = signal(false);
+  readonly side = signal<'bottom' | 'left'>('bottom');
   readonly closed = jest.fn(() => this.open.set(false));
 }
 
@@ -100,5 +101,35 @@ describe('Sheet (painel inferior)', () => {
     await fixture.whenStable();
 
     expect(document.activeElement).toBe(outside);
+  });
+
+  it('Escape fecha mesmo com o foco fora do painel', async () => {
+    const { fixture, host, el } = setup();
+    await open(fixture);
+    (el.querySelector('#outside') as HTMLElement).focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape sem painel aberto não faz nada', () => {
+    const { host } = setup();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.closed).not.toHaveBeenCalled();
+  });
+
+  it('como gaveta lateral abre colada à esquerda e continua sendo um diálogo modal', async () => {
+    const { fixture, host, el } = setup();
+    host.side.set('left');
+    await open(fixture);
+    const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.classList.contains('gef-sheet-left')).toBe(true);
+    expect(el.querySelector('.gef-sheet-backdrop')?.classList.contains('gef-sheet-backdrop-left')).toBe(true);
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
+  it('o painel padrão continua subindo da base', async () => {
+    const { fixture, el } = setup();
+    await open(fixture);
+    expect((el.querySelector('[role="dialog"]') as HTMLElement).classList.contains('gef-sheet-left')).toBe(false);
   });
 });

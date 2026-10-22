@@ -891,6 +891,13 @@ components:
     AccountType:
       type: string
       enum: [CHECKING, CASH, CREDIT_CARD]
+    HolderType:
+      type: string
+      enum: [PF, PJ]
+      description: "Titularidade da conta bancária: pessoa física ou jurídica (classificação, sem separar dados)."
+    AccountIcon:
+      type: string
+      enum: [bank, building, briefcase, landmark, wallet, cash, piggy, card, card-gold, card-platinum, card-black, shield, rocket, star, globe, shopping-bag]
     CategoryType:
       type: string
       enum: [INCOME, EXPENSE]
@@ -1004,6 +1011,14 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        holderType:
+          $ref: '#/components/schemas/HolderType'
+          description: "Em conta bancária, o titular; em cartão, o titular herdado da conta vinculada (ausente se o cartão não tem vínculo)."
+        icon:
+          $ref: '#/components/schemas/AccountIcon'
+          description: "Sempre presente: o escolhido ou o padrão do tipo."
+        bankAccountId: { type: integer, format: int64, description: "Somente em cartão vinculado." }
+        bankAccountName: { type: string, description: "Nome da conta bancária do cartão." }
         active: { type: boolean }
         version: { type: integer, format: int64 }
     AccountInput:
@@ -1014,7 +1029,10 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
-      description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos."
+        holderType: { $ref: '#/components/schemas/HolderType' }
+        icon: { $ref: '#/components/schemas/AccountIcon' }
+        bankAccountId: { type: integer, format: int64 }
+      description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. `holderType` é obrigatório em CHECKING e proibido nos demais. `bankAccountId` (conta bancária ativa do mesmo usuário) é obrigatório em CREDIT_CARD e proibido nos demais; conta de outro usuário responde 404 e conta inativa, 422 ACCOUNT_INACTIVE. `icon` ausente usa o padrão do tipo."
     AccountUpdate:
       type: object
       required: [name, type, active, version]
@@ -1023,9 +1041,12 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        holderType: { $ref: '#/components/schemas/HolderType' }
+        icon: { $ref: '#/components/schemas/AccountIcon' }
+        bankAccountId: { type: integer, format: int64 }
         active: { type: boolean }
         version: { type: integer, format: int64 }
-      description: "O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput."
+      description: "O tipo não pode ser alterado depois do cadastro; os demais campos seguem as regras de AccountInput. Cartão anterior ao vínculo (sem `bankAccountId`) precisa informá-lo ao ser editado, exceto quando só `active` muda."
 
 
     Category:

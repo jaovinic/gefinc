@@ -13,6 +13,7 @@ test.describe('contas, cartões e categorias no celular', () => {
     // conta bancária
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Itaú');
+    await page.locator('gef-account-form').getByLabel('Pessoa física').check();
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toContainText('Conta bancária');
 
@@ -20,6 +21,8 @@ test.describe('contas, cartões e categorias no celular', () => {
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Nubank');
     await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await page.getByLabel('Conta bancária').click();
+    await page.locator('[role="option"]').filter({ hasText: 'Itaú' }).click();
     await page.getByLabel('Dia de fechamento da fatura').fill('32');
     await page.getByLabel('Dia de vencimento da fatura').fill('17');
     await page.getByRole('button', { name: 'Salvar' }).click();
@@ -39,10 +42,14 @@ test.describe('contas, cartões e categorias no celular', () => {
     await expect(page.getByTestId('account-card').filter({ hasText: 'Nubank Roxinho' })).toBeVisible();
 
     // inativar tira da lista; "Mostrar inativas" traz de volta
+    // (o Itaú tem o cartão vinculado: o app avisa antes de inativar)
+    const itau = page.getByTestId('account-card').filter({ has: page.locator('[data-name]', { hasText: /^Itaú$/ }) });
     await page.getByRole('button', { name: 'Inativar Itaú' }).click();
-    await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toContainText('Nubank Roxinho');
+    await page.getByRole('button', { name: 'Inativar mesmo assim' }).click();
+    await expect(itau).toHaveCount(0);
     await page.getByLabel('Mostrar inativas').check();
-    await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toContainText('Inativa');
+    await expect(itau).toContainText('Inativa');
 
     // o que foi criado no app aparece igual na API (mesmos dados do web)
     const accounts = (await apiGet(request, user, '/accounts?includeInactive=true')) as { name: string; type: string; closingDay?: number }[];

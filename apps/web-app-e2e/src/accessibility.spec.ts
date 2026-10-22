@@ -37,4 +37,53 @@ test.describe('acessibilidade (WCAG AA)', () => {
       expect(await violations(page), path).toEqual([]);
     }
   });
+
+  test('menu lateral (aberto, recolhido e em gaveta), formulário de conta com ícones e seletor de conta', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await createAccount(page, 'Itaú', 'CHECKING');
+    expect(await violations(page), 'menu aberto').toEqual([]);
+
+    await page.getByTestId('sidenav').getByRole('button', { name: 'Recolher menu' }).click();
+    expect(await violations(page), 'menu recolhido').toEqual([]);
+
+    await page.goto('/accounts');
+    await page.getByRole('button', { name: 'Nova conta' }).first().click();
+    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await page.getByLabel('Conta bancária').click();
+    await expect(page.getByRole('dialog', { name: 'Conta bancária' })).toBeVisible();
+    expect(await violations(page), 'seletor de conta').toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Tipo').selectOption('CHECKING');
+    await expect(page.getByRole('radio', { name: 'Banco' })).toBeVisible();
+    expect(await violations(page), 'formulário de conta').toEqual([]);
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.getByRole('button', { name: 'Abrir menu' }).click();
+    await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
+    expect(await violations(page), 'gaveta do menu').toEqual([]);
+  });
+
+  test('receita/despesa e status nunca dependem só da cor: têm sinal, seta e ícone', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await createAccount(page, 'Itaú', 'CHECKING');
+    await page.goto('/transactions');
+    await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
+    const form = page.locator('gef-group-form');
+    await form.getByLabel('Receita').check();
+    await form.getByLabel('Descrição ou loja').fill('Salário');
+    await form.getByLabel('Conta ou cartão').click();
+    await page.locator('[role="option"]').first().click();
+    await form.getByLabel('Categoria').selectOption({ label: 'Salário' });
+    await form.getByLabel('Valor').fill('500000');
+    await form.getByLabel('Data da compra').fill(new Date().toISOString().slice(0, 8) + '01');
+    await form.getByLabel(/vencimento/i).fill(new Date().toISOString().slice(0, 8) + '05');
+    await form.getByRole('button', { name: 'Salvar' }).click();
+
+    const amount = page.locator('td[data-kind="income"]').first();
+    await expect(amount).toContainText('+ R$ 5.000,00');
+    await expect(amount.locator('svg')).toBeVisible();
+    await expect(page.getByRole('row', { name: /Salário/ }).locator('span.rounded-full svg')).toBeVisible();
+    await expect(page.getByTestId('toast')).toContainText('Lançamento registrado.');
+    expect(await violations(page), 'lançamentos com sinal e ícones').toEqual([]);
+  });
 });

@@ -74,7 +74,7 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (categories().length === 0) {
-        <gef-empty title="Nenhuma categoria" hint="Crie categorias para classificar receitas e despesas." />
+        <gef-empty icon="tag" title="Nenhuma categoria" hint="Crie categorias para classificar receitas e despesas." />
       } @else {
         @for (type of types; track type) {
           <div>

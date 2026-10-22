@@ -45,7 +45,11 @@ gefinc/
 
 ### 1. Gestão de Contas e Cartões
 
-- Registo de contas correntes, dinheiro e múltiplos cartões de crédito.
+- Registo de contas bancárias, dinheiro e múltiplos cartões de crédito. Cada **conta bancária é de pessoa
+  física (PF) ou jurídica (PJ)** (selo e filtro; os totais seguem consolidados) e tem um **ícone**.
+
+- Todo **cartão é vinculado a uma conta bancária** e tem ícone e nome próprios, que aparecem em todo lançamento,
+  fatura e gráfico. Cartões anteriores sem vínculo continuam funcionando e pedem para ser vinculados.
 
 - Definição explícita do dia de fecho e do dia de vencimento de cada cartão.
 
@@ -104,6 +108,22 @@ Com a porta 5432 ocupada, rode os E2E com `DB_PORT=5433`. O teste de carga (1.00
 Depois de mudar o contrato (`packages/core-models/openapi/gefinc.openapi.yaml`), regenere os tipos com
 `npx nx run core-models:generate`.
 
+## 🎨 Identidade visual
+
+O GEFINC segue o manual **Aurora FinTech** ([docs/gefinc_identidade_visual_design_system.md](docs/gefinc_identidade_visual_design_system.md)):
+fundo `#090D16`, superfície `#131B2E`, verde-esmeralda `#00E599`, ciano `#00B4D8`, violeta `#7C3AED`, fonte
+Plus Jakarta Sans e um conjunto único de ícones (`gef-icon`). No web, o menu fica na **barra lateral esquerda**
+(recolhível; em tela estreita vira gaveta). O logo vem de um SVG-fonte e os favicons, o manifesto, os ícones do
+Android/iOS e as telas de abertura são **gerados** a partir dele:
+
+```bash
+npm run brand:generate   # grava favicons, manifesto, mipmap/AppIcon, splash e docs/brand/ (logo em SVG e PNG)
+npm run brand:test       # testes do gerador
+```
+
+Para usar o logo definitivo, troque `packages/ui-shared/src/brand/gefinc-symbol.svg` (e `gefinc-wordmark.svg`) e
+rode o comando acima; as telas não mudam.
+
 ## 📱 Aplicativo móvel
 
 ```bash
@@ -113,7 +133,8 @@ npx nx run mobile-app:open -- android       # abre no Android Studio (ou ios)
 ```
 
 O app tem as **mesmas funções do web**, em telas pensadas para o celular (barra de abas): painel, lançamentos
-(avulso, fixo e parcelado), faturas, fluxo de caixa, contas e cartões, categorias e Minha conta. Além disso:
+(avulso, fixo e parcelado), faturas, fluxo de caixa, contas e cartões, categorias e Minha conta. Na tela inicial,
+**Nova despesa** e **Nova receita** ficam lado a lado e registram em até 3 toques. Além disso:
 
 - **Sem internet:** consulta os últimos dados sincronizados e registra lançamentos e pagamentos, que são
   enviados sozinhos quando a conexão volta (sem duplicar). Ver [docs/operations.md](docs/operations.md).

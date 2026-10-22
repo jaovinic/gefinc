@@ -1,6 +1,7 @@
 import { Component, ElementRef, OnDestroy, computed, effect, input, viewChild } from '@angular/core';
 import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js';
 import { formatBRL } from '@gefinc/utils';
+import { Icon } from '../icons/icon';
 import { ChartSlice } from './chart-slice';
 
 Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
@@ -8,6 +9,7 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
 /** Barras horizontais da distribuição dos gastos por cartão, com legenda acessível dos valores. */
 @Component({
   selector: 'gef-card-bars',
+  imports: [Icon],
   template: `
     <div class="space-y-4">
       <div class="relative" [style.height.px]="height()">
@@ -16,7 +18,12 @@ Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
       <ul class="space-y-1 text-body-base" aria-label="Legenda do gráfico por cartão">
         @for (slice of slices(); track slice.label) {
           <li class="flex items-center justify-between gap-3">
-            <span>{{ slice.label }}</span>
+            <span class="flex items-center gap-2">
+              @if (slice.icon) {
+                <span class="gef-account-tile text-gefinc-accent"><gef-icon [name]="slice.icon" [size]="16" /></span>
+              }
+              {{ slice.label }}
+            </span>
             <span class="financial-value">{{ money(slice.value) }}</span>
           </li>
         }

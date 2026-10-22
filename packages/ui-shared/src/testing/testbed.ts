@@ -6,8 +6,11 @@ import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authIntercepto
 export const API = '/api/v1';
 
 export const ACCOUNTS = [
-  { id: 1, name: 'Itaú', type: 'CHECKING', active: true, version: 0 },
-  { id: 2, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, active: true, version: 0 },
+  { id: 1, name: 'Itaú', type: 'CHECKING', holderType: 'PF', icon: 'bank', active: true, version: 0 },
+  {
+    id: 2, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, holderType: 'PF', icon: 'card',
+    bankAccountId: 1, bankAccountName: 'Itaú', active: true, version: 0,
+  },
 ];
 export const CATEGORIES = [
   { id: 10, name: 'Alimentação', type: 'EXPENSE', colorHex: '#F97316' },
@@ -44,6 +47,14 @@ export function type(root: HTMLElement, selector: string, value: string) {
   const input = root.querySelector(selector) as HTMLInputElement;
   input.value = value;
   input.dispatchEvent(new Event('input'));
+}
+
+/** Escolhe uma conta ou cartão no seletor com ícones (abre a lista e clica na opção pelo id). */
+export function chooseAccount(fixture: { detectChanges(): void }, root: HTMLElement, accountId: number | string) {
+  (root.querySelector('gef-account-picker button[aria-haspopup]') as HTMLButtonElement).click();
+  fixture.detectChanges();
+  (document.querySelector(`[role="option"][data-account-id="${accountId}"]`) as HTMLElement).click();
+  fixture.detectChanges();
 }
 
 export function select(root: HTMLElement, selector: string, value: string) {

@@ -102,21 +102,7 @@ class TransactionValidationIT extends IntegrationTestBase {
         .andExpect(status().isUnprocessableEntity())
         .andExpect(jsonPath("$.errors[?(@.field=='totalInstallments')]").exists());
 
-    JsonNode account = api.get(ana, "/accounts/" + checking);
-    api.call(
-            ana,
-            HttpMethod.PUT,
-            "/accounts/" + checking,
-            Map.of(
-                "name",
-                "Itaú",
-                "type",
-                "CHECKING",
-                "active",
-                false,
-                "version",
-                account.get("version").asLong()))
-        .andExpect(status().isOk());
+    api.updateAccount(ana, checking, Map.of("active", false)).andExpect(status().isOk());
     api.call(
             ana,
             HttpMethod.POST,

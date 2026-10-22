@@ -30,25 +30,27 @@ public class AccountController {
 
   @GetMapping
   public List<AccountResponse> list(@RequestParam(defaultValue = "false") boolean includeInactive) {
-    return service.list(CurrentUser.id(), includeInactive).stream()
-        .map(AccountResponse::of)
-        .toList();
+    long userId = CurrentUser.id();
+    return service.responses(userId, service.list(userId, includeInactive));
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public AccountResponse create(@Valid @RequestBody AccountInput body) {
-    return AccountResponse.of(service.create(CurrentUser.id(), body));
+    long userId = CurrentUser.id();
+    return service.response(userId, service.create(userId, body));
   }
 
   @GetMapping("/{id}")
   public AccountResponse get(@PathVariable long id) {
-    return AccountResponse.of(service.get(CurrentUser.id(), id));
+    long userId = CurrentUser.id();
+    return service.response(userId, service.get(userId, id));
   }
 
   @PutMapping("/{id}")
   public AccountResponse update(@PathVariable long id, @Valid @RequestBody AccountUpdate body) {
-    return AccountResponse.of(service.update(CurrentUser.id(), id, body));
+    long userId = CurrentUser.id();
+    return service.response(userId, service.update(userId, id, body));
   }
 
   @DeleteMapping("/{id}")

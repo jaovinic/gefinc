@@ -18,12 +18,13 @@ const ROUTES: { path: string; ready: string | RegExp }[] = [
   { path: '/fluxo-de-caixa', ready: 'Fluxo de caixa' },
   { path: '/minha-conta', ready: 'Minha conta' },
   { path: '/quick-expense', ready: 'Nova despesa' },
+  { path: '/quick-income', ready: 'Nova receita' },
 ];
 
 async function seed(request: Parameters<typeof newUser>[0]) {
   const user = await newUser(request);
-  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
-  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28 });
+  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28, bankAccountId: itau.id });
   const food = await categoryId(request, user, 'Alimentação');
   const month = todayIso().slice(0, 7);
   for (const [description, account, due] of [['Mercado', itau, `${month}-27`], ['Tênis', nubank, null]] as const) {
@@ -108,5 +109,36 @@ test('telas públicas (entrar, criar conta, recuperar senha) cabem em 360 px e p
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     for (const v of axe.violations) problems.push(`${path}: axe ${v.id} (${v.nodes.length})`);
   }
+  expect(problems).toEqual([]);
+});
+
+test('formulário de conta com ícones, seletor de conta e avisos cabem em 360 px, com alvos de 44 px e sem violações', async ({ page, request }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  const user = await seed(request);
+  await signIn(page, user.email);
+  const problems: string[] = [];
+  const audit = async (label: string) => {
+    const overflow = await page.evaluate(() => Array.from(document.querySelectorAll('main, .gef-screen')).some((el) => el.scrollWidth > el.clientWidth + 1));
+    if (overflow) problems.push(`${label}: rolagem horizontal`);
+    for (const small of await smallTouchTargets(page)) problems.push(`${label}: alvo pequeno ${small}`);
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+    for (const v of axe.violations) problems.push(`${label}: axe ${v.id} (${v.nodes.length})`);
+  };
+
+  await page.goto('/contas');
+  await page.getByRole('button', { name: 'Nova conta' }).first().click();
+  await expect(page.getByRole('radio', { name: 'Banco' })).toBeVisible();
+  await audit('formulário de conta bancária');
+
+  await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+  await page.getByLabel('Conta bancária').click();
+  await expect(page.getByRole('dialog', { name: 'Conta bancária' })).toBeVisible();
+  await audit('seletor de conta bancária');
+  await page.keyboard.press('Escape');
+
+  await page.goto('/quick-income');
+  await page.getByLabel('Conta ou cartão').click();
+  await expect(page.getByRole('dialog', { name: 'Conta ou cartão' })).toBeVisible();
+  await audit('seletor de conta no lançamento rápido');
   expect(problems).toEqual([]);
 });

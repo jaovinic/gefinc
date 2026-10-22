@@ -35,6 +35,7 @@ describe('DashboardPage', () => {
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();
+    ctx.flushReference();
     const request = ctx.http.expectOne((r) => r.url === `${API}/dashboard`);
     expect(request.request.params.get('month')).toBe(month);
     request.flush(body);
@@ -54,6 +55,13 @@ describe('DashboardPage', () => {
     expect(text('to-due')).toContain('R$ 250,00');
     expect(text('paid')).toContain('R$ 40,00');
     expect(text('overdue')).toContain('R$ 90,50');
+  });
+
+  it('a legenda por cartão mostra o ícone do cartão', async () => {
+    const { el } = await setup(full);
+    const legend = el.querySelector('ul[aria-label="Legenda do gráfico por cartão"]')!;
+    expect(legend.textContent).toContain('Nubank');
+    expect(legend.querySelector('svg')).not.toBeNull();
   });
 
   it('mostra os gráficos por categoria e por cartão com a legenda', async () => {
@@ -79,6 +87,7 @@ describe('DashboardPage', () => {
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();
+    ctx.flushReference();
     ctx.http.expectOne((r) => r.url === `${API}/dashboard`).flush({}, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).toContain('erro inesperado');

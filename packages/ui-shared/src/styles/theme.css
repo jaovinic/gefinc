@@ -39,6 +39,29 @@ body {
   color-scheme: dark;
 }
 
+:root {
+  /* Gradiente de marca Aurora FinTech (manual, seção 3). */
+  --gradient-aurora: linear-gradient(135deg, #00e599 0%, #00b4d8 100%);
+}
+
+/* Foco visível em tudo que recebe teclado (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--color-gefinc-secondary);
+  outline-offset: 2px;
+}
+
+/* Quem pede menos movimento no sistema não vê transições nem animações (FR-034). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Algarismos tabulares: valores e tabelas não oscilam de largura (manual, seção 4.2). */
 .financial-value,
 .currency-display,
@@ -50,6 +73,39 @@ table td {
 
 /* Componentes reutilizados nas telas (formulários e botões) */
 @layer components {
+  .gef-wordmark {
+    @apply font-extrabold leading-none text-gefinc-text;
+    letter-spacing: 0.08em;
+  }
+  .gef-account-tile {
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gefinc-border bg-gefinc-bg;
+  }
+  .gef-pill {
+    @apply inline-flex shrink-0 items-center rounded-full border border-gefinc-primary/40 px-2 py-px text-micro font-bold text-gefinc-primary;
+  }
+  .gef-pill-pj {
+    @apply border-gefinc-secondary/40 text-gefinc-secondary;
+  }
+  .gef-icon-option {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gefinc-border bg-gefinc-bg text-gefinc-muted hover:border-gefinc-primary disabled:opacity-50;
+  }
+  .gef-icon-option[aria-checked='true'] {
+    @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
+  }
+  /* Escolha entre poucas opções (PF/PJ, receita/despesa): rádios nativos com aparência de botões. */
+  .gef-segment {
+    @apply relative flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gefinc-border px-3 text-body-base font-semibold text-gefinc-muted md:min-h-0;
+  }
+  .gef-segment > input[type='radio'] {
+    @apply absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0;
+  }
+  .gef-segment:has(input:checked) {
+    @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
+  }
+  .gef-segment:has(input:focus-visible) {
+    outline: 2px solid var(--color-gefinc-secondary);
+    outline-offset: 2px;
+  }
   .gef-label {
     @apply mb-1 block text-caption font-medium text-gefinc-muted;
   }
@@ -74,6 +130,65 @@ table td {
   .gef-sheet {
     @apply max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-gefinc-border bg-gefinc-surface p-4 md:max-w-lg md:rounded-2xl;
     padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+  }
+  .gef-sheet-backdrop-left {
+    @apply items-stretch justify-start md:items-stretch;
+  }
+  .gef-sheet-left {
+    @apply h-full max-h-none w-72 max-w-[85vw] rounded-none rounded-r-2xl p-0 md:max-w-72 md:rounded-r-2xl md:rounded-l-none;
+  }
+  /* Menu lateral do web (e a mesma lista dentro da gaveta em tela estreita). */
+  .gef-sidenav {
+    @apply sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gefinc-border bg-gefinc-surface lg:flex;
+  }
+  .gef-sidenav[data-collapsed='true'] {
+    @apply w-[4.5rem];
+  }
+  .gef-sidenav-head {
+    @apply flex items-center justify-between gap-2 border-b border-gefinc-border p-4;
+  }
+  .gef-sidenav[data-collapsed='true'] .gef-sidenav-head {
+    @apply flex-col gap-3 px-2;
+  }
+  .gef-sidenav-toggle {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gefinc-border text-gefinc-muted hover:border-gefinc-primary hover:text-gefinc-text;
+  }
+  .gef-sidenav-nav {
+    @apply flex flex-1 flex-col gap-1 overflow-y-auto p-3;
+  }
+  .gef-sidenav-footer {
+    @apply flex flex-col gap-1 border-t border-gefinc-border p-3;
+  }
+  .gef-nav-link {
+    @apply relative flex min-h-11 w-full items-center gap-3 rounded-lg border-l-4 border-transparent px-3 text-left text-body-base font-medium text-gefinc-muted hover:bg-gefinc-bg hover:text-gefinc-text;
+  }
+  .gef-nav-active {
+    @apply border-gefinc-primary bg-gefinc-primary/10 font-bold text-gefinc-primary hover:bg-gefinc-primary/10 hover:text-gefinc-primary;
+  }
+  .gef-sidenav[data-collapsed='true'] .gef-nav-label {
+    @apply sr-only;
+  }
+  .gef-sidenav[data-collapsed='true'] .gef-nav-link {
+    @apply justify-center px-0;
+  }
+  /* Recolhido, o nome aparece como dica ao passar o mouse ou receber o foco do teclado. */
+  .gef-sidenav[data-collapsed='true'] .gef-nav-link:hover::after,
+  .gef-sidenav[data-collapsed='true'] .gef-nav-link:focus-visible::after {
+    content: attr(data-label);
+    @apply absolute left-full z-20 ml-2 whitespace-nowrap rounded-md border border-gefinc-border bg-gefinc-surface px-2 py-1 text-caption font-semibold text-gefinc-text shadow-lg;
+  }
+  .gef-topbar {
+    @apply flex items-center gap-3 border-b border-gefinc-border bg-gefinc-surface px-4 py-3 lg:hidden;
+  }
+  .gef-state-icon {
+    @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-gefinc-border bg-gefinc-bg text-gefinc-muted;
+  }
+  .gef-toast-region {
+    @apply pointer-events-none fixed left-4 right-4 z-[60] flex flex-col items-center gap-2 md:left-auto md:items-end;
+    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 5rem);
+  }
+  .gef-toast {
+    @apply pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-gefinc-primary/40 bg-gefinc-surface px-4 py-2 text-body-base text-gefinc-text shadow-lg;
   }
   /* Ação de linha/cartão com área de toque de pelo menos 44 px. */
   .gef-action {

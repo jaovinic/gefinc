@@ -1,11 +1,11 @@
 import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { TransactionGroupInput } from '@gefinc/core-models';
-import { DraftService, MoneyInput, ReferenceData, TransactionsApi, messageFor, toProblem } from '@gefinc/ui-shared';
+import { AccountPicker, DraftService, MoneyInput, NoticeService, ReferenceData, TransactionsApi, messageFor, toProblem } from '@gefinc/ui-shared';
 import { todayIso } from '@gefinc/utils';
-import { QuickExpenseDefaults } from './quick-expense-defaults.service';
+import { QuickExpenseDefaults, type QuickKind } from './quick-expense-defaults.service';
 
 interface Draft {
   amount: string | null;
@@ -16,18 +16,19 @@ interface Draft {
 }
 
 /**
- * Lançamento rápido de despesa avulsa (RNF03): a tela abre com o valor focado e conta, categoria e
- * data já preenchidas (últimas usadas); ajustes ficam no mesmo formulário e "Salvar" conclui.
- * A partir da tela inicial são 2 toques (abrir e salvar), dentro do limite de 3.
+ * Lançamento rápido de despesa ou de receita avulsa (RNF03), conforme o `kind` da rota: a tela abre
+ * com o valor focado e conta, categoria e data já preenchidas (últimas usadas, separadas por
+ * natureza); ajustes ficam no mesmo formulário e "Salvar" conclui. A partir da tela inicial são 2
+ * toques (abrir e salvar), dentro do limite de 3.
  */
 @Component({
   selector: 'gef-quick-expense-page',
-  imports: [ReactiveFormsModule, MoneyInput, RouterLink],
+  imports: [AccountPicker, ReactiveFormsModule, MoneyInput, RouterLink],
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
         <a routerLink="/" class="gef-action justify-start text-gefinc-secondary">Cancelar</a>
-        <h1 class="text-title-md font-bold">Nova despesa</h1>
+        <h1 class="text-title-md font-bold">{{ isIncome ? 'Nova receita' : 'Nova despesa' }}</h1>
         <span class="w-14"></span>
       </header>
       <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4 p-4" novalidate>
@@ -39,18 +40,16 @@ interface Draft {
           <label class="gef-label" for="description">Descrição (opcional)</label>
           <input id="description" class="gef-input" formControlName="description" maxlength="120" placeholder="Ex.: Mercado" />
         </div>
-        <div>
-          <label class="gef-label" for="accountId">Conta ou cartão</label>
-          <select id="accountId" class="gef-input" formControlName="accountId">
-            @for (account of activeAccounts(); track account.id) {
-              <option [value]="account.id">{{ account.name }}</option>
-            }
-          </select>
-        </div>
+        <gef-account-picker
+          label="Conta ou cartão"
+          formControlName="accountId"
+          [accounts]="activeAccounts()"
+          emptyMessage="Cadastre uma conta ou cartão para lançar."
+        />
         <div>
           <label class="gef-label" for="categoryId">Categoria</label>
           <select id="categoryId" class="gef-input" formControlName="categoryId">
-            @for (category of expenseCategories(); track category.id) {
+            @for (category of categories(); track category.id) {
               <option [value]="category.id">{{ category.name }}</option>
             }
           </select>
@@ -70,6 +69,10 @@ export class QuickExpensePage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly drafts = inject(DraftService);
   private readonly defaults = inject(QuickExpenseDefaults);
+  private readonly route = inject(ActivatedRoute);
+  private readonly notices = inject(NoticeService);
+  protected readonly kind: QuickKind = this.route.snapshot.data['kind'] === 'income' ? 'income' : 'expense';
+  protected readonly isIncome = this.kind === 'income';
   protected readonly reference = inject(ReferenceData);
 
   protected readonly form = this.fb.nonNullable.group({
@@ -83,7 +86,9 @@ export class QuickExpensePage implements OnInit, OnDestroy {
   protected readonly busy = signal(false);
 
   protected readonly activeAccounts = computed(() => this.reference.accounts().filter((a) => a.active));
-  protected readonly expenseCategories = computed(() => this.reference.categories().filter((c) => c.type === 'EXPENSE'));
+  protected readonly categories = computed(() =>
+    this.reference.categories().filter((c) => c.type === (this.isIncome ? 'INCOME' : 'EXPENSE')),
+  );
 
   private applied = false;
   private unregisterDraft: (() => void) | null = null;
@@ -95,8 +100,8 @@ export class QuickExpensePage implements OnInit, OnDestroy {
         return;
       }
       this.applied = true;
-      const { accountId, categoryId } = this.defaults.resolve(this.reference.accounts(), this.reference.categories());
-      const draft = this.drafts.take<Draft>('quick-expense');
+      const { accountId, categoryId } = this.defaults.resolve(this.reference.accounts(), this.reference.categories(), this.kind);
+      const draft = this.drafts.take<Draft>('quick-' + this.kind);
       this.form.patchValue(
         draft ?? { accountId, categoryId },
         { emitEvent: false },
@@ -105,9 +110,9 @@ export class QuickExpensePage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    void this.defaults.load();
+    void this.defaults.load(this.kind);
     this.reference.refresh();
-    this.unregisterDraft = this.drafts.register('quick-expense', () => this.form.getRawValue());
+    this.unregisterDraft = this.drafts.register('quick-' + this.kind, () => this.form.getRawValue());
   }
 
   ngOnDestroy(): void {
@@ -119,17 +124,17 @@ export class QuickExpensePage implements OnInit, OnDestroy {
     const accountId = Number(value.accountId);
     const categoryId = Number(value.categoryId);
     if (!value.amount) {
-      this.error.set('Informe o valor da despesa.');
+      this.error.set(this.isIncome ? 'Informe o valor da receita.' : 'Informe o valor da despesa.');
       return;
     }
     if (accountId === 0 || categoryId === 0) {
-      this.error.set('Cadastre uma conta e escolha a categoria para lançar a despesa.');
+      this.error.set(`Cadastre uma conta e escolha a categoria para lançar a ${this.isIncome ? 'receita' : 'despesa'}.`);
       return;
     }
     const account = this.reference.accounts().find((a) => a.id === accountId);
     const category = this.reference.categories().find((c) => c.id === categoryId);
     const input: TransactionGroupInput = {
-      description: value.description.trim() || category?.name || 'Despesa',
+      description: value.description.trim() || category?.name || (this.isIncome ? 'Receita' : 'Despesa'),
       recurrenceType: 'VARIABLE',
       totalAmount: value.amount,
       accountId,
@@ -142,7 +147,8 @@ export class QuickExpensePage implements OnInit, OnDestroy {
     this.api.createGroup(input).subscribe({
       next: () => {
         this.busy.set(false);
-        void this.defaults.remember(accountId, categoryId);
+        void this.defaults.remember(accountId, categoryId, this.kind);
+        this.notices.toast(this.isIncome ? 'Receita registrada.' : 'Despesa registrada.');
         void Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined);
         void this.router.navigate(['/']);
       },

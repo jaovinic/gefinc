@@ -13,7 +13,8 @@ test.describe('faturas no celular', () => {
   test('paga parte, recusa acima do restante, quita, desfaz o pagamento e abre a projeção', async ({ page, request }) => {
     const user = await newUser(request);
     // fecha dia 1 e vence dia 28: compras do dia 1 caem na fatura que vence no próprio mês
-    const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28 });
+    const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+    const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28, bankAccountId: itau.id });
     const food = await categoryId(request, user, 'Alimentação');
     for (const [description, amount] of [['Notebook', '60.00'], ['Tênis', '40.00']]) {
       await apiPost(request, user, '/transaction-groups', {

@@ -15,7 +15,7 @@ import { SyncEngine } from './sync-engine';
     <section class="space-y-4">
       <h1 class="text-title-lg font-bold">Pendências de envio</h1>
       @if (ops().length === 0) {
-        <gef-empty title="Nenhuma pendência" hint="Tudo o que você registrou já foi enviado ao servidor." />
+        <gef-empty icon="check" title="Nenhuma pendência" hint="Tudo o que você registrou já foi enviado ao servidor." />
       }
       @if (waiting().length > 0) {
         <div data-testid="waiting" class="space-y-2">

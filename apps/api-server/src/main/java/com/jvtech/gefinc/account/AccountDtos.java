@@ -20,7 +20,10 @@ public final class AccountDtos {
           Integer closingDay,
       @Min(value = 1, message = "O dia deve estar entre 1 e 31.")
           @Max(value = 31, message = "O dia deve estar entre 1 e 31.")
-          Integer dueDay) {
+          Integer dueDay,
+      HolderType holderType,
+      AccountIcon icon,
+      Long bankAccountId) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {
@@ -38,6 +41,9 @@ public final class AccountDtos {
       @Min(value = 1, message = "O dia deve estar entre 1 e 31.")
           @Max(value = 31, message = "O dia deve estar entre 1 e 31.")
           Integer dueDay,
+      HolderType holderType,
+      AccountIcon icon,
+      Long bankAccountId,
       @NotNull(message = "Informe se a conta está ativa.") Boolean active,
       @NotNull(message = "Informe a versão.") Long version) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
@@ -53,16 +59,31 @@ public final class AccountDtos {
       AccountType type,
       Integer closingDay,
       Integer dueDay,
+      HolderType holderType,
+      AccountIcon icon,
+      Long bankAccountId,
+      String bankAccountName,
       boolean active,
       long version) {
 
-    static AccountResponse of(Account a) {
+    /**
+     * Resposta da conta. O ícone vem sempre preenchido (o escolhido ou o padrão do tipo) e o cartão
+     * herda o titular da conta bancária vinculada, cujo nome também é devolvido.
+     */
+    static AccountResponse of(Account a, Account bank) {
+      HolderType holder = bank != null ? bank.getHolderType() : a.getHolderType();
+      AccountIcon icon =
+          a.getIcon() != null ? a.getIcon() : AccountIcon.defaultFor(a.getType(), holder);
       return new AccountResponse(
           a.getId(),
           a.getName(),
           a.getType(),
           a.getClosingDay(),
           a.getDueDay(),
+          holder,
+          icon,
+          a.getBankAccountId(),
+          bank != null ? bank.getName() : null,
           a.isActive(),
           a.getVersion());
     }

@@ -50,6 +50,9 @@ users 1──* password_reset_tokens
 | type | VARCHAR(12) | NOT NULL, `CHECK IN ('CHECKING','CASH','CREDIT_CARD')` |
 | closing_day | SMALLINT | `CHECK (closing_day BETWEEN 1 AND 31)` |
 | due_day | SMALLINT | `CHECK (due_day BETWEEN 1 AND 31)` |
+| holder_type **[V7]** | VARCHAR(2) | `CHECK IN ('PF','PJ')`; obrigatório em `CHECKING`, proibido nos demais (feature 003) |
+| icon **[V7]** | VARCHAR(20) | chave do catálogo de ícones; nulo = padrão do tipo (feature 003) |
+| bank_account_id **[V7]** | BIGINT | só `CREDIT_CARD`; FK composta `(bank_account_id, user_id)` → accounts; nulo em cartões antigos (feature 003) |
 | active **[novo]** | BOOLEAN | NOT NULL, default `true` (FR-011 inativar) |
 | version **[novo]** | BIGINT | NOT NULL, bloqueio otimista |
 

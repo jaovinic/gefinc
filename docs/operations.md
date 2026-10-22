@@ -72,6 +72,20 @@ Security e SQL em DEBUG. Por isso:
   `Info.plist`), mas **não foi compilado nem testado em aparelho** porque exige um Mac com Xcode: pendência
   conhecida até haver acesso a um Mac.
 
+## Contas PF/PJ, cartões vinculados e marca
+
+- **Migração V7:** acrescenta `holder_type`, `icon` e `bank_account_id` em `accounts`. As contas bancárias
+  existentes viram **PF**; cartões existentes ficam **sem conta vinculada** (continuam funcionando, aparecem com o
+  aviso "vincule a uma conta bancária" e só exigem o vínculo quando forem editados). Dinheiro e cartões não têm
+  titular: o selo PF/PJ do cartão é o da conta vinculada. O teste `AccountMigrationV7IT` migra dados antigos até a V7.
+- **Compatibilidade:** os campos novos da API são aditivos; a cópia local de um app desatualizado (sem titular,
+  ícone ou vínculo) é lida como PF, ícone padrão do tipo e cartão sem vínculo.
+- **Marca:** logo, favicons, manifesto, ícones do Android/iOS e telas de abertura saem de
+  `packages/ui-shared/src/brand/gefinc-symbol.svg` por `npm run brand:generate` (Chromium do Playwright). Para trocar
+  o logo, substitua os SVG e rode o comando; os arquivos gerados são versionados. O ícone de notificação dos lembretes
+  (`ic_stat_gefinc`) continua sendo o sino monocromático. No iOS, só o `AppIcon-512@2x.png` e as imagens de abertura
+  são gerados; o build em iPhone segue pendente de um Mac.
+
 ## Variáveis de ambiente
 
 | Variável | Uso |

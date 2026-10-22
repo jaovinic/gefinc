@@ -62,4 +62,29 @@ describe('QuickExpenseDefaults', () => {
     await defaults.load();
     expect(defaults.resolve([], [])).toEqual({ accountId: 0, categoryId: 0 });
   });
+
+  describe('receita', () => {
+    it('sem histórico usa a primeira conta ativa e a categoria "Salário"', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      expect(defaults.resolve(accounts, categories, 'income')).toEqual({ accountId: 1, categoryId: 20 });
+    });
+
+    it('os padrões de receita e de despesa são independentes', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('expense');
+      await defaults.load('income');
+      await defaults.remember(2, 10, 'expense');
+      await defaults.remember(1, 20, 'income');
+      expect(defaults.resolve(accounts, categories, 'expense')).toEqual({ accountId: 2, categoryId: 10 });
+      expect(defaults.resolve(accounts, categories, 'income')).toEqual({ accountId: 1, categoryId: 20 });
+    });
+
+    it('ignora categoria de despesa lembrada para receita', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      await defaults.remember(1, 10, 'income');
+      expect(defaults.resolve(accounts, categories, 'income').categoryId).toBe(20);
+    });
+  });
 });

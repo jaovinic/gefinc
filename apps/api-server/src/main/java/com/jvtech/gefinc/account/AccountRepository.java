@@ -18,6 +18,13 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
 
   Optional<Account> findByIdAndUserId(long id, long userId);
 
+  /** Cartões ligados a uma conta bancária (para avisar antes de excluir ou inativar). */
+  @Query(
+      "select a from Account a where a.userId = :userId and a.bankAccountId = :bankAccountId"
+          + " order by lower(a.name)")
+  List<Account> findCardsOfBank(
+      @Param("userId") long userId, @Param("bankAccountId") long bankAccountId);
+
   @Query(
       "select count(a) > 0 from Account a where a.userId = :userId and a.active = true"
           + " and lower(a.name) = lower(:name) and (:excludeId is null or a.id <> :excludeId)")

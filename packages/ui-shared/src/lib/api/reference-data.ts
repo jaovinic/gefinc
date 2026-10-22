@@ -22,6 +22,16 @@ export class ReferenceData {
     });
   }
 
+  /** Conta pelo id; cópias locais antigas podem não ter titular, ícone nem vínculo (o selo trata). */
+  account(id: number): Account | undefined {
+    return this.accounts().find((a) => a.id === id);
+  }
+
+  /** Cartões ligados a uma conta bancária. */
+  cardsOf(bankAccountId: number): Account[] {
+    return this.accounts().filter((a) => a.bankAccountId === bankAccountId);
+  }
+
   accountName(id: number): string {
     return this.accounts().find((a) => a.id === id)?.name ?? '—';
   }

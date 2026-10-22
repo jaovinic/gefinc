@@ -1,4 +1,4 @@
-import { APIRequestContext, Page, expect } from '@playwright/test';
+import { Locator, APIRequestContext, Page, expect } from '@playwright/test';
 
 const MAILPIT = 'http://localhost:8025/api/v1';
 export const PASSWORD = 'senha-forte-123';
@@ -51,21 +51,44 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-/** Cadastra uma conta pela tela de contas. */
+/** Cadastra uma conta pela tela de contas (bancária PF, dinheiro ou cartão vinculado a uma conta bancária). */
 export async function createAccount(
   page: Page,
   name: string,
   type: 'CHECKING' | 'CASH' | 'CREDIT_CARD',
   days?: { closing: number; due: number },
+  options: { holder?: 'PF' | 'PJ'; bank?: string } = {},
 ) {
   await page.goto('/accounts');
+  if (type === 'CREDIT_CARD' && !options.bank && (await page.getByRole('row', { name: /Conta bancária/ }).count()) === 0) {
+    await createAccount(page, 'Banco base', 'CHECKING');
+    await page.goto('/accounts');
+  }
   await page.getByRole('button', { name: 'Nova conta' }).first().click();
-  await page.getByLabel('Nome').fill(name);
   await page.getByLabel('Tipo').selectOption(type);
+  await page.getByLabel('Nome').fill(name);
+  if (type === 'CHECKING') {
+    await page.locator('gef-account-form').getByLabel(options.holder === 'PJ' ? 'Pessoa jurídica' : 'Pessoa física').check();
+  }
+  if (type === 'CREDIT_CARD') {
+    await page.getByLabel('Conta bancária').click();
+    const option = options.bank
+      ? page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: new RegExp(`^${options.bank}$`) }) })
+      : page.locator('[role="option"]').first();
+    await option.click();
+    await page.getByLabel('Nome').fill(name);
+  }
   if (days) {
     await page.getByLabel('Dia de fechamento da fatura').fill(String(days.closing));
     await page.getByLabel('Dia de vencimento da fatura').fill(String(days.due));
   }
   await page.getByRole('button', { name: 'Salvar' }).click();
   await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible();
+}
+
+/** Escolhe uma conta ou cartão no seletor com ícones (abre a lista e clica na opção pelo nome exato). */
+export async function chooseAccount(page: Page, scope: Page | Locator, name: string) {
+  await scope.getByLabel('Conta ou cartão').click();
+  const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  await page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: exact }) }).click();
 }

@@ -1,6 +1,6 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { API, configureHttpTesting, select, type } from '../../testing/testbed';
+import { API, chooseAccount, configureHttpTesting, select, type } from '../../testing/testbed';
 import { GroupForm } from './group-form';
 
 describe('GroupForm', () => {
@@ -17,8 +17,7 @@ describe('GroupForm', () => {
 
   function fill(el: HTMLElement, fixture: { detectChanges(): void }, account: string) {
     type(el, '#description', 'Mercado');
-    select(el, '#accountId', account);
-    fixture.detectChanges();
+    chooseAccount(fixture, el, account);
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '15000');
     fixture.detectChanges();
@@ -31,10 +30,30 @@ describe('GroupForm', () => {
     expect(el.querySelector('#categoryId')?.textContent).toContain('Alimentação');
     expect(el.querySelector('#categoryId')?.textContent).not.toContain('Salário');
 
-    select(el, '#kind', 'INCOME');
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
     fixture.detectChanges();
     expect(el.querySelector('#categoryId')?.textContent).toContain('Salário');
     expect(el.querySelector('#categoryId')?.textContent).not.toContain('Alimentação');
+  });
+
+  it('a natureza (receita ou despesa) é o primeiro campo e é um seletor visível', async () => {
+    const { el } = await setup();
+    const firstField = el.querySelector('form')!.querySelector('fieldset, label, input, select');
+    expect(firstField?.tagName).toBe('FIELDSET');
+    expect(firstField?.textContent).toContain('Natureza');
+    const options = Array.from(el.querySelectorAll('[data-field="kind"] label')).map((l) => l.textContent?.trim());
+    expect(options).toEqual(['Despesa', 'Receita']);
+    expect((el.querySelector('#kind-EXPENSE') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('trocar a natureza zera a categoria escolhida', async () => {
+    const { el, fixture } = await setup();
+    select(el, '#categoryId', '10');
+    fixture.detectChanges();
+    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('0');
   });
 
   it('fora do cartão pede o vencimento e o envia', async () => {
@@ -87,7 +106,7 @@ describe('GroupForm', () => {
   it('valor zerado não é enviado e mostra o aviso, mantendo o que foi digitado', async () => {
     const { http, el, fixture } = await setup();
     type(el, '#description', 'Padaria');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '0');
@@ -122,7 +141,7 @@ describe('GroupForm parcelado', () => {
 
   it('mostra a quantidade de parcelas e a prévia com vencimentos pela fatura do cartão', async () => {
     const { el, fixture } = await setupInstallment();
-    select(el, '#accountId', '2'); // Nubank: fecha dia 10, vence dia 17
+    chooseAccount(fixture, el, '2'); // Nubank: fecha dia 10, vence dia 17
     type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
     type(el, 'gef-money-input input', '10000'); // R$ 100,00
     type(el, '#totalInstallments', '3');
@@ -140,7 +159,7 @@ describe('GroupForm parcelado', () => {
   it('fora do cartão usa o primeiro vencimento informado e envia a quantidade de parcelas', async () => {
     const { http, el, fixture } = await setupInstallment();
     type(el, '#description', 'Carnê');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '30000');
@@ -173,7 +192,7 @@ describe('GroupForm - falha de conexão e toque duplo', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     type(el, '#description', 'Mercado');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '15000');
@@ -226,7 +245,7 @@ describe('GroupForm - preenchimento inicial (corrigir uma operação recusada)',
     const el = fixture.nativeElement as HTMLElement;
 
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
-    expect((el.querySelector('#accountId') as HTMLSelectElement).value).toBe('1');
+    expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
     expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('150,00');
     expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');

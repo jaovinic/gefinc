@@ -44,26 +44,84 @@ public final class TestApi {
     return json(call(user, HttpMethod.GET, url, null).andExpect(status().isOk()));
   }
 
-  /** Cria uma conta e devolve o corpo da resposta. */
+  /**
+   * Cria uma conta e devolve o corpo da resposta. Conta bancária sai como pessoa física; cartão é
+   * vinculado a uma conta bancária criada junto ("Banco de &lt;nome&gt;").
+   */
   public JsonNode account(
       TestUser user, String name, String type, Integer closingDay, Integer dueDay)
       throws Exception {
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("name", name);
     body.put("type", type);
+    if ("CHECKING".equals(type)) {
+      body.put("holderType", "PF");
+    }
+    if ("CREDIT_CARD".equals(type)) {
+      body.put("bankAccountId", checking(user, "Banco de " + name));
+    }
     if (closingDay != null) {
       body.put("closingDay", closingDay);
       body.put("dueDay", dueDay);
     }
+    return postAccount(user, body);
+  }
+
+  /** Cria uma conta com o corpo exatamente como informado e espera {@code 201}. */
+  public JsonNode postAccount(TestUser user, Map<String, Object> body) throws Exception {
     return json(call(user, HttpMethod.POST, "/accounts", body).andExpect(status().isCreated()));
   }
 
   public long checking(TestUser user, String name) throws Exception {
-    return account(user, name, "CHECKING", null, null).get("id").asLong();
+    return checking(user, name, "PF");
+  }
+
+  public long checking(TestUser user, String name, String holderType) throws Exception {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("name", name);
+    body.put("type", "CHECKING");
+    body.put("holderType", holderType);
+    return postAccount(user, body).get("id").asLong();
   }
 
   public long card(TestUser user, String name, int closingDay, int dueDay) throws Exception {
     return account(user, name, "CREDIT_CARD", closingDay, dueDay).get("id").asLong();
+  }
+
+  /** Cartão vinculado a uma conta bancária já existente. */
+  public JsonNode cardOn(TestUser user, String name, int closingDay, int dueDay, long bankAccountId)
+      throws Exception {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("name", name);
+    body.put("type", "CREDIT_CARD");
+    body.put("closingDay", closingDay);
+    body.put("dueDay", dueDay);
+    body.put("bankAccountId", bankAccountId);
+    return postAccount(user, body);
+  }
+
+  /**
+   * Edita uma conta reenviando todos os campos atuais (inclusive titular, ícone e vínculo) com as
+   * alterações informadas, e espera {@code 200}.
+   */
+  public ResultActions updateAccount(TestUser user, long accountId, Map<String, Object> changes)
+      throws Exception {
+    JsonNode account = get(user, "/accounts/" + accountId);
+    Map<String, Object> body = new LinkedHashMap<>();
+    for (String field :
+        new String[] {
+          "name", "type", "closingDay", "dueDay", "holderType", "icon", "bankAccountId"
+        }) {
+      boolean inheritedHolder =
+          field.equals("holderType") && !"CHECKING".equals(account.get("type").asText());
+      if (account.has(field) && !inheritedHolder) {
+        body.put(field, mapper.convertValue(account.get(field), Object.class));
+      }
+    }
+    body.put("active", account.get("active").asBoolean());
+    body.put("version", account.get("version").asLong());
+    body.putAll(changes);
+    return call(user, HttpMethod.PUT, "/accounts/" + accountId, body);
   }
 
   /** Id de uma das categorias iniciais do usuário, pelo nome. */

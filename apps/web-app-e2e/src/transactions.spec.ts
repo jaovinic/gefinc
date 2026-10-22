@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { createAccount, register, todayIso, uniqueEmail } from './support';
+import { createAccount, register, todayIso, uniqueEmail, chooseAccount } from './support';
 
 async function newTransaction(
   page: Page,
@@ -11,7 +11,7 @@ async function newTransaction(
     await form.getByLabel('Tipo').selectOption(fields.recurrence);
   }
   await form.getByLabel('Descrição ou loja').fill(fields.description);
-  await form.getByLabel('Conta ou cartão').selectOption({ label: fields.account });
+  await chooseAccount(page, form, fields.account);
   await form.getByLabel('Categoria').selectOption({ label: fields.category });
   await form.getByLabel('Valor').fill(fields.cents);
   if (fields.installments) {
@@ -71,7 +71,7 @@ test.describe('receitas e despesas', () => {
     await page.getByRole('link', { name: 'Lançamentos' }).click();
     await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
     const form = page.locator('gef-group-form');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Nubank' });
+    await chooseAccount(page, form, 'Nubank');
     await form.getByLabel('Data da compra').fill('2026-11-12');
     await expect(form.getByText('Vence em 17/12/2026 (definido pela fatura do cartão).')).toBeVisible();
     await expect(form.getByLabel(/vencimento/i)).toHaveCount(0);
@@ -86,7 +86,7 @@ test.describe('receitas e despesas', () => {
     const form = page.locator('gef-group-form');
     await form.getByLabel('Tipo').selectOption('INSTALLMENT');
     await form.getByLabel('Descrição ou loja').fill('Notebook');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await chooseAccount(page, form, 'Itaú');
     await form.getByLabel('Categoria').selectOption({ label: 'Compras' });
     await form.getByLabel('Valor total').fill('10000'); // R$ 100,00
     await form.getByLabel('Quantidade de parcelas').fill('3');

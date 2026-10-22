@@ -196,25 +196,7 @@ class InvoicePaymentIT extends IntegrationTestBase {
 
   @Test
   void cartaoInativoAindaAceitaPagamentoDaFaturaPendente() throws Exception {
-    JsonNode account = api.get(ana, "/accounts/" + card);
-    api.call(
-            ana,
-            HttpMethod.PUT,
-            "/accounts/" + card,
-            Map.of(
-                "name",
-                "Nubank",
-                "type",
-                "CREDIT_CARD",
-                "closingDay",
-                10,
-                "dueDay",
-                17,
-                "active",
-                false,
-                "version",
-                account.get("version").asLong()))
-        .andExpect(status().isOk());
+    api.updateAccount(ana, card, Map.of("active", false)).andExpect(status().isOk());
 
     api.payInvoice(ana, card, "2026-12", "100.00", "2026-12-10")
         .andExpect(status().isCreated())

@@ -59,6 +59,7 @@ class DashboardPerformanceIT extends IntegrationTestBase {
             "/dashboard?month=2024-03",
             "/invoices/projection?from=2022-01&months=24",
             "/cashflow?from=2022-01&months=24",
+            "/accounts?includeInactive=true",
             "/due-summary?from=2026-11-10&to=2026-12-31")) {
       api.call(ana, HttpMethod.GET, url, null).andReturn(); // aquecimento
       List<Long> times = new ArrayList<>();

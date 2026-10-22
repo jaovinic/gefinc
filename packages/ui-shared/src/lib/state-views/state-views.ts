@@ -1,4 +1,5 @@
 import { Component, input, output } from '@angular/core';
+import { Icon } from '../icons/icon';
 
 /** Estado de carregamento (anunciado a leitores de tela). */
 @Component({
@@ -20,8 +21,10 @@ export class LoadingView {
 /** Estado vazio com orientação e, opcionalmente, uma ação (conteúdo projetado). */
 @Component({
   selector: 'gef-empty',
+  imports: [Icon],
   template: `
     <div class="flex flex-col items-center gap-2 p-8 text-center">
+      <span class="gef-state-icon"><gef-icon [name]="icon()" [size]="28" /></span>
       <p class="text-title-md font-semibold text-gefinc-text">{{ title() }}</p>
       @if (hint()) {
         <p class="text-body-base text-gefinc-muted">{{ hint() }}</p>
@@ -33,21 +36,18 @@ export class LoadingView {
 export class EmptyView {
   readonly title = input.required<string>();
   readonly hint = input('');
+  readonly icon = input('inbox');
 }
 
 /** Estado de erro com botão para tentar de novo. */
 @Component({
   selector: 'gef-error',
+  imports: [Icon],
   template: `
     <div class="flex flex-col items-center gap-3 p-8 text-center" role="alert">
+      <span class="gef-state-icon text-gefinc-danger"><gef-icon name="alert" [size]="28" /></span>
       <p class="text-body-base text-gefinc-danger">{{ message() }}</p>
-      <button
-        type="button"
-        class="rounded-lg border border-gefinc-border px-4 py-2 text-body-base text-gefinc-text hover:border-gefinc-primary"
-        (click)="retry.emit()"
-      >
-        Tentar novamente
-      </button>
+      <button type="button" class="gef-btn-secondary" (click)="retry.emit()">Tentar novamente</button>
     </div>
   `,
 })

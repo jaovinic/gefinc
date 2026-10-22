@@ -31,9 +31,19 @@
     @apply flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 pb-3;
     padding-top: calc(env(safe-area-inset-top) + 0.75rem);
   }
-  .gef-fab {
-    @apply fixed right-6 rounded-full bg-gefinc-primary px-6 py-4 text-body-base font-bold text-gefinc-bg shadow-lg;
-    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1.5rem);
+  /* Ações rápidas da tela inicial: despesa e receita lado a lado, com o mesmo destaque. */
+  .gef-quick-actions {
+    @apply fixed left-4 right-4 z-10 flex gap-3;
+    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1rem);
+  }
+  .gef-quick-action {
+    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border-2 bg-gefinc-surface px-4 text-body-base font-bold text-gefinc-text shadow-lg;
+  }
+  .gef-quick-action[data-kind='expense'] {
+    @apply border-gefinc-danger;
+  }
+  .gef-quick-action[data-kind='income'] {
+    @apply border-gefinc-primary;
   }
 }
 
@@ -61,6 +71,7 @@
   }
   .gef-tab-active {
     @apply font-semibold text-gefinc-primary;
+    box-shadow: inset 0 3px 0 0 var(--color-gefinc-primary);
   }
   .gef-page {
     @apply p-4;

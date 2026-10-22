@@ -38,24 +38,7 @@ class CardDaysChangeIT extends IntegrationTestBase {
   }
 
   private void changeDays(long accountId, int closingDay, int dueDay) throws Exception {
-    JsonNode account = api.get(ana, "/accounts/" + accountId);
-    api.call(
-            ana,
-            HttpMethod.PUT,
-            "/accounts/" + accountId,
-            Map.of(
-                "name",
-                account.get("name").asText(),
-                "type",
-                "CREDIT_CARD",
-                "closingDay",
-                closingDay,
-                "dueDay",
-                dueDay,
-                "active",
-                true,
-                "version",
-                account.get("version").asLong()))
+    api.updateAccount(ana, accountId, Map.of("closingDay", closingDay, "dueDay", dueDay))
         .andExpect(status().isOk());
   }
 

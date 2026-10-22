@@ -1,8 +1,9 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Dashboard } from '@gefinc/core-models';
-import { DashboardApi, NoticeService, messageFor, toProblem } from '../api';
+import { DashboardApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
 import { CardBars } from '../charts/card-bars';
+import { Icon } from '../icons/icon';
 import { CategoryDonut } from '../charts/category-donut';
 import { ChartSlice } from '../charts/chart-slice';
 import { APP_PATHS } from '../layout/app-paths';
@@ -15,7 +16,7 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
 /** Painel do mês por data de vencimento: indicadores, gastos por categoria e distribuição por cartão (FR-029, FR-030). */
 @Component({
   selector: 'gef-dashboard-page',
-  imports: [CardBars, CategoryDonut, EmptyView, ErrorView, LoadingView, MonthPicker, RouterLink],
+  imports: [Icon, CardBars, CategoryDonut, EmptyView, ErrorView, LoadingView, MonthPicker, RouterLink],
   template: `
     <section class="space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
@@ -29,25 +30,25 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
         <gef-error [message]="error()!" (retry)="load()" />
       } @else if (data(); as d) {
         @if (isEmpty(d)) {
-          <gef-empty title="Sem lançamentos neste mês" hint="Cadastre uma despesa para ver os indicadores e os gráficos.">
+          <gef-empty icon="dashboard" title="Sem lançamentos neste mês" hint="Cadastre uma despesa para ver os indicadores e os gráficos.">
             <a class="gef-btn-secondary inline-block" [routerLink]="paths.transactions">Ir para lançamentos</a>
           </gef-empty>
         } @else {
           <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="total-month">
-              <p class="text-caption text-gefinc-muted">Total do mês</p>
+              <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="list" [size]="14" />Total do mês</p>
               <p class="financial-value text-title-lg font-extrabold sm:text-display-1">{{ money(d.totalMonth) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="to-due">
-              <p class="text-caption text-gefinc-muted">A vencer</p>
+              <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="clock" [size]="14" />A vencer</p>
               <p class="financial-value text-title-lg font-extrabold sm:text-display-1 text-gefinc-warning">{{ money(d.totalToDue) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="paid">
-              <p class="text-caption text-gefinc-muted">Pago</p>
+              <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="check" [size]="14" />Pago</p>
               <p class="financial-value text-title-lg font-extrabold sm:text-display-1 text-gefinc-primary">{{ money(d.totalPaid) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="overdue">
-              <p class="text-caption text-gefinc-muted">Atrasado</p>
+              <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="alert" [size]="14" />Atrasado</p>
               <p class="financial-value text-title-lg font-extrabold sm:text-display-1" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
             </div>
           </div>
@@ -76,6 +77,7 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
 export class DashboardPage {
   private readonly api = inject(DashboardApi);
   private readonly notices = inject(NoticeService);
+  private readonly reference = inject(ReferenceData);
   protected readonly paths = inject(APP_PATHS);
 
   protected readonly month = signal(currentMonth());
@@ -87,10 +89,16 @@ export class DashboardPage {
     (this.data()?.byCategory ?? []).map((c) => ({ label: c.name, value: c.amount, color: c.colorHex })),
   );
   protected readonly cardSlices = computed<ChartSlice[]>(() =>
-    (this.data()?.byCard ?? []).map((c, i) => ({ label: c.name, value: c.amount, color: CARD_COLORS[i % CARD_COLORS.length] })),
+    (this.data()?.byCard ?? []).map((c, i) => ({
+      label: c.name,
+      value: c.amount,
+      color: CARD_COLORS[i % CARD_COLORS.length],
+      icon: this.reference.account(c.accountId)?.icon ?? 'card',
+    })),
   );
 
   constructor() {
+    this.reference.refresh();
     effect(() => {
       this.month();
       untracked(() => this.load());

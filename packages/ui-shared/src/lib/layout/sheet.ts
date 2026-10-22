@@ -12,8 +12,8 @@ const FOCUSABLE =
   selector: 'gef-sheet',
   template: `
     @if (open()) {
-      <div class="gef-sheet-backdrop" role="presentation" (click)="onBackdrop($event)" (keydown)="onKeydown($event)">
-        <div class="gef-sheet" role="dialog" aria-modal="true" [attr.aria-label]="heading()">
+      <div class="gef-sheet-backdrop" [class.gef-sheet-backdrop-left]="side() === 'left'" role="presentation" (click)="onBackdrop($event)" (keydown)="onKeydown($event)">
+        <div class="gef-sheet" [class.gef-sheet-left]="side() === 'left'" role="dialog" aria-modal="true" [attr.aria-label]="heading()">
           <header class="mb-3 flex items-center justify-between gap-3">
             <h2 class="text-title-md font-bold">{{ heading() }}</h2>
             <button type="button" class="gef-btn-secondary" aria-label="Fechar" (click)="closed.emit()">✕</button>
@@ -23,10 +23,20 @@ const FOCUSABLE =
       </div>
     }
   `,
+  host: { '(document:keydown.escape)': 'onDocumentEscape()' },
 })
 export class Sheet {
+  /** Escape fecha o painel mesmo quando o foco ficou fora dele (ex.: no botão que o abriu). */
+  protected onDocumentEscape(): void {
+    if (this.open()) {
+      this.closed.emit();
+    }
+  }
+
   readonly heading = input.required<string>();
   readonly open = input.required<boolean>();
+  /** `bottom` (padrão) sobe da base da tela; `left` abre como gaveta lateral do menu. */
+  readonly side = input<'bottom' | 'left'>('bottom');
   readonly closed = output<void>();
 
   private readonly injector = inject(Injector);

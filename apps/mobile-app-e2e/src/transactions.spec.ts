@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso } from './support';
+import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 
@@ -10,8 +10,8 @@ async function openNewTransaction(page: Page) {
 
 async function seed(request: Parameters<typeof newUser>[0]) {
   const user = await newUser(request);
-  const checking = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
-  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17 });
+  const checking = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, bankAccountId: checking.id });
   return { user, checking, nubank };
 }
 
@@ -24,7 +24,7 @@ test.describe('lançamentos completos no celular', () => {
 
     const form = await openNewTransaction(page);
     await form.getByLabel('Descrição ou loja').fill('Mercado');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await chooseAccount(page, form, 'Itaú');
     await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
     await form.getByLabel('Valor').fill('15000');
     await form.getByLabel('Data da compra').fill(todayIso());
@@ -55,7 +55,7 @@ test.describe('lançamentos completos no celular', () => {
     const form = await openNewTransaction(page);
     await form.getByLabel('Tipo').selectOption('FIXED');
     await form.getByLabel('Descrição ou loja').fill('Internet');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await chooseAccount(page, form, 'Itaú');
     await form.getByLabel('Categoria').selectOption({ label: 'Serviços' });
     await form.getByLabel('Valor').fill('9990');
     await form.getByLabel('Data da compra').fill(todayIso());
@@ -89,7 +89,7 @@ test.describe('lançamentos completos no celular', () => {
     const form = await openNewTransaction(page);
     await form.getByLabel('Tipo').selectOption('INSTALLMENT');
     await form.getByLabel('Descrição ou loja').fill('Notebook');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Nubank' });
+    await chooseAccount(page, form, 'Nubank');
     await form.getByLabel('Categoria').selectOption({ label: 'Compras' });
     await form.getByLabel('Valor total').fill('10000');
     await form.getByLabel('Quantidade de parcelas').fill('3');
@@ -138,7 +138,7 @@ test.describe('lançamentos completos no celular', () => {
 
     const form = await openNewTransaction(page);
     await form.getByLabel('Descrição ou loja').fill('Padaria');
-    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await chooseAccount(page, form, 'Itaú');
     await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
     await form.getByLabel('Valor').fill('0');
     await form.getByLabel(/vencimento/i).fill(todayIso());

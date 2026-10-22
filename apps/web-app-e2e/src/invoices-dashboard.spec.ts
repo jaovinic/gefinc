@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, register, todayIso, uniqueEmail } from './support';
+import { createAccount, register, todayIso, uniqueEmail, chooseAccount } from './support';
 
 test('fatura do cartão com pagamento parcial e conferência dos totais do painel', async ({ page }) => {
   const today = todayIso();
@@ -14,7 +14,7 @@ test('fatura do cartão com pagamento parcial e conferência dos totais do paine
   async function add(description: string, account: string, category: string, cents: string, purchase: string, due?: string) {
     await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
     await form.getByLabel('Descrição ou loja').fill(description);
-    await form.getByLabel('Conta ou cartão').selectOption({ label: account });
+    await chooseAccount(page, form, account);
     await form.getByLabel('Categoria').selectOption({ label: category });
     await form.getByLabel('Valor').fill(cents);
     await form.getByLabel('Data da compra').fill(purchase);

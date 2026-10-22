@@ -1607,6 +1607,13 @@ export interface components {
         Month: string;
         /** @enum {string} */
         AccountType: "CHECKING" | "CASH" | "CREDIT_CARD";
+        /**
+         * @description Titularidade da conta bancária: pessoa física ou jurídica (classificação, sem separar dados).
+         * @enum {string}
+         */
+        HolderType: "PF" | "PJ";
+        /** @enum {string} */
+        AccountIcon: "bank" | "building" | "briefcase" | "landmark" | "wallet" | "cash" | "piggy" | "card" | "card-gold" | "card-platinum" | "card-black" | "shield" | "rocket" | "star" | "globe" | "shopping-bag";
         /** @enum {string} */
         CategoryType: "INCOME" | "EXPENSE";
         /** @enum {string} */
@@ -1695,23 +1702,42 @@ export interface components {
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            /** @description Em conta bancária, o titular; em cartão, o titular herdado da conta vinculada (ausente se o cartão não tem vínculo). */
+            holderType?: components["schemas"]["HolderType"];
+            /** @description Sempre presente: o escolhido ou o padrão do tipo. */
+            icon?: components["schemas"]["AccountIcon"];
+            /**
+             * Format: int64
+             * @description Somente em cartão vinculado.
+             */
+            bankAccountId?: number;
+            /** @description Nome da conta bancária do cartão. */
+            bankAccountName?: string;
             active: boolean;
             /** Format: int64 */
             version: number;
         };
-        /** @description `closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. */
+        /** @description `closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. `holderType` é obrigatório em CHECKING e proibido nos demais. `bankAccountId` (conta bancária ativa do mesmo usuário) é obrigatório em CREDIT_CARD e proibido nos demais; conta de outro usuário responde 404 e conta inativa, 422 ACCOUNT_INACTIVE. `icon` ausente usa o padrão do tipo. */
         AccountInput: {
             name: string;
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            holderType?: components["schemas"]["HolderType"];
+            icon?: components["schemas"]["AccountIcon"];
+            /** Format: int64 */
+            bankAccountId?: number;
         };
-        /** @description O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput. */
+        /** @description O tipo não pode ser alterado depois do cadastro; os demais campos seguem as regras de AccountInput. Cartão anterior ao vínculo (sem `bankAccountId`) precisa informá-lo ao ser editado, exceto quando só `active` muda. */
         AccountUpdate: {
             name: string;
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            holderType?: components["schemas"]["HolderType"];
+            icon?: components["schemas"]["AccountIcon"];
+            /** Format: int64 */
+            bankAccountId?: number;
             active: boolean;
             /** Format: int64 */
             version: number;

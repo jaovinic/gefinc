@@ -1,14 +1,16 @@
-import { Component, OnInit, effect, inject, signal, untracked } from '@angular/core';
-import type { Account } from '@gefinc/core-models';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import type { Account, HolderType } from '@gefinc/core-models';
 import { AccountsApi, NoticeService, messageFor, toProblem } from '../api';
+import { Sheet } from '../layout/sheet';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
-import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
+import { AccountBadge } from './account-badge';
+import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form';
 
 /** Cadastro de contas bancárias, dinheiro e cartões de crédito (FR-011 a FR-013). */
 @Component({
   selector: 'gef-accounts-page',
-  imports: [AccountForm, EmptyView, ErrorView, LoadingView],
+  imports: [AccountBadge, AccountForm, EmptyView, ErrorView, LoadingView, Sheet],
   template: `
     <section class="space-y-4">
       <header class="flex flex-wrap items-center justify-between gap-3">
@@ -27,7 +29,25 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
       }
 
       @if (formOpen()) {
-        <gef-account-form [account]="editing()" (saved)="onSaved()" (cancelled)="closeForm()" />
+        <gef-account-form
+          [account]="editing()"
+          [banks]="banks()"
+          [resetToken]="formKey()"
+          (saved)="onSaved()"
+          (cancelled)="closeForm()"
+          (newBankRequested)="newBank()"
+        />
+      }
+
+      @if (showHolderFilter()) {
+        <div class="flex gap-2" role="radiogroup" aria-label="Filtrar por titular" data-field="holderFilter">
+          @for (option of holderFilters; track option.value) {
+            <label class="gef-segment">
+              <input type="radio" name="holderFilter" [checked]="holderFilter() === option.value" (change)="holderFilter.set(option.value)" />
+              <span>{{ option.label }}</span>
+            </label>
+          }
+        </div>
       }
 
       @if (loading()) {
@@ -35,17 +55,17 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (accounts().length === 0) {
-        <gef-empty title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
+        <gef-empty icon="accounts" title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </gef-empty>
       } @else if (viewport.compact()) {
         <ul class="space-y-3">
-          @for (account of accounts(); track account.id) {
+          @for (account of visible(); track account.id) {
             <li data-testid="account-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
               <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="font-semibold">{{ account.name }}</p>
-                  <p class="text-caption text-gefinc-muted">
+                <div class="min-w-0">
+                  <gef-account-badge [account]="account" [showBank]="true" />
+                  <p class="mt-1 text-caption text-gefinc-muted">
                     {{ labels[account.type] }}
                     @if (account.closingDay) {
                       · Fecha dia {{ account.closingDay }} · vence dia {{ account.dueDay }}
@@ -80,9 +100,9 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
               </tr>
             </thead>
             <tbody>
-              @for (account of accounts(); track account.id) {
+              @for (account of visible(); track account.id) {
                 <tr class="border-t border-gefinc-border">
-                  <td class="px-4 py-3 font-medium">{{ account.name }}</td>
+                  <td class="max-w-72 px-4 py-3"><gef-account-badge [account]="account" [showBank]="true" /></td>
                   <td class="px-4 py-3">{{ labels[account.type] }}</td>
                   <td class="px-4 py-3">{{ account.closingDay ? 'dia ' + account.closingDay : '—' }}</td>
                   <td class="px-4 py-3">{{ account.dueDay ? 'dia ' + account.dueDay : '—' }}</td>
@@ -107,6 +127,21 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
         </div>
       }
     </section>
+    <gef-sheet heading="Inativar conta com cartões" [open]="!!confirming()" (closed)="confirming.set(null)">
+      @if (confirming(); as bank) {
+        <p class="mb-2 text-body-base">
+          {{ bank.name }} tem {{ cardsOf(bank).length === 1 ? 'um cartão vinculado' : cardsOf(bank).length + ' cartões vinculados' }}:
+          <strong>{{ cardNames(bank) }}</strong>.
+        </p>
+        <p class="mb-4 text-body-base text-gefinc-muted">
+          Os cartões continuam funcionando e o histórico é preservado, mas esta conta deixa de ser oferecida para novos cartões.
+        </p>
+        <div class="flex flex-col gap-3">
+          <button type="button" class="gef-btn-secondary" (click)="confirming.set(null)">Voltar</button>
+          <button type="button" class="gef-btn-danger" (click)="confirmInactivate()">Inativar mesmo assim</button>
+        </div>
+      }
+    </gef-sheet>
   `,
 })
 export class AccountsPage implements OnInit {
@@ -122,6 +157,28 @@ export class AccountsPage implements OnInit {
   protected readonly showInactive = signal(false);
   protected readonly formOpen = signal(false);
   protected readonly editing = signal<Account | null>(null);
+  protected readonly formKey = signal(0);
+  protected readonly confirming = signal<Account | null>(null);
+  protected readonly holderFilter = signal<HolderType | 'ALL'>('ALL');
+  protected readonly holderFilters: { value: HolderType | 'ALL'; label: string }[] = [
+    { value: 'ALL', label: 'Todas' },
+    { value: 'PF', label: HOLDER_LABELS.PF },
+    { value: 'PJ', label: HOLDER_LABELS.PJ },
+  ];
+
+  /** Contas bancárias que um cartão pode usar. */
+  protected readonly banks = computed(() => this.accounts().filter((a) => a.type === 'CHECKING'));
+  /** O filtro PF/PJ só aparece quando há os dois tipos de titular (FR-004). */
+  protected readonly showHolderFilter = computed(() => {
+    const holders = new Set(this.accounts().map((a) => a.holderType).filter(Boolean));
+    return holders.size > 1;
+  });
+  protected readonly visible = computed(() => {
+    const filter = this.holderFilter();
+    return filter === 'ALL' || !this.showHolderFilter()
+      ? this.accounts()
+      : this.accounts().filter((a) => a.holderType === filter);
+  });
 
   constructor() {
     // Conflito de edição entre dispositivos: recarrega a lista com a versão mais recente.
@@ -158,7 +215,13 @@ export class AccountsPage implements OnInit {
 
   protected startCreate(): void {
     this.editing.set(null);
+    this.formKey.update((k) => k + 1);
     this.formOpen.set(true);
+  }
+
+  /** Atalho do formulário de cartão sem conta bancária: recomeça o formulário como conta bancária. */
+  protected newBank(): void {
+    this.startCreate();
   }
 
   protected startEdit(account: Account): void {
@@ -172,23 +235,59 @@ export class AccountsPage implements OnInit {
   }
 
   protected onSaved(): void {
+    const created = !this.editing();
     this.closeForm();
     this.load();
+    this.notices.toast(created ? 'Conta cadastrada.' : 'Conta atualizada.');
+  }
+
+  protected cardsOf(bank: Account): Account[] {
+    return this.accounts().filter((a) => a.bankAccountId === bank.id);
+  }
+
+  protected cardNames(bank: Account): string {
+    return this.cardsOf(bank)
+      .map((c) => c.name)
+      .join(', ');
   }
 
   protected toggleActive(account: Account): void {
     this.message.set(null);
+    if (account.active && this.cardsOf(account).length > 0) {
+      this.confirming.set(account);
+      return;
+    }
+    this.sendActive(account);
+  }
+
+  protected confirmInactivate(): void {
+    const bank = this.confirming();
+    this.confirming.set(null);
+    if (bank) {
+      this.sendActive(bank);
+    }
+  }
+
+  private sendActive(account: Account): void {
     this.api
       .update(account.id, {
         name: account.name,
         type: account.type,
         closingDay: account.closingDay,
         dueDay: account.dueDay,
+        ...(account.type === 'CHECKING' && account.holderType ? { holderType: account.holderType } : {}),
+        ...(account.icon ? { icon: account.icon } : {}),
+        ...(account.type === 'CREDIT_CARD' && account.bankAccountId ? { bankAccountId: account.bankAccountId } : {}),
         active: !account.active,
         version: account.version,
       })
       .subscribe({
-        next: () => this.load(),
+        next: (updated) => {
+          this.load();
+          this.notices.toast(account.active ? 'Conta inativada.' : 'Conta reativada.', {
+            undo: () => this.sendActive({ ...account, active: !account.active, version: updated.version }),
+          });
+        },
         error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
       });
   }
@@ -196,7 +295,10 @@ export class AccountsPage implements OnInit {
   protected remove(account: Account): void {
     this.message.set(null);
     this.api.remove(account.id).subscribe({
-      next: () => this.load(),
+      next: () => {
+        this.load();
+        this.notices.toast('Conta excluída.');
+      },
       error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
     });
   }

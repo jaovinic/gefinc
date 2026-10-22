@@ -16,7 +16,8 @@ export const appRoutes: Route[] = [
   { path: 'login', component: LoginPage },
   { path: 'register', component: RegisterPage },
   { path: 'forgot-password', component: ForgotPasswordPage },
-  { path: 'quick-expense', component: QuickExpensePage, canActivate: [authGuard] },
+  { path: 'quick-expense', component: QuickExpensePage, canActivate: [authGuard], data: { kind: 'expense' } },
+  { path: 'quick-income', component: QuickExpensePage, canActivate: [authGuard], data: { kind: 'income' } },
   {
     path: '',
     component: MobileShell,

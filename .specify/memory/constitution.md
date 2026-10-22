@@ -1,6 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.1.0 (MINOR: nova regra "Commits limpos" em Fluxo de Desenvolvimento,
+- Version change: 1.1.0 → 1.2.0 (MINOR: Princípio VI ampliado — lançamento rápido de despesa **e de
+  receita** em até 3 toques no mobile e navegação lateral com ícones no web)
+- 1.0.0 → 1.1.0 (MINOR: nova regra "Commits limpos" em Fluxo de Desenvolvimento,
   sem co-autoria nem menção a Claude/IA em commits e PRs)
 - Histórico: (template, não versionado) → 1.0.0
 - Princípios modificados: nenhum renomeado (todos definidos pela primeira vez)
@@ -95,8 +97,10 @@ Racional: o banco é o último guardião da consistência dos dados financeiros.
 Web e mobile atendem a usos distintos e MUST ser projetados para eles.
 
 - Web: otimizada para visualização tabular analítica em desktop e para o dashboard (Total do Mês,
-  Total a Vencer, Total Pago, gastos por categoria, distribuição por cartão).
-- Mobile: o lançamento rápido de despesa MUST ser concluído em no máximo 3 toques a partir da tela inicial.
+  Total a Vencer, Total Pago, gastos por categoria, distribuição por cartão); o menu principal MUST ficar
+  em uma barra lateral à esquerda, com ícone e nome de cada área.
+- Mobile: o lançamento rápido de despesa **e o de receita** MUST ser concluído em no máximo 3 toques a
+  partir da tela inicial, ambos visíveis lado a lado.
 - Frontend MUST usar Angular standalone components e Signals, e Tailwind CSS para estilo; telas MUST ser responsivas.
 - Textos de interface MUST estar em português (pt-BR) e MUST tratar estados de carregamento, vazio e erro.
 
@@ -146,4 +150,4 @@ Esta constituição prevalece sobre quaisquer outras práticas do projeto.
 - **Orientação em execução**: o plano da funcionalidade corrente (referenciado em `CLAUDE.md`) e o `README.md`
   fornecem contexto operacional; em conflito, esta constituição prevalece.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-10-22
+**Version**: 1.2.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-10-22

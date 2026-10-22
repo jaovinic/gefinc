@@ -1,4 +1,5 @@
 import { APIRequestContext, Page, expect, test } from '@playwright/test';
+import { chooseAccount } from './support';
 
 const API = 'http://localhost:8080/api/v1';
 const PASSWORD = 'senha-forte-123';
@@ -10,7 +11,7 @@ async function prepareUser(request: APIRequestContext) {
   const login = await (await request.post(`${API}/auth/login`, { data: { email, password: PASSWORD } })).json();
   const headers = { Authorization: `Bearer ${login.accessToken}` };
   await request.post(`${API}/accounts`, { headers, data: { name: 'Carteira', type: 'CASH' } });
-  await request.post(`${API}/accounts`, { headers, data: { name: 'Itaú', type: 'CHECKING' } });
+  await request.post(`${API}/accounts`, { headers, data: { name: 'Itaú', type: 'CHECKING', holderType: 'PF' } });
   return email;
 }
 
@@ -38,7 +39,7 @@ test.describe('lançamento rápido de despesa', () => {
     await signIn(page, await prepareUser(request));
     await startCountingTaps(page);
 
-    await page.getByRole('link', { name: '+ Nova despesa' }).click(); // toque 1
+    await page.getByRole('link', { name: 'Nova despesa' }).click(); // toque 1
     await expect(page.getByRole('heading', { name: 'Nova despesa' })).toBeVisible();
     await expect(page.getByLabel('Valor')).toBeFocused(); // o teclado numérico já está aberto
     await page.keyboard.type('2550'); // digitar não é toque
@@ -52,23 +53,23 @@ test.describe('lançamento rápido de despesa', () => {
   test('o último ajuste de conta e categoria vira o padrão da próxima despesa', async ({ page, request }) => {
     await signIn(page, await prepareUser(request));
 
-    await page.getByRole('link', { name: '+ Nova despesa' }).click();
+    await page.getByRole('link', { name: 'Nova despesa' }).click();
     await page.keyboard.type('1000');
     await page.getByLabel('Descrição (opcional)').fill('Padaria');
-    await page.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await chooseAccount(page, page, 'Itaú');
     await page.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 10,00');
 
-    await page.getByRole('link', { name: '+ Nova despesa' }).click();
-    await expect(page.getByLabel('Conta ou cartão').locator('option:checked')).toHaveText('Itaú');
+    await page.getByRole('link', { name: 'Nova despesa' }).click();
+    await expect(page.getByLabel('Conta ou cartão')).toContainText('Itaú');
     await expect(page.getByLabel('Categoria').locator('option:checked')).toHaveText('Alimentação');
   });
 
   test('sem o valor avisa e preserva o que já foi digitado', async ({ page, request }) => {
     await signIn(page, await prepareUser(request));
 
-    await page.getByRole('link', { name: '+ Nova despesa' }).click();
+    await page.getByRole('link', { name: 'Nova despesa' }).click();
     await page.getByLabel('Descrição (opcional)').fill('Mercado do bairro');
     await page.getByRole('button', { name: 'Salvar' }).click();
 
@@ -79,7 +80,7 @@ test.describe('lançamento rápido de despesa', () => {
   test('falha de rede salva a despesa no aparelho e a envia quando a conexão volta', async ({ page, request }) => {
     await signIn(page, await prepareUser(request));
 
-    await page.getByRole('link', { name: '+ Nova despesa' }).click();
+    await page.getByRole('link', { name: 'Nova despesa' }).click();
     await page.keyboard.type('4200');
     await page.getByLabel('Descrição (opcional)').fill('Farmácia');
     await page.route('**/transaction-groups', (route) => route.abort('internetdisconnected'));

@@ -3,6 +3,9 @@ import { Component, OnInit, computed, effect, inject, signal, untracked } from '
 import { FormsModule } from '@angular/forms';
 import type { Invoice, InvoiceProjection, Transaction } from '@gefinc/core-models';
 import { InvoicesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { AccountBadge, type AccountLike } from '../accounts/account-badge';
+import { AccountPicker } from '../accounts/account-picker';
+import { Icon } from '../icons/icon';
 import { Sheet } from '../layout/sheet';
 import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
@@ -13,17 +16,15 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 /** Faturas de cartão: itens, pagamento parcial ou total, desfazer e projeção dos próximos meses (FR-027, FR-034 a FR-039). */
 @Component({
   selector: 'gef-invoices-page',
-  imports: [FormsModule, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, AccountPicker, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-title-lg font-bold">Faturas</h1>
-        <div class="flex items-center gap-3">
-          <select class="gef-input" aria-label="Cartão" [ngModel]="cardId()" (ngModelChange)="cardId.set(+$event)">
-            @for (card of cards(); track card.id) {
-              <option [value]="card.id">{{ card.name }}</option>
-            }
-          </select>
+        <div class="flex w-full flex-wrap items-end gap-3 sm:w-auto">
+          <div class="min-w-0 flex-1 sm:min-w-56 sm:flex-none">
+            <gef-account-picker label="Cartão" [accounts]="cards()" [ngModel]="cardId()" (ngModelChange)="cardId.set(+$event)" />
+          </div>
           <gef-month-picker [(value)]="month" />
         </div>
       </header>
@@ -33,7 +34,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
       }
 
       @if (cards().length === 0) {
-        <gef-empty title="Nenhum cartão cadastrado" hint="Cadastre um cartão de crédito em Contas para acompanhar as faturas." />
+        <gef-empty icon="invoice" title="Nenhum cartão cadastrado" hint="Cadastre um cartão de crédito em Contas para acompanhar as faturas." />
       } @else if (loading()) {
         <gef-loading message="Carregando fatura…" />
       } @else if (loadError()) {
@@ -92,7 +93,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
         }
 
         @if (inv.items.length === 0) {
-          <gef-empty title="Fatura sem lançamentos" hint="Nenhuma compra neste cartão vence neste mês." />
+          <gef-empty icon="invoice" title="Fatura sem lançamentos" hint="Nenhuma compra neste cartão vence neste mês." />
         } @else if (viewport.compact()) {
           <ul class="space-y-3">
             @for (item of inv.items; track item.id) {
@@ -108,7 +109,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
                 </div>
                 <div class="shrink-0 text-right">
                   <p class="financial-value font-bold">{{ money(item.amount) }}</p>
-                  <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(item).css">{{ badge(item).label }}</span>
+                  <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(item).css"><gef-icon [name]="badge(item).icon" [size]="12" />{{ badge(item).label }}</span>
                 </div>
               </li>
             }
@@ -133,7 +134,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
                     <td class="px-4 py-3 text-gefinc-muted">{{ installmentLabel(item) }}</td>
                     <td class="financial-value px-4 py-3 text-right">{{ money(item.amount) }}</td>
                     <td class="px-4 py-3">
-                      <span class="rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(item).css">{{ badge(item).label }}</span>
+                      <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(item).css"><gef-icon [name]="badge(item).icon" [size]="12" />{{ badge(item).label }}</span>
                     </td>
                   </tr>
                 }
@@ -165,7 +166,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
               @for (card of proj.cards; track card.accountId) {
                 <li data-testid="projection-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
                   <div class="flex items-center justify-between gap-3">
-                    <p class="font-semibold">{{ card.name }}</p>
+                    <gef-account-badge [account]="cardOf(card.accountId, card.name)" [showHolder]="false" />
                     <p class="text-caption text-gefinc-muted">
                       Comprometido <span class="financial-value font-semibold text-gefinc-text">{{ money(card.totalCommitted) }}</span>
                     </p>
@@ -200,7 +201,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
               <tbody>
                 @for (card of proj.cards; track card.accountId) {
                   <tr class="border-t border-gefinc-border">
-                    <td class="px-4 py-3 font-medium">{{ card.name }}</td>
+                    <td class="px-4 py-3"><gef-account-badge [account]="cardOf(card.accountId, card.name)" [showHolder]="false" /></td>
                     @for (inv of card.invoices; track inv.month) {
                       <td class="financial-value px-4 py-3 text-right">
                         <button type="button" class="hover:underline" (click)="open(card.accountId, inv.month)">{{ money(inv.remaining) }}</button>
@@ -236,6 +237,11 @@ export class InvoicesPage implements OnInit {
   private readonly acting = signal(false);
   protected readonly paymentAmount = signal<string | null>(null);
   protected paidAt = todayIso();
+
+  /** Cartão para o selo; a projeção traz o nome e a lista de contas, o ícone e o vínculo. */
+  protected cardOf(accountId: number, name: string): AccountLike {
+    return this.reference.account(accountId) ?? { name, type: 'CREDIT_CARD' };
+  }
 
   protected readonly cards = computed(() => this.reference.accounts().filter((a) => a.type === 'CREDIT_CARD'));
 
@@ -314,14 +320,14 @@ export class InvoicesPage implements OnInit {
     return item.recurrenceType === 'FIXED' ? 'Fixo' : '—';
   }
 
-  protected badge(item: Transaction): { label: string; css: string } {
+  protected badge(item: Transaction): { label: string; css: string; icon: string } {
     if (item.status === 'PAID') {
-      return { label: 'Pago', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
+      return { label: 'Pago', icon: 'check', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
     }
     if (item.overdue) {
-      return { label: 'Vencido', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
+      return { label: 'Vencido', icon: 'alert', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
     }
-    return { label: 'Pend', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+    return { label: 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
   }
 
   protected openPayment(mode: 'partial' | 'settle'): void {
@@ -348,9 +354,14 @@ export class InvoicesPage implements OnInit {
     this.message.set(null);
     this.acting.set(true);
     request.subscribe({
-      next: () => {
+      next: (updated) => {
         this.acting.set(false);
         this.load();
+        // O último pagamento da fatura é o que acabou de ser registrado; "Desfazer" o remove.
+        const latest = [...(updated.payments ?? [])].sort((a, b) => b.id - a.id)[0];
+        this.notices.toast(mode === 'settle' ? 'Fatura quitada.' : 'Pagamento da fatura registrado.', {
+          undo: latest ? () => this.undo(latest.id, false) : undefined,
+        });
       },
       error: (e: unknown) => {
         this.acting.set(false);
@@ -359,10 +370,15 @@ export class InvoicesPage implements OnInit {
     });
   }
 
-  protected undo(paymentId: number): void {
+  protected undo(paymentId: number, announce = true): void {
     this.message.set(null);
     this.api.undoPayment(paymentId).subscribe({
-      next: () => this.load(),
+      next: () => {
+        this.load();
+        if (announce) {
+          this.notices.toast('Pagamento desfeito.');
+        }
+      },
       error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
     });
   }

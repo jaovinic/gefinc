@@ -2,6 +2,8 @@ import { Component, OnInit, computed, effect, inject, input, output, signal, unt
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefinc/core-models';
 import { ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
+import { AccountPicker } from '../accounts/account-picker';
+import { Icon } from '../icons/icon';
 import { MoneyInput } from '../money-input/money-input';
 import { formatBRL, invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
 
@@ -20,13 +22,26 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
 /** Cadastro de lançamento avulso, fixo mensal ou parcelado (FR-017 a FR-024). */
 @Component({
   selector: 'gef-group-form',
-  imports: [ReactiveFormsModule, MoneyInput],
+  imports: [AccountPicker, Icon, ReactiveFormsModule, MoneyInput],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" novalidate>
       <h2 class="text-title-md font-semibold">Novo lançamento</h2>
       @if (error(); as message) {
         <p class="gef-alert-error" role="alert">{{ message }}</p>
       }
+      <fieldset>
+        <legend class="gef-label">Natureza</legend>
+        <div class="flex gap-2" data-field="kind">
+          <label class="gef-segment">
+            <input type="radio" id="kind-EXPENSE" formControlName="kind" value="EXPENSE" />
+            <gef-icon name="arrow-down" [size]="16" /><span>Despesa</span>
+          </label>
+          <label class="gef-segment">
+            <input type="radio" id="kind-INCOME" formControlName="kind" value="INCOME" />
+            <gef-icon name="arrow-up" [size]="16" /><span>Receita</span>
+          </label>
+        </div>
+      </fieldset>
       <div class="grid gap-4 sm:grid-cols-3">
         <div>
           <label class="gef-label" for="recurrenceType">Tipo</label>
@@ -37,13 +52,6 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           </select>
         </div>
         <div>
-          <label class="gef-label" for="kind">Natureza</label>
-          <select id="kind" class="gef-input" formControlName="kind">
-            <option value="EXPENSE">Despesa</option>
-            <option value="INCOME">Receita</option>
-          </select>
-        </div>
-        <div>
           <label class="gef-label" for="description">Descrição ou loja</label>
           <input id="description" class="gef-input" formControlName="description" maxlength="120" />
           @if (form.controls.description.touched && form.controls.description.invalid) {
@@ -51,13 +59,13 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           }
         </div>
         <div>
-          <label class="gef-label" for="accountId">Conta ou cartão</label>
-          <select id="accountId" class="gef-input" formControlName="accountId">
-            <option value="0">Selecione…</option>
-            @for (account of activeAccounts(); track account.id) {
-              <option [value]="account.id">{{ account.name }}</option>
-            }
-          </select>
+          <gef-account-picker
+            label="Conta ou cartão"
+            placeholder="Selecione…"
+            formControlName="accountId"
+            [accounts]="reference.accounts()"
+            emptyMessage="Cadastre uma conta ou cartão para lançar."
+          />
           @if (form.controls.accountId.touched && form.controls.accountId.value === 0) {
             <p class="gef-field-error">Escolha a conta.</p>
           }

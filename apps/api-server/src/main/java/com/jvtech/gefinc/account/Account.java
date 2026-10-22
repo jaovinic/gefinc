@@ -1,6 +1,7 @@
 package com.jvtech.gefinc.account;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -37,6 +38,17 @@ public class Account {
   @JdbcTypeCode(SqlTypes.SMALLINT)
   @Column(name = "due_day")
   private Integer dueDay;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "holder_type")
+  private HolderType holderType;
+
+  @Convert(converter = AccountIconConverter.class)
+  @Column(name = "icon")
+  private AccountIcon icon;
+
+  @Column(name = "bank_account_id")
+  private Long bankAccountId;
 
   @Column(nullable = false)
   private boolean active = true;
@@ -77,6 +89,18 @@ public class Account {
     return dueDay;
   }
 
+  public HolderType getHolderType() {
+    return holderType;
+  }
+
+  public AccountIcon getIcon() {
+    return icon;
+  }
+
+  public Long getBankAccountId() {
+    return bankAccountId;
+  }
+
   public boolean isActive() {
     return active;
   }
@@ -96,6 +120,12 @@ public class Account {
   public void changeDays(Integer closingDay, Integer dueDay) {
     this.closingDay = closingDay;
     this.dueDay = dueDay;
+  }
+
+  public void changeProfile(HolderType holderType, AccountIcon icon, Long bankAccountId) {
+    this.holderType = holderType;
+    this.icon = icon;
+    this.bankAccountId = bankAccountId;
   }
 
   public void setActive(boolean active) {

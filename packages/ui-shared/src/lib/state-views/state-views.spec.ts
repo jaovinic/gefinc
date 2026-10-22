@@ -32,4 +32,25 @@ describe('state views', () => {
     (el.querySelector('[role="alert"] button') as HTMLButtonElement).click();
     expect(fixture.componentInstance.retried).toBe(1);
   });
+
+  it('vazio e erro mostram ícone decorativo; o ícone do vazio pode ser trocado', async () => {
+    @Component({
+      imports: [EmptyView, ErrorView, LoadingView],
+      template: `
+        <gef-empty title="Sem contas" icon="accounts" />
+        <gef-empty title="Sem nada" />
+        <gef-error message="Falhou" />
+        <gef-loading message="Carregando contas…" />
+      `,
+    })
+    class IconHost {}
+    const fixture = TestBed.createComponent(IconHost);
+    fixture.detectChanges();
+    const empties = fixture.nativeElement.querySelectorAll('gef-empty') as NodeListOf<HTMLElement>;
+    expect(empties[0].querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(empties[0].querySelector('svg path')?.getAttribute('d')).toContain('M3 7h15');
+    expect(empties[1].querySelector('svg path')?.getAttribute('d')).toContain('M3 13l3-8'); // inbox padrão
+    expect(fixture.nativeElement.querySelector('gef-error svg')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('gef-loading')?.textContent).toContain('Carregando contas…');
+  });
 });

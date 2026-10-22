@@ -52,6 +52,16 @@ describe('TransactionsPage', () => {
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
+  it('cada lançamento mostra o ícone e o nome da conta ou do cartão', async () => {
+    const { el, http } = await setup([pending, { ...pending, id: 9, groupId: 109, description: 'Fone', accountId: 2 }]);
+    const badges = Array.from(el.querySelectorAll('tbody gef-account-badge'));
+    expect(badges).toHaveLength(2);
+    expect(badges[0].textContent).toContain('Itaú');
+    expect(badges[1].textContent).toContain('Nubank');
+    expect(badges.every((b) => b.querySelector('svg') !== null)).toBe(true);
+    http.verify();
+  });
+
   it('lista os lançamentos do mês corrente com valor em reais, categoria, conta e status', async () => {
     const { http, el } = await setup();
     expect(el.textContent).toContain('Mercado');
@@ -93,6 +103,45 @@ describe('TransactionsPage', () => {
     expect(pay.request.body).toEqual({ paymentDate: todayIso() });
     pay.flush({ ...pending, status: 'PAID', paymentDate: todayIso() });
     listRequest(http).flush(page([]));
+  });
+
+  it('receita aparece com + e despesa com −, com seta e sem depender só da cor', async () => {
+    const { el, http } = await setup();
+    const expense = el.querySelector('tbody td[data-kind="expense"]') as HTMLElement;
+    const income = el.querySelector('tbody td[data-kind="income"]') as HTMLElement;
+    expect(expense.textContent).toContain('\u2212 R$ 150,00');
+    expect(income.textContent).toContain('+ R$ 5.000,00');
+    expect(expense.querySelector('svg')).not.toBeNull();
+    expect(income.querySelector('svg')).not.toBeNull();
+    http.verify();
+  });
+
+  it('o status tem ícone além do texto e da cor (pago, vencido, pendente)', async () => {
+    const { el, http } = await setup();
+    const badges = Array.from(el.querySelectorAll('tbody td span.rounded-full'));
+    const byText = (text: string) => badges.find((b) => b.textContent?.includes(text))!;
+    for (const label of ['Pago', 'Vencido', 'Pend']) {
+      expect(byText(label).querySelector('svg')).not.toBeNull();
+    }
+    http.verify();
+  });
+
+  it('pagar mostra uma confirmação com Desfazer, que desfaz o pagamento', async () => {
+    const { http, el, fixture } = await setup();
+    const notices = TestBed.inject(NoticeService);
+    const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
+    (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Pagar') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` }).flush({ ...pending, status: 'PAID' });
+    listRequest(http).flush(page([]));
+
+    const [toast] = notices.toasts();
+    expect(toast.message).toBe('Pagamento registrado.');
+    notices.runUndo(toast.id);
+    http.expectOne({ method: 'POST', url: `${API}/transactions/1/unpay` }).flush({ ...pending });
+    listRequest(http).flush(page([]));
+    expect(notices.toasts()).toEqual([]);
   });
 
   it('desfazer o pagamento recarrega a lista', async () => {
