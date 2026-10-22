@@ -190,9 +190,9 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 - [X] T080 [P] Medir SC-005 e SC-011 no perfil Pixel 7 com 6.000 lançamentos (painel, lista e faturas, online e do cache) em `apps/mobile-app-e2e/src/performance.spec.ts` e ajustar paginação ou carregamento se passar de 2 s
 - [X] T081 [P] Criar o roteiro de fumaça em aparelho `apps/mobile-app-e2e/device/android-smoke.cjs` (login, offline com modo avião via `adb shell cmd connectivity airplane-mode`, lembrete agendado conferido por `adb shell dumpsys notification`, bloqueio) e documentá-lo no `quickstart.md`
 - [X] T082 Rodar `npx nx run-many -t lint test build --skip-nx-cache`, `cd apps/api-server && DB_PORT=5433 ./mvnw test`, `npx nx e2e web-app-e2e` e `npx nx e2e mobile-app-e2e`; tudo verde
-- [ ] T083 Executar o roteiro do `quickstart.md` no Galaxy S21 (instalar o APK, perfil de paridade, offline, lembrete agendado; a confirmação da digital é manual) e registrar os resultados e os problemas achados
-- [ ] T084 Rodar `npx nx run mobile-app:sync` para o iOS, conferir `Package.swift` e `Info.plist` e registrar em `docs/operations.md` que o build e a verificação em iPhone dependem de um Mac (pendência conhecida)
-- [ ] T085 Conferir a spec (FR-001 a FR-041 e SC-001 a SC-013) contra o que foi entregue e atualizar `specs/002-mobile-feature-parity/tasks.md` com notas de implementação
+- [X] T083 Executar o roteiro do `quickstart.md` no Galaxy S21 (instalar o APK, perfil de paridade, offline, lembrete agendado; a confirmação da digital é manual) e registrar os resultados e os problemas achados
+- [X] T084 Rodar `npx nx run mobile-app:sync` para o iOS, conferir `Package.swift` e `Info.plist` e registrar em `docs/operations.md` que o build e a verificação em iPhone dependem de um Mac (pendência conhecida)
+- [X] T085 Conferir a spec (FR-001 a FR-041 e SC-001 a SC-013) contra o que foi entregue e atualizar `specs/002-mobile-feature-parity/tasks.md` com notas de implementação
 
 ---
 
