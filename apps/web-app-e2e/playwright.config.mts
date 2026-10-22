@@ -31,12 +31,22 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
-  webServer: {
-    command: isCI ? 'npx nx run web-app:serve-static' : 'npx nx run web-app:serve',
-    url: getReadyUrl('http://localhost:4200'),
-    reuseExistingServer: true,
-    cwd: workspaceRoot
-  },
+  webServer: [
+    {
+      // Banco e Mailpit (docker compose) e a API em modo local.
+      command: 'docker compose up -d --wait && npx nx run api-server:serve',
+      url: 'http://localhost:8080/api/v1/actuator/health',
+      reuseExistingServer: true,
+      timeout: 240_000,
+      cwd: workspaceRoot,
+    },
+    {
+      command: isCI ? 'npx nx run web-app:serve-static' : 'npx nx run web-app:serve',
+      url: getReadyUrl('http://localhost:4200'),
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+    },
+  ],
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],

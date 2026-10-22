@@ -47,3 +47,37 @@ table td {
     'tnum' on,
     'lnum' on;
 }
+
+/* Componentes reutilizados nas telas (formulários e botões) */
+@layer components {
+  .gef-label {
+    @apply mb-1 block text-caption font-medium text-gefinc-muted;
+  }
+  .gef-input {
+    @apply w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-body-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-primary;
+  }
+  .gef-btn-primary {
+    @apply w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50;
+  }
+  .gef-btn-danger {
+    @apply w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:opacity-90 disabled:opacity-50;
+  }
+  .gef-btn-secondary {
+    @apply rounded-lg border border-gefinc-border px-4 py-2 text-body-base text-gefinc-text hover:border-gefinc-primary disabled:opacity-50;
+  }
+  .gef-link {
+    @apply text-gefinc-secondary hover:underline;
+  }
+  .gef-field-error {
+    @apply mt-1 text-caption text-gefinc-danger;
+  }
+  .gef-alert-error {
+    @apply rounded-lg border border-gefinc-danger/40 bg-gefinc-danger/10 px-3 py-2 text-body-base text-gefinc-danger;
+  }
+  .gef-alert-success {
+    @apply rounded-lg border border-gefinc-primary/40 bg-gefinc-primary/10 px-3 py-2 text-body-base text-gefinc-primary;
+  }
+  .gef-alert-warning {
+    @apply rounded-lg border border-gefinc-warning/40 bg-gefinc-warning/10 px-3 py-2 text-body-base text-gefinc-warning;
+  }
+}

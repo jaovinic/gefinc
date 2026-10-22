@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: ${DB_USER:-gefinc}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-gefinc}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - gefinc-pgdata:/var/lib/postgresql/data
     healthcheck:

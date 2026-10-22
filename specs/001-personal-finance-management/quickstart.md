@@ -85,6 +85,7 @@ No emulador Android, a API local é acessada por `http://10.0.2.2:8080/api/v1`.
 | Sintoma | Causa provável | Solução |
 |---|---|---|
 | API não sobe: erro de conexão | PostgreSQL ainda iniciando | Aguarde o healthcheck ou rode `docker compose ps` |
+| `docker compose up` falha com "address already in use" na porta 5432 | Outro PostgreSQL na máquina | Defina `DB_PORT=5433` (no `.env` ou no shell) antes de `npm run dev` |
 | Testes de integração não iniciam | Docker parado | Inicie o Docker (Testcontainers precisa dele) |
 | `401` constante no web | Cookie de refresh bloqueado | Use `http://localhost:4200` (mesmo site) e confira CORS em `application-local.yml` |
 | E-mail de recuperação não chega | Mailpit parado | Verifique `http://localhost:8025` e as variáveis `SMTP_*` |

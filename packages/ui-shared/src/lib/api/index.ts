@@ -5,3 +5,6 @@ export * from './notice.service';
 export * from './session.service';
 export * from './token-store';
 export * from './auth.guard';
+export * from './auth.api';
+export * from './password.validator';
+export * from './problem';

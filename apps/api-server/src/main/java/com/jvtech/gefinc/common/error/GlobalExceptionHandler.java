@@ -30,6 +30,15 @@ public class GlobalExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+  @ExceptionHandler(TooManyRequestsException.class)
+  ResponseEntity<ProblemDetail> handleTooMany(TooManyRequestsException ex) {
+    ProblemDetail body = ProblemFactory.create(ex.code(), ex.getMessage(), ex.extras(), List.of());
+    return ResponseEntity.status(ex.code().status())
+        .header("Retry-After", Long.toString(ex.retryAfterSeconds()))
+        .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+        .body(body);
+  }
+
   @ExceptionHandler(ApiException.class)
   ResponseEntity<ProblemDetail> handleApi(ApiException ex) {
     return problem(ex.code(), ex.getMessage(), ex.extras(), List.of());

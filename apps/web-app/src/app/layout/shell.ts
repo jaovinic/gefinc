@@ -51,7 +51,7 @@ export class Shell {
   private readonly router = inject(Router);
 
   /** Itens de navegação; cada história acrescenta os seus. */
-  protected readonly nav: { path: string; label: string }[] = [];
+  protected readonly nav: { path: string; label: string }[] = [{ path: '/account', label: 'Conta' }];
 
   protected logout(): void {
     this.session.logout().subscribe(() => void this.router.navigate(['/login']));

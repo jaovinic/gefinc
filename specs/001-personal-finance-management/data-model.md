@@ -155,7 +155,7 @@ users 1──* password_reset_tokens
 | id | BIGINT PK | |
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
 | family_id | UUID | NOT NULL (identifica o login; reuso revoga a família) |
-| token_hash | CHAR(64) | NOT NULL, UNIQUE (SHA-256 em hex) |
+| token_hash | VARCHAR(64) | NOT NULL, UNIQUE (SHA-256 em hex) |
 | expires_at | TIMESTAMPTZ | NOT NULL |
 | revoked_at | TIMESTAMPTZ | |
 | replaced_by_id | BIGINT | FK → refresh_tokens |
@@ -167,12 +167,12 @@ users 1──* password_reset_tokens
 |---|---|---|
 | id | BIGINT PK | |
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
-| token_hash | CHAR(64) | NOT NULL, UNIQUE |
+| token_hash | VARCHAR(64) | NOT NULL, UNIQUE |
 | expires_at | TIMESTAMPTZ | NOT NULL (criação + 60 min) |
 | used_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | NOT NULL |
 
-- Índice `(user_id, created_at)` para o limite de 3 solicitações por hora.
+- Índice `(user_id, created_at)` (consultas por usuário). O limite de 3 solicitações por hora é controlado em memória, por e-mail (ver `research.md`, D6).
 
 ## Fatura (visão derivada, sem tabela)
 

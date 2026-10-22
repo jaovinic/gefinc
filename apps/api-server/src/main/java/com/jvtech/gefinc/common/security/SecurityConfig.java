@@ -83,10 +83,4 @@ public class SecurityConfig {
     Integer strength = properties.security().bcryptStrength();
     return new BCryptPasswordEncoder(strength == null ? DEFAULT_BCRYPT_STRENGTH : strength);
   }
-
-  /** Provisório até a US1: aceita qualquer usuário na versão 0 (ver {@link TokenVersionLookup}). */
-  @Bean
-  TokenVersionLookup tokenVersionLookup() {
-    return new InMemoryTokenVersionLookup();
-  }
 }

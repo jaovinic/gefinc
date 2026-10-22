@@ -72,7 +72,7 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 > - O cliente de API, o interceptor de autenticação, a sessão, o `TokenStore`, os rascunhos e o aviso de conflito
 >   (`409 STALE_VERSION`) ficam em `packages/ui-shared/src/lib/api/`, compartilhados por web e mobile; cada app
 >   mantém só `core/session.providers.ts` (token em memória + cookie no web; armazenamento seguro no mobile).
-> - O tema do manual de identidade visual (`gefinc_identidade_visual_design_system.md`) está em
+> - O tema do manual de identidade visual (`docs/gefinc_identidade_visual_design_system.md`) está em
 >   `packages/ui-shared/src/styles/theme.css` (Tailwind v4, dark-first), importado pelos dois apps.
 > - Projetos E2E do Nx: `apps/web-app-e2e` e `apps/mobile-app-e2e` (Playwright, Chromium; mobile em Pixel 7).
 > - Ionic 9: os componentes standalone vêm de `@ionic/angular` (sem o subcaminho `/standalone`).
@@ -89,27 +89,36 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 > **Escreva primeiro e confirme que FALHAM antes da implementação**
 
-- [ ] T026 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AuthRegistrationLoginIT.java` (cadastro, e-mail duplicado `409`, senha fraca `422`, login, credenciais erradas com mensagem genérica, rotas protegidas sem token `401`)
-- [ ] T027 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/RefreshTokenIT.java` (renovação com rotação, cookie `HttpOnly` no modo web e corpo no mobile, reuso de token rotacionado revoga a família, logout revoga)
-- [ ] T028 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordResetIT.java` (e-mail recebido via GreenMail, link válido por 60 minutos e de uso único, expirado/usado `400`, resposta idêntica para e-mail inexistente, limite de 3 por hora `429`, novo link invalida o anterior, sessões antigas revogadas, token de acesso emitido antes da troca recusado na hora)
-- [ ] T029 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AccountDeletionIT.java` (senha incorreta recusada, token de acesso emitido antes do pedido recusado na hora, login com exclusão pendente responde `423` sem tokens, cancelamento restaura o acesso, e-mail reservado durante a carência, job apaga em cascata após 30 dias usando `Clock` fixo, inclusive usuário com contas, categorias e lançamentos)
-- [ ] T030 [P] [US1] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordPolicyTest.java` (mínimo de 10 caracteres e máximo de 72 **bytes** em UTF-8, incluindo acentos e emoji)
-- [ ] T031 [P] [US1] Teste E2E `apps/web-app-e2e/src/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
+- [X] T026 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AuthRegistrationLoginIT.java` (cadastro, e-mail duplicado `409`, senha fraca `422`, login, credenciais erradas com mensagem genérica, rotas protegidas sem token `401`)
+- [X] T027 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/RefreshTokenIT.java` (renovação com rotação, cookie `HttpOnly` no modo web e corpo no mobile, reuso de token rotacionado revoga a família, logout revoga)
+- [X] T028 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordResetIT.java` (e-mail recebido via GreenMail, link válido por 60 minutos e de uso único, expirado/usado `400`, resposta idêntica para e-mail inexistente, limite de 3 por hora `429`, novo link invalida o anterior, sessões antigas revogadas, token de acesso emitido antes da troca recusado na hora)
+- [X] T029 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AccountDeletionIT.java` (senha incorreta recusada, token de acesso emitido antes do pedido recusado na hora, login com exclusão pendente responde `423` sem tokens, cancelamento restaura o acesso, e-mail reservado durante a carência, job apaga em cascata após 30 dias usando `Clock` fixo, inclusive usuário com contas, categorias e lançamentos)
+- [X] T030 [P] [US1] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordPolicyTest.java` (mínimo de 10 caracteres e máximo de 72 **bytes** em UTF-8, incluindo acentos e emoji)
+- [X] T031 [P] [US1] Teste E2E `apps/web-app-e2e/src/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] Criar a migração `apps/api-server/src/main/resources/db/migration/V1__users_and_tokens.sql` (`users` com índice único em `lower(email)` e coluna `token_version`, `refresh_tokens`, `password_reset_tokens` e índices, conforme `data-model.md`)
-- [ ] T033 [P] [US1] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/user/User.java` e `UserRepository.java`, mais o adaptador `TokenVersionLookup` usado pelo filtro JWT (T021)
-- [ ] T034 [P] [US1] Criar as entidades e repositórios `auth/RefreshToken.java`, `RefreshTokenRepository.java`, `PasswordResetToken.java`, `PasswordResetTokenRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T035 [US1] Implementar `auth/PasswordPolicy.java` e `auth/RegistrationService.java` (BCrypt custo 12, e-mail único sem diferenciar maiúsculas) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`, publicando `user/UserRegisteredEvent.java` ao concluir o cadastro
-- [ ] T036 [US1] Implementar `auth/TokenService.java` (geração, hash SHA-256, rotação, revogação por família) e `auth/AuthService.java` (login emitindo o JWT com a versão do usuário, refresh, logout, resposta `423` com a data limite em exclusão pendente) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T037 [US1] Implementar `auth/PasswordResetService.java` (token de 60 minutos, limite de 3 por hora por e-mail, resposta sempre `202`, incrementa `token_version` ao confirmar a nova senha) e `common/mail/MailService.java` com o modelo `apps/api-server/src/main/resources/mail/password-reset.txt` em pt-BR
-- [ ] T038 [US1] Implementar `auth/AccountDeletionService.java` (confirmação por senha, revogação de sessões e incremento de `token_version`, cancelamento) e `auth/AccountDeletionJob.java` (`@Scheduled` diário, remove usuários com carência vencida) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T039 [US1] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/auth/AuthController.java` com todos os endpoints `/auth/*` do contrato, entregando o refresh token em cookie `HttpOnly; Secure; SameSite=Strict` quando `X-Client: web` e no corpo nos demais casos
-- [ ] T040 [P] [US1] Criar as telas web `apps/web-app/src/app/auth/` (`login/`, `register/`, `forgot-password/`, `reset-password/`, `delete-account/`) com validação e mensagens em pt-BR
-- [ ] T041 [P] [US1] Criar as telas mobile `apps/mobile-app/src/app/auth/` e a restauração de sessão ao abrir o app, guardando os tokens no armazenamento seguro do dispositivo
+- [X] T032 [US1] Criar a migração `apps/api-server/src/main/resources/db/migration/V1__users_and_tokens.sql` (`users` com índice único em `lower(email)` e coluna `token_version`, `refresh_tokens`, `password_reset_tokens` e índices, conforme `data-model.md`)
+- [X] T033 [P] [US1] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/user/User.java` e `UserRepository.java`, mais o adaptador `TokenVersionLookup` usado pelo filtro JWT (T021)
+- [X] T034 [P] [US1] Criar as entidades e repositórios `auth/RefreshToken.java`, `RefreshTokenRepository.java`, `PasswordResetToken.java`, `PasswordResetTokenRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T035 [US1] Implementar `auth/PasswordPolicy.java` e `auth/RegistrationService.java` (BCrypt custo 12, e-mail único sem diferenciar maiúsculas) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`, publicando `user/UserRegisteredEvent.java` ao concluir o cadastro
+- [X] T036 [US1] Implementar `auth/TokenService.java` (geração, hash SHA-256, rotação, revogação por família) e `auth/AuthService.java` (login emitindo o JWT com a versão do usuário, refresh, logout, resposta `423` com a data limite em exclusão pendente) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T037 [US1] Implementar `auth/PasswordResetService.java` (token de 60 minutos, limite de 3 por hora por e-mail, resposta sempre `202`, incrementa `token_version` ao confirmar a nova senha) e `common/mail/MailService.java` com o modelo `apps/api-server/src/main/resources/mail/password-reset.txt` em pt-BR
+- [X] T038 [US1] Implementar `auth/AccountDeletionService.java` (confirmação por senha, revogação de sessões e incremento de `token_version`, cancelamento) e `auth/AccountDeletionJob.java` (`@Scheduled` diário, remove usuários com carência vencida) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T039 [US1] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/auth/AuthController.java` com todos os endpoints `/auth/*` do contrato, entregando o refresh token em cookie `HttpOnly; Secure; SameSite=Strict` quando `X-Client: web` e no corpo nos demais casos
+- [X] T040 [P] [US1] Criar as telas web `apps/web-app/src/app/auth/` (`login/`, `register/`, `forgot-password/`, `reset-password/`, `delete-account/`) com validação e mensagens em pt-BR
+- [X] T041 [P] [US1] Criar as telas mobile `apps/mobile-app/src/app/auth/` e a restauração de sessão ao abrir o app, guardando os tokens no armazenamento seguro do dispositivo
 
 **Checkpoint**: Usuários podem se cadastrar, entrar, recuperar a senha e excluir a conta
+
+> **Notas de implementação da US1**
+> - As telas de acesso (login, cadastro, recuperação e exclusão de conta) ficam em `packages/ui-shared/src/lib/auth/`
+>   e são roteadas por web e mobile; o mobile as envolve em `ion-content` (`apps/mobile-app/src/app/auth/auth-pages.ts`).
+>   A redefinição de senha e a exclusão de conta são feitas no web (o link do e-mail abre o web).
+> - O `logout` aceita um corpo opcional com o `refreshToken` (mobile); o contrato foi ajustado (`requestBody` opcional,
+>   `instance` e membros de extensão em `Problem`).
+> - O limite de 3 solicitações de redefinição por hora é controlado em memória (igual para e-mails cadastrados ou não).
+> - E2E do web: `cd apps/web-app-e2e && DB_PORT=5433 npx playwright test` (ajuste `DB_PORT` se a 5432 estiver ocupada).
 
 ---
 

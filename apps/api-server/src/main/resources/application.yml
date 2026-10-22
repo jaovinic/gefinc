@@ -40,6 +40,7 @@ management:
 app:
   timezone: America/Sao_Paulo
   base-url: ${APP_BASE_URL:http://localhost:4200}
+  mail-from: ${MAIL_FROM:no-reply@gefinc.local}
   security:
     jwt-secret: ${JWT_SECRET}
     access-token-ttl: 15m

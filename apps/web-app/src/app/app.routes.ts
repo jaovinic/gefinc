@@ -1,16 +1,40 @@
 import { Route } from '@angular/router';
-import { authGuard } from '@gefinc/ui-shared';
+import {
+  DeleteAccount,
+  ForgotPassword,
+  Login,
+  Register,
+  ResetPassword,
+  authGuard,
+} from '@gefinc/ui-shared';
 import { Shell } from './layout/shell';
 
 /**
- * Rotas públicas (login, cadastro, recuperação) e a área autenticada dentro do {@link Shell}.
- * Cada história acrescenta as suas rotas carregadas sob demanda.
+ * Rotas públicas (login, cadastro, recuperação de senha) e a área autenticada dentro do {@link Shell}.
+ * Cada história acrescenta as suas rotas, carregadas sob demanda.
  */
 export const appRoutes: Route[] = [
+  { path: 'login', component: Login },
+  { path: 'register', component: Register },
+  {
+    path: 'forgot-password',
+    component: ForgotPassword,
+  },
+  {
+    path: 'reset-password',
+    component: ResetPassword,
+  },
   {
     path: '',
     component: Shell,
     canActivate: [authGuard],
-    children: [],
+    children: [
+      { path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) },
+      {
+        path: 'account',
+        component: DeleteAccount,
+      },
+    ],
   },
+  { path: '**', redirectTo: '' },
 ];

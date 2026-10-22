@@ -113,7 +113,7 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
 ## D6. Recuperação de senha (FR-006, FR-007)
 
 - **Decisão**: tabela `password_reset_tokens` (hash SHA-256 do token, `expires_at` = agora + 60
-  min, `used_at`). Limite de 3 solicitações por e-mail por hora, contado no próprio banco. A
+  min, `used_at`). Limite de 3 solicitações por e-mail por hora, controlado **em memória** e igual para e-mails cadastrados ou não (contar no banco só funcionaria para contas existentes e o `429` revelaria quais existem); a API roda em uma única instância e reiniciá-la apenas zera as contagens. A
   resposta é sempre `202` idêntica, exista ou não a conta. Nova solicitação invalida os links
   anteriores. Ao confirmar, a senha muda e todos os refresh tokens do usuário são revogados.
   Envio por SMTP (Spring Mail); em desenvolvimento, Mailpit via `docker-compose`.

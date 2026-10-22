@@ -59,11 +59,18 @@ export class SessionService {
   }
 
   logout(): Observable<void> {
-    return this.http.post<void>(`${this.base}/auth/logout`, null, { headers: this.clientHeaders() }).pipe(
+    const refreshToken = this.store.refreshToken();
+    const body = this.kind === 'mobile' && refreshToken !== null ? { refreshToken } : null;
+    return this.http.post<void>(`${this.base}/auth/logout`, body, { headers: this.clientHeaders() }).pipe(
       catchError(() => of(undefined)),
       map(() => undefined),
       tap(() => this.clearLocal()),
     );
+  }
+
+  /** Encerra só a sessão local (a API já revogou os tokens, ex.: após pedir a exclusão da conta). */
+  endLocalSession(): void {
+    this.clearLocal();
   }
 
   /** A sessão se perdeu (renovação recusada): guarda os rascunhos e leva ao login. */

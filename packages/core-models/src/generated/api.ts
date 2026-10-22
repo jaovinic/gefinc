@@ -158,7 +158,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Encerra a sessão e revoga o refresh token */
+        /**
+         * Encerra a sessão e revoga o refresh token
+         * @description No web, o refresh token vem do cookie (cabeçalho `X-Client: web`) e o cookie é apagado. No
+         *     mobile, informe o `refreshToken` no corpo para revogá-lo.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -166,7 +170,11 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RefreshRequest"];
+                };
+            };
             responses: {
                 /** @description Sessão encerrada */
                 204: {
@@ -1525,6 +1533,7 @@ export interface components {
         TransactionStatus: "PENDING" | "PAID";
         Problem: {
             type: string;
+            instance?: string;
             title: string;
             status: number;
             detail?: string;
@@ -1535,17 +1544,23 @@ export interface components {
             code: string;
             /** @description Presente em `INVOICE_BALANCE_VIOLATION` */
             remainingBalance?: components["schemas"]["Money"];
+        } & {
+            [key: string]: unknown;
         };
-        ValidationProblem: components["schemas"]["Problem"] & {
+        ValidationProblem: components["schemas"]["Problem"] & ({
             errors?: {
                 field: string;
                 message: string;
             }[];
-        };
-        DeletionPendingProblem: components["schemas"]["Problem"] & {
+        } & {
+            [key: string]: unknown;
+        });
+        DeletionPendingProblem: components["schemas"]["Problem"] & ({
             /** Format: date */
             deletionDate: string;
-        };
+        } & {
+            [key: string]: unknown;
+        });
         RegisterRequest: {
             /** Format: email */
             email: string;

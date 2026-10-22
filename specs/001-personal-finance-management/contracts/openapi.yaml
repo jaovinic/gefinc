@@ -97,6 +97,14 @@ paths:
     post:
       tags: [Auth]
       summary: Encerra a sessão e revoga o refresh token
+      description: |
+        No web, o refresh token vem do cookie (cabeçalho `X-Client: web`) e o cookie é apagado. No
+        mobile, informe o `refreshToken` no corpo para revogá-lo.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Sessão encerrada }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -828,9 +836,11 @@ components:
 
     Problem:
       type: object
+      additionalProperties: true
       required: [type, title, status, code]
       properties:
         type: { type: string }
+        instance: { type: string }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
@@ -846,6 +856,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Problem'
         - type: object
+          additionalProperties: true
           properties:
             errors:
               type: array
@@ -859,6 +870,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Problem'
         - type: object
+          additionalProperties: true
           required: [deletionDate]
           properties:
             deletionDate: { type: string, format: date }
