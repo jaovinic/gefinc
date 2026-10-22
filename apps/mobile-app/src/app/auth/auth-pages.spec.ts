@@ -23,12 +23,13 @@ describe('páginas de acesso do app móvel', () => {
     [LoginPage, 'Entrar'],
     [RegisterPage, 'Criar conta'],
     [ForgotPasswordPage, 'Recuperar senha'],
-  ])('%p mostra a tela compartilhada dentro do ion-content', async (page, heading) => {
+  ])('%p mostra a tela compartilhada em uma tela rolável (sem ion-content)', async (page, heading) => {
     const fixture = TestBed.createComponent(page);
     fixture.detectChanges();
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('ion-content')).not.toBeNull();
+    expect(el.querySelector('.gef-screen')).not.toBeNull();
+    expect(el.querySelector('ion-content')).toBeNull();
     expect(el.textContent).toContain(heading);
   });
 });

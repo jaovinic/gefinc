@@ -112,11 +112,11 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Minha conta: sair, exclusão com carência, cancelamento ao entrar e recuperação de senha
 
-- [ ] T040 [P] [US5] [Teste] Escrever `apps/mobile-app/src/app/settings/settings.page.spec.ts`: sair encerra a sessão e limpa o armazenamento seguro, exclusão exige a senha e mostra a data limite, erros em português; e estender `apps/mobile-app/src/app/auth/auth-pages.spec.ts` para recuperação de senha (mesma resposta para e-mail cadastrado ou não e aviso do limite) e para a entrada com exclusão pendente (423 oferece cancelar); ver falhar
-- [ ] T041 [P] [US5] [Teste] Criar `apps/mobile-app-e2e/src/account.spec.ts` (E2E mobile): pedir recuperação de senha, solicitar exclusão com senha, entrar de novo dentro da carência e cancelar, sair; ver falhar
-- [ ] T042 [US5] Implementar `apps/mobile-app/src/app/settings/settings.page.ts` (Minha conta) com Sair (usando `core/logout.ts`) e a exclusão de conta (`DeleteAccount` de `@gefinc/ui-shared`), deixando as seções de bloqueio e lembretes para as histórias US8 e US9; ligar a rota `minha-conta`
-- [ ] T043 [US5] Garantir no app o fluxo de entrada com exclusão pendente e a mensagem que explica que o link de redefinição de senha enviado por e-mail abre no navegador (`apps/mobile-app/src/app/auth/auth-pages.ts`)
-- [ ] T044 [US5] Executar `npx nx e2e mobile-app-e2e` (account) e `npx nx test mobile-app`
+- [X] T040 [P] [US5] [Teste] Escrever `apps/mobile-app/src/app/settings/settings.page.spec.ts`: sair encerra a sessão e limpa o armazenamento seguro, exclusão exige a senha e mostra a data limite, erros em português; e estender `apps/mobile-app/src/app/auth/auth-pages.spec.ts` para recuperação de senha (mesma resposta para e-mail cadastrado ou não e aviso do limite) e para a entrada com exclusão pendente (423 oferece cancelar); ver falhar
+- [X] T041 [P] [US5] [Teste] Criar `apps/mobile-app-e2e/src/account.spec.ts` (E2E mobile): pedir recuperação de senha, solicitar exclusão com senha, entrar de novo dentro da carência e cancelar, sair; ver falhar
+- [X] T042 [US5] Implementar `apps/mobile-app/src/app/settings/settings.page.ts` (Minha conta) com Sair (usando `core/logout.ts`) e a exclusão de conta (`DeleteAccount` de `@gefinc/ui-shared`), deixando as seções de bloqueio e lembretes para as histórias US8 e US9; ligar a rota `minha-conta`
+- [X] T043 [US5] Garantir no app o fluxo de entrada com exclusão pendente e a mensagem que explica que o link de redefinição de senha enviado por e-mail abre no navegador (`apps/mobile-app/src/app/auth/auth-pages.ts`)
+- [X] T044 [US5] Executar `npx nx e2e mobile-app-e2e` (account) e `npx nx test mobile-app`
 
 ---
 

@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AuthApi, messageFor, toProblem } from '../../api';
+import { AuthApi, CLIENT_KIND, messageFor, toProblem } from '../../api';
 import { AuthCard } from '../auth-card';
 
 @Component({
@@ -12,6 +12,9 @@ import { AuthCard } from '../auth-card';
       @if (sent()) {
         <p class="gef-alert-success" role="status">
           Se o e-mail estiver cadastrado, enviamos um link para criar uma nova senha. Ele vale por 60 minutos.
+          @if (mobile) {
+            O link abre no navegador do celular; depois de criar a nova senha, volte ao aplicativo e entre.
+          }
         </p>
         <p class="mt-4 text-body-base"><a class="gef-link" routerLink="/login">Voltar para o login</a></p>
       } @else {
@@ -36,6 +39,8 @@ import { AuthCard } from '../auth-card';
 export class ForgotPassword {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AuthApi);
+  /** No app, o link do e-mail abre no navegador (não no aplicativo). */
+  protected readonly mobile = inject(CLIENT_KIND) === 'mobile';
 
   protected readonly form = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],

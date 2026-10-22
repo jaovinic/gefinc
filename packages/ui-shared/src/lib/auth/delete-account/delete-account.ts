@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthApi, SessionService, messageFor, toProblem } from '../../api';
@@ -10,7 +10,11 @@ import { isoToBR } from '@gefinc/utils';
   imports: [ReactiveFormsModule],
   template: `
     <section class="mx-auto max-w-lg space-y-4">
-      <h1 class="text-title-lg font-bold text-gefinc-text">Excluir minha conta</h1>
+      @if (embedded()) {
+        <h2 class="text-title-md font-bold text-gefinc-text">Excluir minha conta</h2>
+      } @else {
+        <h1 class="text-title-lg font-bold text-gefinc-text">Excluir minha conta</h1>
+      }
       @if (scheduledFor(); as date) {
         <p class="gef-alert-success" role="status">
           Exclusão agendada para {{ date }}. Até lá, entre novamente e cancele se mudar de ideia.
@@ -43,6 +47,9 @@ export class DeleteAccount {
   private readonly api = inject(AuthApi);
   private readonly session = inject(SessionService);
   private readonly router = inject(Router);
+
+  /** Dentro de outra tela (ex.: Minha conta), o título vira subtítulo. */
+  readonly embedded = input(false);
 
   protected readonly form = this.fb.nonNullable.group({ password: ['', Validators.required] });
   protected readonly error = signal<string | null>(null);

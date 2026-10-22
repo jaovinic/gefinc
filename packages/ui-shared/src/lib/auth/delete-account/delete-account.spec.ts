@@ -15,6 +15,19 @@ describe('DeleteAccount', () => {
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
+  it('dentro de outra tela (embutida) usa subtítulo em vez de título da página', async () => {
+    const ctx = configureAuthTesting();
+    const fixture = TestBed.createComponent(DeleteAccount);
+    fixture.componentRef.setInput('embedded', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('h1')).toBeNull();
+    expect(el.querySelector('h2')?.textContent).toContain('Excluir minha conta');
+    ctx.http.verify();
+  });
+
   it('agenda a exclusão, mostra a data limite e encerra a sessão local', async () => {
     const { el, http, fixture } = await setup();
     const session = TestBed.inject(SessionService);

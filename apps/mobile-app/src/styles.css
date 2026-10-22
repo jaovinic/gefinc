@@ -70,3 +70,11 @@
     @apply flex min-h-12 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text;
   }
 }
+
+/* Tela cheia rolável das páginas fora da casca (acesso e lançamento rápido). */
+.gef-screen {
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-gefinc-bg);
+}
