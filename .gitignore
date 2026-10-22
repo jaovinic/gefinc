@@ -1,0 +1,56 @@
+# Dependências
+node_modules/
+
+# Build / saída
+dist/
+out-tsc/
+tmp/
+.angular/
+.nx/
+.sass-cache/
+coverage/
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# Mobile (Capacitor / Ionic)
+apps/mobile-app/android/app/build/
+apps/mobile-app/android/.gradle/
+apps/mobile-app/android/local.properties
+apps/mobile-app/ios/App/Pods/
+apps/mobile-app/ios/App/build/
+apps/mobile-app/www/
+
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+application-local.yml
+application-local.properties
+docker-compose.override.yml
+
+# Claude Code (configuração local do usuário)
+.claude/settings.local.json
+
+# IDEs
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.project
+.classpath
+.settings/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
