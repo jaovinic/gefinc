@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# O nx-set-shas consulta a API de execuções do GitHub Actions para achar o último CI verde da main.
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   main:
     runs-on: ubuntu-latest
