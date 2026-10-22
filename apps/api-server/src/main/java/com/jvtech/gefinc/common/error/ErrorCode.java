@@ -24,6 +24,9 @@ public enum ErrorCode {
   ACCOUNT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Conta inativa"),
   CATEGORY_IN_USE(HttpStatus.CONFLICT, "Categoria em uso"),
   INVOICE_BALANCE_VIOLATION(HttpStatus.CONFLICT, "Saldo da fatura violado"),
+  IDEMPOTENCY_IN_PROGRESS(HttpStatus.CONFLICT, "Operação em processamento"),
+  IDEMPOTENCY_KEY_REUSED(
+      HttpStatus.UNPROCESSABLE_ENTITY, "Chave de idempotência usada em outra operação"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno");
 
   private final HttpStatus status;

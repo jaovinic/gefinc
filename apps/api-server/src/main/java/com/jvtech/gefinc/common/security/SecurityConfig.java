@@ -2,6 +2,8 @@ package com.jvtech.gefinc.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jvtech.gefinc.common.config.AppProperties;
+import com.jvtech.gefinc.idempotency.IdempotencyFilter;
+import com.jvtech.gefinc.idempotency.IdempotencyService;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -29,7 +32,11 @@ public class SecurityConfig {
 
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, JwtService jwtService, TokenVersionLookup lookup, ObjectMapper mapper)
+      HttpSecurity http,
+      JwtService jwtService,
+      TokenVersionLookup lookup,
+      ObjectMapper mapper,
+      IdempotencyService idempotency)
       throws Exception {
     ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper);
     http.csrf(AbstractHttpConfigurer::disable)
@@ -60,7 +67,8 @@ public class SecurityConfig {
                     .httpStrictTransportSecurity(Customizer.withDefaults()))
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService, lookup),
-            UsernamePasswordAuthenticationFilter.class);
+            UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(new IdempotencyFilter(idempotency, mapper), AuthorizationFilter.class);
     return http.build();
   }
 
@@ -69,8 +77,9 @@ public class SecurityConfig {
     CorsConfiguration config = new CorsConfiguration();
     config.setAllowedOrigins(properties.security().corsOrigins());
     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Client", "X-Request-Id"));
-    config.setExposedHeaders(List.of("X-Request-Id", "Retry-After"));
+    config.setAllowedHeaders(
+        List.of("Authorization", "Content-Type", "X-Client", "X-Request-Id", "Idempotency-Key"));
+    config.setExposedHeaders(List.of("X-Request-Id", "Retry-After", "Idempotent-Replayed"));
     config.setAllowCredentials(true);
     config.setMaxAge(3600L);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

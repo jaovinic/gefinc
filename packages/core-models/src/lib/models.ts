@@ -40,6 +40,7 @@ export type InvoicePaymentInput = Schemas['InvoicePaymentInput'];
 export type InvoiceProjection = Schemas['InvoiceProjection'];
 export type Dashboard = Schemas['Dashboard'];
 export type CashflowMonth = Schemas['CashflowMonth'];
+export type DueSummary = Schemas['DueSummary'];
 
 /** Valores dos enums para uso em tempo de execução (listas, selects, validações). */
 export const ACCOUNT_TYPES = ['CHECKING', 'CASH', 'CREDIT_CARD'] as const satisfies readonly AccountType[];

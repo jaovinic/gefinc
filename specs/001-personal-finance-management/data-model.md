@@ -174,6 +174,13 @@ users 1──* password_reset_tokens
 
 - Índice `(user_id, created_at)` (consultas por usuário). O limite de 3 solicitações por hora é controlado em memória, por e-mail (ver `research.md`, D6).
 
+### idempotency_keys **[novo, feature 002]**
+
+Chaves de idempotência das operações feitas offline no app (criar lançamento, pagar, desfazer):
+PK `(user_id, key)`, FK `user_id` com `ON DELETE CASCADE`, `state` (`IN_PROGRESS` ou `COMPLETED`),
+resposta guardada por 7 dias. Detalhes em `specs/002-mobile-feature-parity/data-model.md`. O
+endpoint `GET /due-summary` (feature 002) é só leitura sobre `transactions` e `invoice_payments`.
+
 ## Fatura (visão derivada, sem tabela)
 
 Chave: `(account_id, invoice_month)`.

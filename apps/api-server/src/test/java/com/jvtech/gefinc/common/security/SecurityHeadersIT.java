@@ -34,6 +34,23 @@ class SecurityHeadersIT extends IntegrationTestBase {
   }
 
   @Test
+  void appPodeEnviarEExporOsCabecalhosDeIdempotencia() throws Exception {
+    mockMvc
+        .perform(
+            options("/transaction-groups")
+                .header("Origin", "https://localhost")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Authorization,Idempotency-Key"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Access-Control-Allow-Origin", "https://localhost"))
+        .andExpect(
+            header()
+                .string(
+                    "Access-Control-Allow-Headers",
+                    org.hamcrest.Matchers.containsString("Idempotency-Key")));
+  }
+
+  @Test
   void origensDoWebEDoAppPodemChamarAApi() throws Exception {
     for (String origin :
         new String[] {

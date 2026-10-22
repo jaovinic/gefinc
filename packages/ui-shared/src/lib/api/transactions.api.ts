@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import type {
   CategoryType,
@@ -28,6 +28,11 @@ export interface TransactionFilter {
   size?: number;
 }
 
+/** Cabeçalho `Idempotency-Key`, enviado só quando há chave (o web não usa). */
+function idempotencyHeaders(key?: string): HttpHeaders {
+  return key ? new HttpHeaders({ 'Idempotency-Key': key }) : new HttpHeaders();
+}
+
 /** Lançamentos: grupos (avulso, fixo, parcelado) e suas ocorrências. */
 @Injectable({ providedIn: 'root' })
 export class TransactionsApi {
@@ -52,16 +57,25 @@ export class TransactionsApi {
     return this.http.patch<Transaction>(`${this.base}/transactions/${id}`, body);
   }
 
-  pay(id: number, paymentDate: string): Observable<Transaction> {
-    return this.http.post<Transaction>(`${this.base}/transactions/${id}/pay`, { paymentDate });
+  /** `idempotencyKey` (UUID) é usado pelo app ao reenviar operações feitas offline. */
+  pay(id: number, paymentDate: string, idempotencyKey?: string): Observable<Transaction> {
+    return this.http.post<Transaction>(
+      `${this.base}/transactions/${id}/pay`,
+      { paymentDate },
+      { headers: idempotencyHeaders(idempotencyKey) },
+    );
   }
 
-  unpay(id: number): Observable<Transaction> {
-    return this.http.post<Transaction>(`${this.base}/transactions/${id}/unpay`, null);
+  unpay(id: number, idempotencyKey?: string): Observable<Transaction> {
+    return this.http.post<Transaction>(`${this.base}/transactions/${id}/unpay`, null, {
+      headers: idempotencyHeaders(idempotencyKey),
+    });
   }
 
-  createGroup(input: TransactionGroupInput): Observable<TransactionGroupDetail> {
-    return this.http.post<TransactionGroupDetail>(`${this.base}/transaction-groups`, input);
+  createGroup(input: TransactionGroupInput, idempotencyKey?: string): Observable<TransactionGroupDetail> {
+    return this.http.post<TransactionGroupDetail>(`${this.base}/transaction-groups`, input, {
+      headers: idempotencyHeaders(idempotencyKey),
+    });
   }
 
   getGroup(id: number): Observable<TransactionGroupDetail> {
