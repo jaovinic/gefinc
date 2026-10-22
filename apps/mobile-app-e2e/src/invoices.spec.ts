@@ -24,7 +24,7 @@ test.describe('faturas no celular', () => {
     await signIn(page, user.email);
 
     await openTab(page, 'Faturas');
-    await expect(page.getByRole('heading', { name: 'Faturas' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Faturas', exact: true })).toBeVisible();
     await expect(summary(page, 'Total da fatura')).toHaveText('R$ 100,00');
     await expect(page.getByTestId('invoice-item')).toHaveCount(2);
 
