@@ -89,10 +89,10 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Fatura por cartão e mês, pagamentos parcial e total, desfazer e projeção
 
-- [ ] T031 [P] [US3] [Teste] Mover `apps/web-app/src/app/invoices/invoices-page.spec.ts` para `packages/ui-shared/src/lib/invoices/` e acrescentar casos compactos (itens em lista, pagamento em `gef-sheet`, recusa acima do restante, projeção por cartão em cartões); ver falhar
-- [ ] T032 [P] [US3] [Teste] Criar `apps/mobile-app-e2e/src/invoices.spec.ts` (E2E mobile): pagar R$ 30 de R$ 100, recusar R$ 80, quitar o restante, desfazer pagamento, abrir projeção; ver falhar
-- [ ] T033 [US3] Mover `apps/web-app/src/app/invoices/invoices-page.ts` para `packages/ui-shared/src/lib/invoices/` com layout responsivo e exportar em `packages/ui-shared/src/index.ts`
-- [ ] T034 [US3] Ligar as rotas de faturas no web e no mobile (`faturas` sob o shell) e executar `npx nx e2e web-app-e2e` e `npx nx e2e mobile-app-e2e` (invoices)
+- [X] T031 [P] [US3] [Teste] Mover `apps/web-app/src/app/invoices/invoices-page.spec.ts` para `packages/ui-shared/src/lib/invoices/` e acrescentar casos compactos (itens em lista, pagamento em `gef-sheet`, recusa acima do restante, projeção por cartão em cartões); ver falhar
+- [X] T032 [P] [US3] [Teste] Criar `apps/mobile-app-e2e/src/invoices.spec.ts` (E2E mobile): pagar R$ 30 de R$ 100, recusar R$ 80, quitar o restante, desfazer pagamento, abrir projeção; ver falhar
+- [X] T033 [US3] Mover `apps/web-app/src/app/invoices/invoices-page.ts` para `packages/ui-shared/src/lib/invoices/` com layout responsivo e exportar em `packages/ui-shared/src/index.ts`
+- [X] T034 [US3] Ligar as rotas de faturas no web e no mobile (`faturas` sob o shell) e executar `npx nx e2e web-app-e2e` e `npx nx e2e mobile-app-e2e` (invoices)
 
 ---
 

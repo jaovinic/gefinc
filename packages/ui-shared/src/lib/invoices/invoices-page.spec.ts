@@ -1,7 +1,9 @@
 import { HttpTestingController } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { currentMonth, todayIso } from '@gefinc/utils';
-import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../test/testbed';
+import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
+import { Viewport } from '../viewport/viewport';
 import { InvoicesPage } from './invoices-page';
 
 const month = currentMonth();
@@ -21,7 +23,10 @@ const projection = {
 };
 
 describe('InvoicesPage', () => {
-  async function setup(inv: object = invoice()) {
+  async function setup(inv: object = invoice(), compact?: boolean) {
+    if (compact !== undefined) {
+      TestBed.configureTestingModule({ providers: [{ provide: Viewport, useValue: { compact: signal(compact) } }] });
+    }
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(InvoicesPage);
     fixture.detectChanges();
@@ -110,5 +115,51 @@ describe('InvoicesPage', () => {
     clickButton(el, 'Desfazer');
     http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush(invoice());
     reload(http);
+  });
+
+  describe('no celular (layout compacto)', () => {
+    it('mostra os itens em cartões, sem tabela, e a projeção por cartão', async () => {
+      const { el } = await setup(invoice(), true);
+
+      expect(el.querySelector('table')).toBeNull();
+      const items = el.querySelectorAll('[data-testid="invoice-item"]');
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent).toContain('Notebook');
+      expect(items[0].textContent).toContain('R$ 600,00');
+      const projectionCard = el.querySelector('[data-testid="projection-card"]') as HTMLElement;
+      expect(projectionCard.textContent).toContain('Nubank');
+      expect(projectionCard.textContent).toContain('Comprometido');
+      expect(projectionCard.textContent).toContain('R$ 1.000,00');
+    });
+
+    it('pagar parte abre o painel inferior e envia o pagamento', async () => {
+      const { http, el, fixture } = await setup(invoice(), true);
+
+      clickButton(el, 'Pagar parte');
+      fixture.detectChanges();
+      const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+      expect(dialog.classList).toContain('gef-sheet');
+      expect(dialog.getAttribute('aria-label')).toBe('Pagamento da fatura');
+      type(el, '[role="dialog"] gef-money-input input', '30000');
+      fixture.detectChanges();
+      clickButton(el, 'Confirmar');
+
+      const post = http.expectOne({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments` });
+      expect(post.request.body).toEqual({ amount: '300.00', paidAt: todayIso() });
+      post.flush(invoice({ remaining: '700.00', paidByInvoicePayments: '300.00' }));
+      reload(http, invoice({ remaining: '700.00' }));
+    });
+
+    it('abrir um mês da projeção e desfazer pagamento têm rótulos acessíveis', async () => {
+      const { el } = await setup(
+        invoice({ payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }], remaining: '700.00' }),
+        true,
+      );
+
+      expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${month}"]`)).not.toBeNull();
+      const undo = el.querySelector('button[aria-label^="Desfazer pagamento"]') as HTMLButtonElement;
+      expect(undo).not.toBeNull();
+      expect(undo.className).toContain('gef-action');
+    });
   });
 });

@@ -12,3 +12,4 @@ export * from './lib/accounts/accounts-page';
 export * from './lib/categories/categories-page';
 export * from './lib/transactions/transactions-page';
 export * from './lib/transactions/group-form';
+export * from './lib/invoices/invoices-page';

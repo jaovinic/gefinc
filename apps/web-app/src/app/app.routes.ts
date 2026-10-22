@@ -8,6 +8,7 @@ import {
   AccountsPage,
   CategoriesPage,
   TransactionsPage,
+  InvoicesPage,
   authGuard,
 } from '@gefinc/ui-shared';
 import { Shell } from './layout/shell';
@@ -43,7 +44,7 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'invoices',
-        loadComponent: () => import('./invoices/invoices-page').then((m) => m.InvoicesPage),
+        component: InvoicesPage,
       },
       {
         path: 'cashflow',
