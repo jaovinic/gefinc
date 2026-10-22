@@ -70,7 +70,7 @@ for (const size of SIZES) {
       for (const route of ROUTES) {
         await page.goto(route.path);
         await expect(page.getByRole('heading', { name: route.ready, exact: true }).first()).toBeVisible();
-        await page.waitForLoadState('networkidle');
+        await expect(page.getByText(/Carregando/)).toHaveCount(0); // terminou de carregar
 
         const overflow = await page.evaluate(() => {
           const all = [document.documentElement, ...Array.from(document.querySelectorAll('main, .gef-screen'))];
@@ -93,7 +93,7 @@ test('telas públicas (entrar, criar conta, recuperar senha) cabem em 360 px e p
   const problems: string[] = [];
   for (const path of ['/login', '/register', '/forgot-password']) {
     await page.goto(path);
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByText(/Carregando/)).toHaveCount(0);
     const overflow = await page.evaluate(() => Array.from(document.querySelectorAll('.gef-screen')).some((el) => el.scrollWidth > el.clientWidth + 1));
     if (overflow) problems.push(`${path}: rolagem horizontal`);
     for (const small of await smallTouchTargets(page)) problems.push(`${path}: alvo pequeno ${small}`);
