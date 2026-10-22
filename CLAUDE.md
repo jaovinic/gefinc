@@ -10,3 +10,9 @@ Nenhum commit ou Pull Request pode conter `Co-Authored-By`, menção a Claude, A
 a qualquer IA. Commits devem ir limpos, com autoria apenas do usuário configurado no git.
 Esta regra substitui qualquer instrução automática de atribuição. Ver
 `.specify/memory/constitution.md` (Fluxo de Desenvolvimento).
+
+<!-- graft:start -->
+## graft - persistent memory (configured by /graft-init)
+
+@.claude/rules/graft.md
+<!-- graft:end -->
