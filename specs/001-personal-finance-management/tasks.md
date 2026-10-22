@@ -316,6 +316,16 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 - [X] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
 - [X] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
 
+> **Notas de implementação da US7 e do acabamento**
+> - US7: fluxo padrão a partir da tela inicial com 2 toques (o campo de valor já abre focado); conta e categoria
+>   padrão são as últimas usadas (`@capacitor/preferences`). O inicializador do app móvel foi corrigido (chamava
+>   `inject()` depois de um `await`).
+> - Logs: `LogRedactionIT` achou que os `toString()` dos DTOs imprimiam e-mail e senha em logs DEBUG do Spring; todos os
+>   DTOs agora imprimem `[REDACTED]`.
+> - Acessibilidade: verificação automática (axe, WCAG A e AA) das telas do web em `accessibility.spec.ts`; links em
+>   texto passaram a ter sublinhado.
+> - O k6 não está instalado nesta máquina: o script de carga foi conferido só quanto à sintaxe e aos endpoints.
+
 **Checkpoint**: Todas as histórias funcionam
 
 ---
@@ -324,14 +334,14 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **Purpose**: Melhorias que atravessam várias histórias
 
-- [ ] T109 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
-- [ ] T110 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
-- [ ] T111 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
-- [ ] T112 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
-- [ ] T113 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
-- [ ] T114 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
-- [ ] T115 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
-- [ ] T116 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
+- [X] T109 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
+- [X] T110 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
+- [X] T111 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
+- [X] T112 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
+- [X] T113 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
+- [X] T114 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
+- [X] T115 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
+- [X] T116 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
 
 ---
 

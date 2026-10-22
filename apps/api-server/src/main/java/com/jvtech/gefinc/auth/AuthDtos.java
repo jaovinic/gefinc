@@ -16,25 +16,79 @@ public final class AuthDtos {
           @Email(message = "E-mail inválido.")
           @Size(max = 254, message = "E-mail muito longo.")
           String email,
-      @ValidPassword String password) {}
+      @ValidPassword String password) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "RegisterRequest[REDACTED]";
+    }
+  }
 
   public record LoginRequest(
       @NotBlank(message = "Informe o e-mail.") String email,
-      @NotBlank(message = "Informe a senha.") String password) {}
+      @NotBlank(message = "Informe a senha.") String password) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "LoginRequest[REDACTED]";
+    }
+  }
 
-  public record RefreshRequest(String refreshToken) {}
+  public record RefreshRequest(String refreshToken) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "RefreshRequest[REDACTED]";
+    }
+  }
 
   public record PasswordResetRequest(
-      @NotBlank(message = "Informe o e-mail.") @Email(message = "E-mail inválido.") String email) {}
+      @NotBlank(message = "Informe o e-mail.") @Email(message = "E-mail inválido.") String email) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "PasswordResetRequest[REDACTED]";
+    }
+  }
 
   public record PasswordResetConfirm(
-      @NotBlank(message = "Informe o token.") String token, @ValidPassword String newPassword) {}
+      @NotBlank(message = "Informe o token.") String token, @ValidPassword String newPassword) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "PasswordResetConfirm[REDACTED]";
+    }
+  }
 
-  public record AccountDeletionRequest(@NotBlank(message = "Informe a senha.") String password) {}
+  public record AccountDeletionRequest(@NotBlank(message = "Informe a senha.") String password) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "AccountDeletionRequest[REDACTED]";
+    }
+  }
 
-  public record UserProfile(long id, String email, Instant createdAt) {}
+  public record UserProfile(long id, String email, Instant createdAt) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "UserProfile[REDACTED]";
+    }
+  }
 
-  public record TokenResponse(String accessToken, long expiresIn, String refreshToken) {}
+  public record TokenResponse(String accessToken, long expiresIn, String refreshToken) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "TokenResponse[REDACTED]";
+    }
+  }
 
-  public record DeletionScheduled(LocalDate deletionDate) {}
+  public record DeletionScheduled(LocalDate deletionDate) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "DeletionScheduled[REDACTED]";
+    }
+  }
 }

@@ -102,7 +102,19 @@ public class TokenService {
     return new Stored(token.getId(), raw);
   }
 
-  public record Rotation(long userId, String newRawToken) {}
+  public record Rotation(long userId, String newRawToken) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Rotation[REDACTED]";
+    }
+  }
 
-  private record Stored(long id, String raw) {}
+  private record Stored(long id, String raw) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Stored[REDACTED]";
+    }
+  }
 }

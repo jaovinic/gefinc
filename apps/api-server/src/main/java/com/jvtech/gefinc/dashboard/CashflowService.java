@@ -25,10 +25,13 @@ public class CashflowService {
   static final int MAX_MONTHS = 24;
 
   public record Month(
-      YearMonth month,
-      BigDecimal expectedIncome,
-      BigDecimal expectedExpense,
-      BigDecimal residual) {}
+      YearMonth month, BigDecimal expectedIncome, BigDecimal expectedExpense, BigDecimal residual) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Month[REDACTED]";
+    }
+  }
 
   @PersistenceContext private EntityManager em;
 

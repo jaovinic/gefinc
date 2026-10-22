@@ -29,7 +29,13 @@ public class CategoryController {
       @NotNull(message = "Informe o tipo.") CategoryType type,
       @NotNull(message = "Informe a cor.")
           @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Use uma cor no formato #RRGGBB.")
-          String colorHex) {}
+          String colorHex) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "CategoryInput[REDACTED]";
+    }
+  }
 
   public record CategoryResponse(long id, String name, CategoryType type, String colorHex) {
     static CategoryResponse of(Category c) {

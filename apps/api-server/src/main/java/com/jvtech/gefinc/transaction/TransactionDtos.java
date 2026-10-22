@@ -34,33 +34,69 @@ public final class TransactionDtos {
       @NotNull(message = "Informe a conta.") Long accountId,
       @NotNull(message = "Informe a categoria.") Long categoryId,
       @NotNull(message = "Informe a data da compra.") LocalDate purchaseDate,
-      LocalDate firstDueDate) {}
+      LocalDate firstDueDate) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "GroupInput[REDACTED]";
+    }
+  }
 
   public record GroupUpdate(
       @NotBlank(message = "Informe a descrição.")
           @Size(max = 120, message = "Descrição muito longa.")
           String description,
       @NotNull(message = "Informe a categoria.") Long categoryId,
-      @NotNull(message = "Informe a versão.") Long version) {}
+      @NotNull(message = "Informe a versão.") Long version) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "GroupUpdate[REDACTED]";
+    }
+  }
 
   public record AmountChange(
       @NotNull(message = "Informe o mês.") YearMonth fromMonth,
       @NotNull(message = "Informe o valor.")
           @DecimalMin(value = "0.01", message = POSITIVE)
           @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
-          BigDecimal amount) {}
+          BigDecimal amount) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "AmountChange[REDACTED]";
+    }
+  }
 
-  public record EndRequest(@NotNull(message = "Informe o mês.") YearMonth endMonth) {}
+  public record EndRequest(@NotNull(message = "Informe o mês.") YearMonth endMonth) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "EndRequest[REDACTED]";
+    }
+  }
 
   public record Patch(
       @DecimalMin(value = "0.01", message = POSITIVE)
           @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
           BigDecimal amount,
       LocalDate dueDate,
-      @NotNull(message = "Informe a versão.") Long version) {}
+      @NotNull(message = "Informe a versão.") Long version) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Patch[REDACTED]";
+    }
+  }
 
   public record PayRequest(
-      @NotNull(message = "Informe a data do pagamento.") LocalDate paymentDate) {}
+      @NotNull(message = "Informe a data do pagamento.") LocalDate paymentDate) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "PayRequest[REDACTED]";
+    }
+  }
 
   public record TransactionResponse(
       long id,
@@ -77,7 +113,13 @@ public final class TransactionDtos {
       TransactionStatus status,
       Boolean settledByInvoicePayment,
       boolean overdue,
-      long version) {}
+      long version) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "TransactionResponse[REDACTED]";
+    }
+  }
 
   public record GroupDetailResponse(
       long id,
@@ -90,11 +132,29 @@ public final class TransactionDtos {
       LocalDate purchaseDate,
       YearMonth endMonth,
       long version,
-      List<TransactionResponse> transactions) {}
+      List<TransactionResponse> transactions) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "GroupDetailResponse[REDACTED]";
+    }
+  }
 
   public record TransactionPage(
-      List<TransactionResponse> content, int page, int size, long totalElements) {}
+      List<TransactionResponse> content, int page, int size, long totalElements) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "TransactionPage[REDACTED]";
+    }
+  }
 
   public record GroupImpact(
-      long paidCount, long pendingCount, BigDecimal paidAmount, BigDecimal pendingAmount) {}
+      long paidCount, long pendingCount, BigDecimal paidAmount, BigDecimal pendingAmount) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "GroupImpact[REDACTED]";
+    }
+  }
 }

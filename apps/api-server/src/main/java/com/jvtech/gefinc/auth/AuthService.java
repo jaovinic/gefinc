@@ -111,5 +111,11 @@ public class AuthService {
   }
 
   /** Par de tokens emitido pelo login ou pela renovação. */
-  public record Session(String accessToken, long expiresIn, String refreshToken) {}
+  public record Session(String accessToken, long expiresIn, String refreshToken) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Session[REDACTED]";
+    }
+  }
 }

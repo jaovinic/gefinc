@@ -39,9 +39,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class DashboardService {
 
-  public record CategoryAmount(long categoryId, String name, String colorHex, BigDecimal amount) {}
+  public record CategoryAmount(long categoryId, String name, String colorHex, BigDecimal amount) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "CategoryAmount[REDACTED]";
+    }
+  }
 
-  public record CardAmount(long accountId, String name, BigDecimal amount) {}
+  public record CardAmount(long accountId, String name, BigDecimal amount) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "CardAmount[REDACTED]";
+    }
+  }
 
   public record Dashboard(
       YearMonth month,
@@ -50,7 +62,13 @@ public class DashboardService {
       BigDecimal totalPaid,
       BigDecimal overdueTotal,
       List<CategoryAmount> byCategory,
-      List<CardAmount> byCard) {}
+      List<CardAmount> byCard) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Dashboard[REDACTED]";
+    }
+  }
 
   @PersistenceContext private EntityManager em;
 

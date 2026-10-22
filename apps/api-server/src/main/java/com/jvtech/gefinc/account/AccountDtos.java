@@ -20,7 +20,13 @@ public final class AccountDtos {
           Integer closingDay,
       @Min(value = 1, message = "O dia deve estar entre 1 e 31.")
           @Max(value = 31, message = "O dia deve estar entre 1 e 31.")
-          Integer dueDay) {}
+          Integer dueDay) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "AccountInput[REDACTED]";
+    }
+  }
 
   public record AccountUpdate(
       @NotBlank(message = "Informe o nome.") @Size(max = 80, message = "Nome muito longo.")
@@ -33,7 +39,13 @@ public final class AccountDtos {
           @Max(value = 31, message = "O dia deve estar entre 1 e 31.")
           Integer dueDay,
       @NotNull(message = "Informe se a conta está ativa.") Boolean active,
-      @NotNull(message = "Informe a versão.") Long version) {}
+      @NotNull(message = "Informe a versão.") Long version) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "AccountUpdate[REDACTED]";
+    }
+  }
 
   public record AccountResponse(
       long id,
