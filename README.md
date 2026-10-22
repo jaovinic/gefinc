@@ -11,7 +11,7 @@ gefinc/
 ├── apps/
 │   ├── web-app/            # Frontend Angular (Desktop / Gestão analítica)
 │   ├── web-app-e2e/        # Testes ponta a ponta do web (Playwright, inclui acessibilidade)
-│   ├── mobile-app/         # Aplicação Móvel Ionic + Capacitor com Angular (Lançamentos rápidos)
+│   ├── mobile-app/         # Aplicação Móvel (Android e iOS) Ionic + Capacitor com Angular: todas as funções do web, modo offline, biometria e lembretes
 │   ├── mobile-app-e2e/     # Testes ponta a ponta do app em viewport de celular (limite de 3 toques)
 │   └── api-server/         # Backend API em Java com Spring Boot (+ loadtest/ com o teste de carga k6)
 │
@@ -95,7 +95,7 @@ variáveis locais ficam em `.env` (modelo em `.env.example`).
 npx nx run-many -t lint test build     # tudo: lint, testes unitários/integração e build
 npx nx run api-server:test             # só o backend (Testcontainers sobe o PostgreSQL 16)
 npx nx e2e web-app-e2e                 # fluxos do web no navegador (Playwright)
-npx nx e2e mobile-app-e2e              # lançamento rápido em viewport de celular
+npx nx e2e mobile-app-e2e              # app no viewport de celular: paridade, offline, biometria e lembretes
 ```
 
 Com a porta 5432 ocupada, rode os E2E com `DB_PORT=5433`. O teste de carga (1.000 usuários) é o
@@ -112,8 +112,26 @@ npx nx run mobile-app:sync                  # copia o build para os projetos nat
 npx nx run mobile-app:open -- android       # abre no Android Studio (ou ios)
 ```
 
-No emulador Android a API local é `http://10.0.2.2:8080/api/v1` (`apps/mobile-app/src/environments`).
-Redefinição de senha e exclusão de conta são feitas no web.
+O app tem as **mesmas funções do web**, em telas pensadas para o celular (barra de abas): painel, lançamentos
+(avulso, fixo e parcelado), faturas, fluxo de caixa, contas e cartões, categorias e Minha conta. Além disso:
+
+- **Sem internet:** consulta os últimos dados sincronizados e registra lançamentos e pagamentos, que são
+  enviados sozinhos quando a conexão volta (sem duplicar). Ver [docs/operations.md](docs/operations.md).
+- **Bloqueio por biometria** (opcional, em Minha conta) e **lembretes de vencimento** no aparelho.
+- A redefinição de senha pede o link do e-mail, que abre no navegador.
+
+Gerar e instalar o app Android (precisa do Android SDK; `ANDROID_HOME`):
+
+```bash
+npx nx run mobile-app:sync                                   # build do web + sincroniza os projetos nativos
+cd apps/mobile-app/android && ./gradlew assembleDebug        # gera app/build/outputs/apk/debug/app-debug.apk
+adb reverse tcp:8080 tcp:8080 && adb install -r app/build/outputs/apk/debug/app-debug.apk
+node apps/mobile-app-e2e/device/android-smoke.cjs <serial>   # roteiro de fumaça no aparelho (adb devices)
+```
+
+No emulador Android a API local é `http://10.0.2.2:8080/api/v1` (`apps/mobile-app/src/environments`); em um
+aparelho por USB, use `adb reverse` como acima (o build de debug libera HTTP só para `localhost`). O build
+do **iOS** precisa de um Mac com Xcode (`npx nx run mobile-app:open -- ios`); o projeto já está sincronizado.
 
 ## 📚 Mais documentação
 
