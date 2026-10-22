@@ -71,3 +71,14 @@ export function fixedOccurrenceDueDate(
   const ym = { year, month };
   return invoiceDueDate(format(ym, Math.min(day, daysInMonth(ym))), closingDay, dueDay);
 }
+
+/**
+ * Vencimento mensal: o mês do `firstDueIso` mais `monthsAfter`, no dia `anchorDay` (limitado ao último
+ * dia do mês), de modo que 31/01 → 28/02 → 31/03 preserva o dia original.
+ */
+export function monthlyDueDate(firstDueIso: string, monthsAfter: number, anchorDay: number): string {
+  assertDay('Dia de vencimento', anchorDay);
+  const { ym } = parse(firstDueIso);
+  const target = addMonths(ym, monthsAfter);
+  return format(target, Math.min(anchorDay, daysInMonth(target)));
+}

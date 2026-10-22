@@ -93,7 +93,58 @@ public class TransactionGroupService {
 
   private GroupView createInstallments(
       long userId, Account account, GroupInput input, int installments) {
-    throw ApiException.validation("Lançamentos parcelados ainda não estão disponíveis.");
+    if (input.totalInstallments() == null) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError("totalInstallments", "Informe a quantidade de parcelas.");
+    }
+    if (installments == 1) {
+      // Uma parcela é tratada como compra avulsa, sem erro.
+      GroupInput single =
+          new GroupInput(
+              input.description(),
+              RecurrenceType.VARIABLE,
+              input.totalAmount(),
+              1,
+              input.accountId(),
+              input.categoryId(),
+              input.purchaseDate(),
+              input.firstDueDate());
+      return createVariable(userId, account, single);
+    }
+    if (input.totalAmount().movePointRight(2).longValueExact() < installments) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError(
+              "totalAmount",
+              "O valor deve ter pelo menos R$ 0,01 por parcela (" + installments + " parcelas).");
+    }
+    if (!account.isCreditCard() && input.firstDueDate() == null) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError("firstDueDate", "Informe o vencimento da primeira parcela.");
+    }
+    List<InstallmentScheduler.Installment> schedule =
+        InstallmentScheduler.schedule(
+            account.isCreditCard() ? account.getClosingDay() : null,
+            account.isCreditCard() ? account.getDueDay() : null,
+            input.purchaseDate(),
+            input.firstDueDate(),
+            input.totalAmount(),
+            installments);
+    TransactionGroup group = saveGroup(userId, input, installments, schedule.get(0).dueDate());
+    List<Transaction> created = new ArrayList<>();
+    for (InstallmentScheduler.Installment installment : schedule) {
+      created.add(
+          transactions.save(
+              new Transaction(
+                  group.getId(),
+                  userId,
+                  account.getId(),
+                  input.categoryId(),
+                  installment.number(),
+                  installment.amount(),
+                  installment.dueDate())));
+    }
+    transactions.flush();
+    return new GroupView(group, created);
   }
 
   /**

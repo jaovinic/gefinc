@@ -84,3 +84,61 @@ describe('GroupForm', () => {
     expect(el.textContent).toContain('Escolha a categoria.');
   });
 });
+
+describe('GroupForm parcelado', () => {
+  async function setupInstallment() {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    select(el, '#recurrenceType', 'INSTALLMENT');
+    fixture.detectChanges();
+    return { ...ctx, fixture, el };
+  }
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('mostra a quantidade de parcelas e a prévia com vencimentos pela fatura do cartão', async () => {
+    const { el, fixture } = await setupInstallment();
+    select(el, '#accountId', '2'); // Nubank: fecha dia 10, vence dia 17
+    type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
+    type(el, 'gef-money-input input', '10000'); // R$ 100,00
+    type(el, '#totalInstallments', '3');
+    fixture.detectChanges();
+
+    const preview = el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement;
+    expect(preview.textContent).toContain('1/3');
+    expect(preview.textContent).toContain('17/12/2026');
+    expect(preview.textContent).toContain('17/01/2027');
+    expect(preview.textContent).toContain('R$ 33,33');
+    expect(preview.textContent).toContain('R$ 33,34'); // resto na última
+    expect(el.textContent).toContain('Valor total');
+  });
+
+  it('fora do cartão usa o primeiro vencimento informado e envia a quantidade de parcelas', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    type(el, '#description', 'Carnê');
+    select(el, '#accountId', '1');
+    fixture.detectChanges();
+    select(el, '#categoryId', '10');
+    type(el, 'gef-money-input input', '30000');
+    type(el, '#totalInstallments', '3');
+    type(el, '#purchaseDate', '2026-11-01');
+    type(el, '#firstDueDate', '2026-11-10');
+    fixture.detectChanges();
+    expect((el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement).textContent).toContain('10/12/2026');
+
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).toMatchObject({
+      recurrenceType: 'INSTALLMENT',
+      totalAmount: '300.00',
+      totalInstallments: 3,
+      firstDueDate: '2026-11-10',
+    });
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+});

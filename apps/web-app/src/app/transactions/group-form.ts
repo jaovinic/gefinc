@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, output, signal } from '@angular/co
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefinc/core-models';
 import { MoneyInput, ReferenceData, TransactionsApi, messageFor, toProblem } from '@gefinc/ui-shared';
-import { invoiceDueDate, isoToBR, todayIso } from '@gefinc/utils';
+import { formatBRL, invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
 
 const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   VARIABLE: 'Avulso',
@@ -68,11 +68,20 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           }
         </div>
         <div>
-          <gef-money-input label="Valor" formControlName="totalAmount" />
+          <gef-money-input [label]="recurrence() === 'INSTALLMENT' ? 'Valor total' : 'Valor'" formControlName="totalAmount" />
           @if (form.controls.totalAmount.touched && form.controls.totalAmount.invalid) {
             <p class="gef-field-error">Informe um valor maior que zero.</p>
           }
         </div>
+        @if (recurrence() === 'INSTALLMENT') {
+          <div>
+            <label class="gef-label" for="totalInstallments">Quantidade de parcelas</label>
+            <input id="totalInstallments" class="gef-input" type="number" min="1" max="120" formControlName="totalInstallments" />
+            @if (serverErrors()['totalInstallments']; as message) {
+              <p class="gef-field-error">{{ message }}</p>
+            }
+          </div>
+        }
         <div>
           <label class="gef-label" for="purchaseDate">Data da compra</label>
           <input id="purchaseDate" class="gef-input" type="date" formControlName="purchaseDate" />
@@ -94,6 +103,24 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           </div>
         }
       </div>
+      @if (recurrence() === 'INSTALLMENT' && installmentPreview().length > 0) {
+        <div class="overflow-x-auto rounded-lg border border-gefinc-border" aria-label="Prévia das parcelas">
+          <table class="w-full text-left text-body-base">
+            <thead class="text-caption uppercase text-gefinc-muted">
+              <tr><th class="px-3 py-2">Parcela</th><th class="px-3 py-2">Vencimento</th><th class="px-3 py-2 text-right">Valor</th></tr>
+            </thead>
+            <tbody>
+              @for (item of installmentPreview(); track item.number) {
+                <tr class="border-t border-gefinc-border">
+                  <td class="px-3 py-1.5">{{ item.number }}/{{ installmentPreview().length }}</td>
+                  <td class="px-3 py-1.5">{{ item.due }}</td>
+                  <td class="financial-value px-3 py-1.5 text-right">{{ item.amount }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
       <div class="flex gap-3">
         <button type="submit" class="gef-btn-primary max-w-40" [disabled]="busy()">Salvar</button>
         <button type="button" class="gef-btn-secondary" (click)="cancelled.emit()">Cancelar</button>
@@ -109,7 +136,7 @@ export class GroupForm implements OnInit {
   readonly saved = output<void>();
   readonly cancelled = output<void>();
 
-  protected readonly recurrenceTypes: RecurrenceType[] = ['VARIABLE', 'FIXED'];
+  protected readonly recurrenceTypes: RecurrenceType[] = ['VARIABLE', 'FIXED', 'INSTALLMENT'];
   protected readonly labels = RECURRENCE_LABELS;
   protected readonly error = signal<string | null>(null);
   protected readonly serverErrors = signal<Record<string, string>>({});
@@ -122,6 +149,7 @@ export class GroupForm implements OnInit {
     accountId: [0],
     categoryId: [0],
     totalAmount: this.fb.control<string | null>(null, Validators.required),
+    totalInstallments: [2, [Validators.min(1), Validators.max(120)]],
     purchaseDate: [todayIso(), Validators.required],
     firstDueDate: [todayIso()],
   });
@@ -129,6 +157,10 @@ export class GroupForm implements OnInit {
   private readonly accountId = signal(0);
   private readonly kind = signal<CategoryType>('EXPENSE');
   private readonly purchaseDate = signal(todayIso());
+  protected readonly recurrence = signal<RecurrenceType>('VARIABLE');
+  private readonly amount = signal<string | null>(null);
+  private readonly count = signal(2);
+  private readonly firstDueDate = signal(todayIso());
 
   protected readonly activeAccounts = computed(() => this.reference.accounts().filter((a) => a.active));
   protected readonly selectedAccount = computed(() => this.reference.accounts().find((a) => a.id === this.accountId()));
@@ -146,6 +178,28 @@ export class GroupForm implements OnInit {
     }
   });
 
+  /** Prévia das parcelas pela mesma regra do servidor (`packages/utils`). */
+  protected readonly installmentPreview = computed(() => {
+    const account = this.selectedAccount();
+    const amount = this.amount();
+    if (this.recurrence() !== 'INSTALLMENT' || !account || !amount) {
+      return [];
+    }
+    try {
+      const card = account.type === 'CREDIT_CARD';
+      return scheduleInstallments({
+        closingDay: card ? account.closingDay : undefined,
+        dueDay: card ? account.dueDay : undefined,
+        purchaseDate: this.purchaseDate(),
+        firstDueDate: card ? undefined : this.firstDueDate(),
+        total: amount,
+        count: this.count(),
+      }).map((item) => ({ number: item.number, due: isoToBR(item.dueDate), amount: formatBRL(item.amount) }));
+    } catch {
+      return [];
+    }
+  });
+
   ngOnInit(): void {
     this.reference.refresh();
     this.form.controls.accountId.valueChanges.subscribe((v) => this.accountId.set(Number(v)));
@@ -154,6 +208,10 @@ export class GroupForm implements OnInit {
       this.form.controls.categoryId.setValue(0);
     });
     this.form.controls.purchaseDate.valueChanges.subscribe((v) => this.purchaseDate.set(v));
+    this.form.controls.recurrenceType.valueChanges.subscribe((v) => this.recurrence.set(v));
+    this.form.controls.totalAmount.valueChanges.subscribe((v) => this.amount.set(v));
+    this.form.controls.totalInstallments.valueChanges.subscribe((v) => this.count.set(Number(v)));
+    this.form.controls.firstDueDate.valueChanges.subscribe((v) => this.firstDueDate.set(v));
   }
 
   protected submit(): void {
@@ -167,6 +225,7 @@ export class GroupForm implements OnInit {
       description: value.description.trim(),
       recurrenceType: value.recurrenceType,
       totalAmount: value.totalAmount,
+      ...(value.recurrenceType === 'INSTALLMENT' ? { totalInstallments: Number(value.totalInstallments) } : {}),
       accountId: Number(value.accountId),
       categoryId: Number(value.categoryId),
       purchaseDate: value.purchaseDate,

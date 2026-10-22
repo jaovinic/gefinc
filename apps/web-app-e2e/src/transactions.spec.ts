@@ -3,7 +3,7 @@ import { createAccount, register, todayIso, uniqueEmail } from './support';
 
 async function newTransaction(
   page: Page,
-  fields: { description: string; account: string; category: string; cents: string; recurrence?: string; due: string },
+  fields: { description: string; account: string; category: string; cents: string; recurrence?: string; due: string; installments?: string },
 ) {
   await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
   const form = page.locator('gef-group-form');
@@ -14,6 +14,9 @@ async function newTransaction(
   await form.getByLabel('Conta ou cartão').selectOption({ label: fields.account });
   await form.getByLabel('Categoria').selectOption({ label: fields.category });
   await form.getByLabel('Valor').fill(fields.cents);
+  if (fields.installments) {
+    await form.getByLabel('Quantidade de parcelas').fill(fields.installments);
+  }
   await form.getByLabel('Data da compra').fill(fields.due);
   await form.getByLabel(/vencimento/i).fill(fields.due);
   await form.getByRole('button', { name: 'Salvar' }).click();
@@ -72,5 +75,33 @@ test.describe('receitas e despesas', () => {
     await form.getByLabel('Data da compra').fill('2026-11-12');
     await expect(form.getByText('Vence em 17/12/2026 (definido pela fatura do cartão).')).toBeVisible();
     await expect(form.getByLabel(/vencimento/i)).toHaveCount(0);
+  });
+
+  test('parcelado: carnê em 3 parcelas aparece mês a mês com o resto de centavos na última', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await createAccount(page, 'Itaú', 'CHECKING');
+    await page.getByRole('link', { name: 'Lançamentos' }).click();
+
+    await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
+    const form = page.locator('gef-group-form');
+    await form.getByLabel('Tipo').selectOption('INSTALLMENT');
+    await form.getByLabel('Descrição ou loja').fill('Notebook');
+    await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+    await form.getByLabel('Categoria').selectOption({ label: 'Compras' });
+    await form.getByLabel('Valor total').fill('10000'); // R$ 100,00
+    await form.getByLabel('Quantidade de parcelas').fill('3');
+    await form.getByLabel('Data da compra').fill(todayIso());
+    await form.getByLabel(/vencimento/i).fill(todayIso());
+    const preview = form.getByLabel('Prévia das parcelas');
+    await expect(preview).toContainText('R$ 33,33');
+    await expect(preview).toContainText('R$ 33,34');
+    await form.getByRole('button', { name: 'Salvar' }).click();
+
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('1/3');
+    await page.getByRole('button', { name: 'Próximo mês' }).click();
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('2/3');
+    await page.getByRole('button', { name: 'Próximo mês' }).click();
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('3/3');
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,34');
   });
 });

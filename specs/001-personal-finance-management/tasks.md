@@ -207,19 +207,25 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 4 (MANDATORY) ⚠️
 
-- [ ] T072 [P] [US4] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/InstallmentSchedulerTest.java` que lê `packages/core-models/fixtures/installments.json`
-- [ ] T073 [P] [US4] Teste `packages/utils/src/lib/installments.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
-- [ ] T074 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupInstallmentIT.java` (cenários 1 a 7 da US4: fechamento, compra após o fechamento, resto de centavos, parcela única, carnê, pagar só a parcela 2)
-- [ ] T075 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/GroupImpactAndDeleteIT.java` (`/impact` informa pagas e pendentes, `DELETE` exige `confirm=true`, parcelas pagas são preservadas, edição de descrição e categoria)
+- [X] T072 [P] [US4] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/InstallmentSchedulerTest.java` que lê `packages/core-models/fixtures/installments.json`
+- [X] T073 [P] [US4] Teste `packages/utils/src/lib/installments.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
+- [X] T074 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupInstallmentIT.java` (cenários 1 a 7 da US4: fechamento, compra após o fechamento, resto de centavos, parcela única, carnê, pagar só a parcela 2)
+- [X] T075 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/GroupImpactAndDeleteIT.java` (`/impact` informa pagas e pendentes, `DELETE` exige `confirm=true`, parcelas pagas são preservadas, edição de descrição e categoria)
 
 ### Implementation for User Story 4
 
-- [ ] T076 [US4] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/InstallmentScheduler.java` (delega o vencimento no cartão ao `DueDateCalculator`, mensal fora do cartão, último dia do mês, resto de centavos na última parcela)
-- [ ] T077 [P] [US4] Implementar `packages/utils/src/lib/installments.ts` (mesma regra, usando `due-date.ts`, para prévia na interface) e exportar em `packages/utils/src/index.ts`
-- [ ] T078 [US4] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `INSTALLMENT` (usa `InstallmentScheduler` e os dias da conta) e adicionar `impact` e a exclusão com confirmação em `TransactionGroupController.java`
-- [ ] T079 [P] [US4] Criar o formulário web `apps/web-app/src/app/transactions/installment-form/` com prévia das parcelas e o diálogo de confirmação ao editar ou excluir `apps/web-app/src/app/transactions/group-impact-dialog/`
+- [X] T076 [US4] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/InstallmentScheduler.java` (delega o vencimento no cartão ao `DueDateCalculator`, mensal fora do cartão, último dia do mês, resto de centavos na última parcela)
+- [X] T077 [P] [US4] Implementar `packages/utils/src/lib/installments.ts` (mesma regra, usando `due-date.ts`, para prévia na interface) e exportar em `packages/utils/src/index.ts`
+- [X] T078 [US4] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `INSTALLMENT` (usa `InstallmentScheduler` e os dias da conta) e adicionar `impact` e a exclusão com confirmação em `TransactionGroupController.java`
+- [X] T079 [P] [US4] Criar o formulário web `apps/web-app/src/app/transactions/installment-form/` com prévia das parcelas e o diálogo de confirmação ao editar ou excluir `apps/web-app/src/app/transactions/group-impact-dialog/`
 
 **Checkpoint**: Compras parceladas geradas e verificadas
+
+> **Notas de implementação da US4**
+> - `impact` e a exclusão com confirmação já haviam sido entregues com a US3; aqui entraram a agenda de parcelas
+>   (`InstallmentScheduler` / `installments.ts`) e a criação do tipo `INSTALLMENT`. Uma parcela vira um lançamento avulso.
+> - O formulário de parcelas está integrado ao `group-form.ts` (com a prévia das parcelas), e o diálogo de impacto à
+>   exclusão fica na própria página de lançamentos (`transactions-page.ts`), em vez de componentes separados.
 
 ---
 

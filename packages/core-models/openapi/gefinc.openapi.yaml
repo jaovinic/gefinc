@@ -973,7 +973,7 @@ components:
           type: integer
           minimum: 1
           maximum: 120
-          description: Obrigatório (≥ 2) para INSTALLMENT; nos demais tipos é 1 e pode ser omitido
+          description: Obrigatório para INSTALLMENT (1 vira um avulso; até 120); nos demais tipos é 1 e pode ser omitido
         accountId: { type: integer, format: int64 }
         categoryId: { type: integer, format: int64 }
         purchaseDate: { type: string, format: date }
