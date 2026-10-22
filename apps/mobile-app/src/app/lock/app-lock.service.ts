@@ -4,6 +4,9 @@ import { DevicePreferences } from './device-preferences';
 
 export type LockChange = { ok: true } | { ok: false; reason: 'unavailable' | 'cancelled' | 'failed' | 'lockout'; message: string };
 
+/** Janela depois do diálogo da biometria em que eventos de segundo plano ainda são do próprio diálogo. */
+const PROMPT_GRACE_MS = 2_000;
+
 const MESSAGES = {
   failed: 'Biometria não reconhecida. Tente de novo.',
   lockout: 'Muitas tentativas. Use seu e-mail e senha para entrar.',
@@ -32,6 +35,9 @@ export class AppLockService {
   readonly passwordRequired = signal(false);
 
   private backgroundedAt = 0;
+  /** O diálogo da biometria está aberto (ou acabou de fechar): o Android pausa e retoma o app por causa dele. */
+  private promptActive = false;
+  private promptEndedAt = 0;
 
   /** Abertura do app: carrega as preferências e, com o bloqueio ligado, começa bloqueado. */
   async start(): Promise<void> {
@@ -85,7 +91,7 @@ export class AppLockService {
 
   async unlock(): Promise<void> {
     try {
-      await this.biometric.authenticate('Desbloquear o GEFINC');
+      await this.askBiometric('Desbloquear o GEFINC');
       this.locked.set(false);
       this.failures.set(0);
       this.message.set(null);
@@ -107,12 +113,15 @@ export class AppLockService {
   }
 
   onBackgrounded(): void {
+    if (this.inPrompt()) {
+      return;
+    }
     this.backgroundedAt = Date.now();
   }
 
   async onForegrounded(): Promise<void> {
     const { enabled, timeoutMinutes } = this.prefs.lock();
-    if (!enabled) {
+    if (!enabled || this.inPrompt()) {
       return;
     }
     const check = await this.biometric.check();
@@ -127,12 +136,31 @@ export class AppLockService {
 
   private async confirm(reason: string): Promise<LockChange> {
     try {
-      await this.biometric.authenticate(reason);
+      await this.askBiometric(reason);
       return { ok: true };
     } catch (error) {
       const code = error instanceof BiometricFailure ? error.code : 'failed';
       return { ok: false, reason: code, message: code === 'cancelled' ? MESSAGES.cancelled : code === 'lockout' ? MESSAGES.lockout : MESSAGES.failed };
     }
+  }
+
+  /**
+   * Pede a biometria. O diálogo do sistema faz o app ir ao segundo plano e voltar; esses eventos (e os
+   * que chegam logo depois de ele fechar) não contam como o usuário ter saído do app, senão o bloqueio
+   * se repetiria sem fim.
+   */
+  private async askBiometric(reason: string): Promise<void> {
+    this.promptActive = true;
+    try {
+      await this.biometric.authenticate(reason);
+    } finally {
+      this.promptActive = false;
+      this.promptEndedAt = Date.now();
+    }
+  }
+
+  private inPrompt(): boolean {
+    return this.promptActive || Date.now() - this.promptEndedAt < PROMPT_GRACE_MS;
   }
 
   /** A biometria sumiu do aparelho: desliga o bloqueio e só deixa entrar com e-mail e senha. */

@@ -167,7 +167,9 @@ export function notificationsPort(): NotificationsPort {
           title: i.title,
           body: i.body,
           channelId: CHANNEL,
+          // Alarme inexato: o exato faria o Android abrir a tela "Alarmes e lembretes" pedindo permissão.
           schedule: { at: i.at, allowWhileIdle: true },
+          isExactNotification: false,
           extra: { route: i.route },
         })),
       });

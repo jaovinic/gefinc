@@ -7,7 +7,7 @@ import { LogoutAction } from '../core/logout';
   selector: 'gef-more-page',
   imports: [RouterLink],
   template: `
-    <section class="gef-page space-y-3">
+    <section class="space-y-3">
       <h1 class="text-title-lg font-bold">Mais</h1>
       <a class="gef-menu-item" routerLink="/fluxo-de-caixa">Fluxo de caixa</a>
       <a class="gef-menu-item" routerLink="/categorias">Categorias</a>

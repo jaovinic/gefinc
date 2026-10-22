@@ -1,7 +1,8 @@
 import { Injectable, effect, inject, untracked } from '@angular/core';
 import { App } from '@capacitor/app';
-import { SessionService } from '@gefinc/ui-shared';
+import { NoticeService, SessionService } from '@gefinc/ui-shared';
 import { NetworkStatus } from './network-status';
+import { OfflineState } from './offline-state';
 import { PendingQueue } from './pending-queue';
 import { SyncEngine } from './sync-engine';
 
@@ -15,6 +16,8 @@ export class OfflineBootstrap {
   private readonly network = inject(NetworkStatus);
   private readonly queue = inject(PendingQueue);
   private readonly engine = inject(SyncEngine);
+  private readonly state = inject(OfflineState);
+  private readonly notices = inject(NoticeService);
 
   constructor() {
     effect(() => {
@@ -31,6 +34,16 @@ export class OfflineBootstrap {
       if (this.session.authenticated() && this.network.online()) {
         untracked(() => void this.engine.flush());
       }
+    });
+    // A conexão voltou com dados antigos na tela: as telas recarregam e o aviso de "dados de ..." some.
+    effect(() => {
+      const online = this.network.online();
+      untracked(() => {
+        if (online && this.session.authenticated() && this.state.staleSince() !== null) {
+          this.state.markFresh();
+          this.notices.dataChanged();
+        }
+      });
     });
   }
 

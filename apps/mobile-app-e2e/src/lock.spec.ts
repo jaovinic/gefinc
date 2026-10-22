@@ -11,6 +11,8 @@ async function enableLock(page: Page, minutes: '0' | '1' | '5' = '0') {
   await queueBiometric(page, 'ok');
   await toggle(page).check();
   await expect(toggle(page)).toBeChecked();
+  // o app ignora idas ao segundo plano até 2 s depois do diálogo da biometria (são do próprio diálogo)
+  await page.waitForTimeout(2_200);
 }
 
 test.describe('bloqueio por biometria', () => {

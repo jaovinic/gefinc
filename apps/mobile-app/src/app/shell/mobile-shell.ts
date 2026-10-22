@@ -34,7 +34,7 @@ const TABS: Tab[] = [
         <span class="text-title-md font-extrabold tracking-wide text-gefinc-primary">GEFINC</span>
       </header>
       <gef-offline-banner />
-      <main class="gef-shell-main"><router-outlet /></main>
+      <main class="gef-shell-main gef-page"><router-outlet /></main>
       <nav class="gef-tabbar" aria-label="Navegação principal">
         @for (tab of tabs; track tab.path) {
           <a

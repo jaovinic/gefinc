@@ -102,12 +102,46 @@ describe('AppLockService (bloqueio por biometria)', () => {
       lock.set({ enabled: true, timeoutMinutes: minutes });
       await service.start();
       await service.unlock();
+      now += 5_000; // passada a janela do diálogo da biometria
 
       service.onBackgrounded();
       now += away;
       await service.onForegrounded();
 
       expect(service.locked()).toBe(expected);
+    });
+
+    it('o próprio diálogo da digital manda o app ao segundo plano e de volta: isso não pode bloquear de novo (ciclo sem fim)', async () => {
+      lock.set({ enabled: true, timeoutMinutes: 0 }); // "na hora": o caso em que qualquer volta bloquearia
+      await service.start();
+      biometric.authenticate.mockImplementationOnce(async () => {
+        // o Android pausa e retoma a atividade por causa do diálogo da biometria
+        service.onBackgrounded();
+        now += 800;
+        await service.onForegrounded();
+      });
+
+      await service.unlock();
+      // e o evento de "voltou ao primeiro plano" pode chegar logo depois de o diálogo fechar
+      now += 300;
+      service.onBackgrounded();
+      now += 300;
+      await service.onForegrounded();
+
+      expect(service.locked()).toBe(false);
+    });
+
+    it('depois do diálogo, sair do app de verdade volta a bloquear', async () => {
+      lock.set({ enabled: true, timeoutMinutes: 0 });
+      await service.start();
+      await service.unlock();
+      now += 5_000; // passada a janela do diálogo
+
+      service.onBackgrounded();
+      now += 100;
+      await service.onForegrounded();
+
+      expect(service.locked()).toBe(true);
     });
 
     it('falha de reconhecimento conta e avisa; cancelamento não conta', async () => {

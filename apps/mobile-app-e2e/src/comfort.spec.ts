@@ -80,6 +80,14 @@ for (const size of SIZES) {
 
         for (const small of await smallTouchTargets(page)) problems.push(`${route.path}: alvo pequeno ${small}`);
 
+        // o título da tela não pode colar na borda: pelo menos 12 px de margem de cada lado
+        const edge = await page.evaluate(() => {
+          const heading = document.querySelector('main h1, .gef-screen h1');
+          const r = heading?.getBoundingClientRect();
+          return r ? { left: Math.round(r.left), right: Math.round(window.innerWidth - r.right) } : null;
+        });
+        if (edge && (edge.left < 12 || edge.right < 12)) problems.push(`${route.path}: título colado na borda (${edge.left}px / ${edge.right}px)`);
+
         const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
         for (const v of axe.violations) problems.push(`${route.path}: axe ${v.id} (${v.nodes.length})`);
       }

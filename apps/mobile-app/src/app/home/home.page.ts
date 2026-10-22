@@ -10,9 +10,7 @@ import { DashboardPage } from '@gefinc/ui-shared';
   selector: 'gef-home-page',
   imports: [DashboardPage, RouterLink],
   template: `
-    <div class="gef-page">
-      <gef-dashboard-page />
-    </div>
+    <gef-dashboard-page />
     <a routerLink="/quick-expense" class="gef-fab">+ Nova despesa</a>
   `,
 })

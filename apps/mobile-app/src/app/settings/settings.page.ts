@@ -12,7 +12,7 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
   selector: 'gef-settings-page',
   imports: [DeleteAccount],
   template: `
-    <section class="gef-page space-y-6">
+    <section class="space-y-6">
       <h1 class="text-title-lg font-bold">Minha conta</h1>
 
       <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="lock-title">

@@ -12,7 +12,7 @@ import { SyncEngine } from './sync-engine';
   selector: 'gef-pending-list-page',
   imports: [EmptyView, GroupForm, Sheet],
   template: `
-    <section class="gef-page space-y-4">
+    <section class="space-y-4">
       <h1 class="text-title-lg font-bold">Pendências de envio</h1>
       @if (ops().length === 0) {
         <gef-empty title="Nenhuma pendência" hint="Tudo o que você registrou já foi enviado ao servidor." />

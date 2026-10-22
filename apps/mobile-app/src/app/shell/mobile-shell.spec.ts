@@ -73,6 +73,12 @@ describe('shell do app móvel', () => {
     expect(active()).toEqual(['Faturas']);
   });
 
+  it('o conteúdo das telas tem margem lateral (não cola nas bordas) e espaço para o botão flutuante', async () => {
+    const { el } = await open('/');
+
+    expect((el.querySelector('main') as HTMLElement).classList).toContain('gef-page');
+  });
+
   it('tem cabeçalho com a marca respeitando a área segura superior', async () => {
     const { el } = await open('/');
     const header = el.querySelector('header.gef-app-header') as HTMLElement;

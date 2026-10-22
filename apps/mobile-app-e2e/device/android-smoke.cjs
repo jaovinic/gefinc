@@ -50,16 +50,19 @@ const iso = (offset) => {
     await post('/transaction-groups', accessToken, { description, recurrenceType: 'VARIABLE', totalAmount: '100.00', accountId: itau.id, categoryId: food, purchaseDate: due, firstDueDate: due });
   }
 
+  adb('reverse tcp:8080 tcp:8080'); // a API local do computador, vista como localhost no aparelho
+  adb('shell svc power stayon usb'); // a tela não apaga durante o roteiro
   adb(`shell pm grant ${PACKAGE} android.permission.POST_NOTIFICATIONS`);
-  adb(`shell am force-stop ${PACKAGE}`);
+  adb(`shell pm clear ${PACKAGE}`); // começa sem sessão nem dados locais
+  adb(`shell pm grant ${PACKAGE} android.permission.POST_NOTIFICATIONS`);
   adb('shell input keyevent KEYCODE_WAKEUP');
   adb(`shell am start -n ${PACKAGE}/.MainActivity`);
   await new Promise((r) => setTimeout(r, 5000));
   const socket = adb('shell cat /proc/net/unix').match(/webview_devtools_remote_\d+/g).pop();
-  try { adb('forward --remove tcp:9222'); } catch { /* ainda não havia */ }
-  adb(`forward tcp:9222 localabstract:${socket}`);
+  try { adb('forward --remove tcp:9333'); } catch { /* ainda não havia */ }
+  adb(`forward tcp:9333 localabstract:${socket}`);
 
-  const browser = await chromium.connectOverCDP('http://localhost:9222');
+  const browser = await chromium.connectOverCDP('http://localhost:9333');
   const page = browser.contexts()[0].pages()[0];
 
   await step('entra pelo app (tokens no Keystore)', async () => {
@@ -95,7 +98,7 @@ const iso = (offset) => {
     await page.getByLabel('Horário dos lembretes').selectOption('23');
     await page.getByRole('switch', { name: 'Contas que vencem amanhã' }).check();
     await new Promise((r) => setTimeout(r, 4000));
-    const alarms = adb(`shell "dumpsys alarm | grep -c ${PACKAGE}"`).trim();
+    const alarms = adb(`shell "dumpsys alarm | grep -c ${PACKAGE} || true"`).trim();
     if (Number(alarms) < 1) throw new Error('nenhum alarme do app no sistema');
   });
   await browser.close();
