@@ -119,7 +119,7 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 - [ ] T044 [US2] Criar a migração `apps/api-server/src/main/resources/db/migration/V2__accounts.sql` (`accounts` com `CHECK` de tipo, dias e coerência cartão/dias, `UNIQUE (id, user_id)`, `active`, `version`)
 - [ ] T045 [P] [US2] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/account/Account.java` (com `@Version`) e `AccountRepository.java` (toda consulta filtrada por `userId`)
-- [ ] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: `409 ACCOUNT_IN_USE` quando houver lançamentos)
+- [ ] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: a violação de chave estrangeira por lançamentos vinculados é convertida em `409 ACCOUNT_IN_USE`, o que passa a valer assim que a tabela de lançamentos existir na US3)
 - [ ] T047 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountController.java` conforme `/accounts` do contrato
 - [ ] T048 [P] [US2] Criar a tela web `apps/web-app/src/app/accounts/` (lista, formulário com campos de fechamento e vencimento só para cartão, inativar e reativar)
 
@@ -138,12 +138,12 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 - [ ] T049 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/category/CategoryApiIT.java` (categorias iniciais criadas no cadastro, CRUD, nome único por tipo, cor inválida `422`, exclusão em uso `409`, `reassignTo` com tipo diferente `422`, isolamento entre usuários)
 - [ ] T050 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupFixedVariableIT.java` (avulso gera 1 lançamento no mês do vencimento; fixo gera 12 ocorrências; `amount-changes` altera só de um mês em diante e preserva anteriores e pagas; `end` remove as pendentes posteriores; no cartão, avulso e fixo ignoram o vencimento informado e usam o da fatura, cenários 8 e 9 da US3; conta inativa recusa novo lançamento com `422 ACCOUNT_INACTIVE`)
 - [ ] T051 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionPayUnpayListIT.java` (pagar com data, desfazer remove a data, filtros por mês, conta, categoria, tipo e status, paginação, indicador de atraso)
-- [ ] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados)
+- [ ] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados e grupos de conta inativa)
 - [ ] T053 [P] [US3] Testes `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionIsolationIT.java` (acesso cruzado `404`, conta ou categoria de outro usuário `404`) e `account/AccountInUseIT.java` (excluir conta com lançamentos `409 ACCOUNT_IN_USE`)
 - [ ] T054 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionValidationIT.java` (valor zero ou negativo, data inválida, campos obrigatórios, mais de 2 casas decimais, versão desatualizada `409`)
 - [ ] T055 [P] [US3] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/DueDateCalculatorTest.java` lendo `packages/core-models/fixtures/installments.json` (fechamento, compra no dia de fechamento, `closing_day == due_day`, mês curto, virada de ano, ocorrência fixa em cartão)
 - [ ] T056 [P] [US3] Teste `packages/utils/src/lib/due-date.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
-- [ ] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; fatura com pagamento registrado fica intacta; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
+- [ ] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
 
 ### Implementation for User Story 3
 
@@ -155,8 +155,8 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 - [ ] T063 [P] [US3] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/DueDateCalculator.java` (vencimento da fatura a partir da data da compra e dos dias de fechamento e vencimento do cartão; usada por avulso, fixo e parcelas)
 - [ ] T064 [P] [US3] Implementar `packages/utils/src/lib/due-date.ts` (mesma regra, para prévia na interface) e exportar em `packages/utils/src/index.ts`
 - [ ] T065 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `VARIABLE` e `FIXED` (geração das 12 ocorrências, edição, `amount-changes`, `end`; em conta de cartão o vencimento de cada ocorrência vem do `DueDateCalculator`, e fora do cartão exige `firstDueDate`)
-- [ ] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão)
-- [ ] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`
+- [ ] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão e ignorando grupos de conta inativa)
+- [ ] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`, sem a trava de faturas com pagamento, que é acrescentada na US5
 - [ ] T068 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionService.java` (listagem filtrada e paginada, edição, pagar, desfazer, indicador de atraso com `Clock`)
 - [ ] T069 [US3] Implementar `transaction/TransactionGroupController.java` e `transaction/TransactionController.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` conforme o contrato
 - [ ] T070 [P] [US3] Criar a tela web `apps/web-app/src/app/categories/` (lista, criação, edição, exclusão com reatribuição)
@@ -199,24 +199,26 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 ### Tests for User Story 5 (MANDATORY) ⚠️
 
 - [ ] T080 [P] [US5] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceCalculatorTest.java` (total, pago individual, pago por fatura, restante, restante nunca negativo)
-- [ ] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`)
+- [ ] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`, pagamento aceito em cartão inativo)
 - [ ] T082 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceBalanceGuardIT.java` (excluir ou reduzir um item que deixaria o restante negativo responde `409`; dois pagamentos simultâneos não ultrapassam o restante)
 - [ ] T083 [P] [US5] Testes de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceProjectionIT.java` (totais por cartão e mês, mês vazio zerado, fatura com vencimentos distintos exibe o mais recente) e `dashboard/CashflowIT.java` (saldo residual = receitas − despesas, valor negativo, usuário B não enxerga o fluxo do usuário A)
 - [ ] T084 [P] [US5] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceIsolationIT.java` (fatura, pagamento e projeção de outro usuário respondem `404` ou vazio)
+- [ ] T085 [P] [US5] Ampliar o teste `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` com o caso de fatura de origem ou de destino com pagamento registrado (a ocorrência fixa permanece com a data antiga)
 
 ### Implementation for User Story 5
 
-- [ ] T085 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
-- [ ] T086 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
-- [ ] T087 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
-- [ ] T088 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
-- [ ] T089 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
-- [ ] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
-- [ ] T091 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
-- [ ] T092 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
-- [ ] T093 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
-- [ ] T094 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
-- [ ] T095 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
+- [ ] T086 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
+- [ ] T087 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
+- [ ] T088 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
+- [ ] T089 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
+- [ ] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
+- [ ] T091 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
+- [ ] T092 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
+- [ ] T093 [US5] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java` para ignorar ocorrências cuja fatura de origem ou de destino tenha `invoice_payments` (regra do FR-014; depende da migração de pagamentos de fatura)
+- [ ] T094 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
+- [ ] T095 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
+- [ ] T096 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
+- [ ] T097 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
 
 **Checkpoint**: Faturas, pagamentos e saldo residual corretos
 
@@ -230,15 +232,15 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 6 (MANDATORY) ⚠️
 
-- [ ] T096 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
-- [ ] T097 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
+- [ ] T098 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
+- [ ] T099 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
 
 ### Implementation for User Story 6
 
-- [ ] T098 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
-- [ ] T099 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
-- [ ] T100 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
-- [ ] T101 [P] [US6] Teste E2E `apps/web-app/e2e/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
+- [ ] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
+- [ ] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
+- [ ] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
+- [ ] T103 [P] [US6] Teste E2E `apps/web-app/e2e/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
 
 **Checkpoint**: Painel mensal completo
 
@@ -252,14 +254,14 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 7 (MANDATORY para o limite de toques) ⚠️
 
-- [ ] T102 [P] [US7] Teste E2E `apps/mobile-app/e2e/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
-- [ ] T103 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
+- [ ] T104 [P] [US7] Teste E2E `apps/mobile-app/e2e/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
+- [ ] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
 
 ### Implementation for User Story 7
 
-- [ ] T104 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
-- [ ] T105 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
-- [ ] T106 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
+- [ ] T106 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
+- [ ] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
+- [ ] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
 
 **Checkpoint**: Todas as histórias funcionam
 
@@ -269,14 +271,14 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **Purpose**: Melhorias que atravessam várias histórias
 
-- [ ] T107 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
-- [ ] T108 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
-- [ ] T109 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
-- [ ] T110 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
-- [ ] T111 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
-- [ ] T112 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
-- [ ] T113 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
-- [ ] T114 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
+- [ ] T109 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
+- [ ] T110 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
+- [ ] T111 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
+- [ ] T112 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
+- [ ] T113 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
+- [ ] T114 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
+- [ ] T115 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
+- [ ] T116 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
 
 ---
 
@@ -297,7 +299,7 @@ Diferente do modelo genérico, as histórias deste produto se apoiam no backend 
 - **US2 (P2)**: depende de US1 (usuário autenticado)
 - **US3 (P3)**: depende de US1 e US2 (contas); consome o `UserRegisteredEvent` de US1 e o `CardDaysChangedEvent` de US2; cria o `DueDateCalculator`, que US4 reutiliza
 - **US4 (P4)**: depende de US3 (serviço de grupos e `DueDateCalculator`) e US2 (dias do cartão)
-- **US5 (P5)**: depende de US4 (itens parcelados) e US2
+- **US5 (P5)**: depende de US4 (itens parcelados) e US2; estende o recálculo dos dias do cartão da US3 com a trava de faturas com pagamento
 - **US6 (P6)**: depende de US3; usa pagamentos de fatura de US5 nos totais
 - **US7 (P7)**: depende de US1, US2 e US3 (lançamento avulso); o resumo da tela inicial usa US6
 

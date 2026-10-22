@@ -619,7 +619,7 @@ paths:
       summary: Registra pagamento total ou parcial da fatura (FR-034 a FR-038)
       description: |
         Valor deve ser > 0 e ≤ restante. Se o restante chegar a zero, todos os itens
-        pendentes passam a pagos (FR-036). Acima do restante: `409 INVOICE_BALANCE_VIOLATION`.
+        pendentes passam a pagos (FR-036). Acima do restante: `409 INVOICE_BALANCE_VIOLATION`. Cartão inativo ainda aceita pagamento.
       requestBody:
         required: true
         content:

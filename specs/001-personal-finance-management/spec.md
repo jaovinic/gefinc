@@ -60,6 +60,7 @@ O usuário cadastra os meios de pagamento que usa: contas bancárias, dinheiro e
 5. **Given** um dia de fechamento ou vencimento fora do intervalo 1 a 31, **When** o usuário tenta salvar, **Then** o sistema recusa o valor.
 6. **Given** uma assinatura fixa pendente no cartão, com vencimento futuro e sem pagamento na fatura, **When** o usuário altera o dia de vencimento do cartão, **Then** as próximas ocorrências passam a vencer no novo dia.
 7. **Given** uma conta inativa, **When** o usuário tenta registrar um novo lançamento nela, **Then** o sistema recusa e orienta a reativar a conta.
+8. **Given** um cartão inativo com uma assinatura fixa e uma fatura pendente, **When** o sistema gera as ocorrências do mês seguinte, **Then** nenhuma nova ocorrência é criada para esse cartão; **When** o usuário paga a fatura pendente, **Then** o pagamento é aceito.
 
 ---
 
@@ -209,7 +210,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 
 **Contas e cartões**
 
-- **FR-011**: Usuários MUST poder cadastrar, editar, listar e inativar contas dos tipos conta bancária, dinheiro em espécie e cartão de crédito; contas inativas MUST NOT receber novos lançamentos.
+- **FR-011**: Usuários MUST poder cadastrar, editar, listar e inativar contas dos tipos conta bancária, dinheiro em espécie e cartão de crédito; contas inativas MUST NOT receber novos lançamentos nem novas ocorrências de lançamentos fixos (as ocorrências já geradas permanecem), mas suas faturas pendentes continuam podendo ser pagas.
 - **FR-012**: Para cartões de crédito, o sistema MUST exigir dia de fechamento e dia de vencimento da fatura, ambos entre 1 e 31.
 - **FR-013**: O sistema MUST impedir a exclusão definitiva de conta ou cartão com lançamentos, oferecendo a inativação para preservar o histórico.
 - **FR-014**: Ao alterar os dias de fechamento ou vencimento de um cartão, o sistema MUST recalcular o vencimento das ocorrências de lançamentos fixos que estejam pendentes, com vencimento posterior a hoje, e cuja fatura de origem e de destino não tenham pagamento registrado. As demais ocorrências MUST manter suas datas.
@@ -260,7 +261,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 ### Key Entities *(include if feature involves data)*
 
 - **Usuário**: Pessoa que utiliza o sistema. Possui e-mail, senha protegida, data de criação e, se houver, a data de solicitação de exclusão da conta. É dono de todas as contas, categorias e lançamentos.
-- **Conta**: Meio de pagamento do usuário. Possui nome e tipo (conta bancária, dinheiro ou cartão de crédito). Cartões possuem dia de fechamento e dia de vencimento da fatura.
+- **Conta**: Meio de pagamento do usuário. Possui nome, tipo (conta bancária, dinheiro ou cartão de crédito) e situação (ativa ou inativa). Cartões possuem dia de fechamento e dia de vencimento da fatura.
 - **Categoria**: Classificação de receitas ou despesas, com nome, tipo (receita ou despesa) e cor. Pertence a um usuário.
 - **Grupo de Lançamento**: Agrupa lançamentos de uma mesma origem. Possui descrição, tipo de recorrência (fixo, variável ou parcelado), quantidade de parcelas e valor total. Uma compra parcelada ou uma despesa fixa é um grupo com vários lançamentos.
 - **Lançamento**: Ocorrência individual (uma parcela ou uma competência mensal). Pertence a um grupo, a uma conta e a uma categoria; possui número da parcela, valor, data de vencimento, data de pagamento e status (pendente ou pago).

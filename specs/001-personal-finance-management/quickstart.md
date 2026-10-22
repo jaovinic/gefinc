@@ -55,11 +55,14 @@ No emulador Android, a API local é acessada por `http://10.0.2.2:8080/api/v1`.
 ## 4. Roteiro de validação manual (cobre as histórias P1 a P7)
 
 1. **Acesso (P1)**: em `http://localhost:4200`, crie a conta `ana@example.com`. Em
-   `http://localhost:8025` (Mailpit), teste "Esqueci a senha" e abra o link recebido. Solicite a
-   exclusão da conta, tente entrar e cancele a exclusão.
+   `http://localhost:8025` (Mailpit), teste "Esqueci a senha" e abra o link recebido. Troque a
+   senha e confirme que a sessão anterior deixa de funcionar na hora. Solicite a exclusão da conta,
+   tente entrar e cancele a exclusão.
 2. **Contas (P2)**: cadastre "Nubank" (cartão, fecha dia 10, vence dia 17) e "Carteira" (dinheiro).
+   Inative a "Carteira" e confirme que um novo lançamento nela é recusado.
 3. **Lançamentos (P3)**: cadastre "Salário" (receita fixa, R$ 5.000,00, vence dia 5) e "Internet"
-   (despesa fixa). Marque um item como pago e desfaça.
+   (despesa fixa). Marque um item como pago e desfaça. No Nubank, cadastre a assinatura fixa "Streaming"
+   e altere o dia de vencimento do cartão: as próximas ocorrências pendentes passam a vencer no novo dia.
 4. **Parcelado (P4)**: no Nubank, registre R$ 100,00 em 3 parcelas com compra no dia 12.
    Esperado: parcelas de 33,33 / 33,33 / 33,34, a primeira vencendo no dia 17 do mês seguinte.
    Registre também um carnê de R$ 300,00 em 3 parcelas na conta corrente.

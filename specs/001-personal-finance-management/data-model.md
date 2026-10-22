@@ -235,7 +235,7 @@ lançamentos.
 | referências do mesmo usuário | Princípio III | FKs compostas |
 | status ↔ `payment_date` | FR-019 | `CHECK` |
 | exclusão de conta/categoria em uso | FR-013, FR-016 | `NO ACTION` + `409` |
-| conta inativa não recebe novos lançamentos | FR-011 | serviço (`422 ACCOUNT_INACTIVE`) |
+| conta inativa não recebe novos lançamentos nem novas ocorrências fixas; fatura continua paga | FR-011 | serviço (`422 ACCOUNT_INACTIVE`) e job de fixos |
 
 ## Mapeamento dos requisitos para o modelo
 

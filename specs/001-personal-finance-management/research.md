@@ -84,6 +84,8 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   com o `DueDateCalculator`, as ocorrências de grupos `FIXED` pendentes com `due_date > hoje` cuja fatura
   de origem e de destino não tenham pagamento (FR-014). Evita restante negativo e não exige histórico de
   vigência dos dias. A fatura pode ter itens com vencimentos distintos no mês; seu `dueDate` é o maior.
+- **Conta inativa**: o job ignora grupos cuja conta esteja inativa (as ocorrências já geradas permanecem) e o
+  pagamento de fatura continua aceito em cartão inativo (FR-011).
 - **Premissa operacional**: uma única instância da API roda o job; execuções repetidas são
   inofensivas por causa da unicidade.
 

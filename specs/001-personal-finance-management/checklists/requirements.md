@@ -38,3 +38,4 @@
 - Refinamento pós-análise (2026-10-22): vencimento calculado para todo lançamento em cartão (FR-022), definição de Total Pago sem dupla contagem (FR-039), invalidação imediata de credenciais (FR-006, FR-008), política de senha e limite de recuperação nas premissas, caso `closing_day == due_day`. Itens continuam aprovados.
 - Refinamento (2026-10-22): efeito da mudança dos dias do cartão definido (FR-014); fatura com vencimentos distintos no mês. Itens continuam aprovados.
 - Pendências baixas resolvidas (2026-10-22): conta inativa não recebe lançamentos, conflito de edição simultânea com aviso, consolidação do limite de pagamento de fatura. Itens continuam aprovados.
+- 3ª análise (2026-10-22): conta inativa suspende a geração de fixos e aceita pagamento de fatura; trava de pagamento no recálculo dos dias do cartão movida para a US5. Itens continuam aprovados.
