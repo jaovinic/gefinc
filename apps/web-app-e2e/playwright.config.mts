@@ -34,7 +34,11 @@ export default defineConfig({
   webServer: [
     {
       // Banco e Mailpit (docker compose) e a API em modo local.
-      command: 'docker compose up -d --wait && npx nx run api-server:serve',
+      // `exec` + fork=false: o Maven passa a ser o próprio processo da API; ao encerrar o servidor
+      // a porta é liberada (sem processo Java órfão).
+      command:
+        'docker compose up -d --wait && cd apps/api-server && exec ./mvnw -B spring-boot:run '
+        + '-Dspring-boot.run.fork=false -Dspring-boot.run.profiles=local',
       url: 'http://localhost:8080/api/v1/actuator/health',
       reuseExistingServer: true,
       timeout: 240_000,

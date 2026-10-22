@@ -445,6 +445,7 @@ export interface paths {
                         "application/json": components["schemas"]["Account"];
                     };
                 };
+                409: components["responses"]["Conflict"];
                 422: components["responses"]["ValidationError"];
             };
         };
@@ -1612,7 +1613,12 @@ export interface components {
             closingDay?: number;
             dueDay?: number;
         };
-        AccountUpdate: components["schemas"]["AccountInput"] & {
+        /** @description O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput. */
+        AccountUpdate: {
+            name: string;
+            type: components["schemas"]["AccountType"];
+            closingDay?: number;
+            dueDay?: number;
             active: boolean;
             /** Format: int64 */
             version: number;

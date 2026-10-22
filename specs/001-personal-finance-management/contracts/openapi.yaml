@@ -231,6 +231,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /accounts/{accountId}:
@@ -930,13 +931,17 @@ components:
         dueDay: { type: integer, minimum: 1, maximum: 31 }
       description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos."
     AccountUpdate:
-      allOf:
-        - $ref: '#/components/schemas/AccountInput'
-        - type: object
-          required: [active, version]
-          properties:
-            active: { type: boolean }
-            version: { type: integer, format: int64 }
+      type: object
+      required: [name, type, active, version]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        type: { $ref: '#/components/schemas/AccountType' }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+        active: { type: boolean }
+        version: { type: integer, format: int64 }
+      description: "O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput."
+
 
     Category:
       type: object

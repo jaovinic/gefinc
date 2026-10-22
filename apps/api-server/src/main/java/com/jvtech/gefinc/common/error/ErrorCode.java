@@ -19,6 +19,7 @@ public enum ErrorCode {
   INVALID_RESET_TOKEN(HttpStatus.BAD_REQUEST, "Link de redefinição inválido ou expirado"),
   TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "Muitas solicitações"),
   ACCOUNT_IN_USE(HttpStatus.CONFLICT, "Conta com lançamentos"),
+  ACCOUNT_NAME_TAKEN(HttpStatus.CONFLICT, "Já existe uma conta ativa com este nome"),
   ACCOUNT_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY, "Conta inativa"),
   CATEGORY_IN_USE(HttpStatus.CONFLICT, "Categoria em uso"),
   INVOICE_BALANCE_VIOLATION(HttpStatus.CONFLICT, "Saldo da fatura violado"),

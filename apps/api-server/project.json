@@ -36,7 +36,7 @@
       "continuous": true,
       "options": {
         "cwd": "apps/api-server",
-        "command": "./mvnw -B spring-boot:run -Dspring-boot.run.profiles=local"
+        "command": "./mvnw -B spring-boot:run -Dspring-boot.run.fork=false -Dspring-boot.run.profiles=local"
       }
     },
     "lint": {

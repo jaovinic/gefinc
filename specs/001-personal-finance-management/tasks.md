@@ -130,18 +130,24 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 2 (MANDATORY) ⚠️
 
-- [ ] T042 [P] [US2] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountApiIT.java` (criar os três tipos, dias obrigatórios só no cartão e proibidos nos demais, dias fora de 1 a 31 `422`, edição, inativação e reativação, listagem com e sem inativas, versão desatualizada `409`, mudança dos dias do cartão publica o evento de alteração)
-- [ ] T043 [P] [US2] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountIsolationIT.java` (usuário B recebe `404` ao ler, editar ou excluir conta do usuário A)
+- [X] T042 [P] [US2] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountApiIT.java` (criar os três tipos, dias obrigatórios só no cartão e proibidos nos demais, dias fora de 1 a 31 `422`, edição, inativação e reativação, listagem com e sem inativas, versão desatualizada `409`, mudança dos dias do cartão publica o evento de alteração)
+- [X] T043 [P] [US2] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountIsolationIT.java` (usuário B recebe `404` ao ler, editar ou excluir conta do usuário A)
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Criar a migração `apps/api-server/src/main/resources/db/migration/V2__accounts.sql` (`accounts` com `CHECK` de tipo, dias e coerência cartão/dias, `UNIQUE (id, user_id)`, `active`, `version`)
-- [ ] T045 [P] [US2] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/account/Account.java` (com `@Version`) e `AccountRepository.java` (toda consulta filtrada por `userId`)
-- [ ] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: a violação de chave estrangeira por lançamentos vinculados é convertida em `409 ACCOUNT_IN_USE`, o que passa a valer assim que a tabela de lançamentos existir na US3)
-- [ ] T047 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountController.java` conforme `/accounts` do contrato
-- [ ] T048 [P] [US2] Criar a tela web `apps/web-app/src/app/accounts/` (lista, formulário com campos de fechamento e vencimento só para cartão, inativar e reativar)
+- [X] T044 [US2] Criar a migração `apps/api-server/src/main/resources/db/migration/V2__accounts.sql` (`accounts` com `CHECK` de tipo, dias e coerência cartão/dias, `UNIQUE (id, user_id)`, `active`, `version`)
+- [X] T045 [P] [US2] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/account/Account.java` (com `@Version`) e `AccountRepository.java` (toda consulta filtrada por `userId`)
+- [X] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: a violação de chave estrangeira por lançamentos vinculados é convertida em `409 ACCOUNT_IN_USE`, o que passa a valer assim que a tabela de lançamentos existir na US3)
+- [X] T047 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountController.java` conforme `/accounts` do contrato
+- [X] T048 [P] [US2] Criar a tela web `apps/web-app/src/app/accounts/` (lista, formulário com campos de fechamento e vencimento só para cartão, inativar e reativar)
 
 **Checkpoint**: Contas e cartões funcionam de forma independente
+
+> **Notas de implementação da US2**
+> - O tipo da conta não muda depois do cadastro (regra do serviço); o nome é único entre as contas ativas, sem
+>   diferenciar maiúsculas (`409 ACCOUNT_NAME_TAKEN`, acrescentado ao contrato).
+> - A rota de exclusão de conta do usuário passou a ser `/settings` ("Minha conta"); `/accounts` é o cadastro de contas.
+> - Rodar o E2E em máquina com a porta 5432 ocupada: `DB_PORT=5433 npx playwright test` em `apps/web-app-e2e`.
 
 ---
 

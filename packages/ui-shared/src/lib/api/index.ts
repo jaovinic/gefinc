@@ -8,3 +8,4 @@ export * from './auth.guard';
 export * from './auth.api';
 export * from './password.validator';
 export * from './problem';
+export * from './accounts.api';

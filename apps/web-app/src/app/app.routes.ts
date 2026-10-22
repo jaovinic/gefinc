@@ -31,7 +31,11 @@ export const appRoutes: Route[] = [
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) },
       {
-        path: 'account',
+        path: 'accounts',
+        loadComponent: () => import('./accounts/accounts-page').then((m) => m.AccountsPage),
+      },
+      {
+        path: 'settings',
         component: DeleteAccount,
       },
     ],
