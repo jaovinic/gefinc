@@ -15,7 +15,7 @@ import { LogoutAction } from '../core/logout';
   imports: [IonContent, ErrorView, LoadingView, RouterLink],
   template: `
     <ion-content>
-      <header class="flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 py-3">
+      <header class="gef-app-header">
         <span class="text-title-md font-extrabold tracking-wide text-gefinc-primary">GEFINC</span>
         <button type="button" class="gef-btn-secondary" (click)="logout.run()">Sair</button>
       </header>
@@ -48,7 +48,7 @@ import { LogoutAction } from '../core/logout';
       </section>
       <a
         routerLink="/quick-expense"
-        class="fixed bottom-6 right-6 rounded-full bg-gefinc-primary px-6 py-4 text-body-base font-bold text-gefinc-bg shadow-lg"
+        class="gef-fab"
         >+ Nova despesa</a
       >
     </ion-content>

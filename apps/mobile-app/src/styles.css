@@ -2,11 +2,12 @@
 @import '../../../packages/ui-shared/src/styles/theme.css';
 @source '../../../packages/ui-shared/src';
 
-/* Ionic core CSS */
-@import '@ionic/angular/css/core.css';
-@import '@ionic/angular/css/normalize.css';
-@import '@ionic/angular/css/structure.css';
-@import '@ionic/angular/css/typography.css';
+/* Ionic core CSS. Importado na camada `base` porque o CSS do Ionic não usa camadas e, solto, vencia
+   as classes do Tailwind (ex.: zerava o padding de todo <button>). */
+@import '@ionic/angular/css/core.css' layer(base);
+@import '@ionic/angular/css/normalize.css' layer(base);
+@import '@ionic/angular/css/structure.css' layer(base);
+@import '@ionic/angular/css/typography.css' layer(base);
 
 /* Tokens do Ionic mapeados para a identidade visual do GEFINC (dark-first) */
 :root {
@@ -22,4 +23,16 @@
   --ion-card-background: #131b2e;
   --ion-toolbar-background: #131b2e;
   --ion-border-color: #1e293b;
+}
+
+/* Android 15+ desenha o app sob a barra de status e a de gestos: respeitar as áreas seguras. */
+@layer components {
+  .gef-app-header {
+    @apply flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 pb-3;
+    padding-top: calc(env(safe-area-inset-top) + 0.75rem);
+  }
+  .gef-fab {
+    @apply fixed right-6 rounded-full bg-gefinc-primary px-6 py-4 text-body-base font-bold text-gefinc-bg shadow-lg;
+    bottom: calc(env(safe-area-inset-bottom) + 1.5rem);
+  }
 }

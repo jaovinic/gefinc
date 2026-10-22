@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Só no build de debug: permite HTTP para localhost (API local via `adb reverse`). O release
+         continua exigindo HTTPS. -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+
+</manifest>

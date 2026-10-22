@@ -52,5 +52,6 @@ app:
     cors-origins:
       - ${APP_BASE_URL:http://localhost:4200}
       - http://localhost:8100
-      - capacitor://localhost
+      - capacitor://localhost   # app iOS (Capacitor)
+      - https://localhost       # app Android (Capacitor)
       - http://localhost
