@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { IonContent } from '@ionic/angular';
 import { Router, RouterLink } from '@angular/router';
 import type { TransactionGroupInput } from '@gefinc/core-models';
 import { DraftService, MoneyInput, ReferenceData, TransactionsApi, messageFor, toProblem } from '@gefinc/ui-shared';
@@ -23,11 +22,11 @@ interface Draft {
  */
 @Component({
   selector: 'gef-quick-expense-page',
-  imports: [IonContent, ReactiveFormsModule, MoneyInput, RouterLink],
+  imports: [ReactiveFormsModule, MoneyInput, RouterLink],
   template: `
-    <ion-content>
+    <div class="gef-screen">
       <header class="gef-app-header">
-        <a routerLink="/" class="text-body-base text-gefinc-secondary">Cancelar</a>
+        <a routerLink="/" class="gef-action justify-start text-gefinc-secondary">Cancelar</a>
         <h1 class="text-title-md font-bold">Nova despesa</h1>
         <span class="w-14"></span>
       </header>
@@ -62,7 +61,7 @@ interface Draft {
         </div>
         <button type="submit" class="gef-btn-primary" [disabled]="busy()">Salvar</button>
       </form>
-    </ion-content>
+    </div>
   `,
 })
 export class QuickExpensePage implements OnInit, OnDestroy {

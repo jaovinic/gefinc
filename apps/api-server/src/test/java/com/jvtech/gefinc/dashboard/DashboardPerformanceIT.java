@@ -14,7 +14,8 @@ import org.springframework.http.HttpMethod;
 
 /**
  * SC-006: painel e projeção em até 2 s (p95) para um usuário com 5 anos de histórico (~6.000
- * lançamentos).
+ * lançamentos); o mesmo vale para o resumo de vencimentos dos lembretes e para o pagamento com
+ * chave de idempotência (feature 002).
  */
 class DashboardPerformanceIT extends IntegrationTestBase {
 
@@ -57,7 +58,8 @@ class DashboardPerformanceIT extends IntegrationTestBase {
         List.of(
             "/dashboard?month=2024-03",
             "/invoices/projection?from=2022-01&months=24",
-            "/cashflow?from=2022-01&months=24")) {
+            "/cashflow?from=2022-01&months=24",
+            "/due-summary?from=2026-11-10&to=2026-12-31")) {
       api.call(ana, HttpMethod.GET, url, null).andReturn(); // aquecimento
       List<Long> times = new ArrayList<>();
       for (int i = 0; i < SAMPLES; i++) {
@@ -70,5 +72,37 @@ class DashboardPerformanceIT extends IntegrationTestBase {
       long p95 = times.get((int) Math.ceil(SAMPLES * 0.95) - 1);
       assertThat(p95).as("p95 de %s em ms: %s", url, times).isLessThan(LIMIT_MS);
     }
+
+    // Pagamento com chave de idempotência: o filtro não pode degradar a operação.
+    List<Long> pending =
+        jdbc.queryForList(
+            "SELECT t.id FROM transactions t JOIN accounts a ON a.id = t.account_id AND a.user_id = t.user_id"
+                + " WHERE t.user_id = ? AND t.status = 'PENDING' AND a.type <> 'CREDIT_CARD'"
+                + " ORDER BY t.id LIMIT ?",
+            Long.class,
+            ana.id(),
+            SAMPLES);
+    List<Long> payTimes = new ArrayList<>();
+    for (Long id : pending) {
+      long start = System.nanoTime();
+      int status =
+          mockMvc
+              .perform(
+                  org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                          "/transactions/" + id + "/pay")
+                      .header("Authorization", ana.bearer())
+                      .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
+                      .contentType("application/json")
+                      .content("{\"paymentDate\":\"2026-11-10\"}"))
+              .andReturn()
+              .getResponse()
+              .getStatus();
+      payTimes.add((System.nanoTime() - start) / 1_000_000);
+      assertThat(status).isEqualTo(200);
+    }
+    Collections.sort(payTimes);
+    assertThat(payTimes.get((int) Math.ceil(payTimes.size() * 0.95) - 1))
+        .as("p95 do pagamento com chave de idempotência em ms: %s", payTimes)
+        .isLessThan(LIMIT_MS);
   }
 }

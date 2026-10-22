@@ -19,7 +19,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /Resumo de/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
 }
 
 /** Conta os toques (cliques de verdade do usuário) a partir deste ponto. */
@@ -44,7 +44,7 @@ test.describe('lançamento rápido de despesa', () => {
     await page.keyboard.type('2550'); // digitar não é toque
     await page.getByRole('button', { name: 'Salvar' }).click(); // toque 2
 
-    await expect(page.getByRole('heading', { name: /Resumo de/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
     await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 25,50');
     expect(await taps(page)).toBeLessThanOrEqual(3);
   });
@@ -76,7 +76,7 @@ test.describe('lançamento rápido de despesa', () => {
     await expect(page.getByLabel('Descrição (opcional)')).toHaveValue('Mercado do bairro');
   });
 
-  test('falha de rede mantém o rascunho e permite tentar de novo', async ({ page, request }) => {
+  test('falha de rede salva a despesa no aparelho e a envia quando a conexão volta', async ({ page, request }) => {
     await signIn(page, await prepareUser(request));
 
     await page.getByRole('link', { name: '+ Nova despesa' }).click();
@@ -85,12 +85,13 @@ test.describe('lançamento rápido de despesa', () => {
     await page.route('**/transaction-groups', (route) => route.abort('internetdisconnected'));
     await page.getByRole('button', { name: 'Salvar' }).click();
 
-    await expect(page.getByRole('alert')).toBeVisible();
-    await expect(page.getByLabel('Descrição (opcional)')).toHaveValue('Farmácia');
-    await expect(page.getByLabel('Valor')).toHaveValue('42,00');
+    // nada se perde: a despesa fica guardada no aparelho, pendente de envio
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
+    await expect(page.getByTestId('offline-banner')).toContainText('1 operação pendente de envio');
 
     await page.unroute('**/transaction-groups');
-    await page.getByRole('button', { name: 'Salvar' }).click();
+    await page.getByRole('button', { name: 'Sincronizar agora' }).click();
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0, { timeout: 20_000 });
     await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 42,00');
   });
 });

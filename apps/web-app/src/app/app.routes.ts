@@ -5,6 +5,12 @@ import {
   Login,
   Register,
   ResetPassword,
+  AccountsPage,
+  CategoriesPage,
+  TransactionsPage,
+  InvoicesPage,
+  DashboardPage,
+  CashflowPage,
   authGuard,
 } from '@gefinc/ui-shared';
 import { Shell } from './layout/shell';
@@ -32,27 +38,27 @@ export const appRoutes: Route[] = [
       {
         path: '',
         pathMatch: 'full',
-        loadComponent: () => import('./dashboard/dashboard-page').then((m) => m.DashboardPage),
+        component: DashboardPage,
       },
       {
         path: 'transactions',
-        loadComponent: () => import('./transactions/transactions-page').then((m) => m.TransactionsPage),
+        component: TransactionsPage,
       },
       {
         path: 'invoices',
-        loadComponent: () => import('./invoices/invoices-page').then((m) => m.InvoicesPage),
+        component: InvoicesPage,
       },
       {
         path: 'cashflow',
-        loadComponent: () => import('./invoices/cashflow-page').then((m) => m.CashflowPage),
+        component: CashflowPage,
       },
       {
         path: 'categories',
-        loadComponent: () => import('./categories/categories-page').then((m) => m.CategoriesPage),
+        component: CategoriesPage,
       },
       {
         path: 'accounts',
-        loadComponent: () => import('./accounts/accounts-page').then((m) => m.AccountsPage),
+        component: AccountsPage,
       },
       {
         path: 'settings',

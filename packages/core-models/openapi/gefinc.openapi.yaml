@@ -371,6 +371,8 @@ paths:
         - `INSTALLMENT`: N parcelas, uma por mês. Soma = `totalAmount` (resto na última parcela).
         - `FIXED`: ocorrências mensais para os próximos 12 meses; no cartão, cada mês é tratado
           como compra no dia de `purchaseDate` daquele mês (limitado ao último dia do mês).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -379,10 +381,14 @@ paths:
       responses:
         '201':
           description: Grupo e ocorrências geradas
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /transaction-groups/{groupId}:
@@ -573,6 +579,8 @@ paths:
     post:
       tags: [Transactions]
       summary: Marca o lançamento como pago (FR-019)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -585,9 +593,12 @@ paths:
       responses:
         '200':
           description: Pago
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
@@ -598,14 +609,20 @@ paths:
     post:
       tags: [Transactions]
       summary: Reverte o pagamento do lançamento (FR-019)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
           description: Voltou para pendente
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Transaction' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   # ------------------------------------------------------------- Invoices
   /accounts/{accountId}/invoices/{month}:
@@ -752,6 +769,31 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/CashflowMonth' }
 
+  /due-summary:
+    get:
+      tags: [Dashboard]
+      summary: Contagem de vencimentos por dia para os lembretes do aplicativo
+      description: |
+        Itens pendentes fora de cartão e faturas de cartão com saldo restante, por data de vencimento
+        no período `from`..`to` (até 62 dias), mais o que está atrasado (vencimento antes de hoje).
+        Nunca traz valores, descrições nem nomes. O aplicativo consulta a partir de hoje.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Vencimentos do período e atrasados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DueSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -765,6 +807,16 @@ components:
       in: header
       description: "`web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo"
       schema: { type: string, enum: [web] }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+        mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+        o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+        outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+      schema: { type: string, format: uuid }
     AccountId:
       name: accountId
       in: path
@@ -787,7 +839,17 @@ components:
       description: Mês do vencimento da fatura
       schema: { $ref: '#/components/schemas/Month' }
 
+  headers:
+    IdempotentReplayed:
+      description: "`true` quando a resposta é a original guardada para a chave de idempotência"
+      schema: { type: string, enum: ['true'] }
+
   responses:
+    BadRequest:
+      description: Requisição inválida (período, cabeçalho ou parâmetro malformado)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     Unauthorized:
       description: Credenciais ausentes, inválidas ou expiradas
       content:
@@ -839,6 +901,25 @@ components:
       type: string
       enum: [PENDING, PAID]
 
+    DueSummary:
+      type: object
+      required: [days, overdue]
+      properties:
+        days:
+          type: array
+          items:
+            type: object
+            required: [date, items, invoices]
+            properties:
+              date: { type: string, format: date }
+              items: { type: integer, minimum: 0 }
+              invoices: { type: integer, minimum: 0 }
+        overdue:
+          type: object
+          required: [items, invoices]
+          properties:
+            items: { type: integer, minimum: 0 }
+            invoices: { type: integer, minimum: 0 }
     Problem:
       type: object
       additionalProperties: true

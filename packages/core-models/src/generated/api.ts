@@ -730,7 +730,15 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path?: never;
                 cookie?: never;
             };
@@ -743,13 +751,16 @@ export interface paths {
                 /** @description Grupo e ocorrências geradas */
                 201: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["TransactionGroupDetail"];
                     };
                 };
+                400: components["responses"]["BadRequest"];
                 404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
                 422: components["responses"]["ValidationError"];
             };
         };
@@ -1128,7 +1139,15 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     transactionId: components["parameters"]["TransactionId"];
                 };
@@ -1146,12 +1165,14 @@ export interface paths {
                 /** @description Pago */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["Transaction"];
                     };
                 };
+                400: components["responses"]["BadRequest"];
                 404: components["responses"]["NotFound"];
                 409: components["responses"]["Conflict"];
                 422: components["responses"]["ValidationError"];
@@ -1178,7 +1199,15 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     transactionId: components["parameters"]["TransactionId"];
                 };
@@ -1189,14 +1218,17 @@ export interface paths {
                 /** @description Voltou para pendente */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["Transaction"];
                     };
                 };
+                400: components["responses"]["BadRequest"];
                 404: components["responses"]["NotFound"];
                 409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
             };
         };
         delete?: never;
@@ -1520,6 +1552,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/due-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contagem de vencimentos por dia para os lembretes do aplicativo
+         * @description Itens pendentes fora de cartão e faturas de cartão com saldo restante, por data de vencimento
+         *     no período `from`..`to` (até 62 dias), mais o que está atrasado (vencimento antes de hoje).
+         *     Nunca traz valores, descrições nem nomes. O aplicativo consulta a partir de hoje.
+         */
+        get: {
+            parameters: {
+                query: {
+                    from: string;
+                    to: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Vencimentos do período e atrasados */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DueSummary"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1536,6 +1613,18 @@ export interface components {
         RecurrenceType: "FIXED" | "VARIABLE" | "INSTALLMENT";
         /** @enum {string} */
         TransactionStatus: "PENDING" | "PAID";
+        DueSummary: {
+            days: {
+                /** Format: date */
+                date: string;
+                items: number;
+                invoices: number;
+            }[];
+            overdue: {
+                items: number;
+                invoices: number;
+            };
+        };
         Problem: {
             type: string;
             instance?: string;
@@ -1805,6 +1894,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description Requisição inválida (período, cabeçalho ou parâmetro malformado) */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Credenciais ausentes, inválidas ou expiradas */
         Unauthorized: {
             headers: {
@@ -1855,6 +1953,13 @@ export interface components {
     parameters: {
         /** @description `web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo */
         ClientHeader: "web";
+        /**
+         * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+         *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+         *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+         *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+         */
+        IdempotencyKey: string;
         AccountId: number;
         GroupId: number;
         TransactionId: number;
@@ -1862,7 +1967,10 @@ export interface components {
         MonthPath: components["schemas"]["Month"];
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description `true` quando a resposta é a original guardada para a chave de idempotência */
+        IdempotentReplayed: "true";
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;

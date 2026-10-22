@@ -50,6 +50,28 @@ Security e SQL em DEBUG. Por isso:
   TRACE em produção: esses loggers imprimem os valores de cada consulta.
 - Os DTOs de requisição e resposta têm `toString()` com `[REDACTED]`; ao criar um novo, siga o mesmo padrão.
 
+## Aplicativo móvel: dados locais, offline, biometria e lembretes
+
+- **Idempotência:** as três operações do modo offline (`POST /transaction-groups`, `/transactions/{id}/pay`
+  e `/unpay`) aceitam o cabeçalho `Idempotency-Key`. As chaves ficam na tabela `idempotency_keys` por **7
+  dias** (job diário às 3h30) e valem por usuário. Reprocesso de uma chave devolve a resposta original com
+  `Idempotent-Replayed: true`; reserva sem conclusão há mais de 2 minutos é considerada abandonada.
+- **Dados no aparelho:** a cópia local das leituras (até 20 MB, IndexedDB) e a fila de operações pendentes
+  ficam **cifradas** com AES-GCM; a chave de 256 bits fica no Keystore (Android) ou Keychain (iOS). Sair da
+  conta ou excluí-la apaga cópia, fila, preferências, chave e lembretes agendados. Se a sessão expirar sem
+  o usuário sair, só a cópia é apagada: a fila e a chave ficam para o mesmo usuário continuar.
+- **Lembretes:** são notificações **locais**, agendadas no aparelho a partir de `GET /due-summary` (só
+  contagens, sem valores nem nomes). Só se atualizam quando o app abre, sincroniza ou muda algo; um item
+  pago em outro aparelho continua a avisar até a próxima abertura. Limite de 35 avisos agendados (o iOS
+  aceita 64). No Android 12+ usam alarme inexato (pode atrasar alguns minutos). Push remoto (Firebase e
+  APNs) exigiria contas externas e não está incluído.
+- **Biometria:** só destrava a tela e a sessão já guardada; nunca vai ao servidor. Com o bloqueio ligado, o
+  Android usa `FLAG_SECURE`: **capturas de tela do app ficam bloqueadas** e o conteúdo some dos aplicativos
+  recentes.
+- **iOS:** o projeto está sincronizado (plugins no `Package.swift`, `NSFaceIDUsageDescription` no
+  `Info.plist`), mas **não foi compilado nem testado em aparelho** porque exige um Mac com Xcode: pendência
+  conhecida até haver acesso a um Mac.
+
 ## Variáveis de ambiente
 
 | Variável | Uso |

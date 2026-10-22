@@ -13,14 +13,14 @@ import {
 export const API = '/api/v1';
 
 /** Configura o TestBed com HTTP simulado, sessão web em memória e roteador. */
-export function configureAuthTesting() {
+export function configureAuthTesting(kind: 'web' | 'mobile' = 'web') {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
       provideHttpClient(withInterceptors([authInterceptor])),
       provideHttpClientTesting(),
       { provide: API_BASE_URL, useValue: API },
-      { provide: CLIENT_KIND, useValue: 'web' },
+      { provide: CLIENT_KIND, useValue: kind },
       { provide: TokenStore, useClass: MemoryTokenStore },
     ],
   });

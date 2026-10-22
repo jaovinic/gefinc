@@ -1,25 +1,24 @@
 import { Component } from '@angular/core';
-import { IonContent } from '@ionic/angular';
 import { ForgotPassword, Login, Register } from '@gefinc/ui-shared';
 
-/** Páginas do Ionic que apenas envolvem as telas de acesso compartilhadas com o web. */
+/** Páginas que apenas envolvem as telas de acesso compartilhadas com o web em uma tela rolável. */
 @Component({
   selector: 'gef-login-page',
-  imports: [IonContent, Login],
-  template: '<ion-content><gef-login /></ion-content>',
+  imports: [Login],
+  template: '<div class="gef-screen"><gef-login /></div>',
 })
 export class LoginPage {}
 
 @Component({
   selector: 'gef-register-page',
-  imports: [IonContent, Register],
-  template: '<ion-content><gef-register /></ion-content>',
+  imports: [Register],
+  template: '<div class="gef-screen"><gef-register /></div>',
 })
 export class RegisterPage {}
 
 @Component({
   selector: 'gef-forgot-password-page',
-  imports: [IonContent, ForgotPassword],
-  template: '<ion-content><gef-forgot-password /></ion-content>',
+  imports: [ForgotPassword],
+  template: '<div class="gef-screen"><gef-forgot-password /></div>',
 })
 export class ForgotPasswordPage {}

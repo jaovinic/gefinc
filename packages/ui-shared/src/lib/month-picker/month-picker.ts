@@ -9,7 +9,7 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
     <div class="inline-flex items-center gap-2 rounded-lg border border-gefinc-border bg-gefinc-surface px-2 py-1">
       <button
         type="button"
-        class="rounded px-2 py-1 text-gefinc-muted hover:text-gefinc-text"
+        class="flex min-h-11 min-w-11 items-center justify-center rounded px-2 py-1 text-gefinc-muted hover:text-gefinc-text md:min-h-0 md:min-w-0"
         aria-label="Mês anterior"
         (click)="shift(-1)"
       >
@@ -20,7 +20,7 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
       </span>
       <button
         type="button"
-        class="rounded px-2 py-1 text-gefinc-muted hover:text-gefinc-text"
+        class="flex min-h-11 min-w-11 items-center justify-center rounded px-2 py-1 text-gefinc-muted hover:text-gefinc-text md:min-h-0 md:min-w-0"
         aria-label="Próximo mês"
         (click)="shift(1)"
       >
