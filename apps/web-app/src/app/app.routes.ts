@@ -31,6 +31,14 @@ export const appRoutes: Route[] = [
     children: [
       { path: '', pathMatch: 'full', loadComponent: () => import('./home/home').then((m) => m.Home) },
       {
+        path: 'transactions',
+        loadComponent: () => import('./transactions/transactions-page').then((m) => m.TransactionsPage),
+      },
+      {
+        path: 'categories',
+        loadComponent: () => import('./categories/categories-page').then((m) => m.CategoriesPage),
+      },
+      {
         path: 'accounts',
         loadComponent: () => import('./accounts/accounts-page').then((m) => m.AccountsPage),
       },

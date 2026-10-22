@@ -1640,11 +1640,8 @@ export interface components {
             recurrenceType: components["schemas"]["RecurrenceType"];
             /** @description Valor total (INSTALLMENT), valor mensal (FIXED) ou valor único (VARIABLE) */
             totalAmount: components["schemas"]["Money"];
-            /**
-             * @description Obrigatório (≥ 2) para INSTALLMENT; 1 nos demais
-             * @default 1
-             */
-            totalInstallments: number;
+            /** @description Obrigatório (≥ 2) para INSTALLMENT; nos demais tipos é 1 e pode ser omitido */
+            totalInstallments?: number;
             /** Format: int64 */
             accountId: number;
             /** Format: int64 */

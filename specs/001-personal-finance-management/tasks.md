@@ -159,34 +159,43 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 3 (MANDATORY) ⚠️
 
-- [ ] T049 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/category/CategoryApiIT.java` (categorias iniciais criadas no cadastro, CRUD, nome único por tipo, cor inválida `422`, exclusão em uso `409`, `reassignTo` com tipo diferente `422`, isolamento entre usuários)
-- [ ] T050 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupFixedVariableIT.java` (avulso gera 1 lançamento no mês do vencimento; fixo gera 12 ocorrências; `amount-changes` altera só de um mês em diante e preserva anteriores e pagas; `end` remove as pendentes posteriores; no cartão, avulso e fixo ignoram o vencimento informado e usam o da fatura, cenários 8 e 9 da US3; conta inativa recusa novo lançamento com `422 ACCOUNT_INACTIVE`)
-- [ ] T051 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionPayUnpayListIT.java` (pagar com data, desfazer remove a data, filtros por mês, conta, categoria, tipo e status, paginação, indicador de atraso)
-- [ ] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados e grupos de conta inativa)
-- [ ] T053 [P] [US3] Testes `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionIsolationIT.java` (acesso cruzado `404`, conta ou categoria de outro usuário `404`) e `account/AccountInUseIT.java` (excluir conta com lançamentos `409 ACCOUNT_IN_USE`)
-- [ ] T054 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionValidationIT.java` (valor zero ou negativo, data inválida, campos obrigatórios, mais de 2 casas decimais, versão desatualizada `409`)
-- [ ] T055 [P] [US3] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/DueDateCalculatorTest.java` lendo `packages/core-models/fixtures/installments.json` (fechamento, compra no dia de fechamento, `closing_day == due_day`, mês curto, virada de ano, ocorrência fixa em cartão)
-- [ ] T056 [P] [US3] Teste `packages/utils/src/lib/due-date.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
-- [ ] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
+- [X] T049 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/category/CategoryApiIT.java` (categorias iniciais criadas no cadastro, CRUD, nome único por tipo, cor inválida `422`, exclusão em uso `409`, `reassignTo` com tipo diferente `422`, isolamento entre usuários)
+- [X] T050 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupFixedVariableIT.java` (avulso gera 1 lançamento no mês do vencimento; fixo gera 12 ocorrências; `amount-changes` altera só de um mês em diante e preserva anteriores e pagas; `end` remove as pendentes posteriores; no cartão, avulso e fixo ignoram o vencimento informado e usam o da fatura, cenários 8 e 9 da US3; conta inativa recusa novo lançamento com `422 ACCOUNT_INACTIVE`)
+- [X] T051 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionPayUnpayListIT.java` (pagar com data, desfazer remove a data, filtros por mês, conta, categoria, tipo e status, paginação, indicador de atraso)
+- [X] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados e grupos de conta inativa)
+- [X] T053 [P] [US3] Testes `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionIsolationIT.java` (acesso cruzado `404`, conta ou categoria de outro usuário `404`) e `account/AccountInUseIT.java` (excluir conta com lançamentos `409 ACCOUNT_IN_USE`)
+- [X] T054 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionValidationIT.java` (valor zero ou negativo, data inválida, campos obrigatórios, mais de 2 casas decimais, versão desatualizada `409`)
+- [X] T055 [P] [US3] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/DueDateCalculatorTest.java` lendo `packages/core-models/fixtures/installments.json` (fechamento, compra no dia de fechamento, `closing_day == due_day`, mês curto, virada de ano, ocorrência fixa em cartão)
+- [X] T056 [P] [US3] Teste `packages/utils/src/lib/due-date.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
+- [X] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
 
 ### Implementation for User Story 3
 
-- [ ] T058 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V3__categories.sql` (`categories` com `CHECK` de tipo e cor, `UNIQUE (user_id, type, name)` e `UNIQUE (id, user_id)`)
-- [ ] T059 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V4__transaction_groups_and_transactions.sql` (`transaction_groups` e `transactions` com chaves estrangeiras compostas (`ON DELETE NO ACTION` para conta e categoria), `CHECK` de status/pagamento, `reference_month`, unicidades `(group_id, installment_number)` e `(group_id, reference_month)` e os índices por `user_id`)
-- [ ] T060 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/` (`Category.java`, `CategoryRepository.java`, `CategoryService.java` com `reassignTo`, `CategoryController.java`)
-- [ ] T061 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/DefaultCategorySeeder.java`, que cria as categorias iniciais ao receber `UserRegisteredEvent`
-- [ ] T062 [P] [US3] Criar as entidades e repositórios `transaction/TransactionGroup.java`, `Transaction.java`, `TransactionGroupRepository.java`, `TransactionRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` (`@Version`, consultas sempre por `userId`)
-- [ ] T063 [P] [US3] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/DueDateCalculator.java` (vencimento da fatura a partir da data da compra e dos dias de fechamento e vencimento do cartão; usada por avulso, fixo e parcelas)
-- [ ] T064 [P] [US3] Implementar `packages/utils/src/lib/due-date.ts` (mesma regra, para prévia na interface) e exportar em `packages/utils/src/index.ts`
-- [ ] T065 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `VARIABLE` e `FIXED` (geração das 12 ocorrências, edição, `amount-changes`, `end`; em conta de cartão o vencimento de cada ocorrência vem do `DueDateCalculator`, e fora do cartão exige `firstDueDate`)
-- [ ] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão e ignorando grupos de conta inativa)
-- [ ] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`, sem a trava de faturas com pagamento, que é acrescentada na US5
-- [ ] T068 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionService.java` (listagem filtrada e paginada, edição, pagar, desfazer, indicador de atraso com `Clock`)
-- [ ] T069 [US3] Implementar `transaction/TransactionGroupController.java` e `transaction/TransactionController.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` conforme o contrato
-- [ ] T070 [P] [US3] Criar a tela web `apps/web-app/src/app/categories/` (lista, criação, edição, exclusão com reatribuição)
-- [ ] T071 [P] [US3] Criar a tela web `apps/web-app/src/app/transactions/` (tabela analítica por mês com filtros, formulário de lançamento fixo e avulso (em cartão o campo de vencimento some e a prévia do vencimento vem de `packages/utils`), pagar e desfazer, alterar valor a partir de um mês, encerrar fixo)
+- [X] T058 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V3__categories.sql` (`categories` com `CHECK` de tipo e cor, `UNIQUE (user_id, type, name)` e `UNIQUE (id, user_id)`)
+- [X] T059 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V4__transaction_groups_and_transactions.sql` (`transaction_groups` e `transactions` com chaves estrangeiras compostas (`ON DELETE NO ACTION` para conta e categoria), `CHECK` de status/pagamento, `reference_month`, unicidades `(group_id, installment_number)` e `(group_id, reference_month)` e os índices por `user_id`)
+- [X] T060 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/` (`Category.java`, `CategoryRepository.java`, `CategoryService.java` com `reassignTo`, `CategoryController.java`)
+- [X] T061 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/DefaultCategorySeeder.java`, que cria as categorias iniciais ao receber `UserRegisteredEvent`
+- [X] T062 [P] [US3] Criar as entidades e repositórios `transaction/TransactionGroup.java`, `Transaction.java`, `TransactionGroupRepository.java`, `TransactionRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` (`@Version`, consultas sempre por `userId`)
+- [X] T063 [P] [US3] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/DueDateCalculator.java` (vencimento da fatura a partir da data da compra e dos dias de fechamento e vencimento do cartão; usada por avulso, fixo e parcelas)
+- [X] T064 [P] [US3] Implementar `packages/utils/src/lib/due-date.ts` (mesma regra, para prévia na interface) e exportar em `packages/utils/src/index.ts`
+- [X] T065 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `VARIABLE` e `FIXED` (geração das 12 ocorrências, edição, `amount-changes`, `end`; em conta de cartão o vencimento de cada ocorrência vem do `DueDateCalculator`, e fora do cartão exige `firstDueDate`)
+- [X] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão e ignorando grupos de conta inativa)
+- [X] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`, sem a trava de faturas com pagamento, que é acrescentada na US5
+- [X] T068 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionService.java` (listagem filtrada e paginada, edição, pagar, desfazer, indicador de atraso com `Clock`)
+- [X] T069 [US3] Implementar `transaction/TransactionGroupController.java` e `transaction/TransactionController.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` conforme o contrato
+- [X] T070 [P] [US3] Criar a tela web `apps/web-app/src/app/categories/` (lista, criação, edição, exclusão com reatribuição)
+- [X] T071 [P] [US3] Criar a tela web `apps/web-app/src/app/transactions/` (tabela analítica por mês com filtros, formulário de lançamento fixo e avulso (em cartão o campo de vencimento some e a prévia do vencimento vem de `packages/utils`), pagar e desfazer, alterar valor a partir de um mês, encerrar fixo)
 
 **Checkpoint**: Controle básico de receitas e despesas funcionando
+
+> **Notas de implementação da US3**
+> - A rotina `FixedRecurrenceJob` e o recálculo por mudança dos dias do cartão (`FixedDueDateRecalculationListener`)
+>   só consideram ocorrências pendentes com vencimento posterior a hoje **e** cuja nova data também seja posterior a hoje;
+>   se o novo mês colidir com uma ocorrência que fica como está, a ocorrência é mantida.
+> - A restrição de unicidade `(group_id, reference_month)` é `DEFERRABLE INITIALLY DEFERRED` para permitir trocar meses
+>   entre ocorrências do mesmo grupo na mesma transação.
+> - `alterar valor a partir de um mês` só aceita meses dentro das ocorrências já geradas.
+> - Excluir um grupo preserva as ocorrências pagas; num fixo, o grupo é encerrado no último mês pago.
 
 ---
 

@@ -9,3 +9,13 @@ describe('isoToBR', () => {
     expect(isoToBR('')).toBe('');
   });
 });
+
+import { currentMonth, todayIso } from './date-format';
+
+describe('todayIso e currentMonth', () => {
+  it('usam a data local, não a UTC', () => {
+    const lateNight = new Date(2026, 10, 30, 23, 30); // 30/11/2026 23:30 local
+    expect(todayIso(lateNight)).toBe('2026-11-30');
+    expect(currentMonth(lateNight)).toBe('2026-11');
+  });
+});

@@ -52,7 +52,9 @@ export class Shell {
 
   /** Itens de navegação; cada história acrescenta os seus. */
   protected readonly nav: { path: string; label: string }[] = [
+    { path: '/transactions', label: 'Lançamentos' },
     { path: '/accounts', label: 'Contas' },
+    { path: '/categories', label: 'Categorias' },
     { path: '/settings', label: 'Minha conta' },
   ];
 

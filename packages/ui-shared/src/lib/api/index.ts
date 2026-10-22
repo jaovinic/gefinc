@@ -9,3 +9,6 @@ export * from './auth.api';
 export * from './password.validator';
 export * from './problem';
 export * from './accounts.api';
+export * from './categories.api';
+export * from './reference-data';
+export * from './transactions.api';

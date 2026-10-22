@@ -67,7 +67,7 @@ users 1──* password_reset_tokens
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
 | name | VARCHAR(60) | NOT NULL, único por `(user_id, type)` |
 | type | VARCHAR(7) | NOT NULL, `CHECK IN ('INCOME','EXPENSE')` |
-| color_hex | CHAR(7) | NOT NULL, `CHECK (color_hex ~ '^#[0-9A-Fa-f]{6}$')` |
+| color_hex | VARCHAR(7) | NOT NULL, `CHECK (color_hex ~ '^#[0-9A-Fa-f]{6}$')` |
 
 - `UNIQUE (id, user_id)`.
 - Categorias iniciais (ex.: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Serviços,
@@ -128,8 +128,8 @@ users 1──* password_reset_tokens
 
 - `CHECK ((status = 'PAID') = (payment_date IS NOT NULL))`.
 - `CHECK (settled_by_payment_id IS NULL OR status = 'PAID')`.
-- `UNIQUE (group_id, installment_number)` (parcelas) e `UNIQUE (group_id, reference_month)`
-  (idempotência das recorrências).
+- `UNIQUE (group_id, installment_number)` (parcelas) e `UNIQUE (group_id, reference_month) DEFERRABLE
+  INITIALLY DEFERRED` (idempotência das recorrências; adiável para permitir trocar meses ao recalcular vencimentos).
 - Índices: `(user_id, due_date)`, `(user_id, account_id, due_date)`,
   `(user_id, category_id, due_date)`, `(user_id, status, due_date)`.
 

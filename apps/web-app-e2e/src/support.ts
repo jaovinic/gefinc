@@ -42,3 +42,30 @@ export async function resetLinkFor(request: APIRequestContext, email: string): P
   throw new Error(`E-mail de redefinição não chegou para ${email}`);
 }
 
+
+/** Data local de hoje em ISO, como o app usa por padrão. */
+export function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/** Cadastra uma conta pela tela de contas. */
+export async function createAccount(
+  page: Page,
+  name: string,
+  type: 'CHECKING' | 'CASH' | 'CREDIT_CARD',
+  days?: { closing: number; due: number },
+) {
+  await page.goto('/accounts');
+  await page.getByRole('button', { name: 'Nova conta' }).first().click();
+  await page.getByLabel('Nome').fill(name);
+  await page.getByLabel('Tipo').selectOption(type);
+  if (days) {
+    await page.getByLabel('Dia de fechamento da fatura').fill(String(days.closing));
+    await page.getByLabel('Dia de vencimento da fatura').fill(String(days.due));
+  }
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByRole('row', { name: new RegExp(name) })).toBeVisible();
+}
