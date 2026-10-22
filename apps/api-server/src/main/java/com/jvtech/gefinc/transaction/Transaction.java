@@ -58,6 +58,10 @@ public class Transaction {
   @Column(nullable = false)
   private TransactionStatus status = TransactionStatus.PENDING;
 
+  /** Pagamento de fatura que quitou este item automaticamente; nulo se foi pago individualmente. */
+  @Column(name = "settled_by_payment_id")
+  private Long settledByPaymentId;
+
   @Version private long version;
 
   protected Transaction() {}
@@ -127,6 +131,10 @@ public class Transaction {
     return version;
   }
 
+  public Long getSettledByPaymentId() {
+    return settledByPaymentId;
+  }
+
   public boolean isPaid() {
     return status == TransactionStatus.PAID;
   }
@@ -153,5 +161,6 @@ public class Transaction {
   public void markPending() {
     this.status = TransactionStatus.PENDING;
     this.paymentDate = null;
+    this.settledByPaymentId = null;
   }
 }

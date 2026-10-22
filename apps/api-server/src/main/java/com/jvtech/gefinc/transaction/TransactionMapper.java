@@ -12,15 +12,15 @@ import org.springframework.stereotype.Component;
  * Converte entidades em respostas da API, calculando o indicador de atraso com o relógio injetado.
  */
 @Component
-class TransactionMapper {
+public class TransactionMapper {
 
   private final Clock clock;
 
-  TransactionMapper(Clock clock) {
+  public TransactionMapper(Clock clock) {
     this.clock = clock;
   }
 
-  TransactionResponse toResponse(Transaction tx, TransactionGroup group) {
+  public TransactionResponse toResponse(Transaction tx, TransactionGroup group) {
     LocalDate today = LocalDate.now(clock);
     boolean overdue =
         tx.getStatus() == TransactionStatus.PENDING && tx.getDueDate().isBefore(today);
@@ -37,12 +37,12 @@ class TransactionMapper {
         tx.getDueDate(),
         tx.getPaymentDate(),
         tx.getStatus(),
-        null,
+        tx.getSettledByPaymentId() != null,
         overdue,
         tx.getVersion());
   }
 
-  GroupDetailResponse toDetail(TransactionGroup group, List<Transaction> transactions) {
+  public GroupDetailResponse toDetail(TransactionGroup group, List<Transaction> transactions) {
     return new GroupDetailResponse(
         group.getId(),
         group.getDescription(),

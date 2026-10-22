@@ -1,13 +1,14 @@
 package com.jvtech.gefinc.transaction;
 
-import com.jvtech.gefinc.account.Account;
 import com.jvtech.gefinc.account.AccountRepository;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.invoice.InvoiceBalanceGuard;
 import com.jvtech.gefinc.transaction.TransactionDtos.Patch;
 import com.jvtech.gefinc.transaction.TransactionDtos.TransactionPage;
 import com.jvtech.gefinc.transaction.TransactionDtos.TransactionResponse;
 import java.time.LocalDate;
+import java.util.List;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,18 +24,21 @@ public class TransactionService {
   private final AccountRepository accounts;
   private final TransactionSearch search;
   private final TransactionMapper mapper;
+  private final InvoiceBalanceGuard guard;
 
   TransactionService(
       TransactionRepository transactions,
       TransactionGroupRepository groups,
       AccountRepository accounts,
       TransactionSearch search,
-      TransactionMapper mapper) {
+      TransactionMapper mapper,
+      InvoiceBalanceGuard guard) {
     this.transactions = transactions;
     this.groups = groups;
     this.accounts = accounts;
     this.search = search;
     this.mapper = mapper;
+    this.guard = guard;
   }
 
   @Transactional(readOnly = true)
@@ -59,6 +63,7 @@ public class TransactionService {
   @Transactional
   public TransactionResponse patch(long userId, long id, Patch patch) {
     Transaction tx = load(userId, id);
+    boolean card = guard.lockIfCard(userId, tx.getAccountId()).isPresent();
     checkVersion(tx, patch.version());
     if (tx.isPaid()) {
       throw new ApiException(
@@ -69,8 +74,7 @@ public class TransactionService {
       throw ApiException.validation("Informe o valor ou o vencimento.");
     }
     if (patch.dueDate() != null && !patch.dueDate().equals(tx.getDueDate())) {
-      Account account = accounts.findByIdAndUserId(tx.getAccountId(), userId).orElseThrow();
-      if (account.isCreditCard()) {
+      if (card) {
         throw ApiException.validation("Há campos inválidos.")
             .withFieldError(
                 "dueDate", "O vencimento de lançamentos no cartão é definido pela fatura.");
@@ -86,17 +90,24 @@ public class TransactionService {
       throw new ApiException(
           ErrorCode.CONFLICT, "Já existe uma ocorrência deste lançamento no mês escolhido.");
     }
+    if (card) {
+      guard.assertNotOverpaid(userId, tx.getAccountId(), List.of(tx.getReferenceMonth()));
+    }
     return mapper.toResponse(tx, group(tx));
   }
 
   @Transactional
   public TransactionResponse pay(long userId, long id, LocalDate paymentDate) {
     Transaction tx = load(userId, id);
+    boolean card = guard.lockIfCard(userId, tx.getAccountId()).isPresent();
     if (tx.isPaid()) {
       throw new ApiException(ErrorCode.CONFLICT, "Este lançamento já está pago.");
     }
     tx.markPaid(paymentDate);
     transactions.saveAndFlush(tx);
+    if (card) {
+      guard.assertNotOverpaid(userId, tx.getAccountId(), List.of(tx.getReferenceMonth()));
+    }
     return mapper.toResponse(tx, group(tx));
   }
 
@@ -106,6 +117,12 @@ public class TransactionService {
     if (!tx.isPaid()) {
       throw new ApiException(ErrorCode.CONFLICT, "Este lançamento não está pago.");
     }
+    if (tx.getSettledByPaymentId() != null) {
+      throw new ApiException(
+          ErrorCode.CONFLICT,
+          "Este item foi quitado por um pagamento de fatura. Desfaça o pagamento da fatura para reabri-lo.");
+    }
+    guard.lockIfCard(userId, tx.getAccountId());
     tx.markPending();
     transactions.saveAndFlush(tx);
     return mapper.toResponse(tx, group(tx));

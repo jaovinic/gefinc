@@ -23,4 +23,11 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
           + " and lower(a.name) = lower(:name) and (:excludeId is null or a.id <> :excludeId)")
   boolean activeNameExists(
       @Param("userId") long userId, @Param("name") String name, @Param("excludeId") Long excludeId);
+
+  /**
+   * Trava a linha da conta até o fim da transação, serializando operações sobre as suas faturas.
+   */
+  @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+  @Query("select a from Account a where a.id = :id and a.userId = :userId")
+  Optional<Account> findForUpdate(@Param("id") long id, @Param("userId") long userId);
 }

@@ -35,6 +35,14 @@ export const appRoutes: Route[] = [
         loadComponent: () => import('./transactions/transactions-page').then((m) => m.TransactionsPage),
       },
       {
+        path: 'invoices',
+        loadComponent: () => import('./invoices/invoices-page').then((m) => m.InvoicesPage),
+      },
+      {
+        path: 'cashflow',
+        loadComponent: () => import('./invoices/cashflow-page').then((m) => m.CashflowPage),
+      },
+      {
         path: 'categories',
         loadComponent: () => import('./categories/categories-page').then((m) => m.CategoriesPage),
       },

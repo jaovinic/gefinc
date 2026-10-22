@@ -237,29 +237,37 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 5 (MANDATORY) ⚠️
 
-- [ ] T080 [P] [US5] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceCalculatorTest.java` (total, pago individual, pago por fatura, restante, restante nunca negativo)
-- [ ] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`, pagamento aceito em cartão inativo)
-- [ ] T082 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceBalanceGuardIT.java` (excluir ou reduzir um item que deixaria o restante negativo responde `409`; dois pagamentos simultâneos não ultrapassam o restante)
-- [ ] T083 [P] [US5] Testes de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceProjectionIT.java` (totais por cartão e mês, mês vazio zerado, fatura com vencimentos distintos exibe o mais recente) e `dashboard/CashflowIT.java` (saldo residual = receitas − despesas, valor negativo, usuário B não enxerga o fluxo do usuário A)
-- [ ] T084 [P] [US5] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceIsolationIT.java` (fatura, pagamento e projeção de outro usuário respondem `404` ou vazio)
-- [ ] T085 [P] [US5] Ampliar o teste `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` com o caso de fatura de origem ou de destino com pagamento registrado (a ocorrência fixa permanece com a data antiga)
+- [X] T080 [P] [US5] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceCalculatorTest.java` (total, pago individual, pago por fatura, restante, restante nunca negativo)
+- [X] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`, pagamento aceito em cartão inativo)
+- [X] T082 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceBalanceGuardIT.java` (excluir ou reduzir um item que deixaria o restante negativo responde `409`; dois pagamentos simultâneos não ultrapassam o restante)
+- [X] T083 [P] [US5] Testes de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceProjectionIT.java` (totais por cartão e mês, mês vazio zerado, fatura com vencimentos distintos exibe o mais recente) e `dashboard/CashflowIT.java` (saldo residual = receitas − despesas, valor negativo, usuário B não enxerga o fluxo do usuário A)
+- [X] T084 [P] [US5] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceIsolationIT.java` (fatura, pagamento e projeção de outro usuário respondem `404` ou vazio)
+- [X] T085 [P] [US5] Ampliar o teste `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` com o caso de fatura de origem ou de destino com pagamento registrado (a ocorrência fixa permanece com a data antiga)
 
 ### Implementation for User Story 5
 
-- [ ] T086 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
-- [ ] T087 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
-- [ ] T088 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
-- [ ] T089 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
-- [ ] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
-- [ ] T091 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
-- [ ] T092 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
-- [ ] T093 [US5] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java` para ignorar ocorrências cuja fatura de origem ou de destino tenha `invoice_payments` (regra do FR-014; depende da migração de pagamentos de fatura)
-- [ ] T094 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
-- [ ] T095 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
-- [ ] T096 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
-- [ ] T097 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
+- [X] T086 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
+- [X] T087 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
+- [X] T088 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
+- [X] T089 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
+- [X] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
+- [X] T091 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
+- [X] T092 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
+- [X] T093 [US5] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java` para ignorar ocorrências cuja fatura de origem ou de destino tenha `invoice_payments` (regra do FR-014; depende da migração de pagamentos de fatura)
+- [X] T094 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
+- [X] T095 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
+- [X] T096 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
+- [X] T097 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
 
 **Checkpoint**: Faturas, pagamentos e saldo residual corretos
+
+> **Notas de implementação da US5**
+> - `InvoiceBalanceGuard` trava a linha da conta (`SELECT … FOR UPDATE`) e confirma o saldo depois de cada operação que
+>   mexe nos itens de um cartão (pagar item, editar valor, excluir ou encerrar lançamento, alterar valor de fixo);
+>   o restante nunca fica negativo e pagamentos simultâneos não ultrapassam o total (teste com duas threads).
+> - Pagar um item individualmente também é recusado (409) se, somado aos pagamentos da fatura, ultrapassar o total.
+> - `TransactionMapper` passou a ser público para a fatura reutilizar a resposta dos lançamentos.
+> - A trava do FR-014 (não mover ocorrências entre faturas com pagamento) está no `FixedDueDateRecalculationListener`.
 
 ---
 

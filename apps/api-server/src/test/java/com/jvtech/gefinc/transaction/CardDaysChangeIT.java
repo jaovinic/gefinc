@@ -149,4 +149,18 @@ class CardDaysChangeIT extends IntegrationTestBase {
     assertThat(dueDates(id).get(2)).isEqualTo("2026-12-20");
     clock.advance(Duration.ofDays(1));
   }
+
+  @Test
+  void faturaComPagamentoRegistradoMantemAOcorrenciaComADataAntiga() throws Exception {
+    long id = subscriptionCreatedInOctober();
+    // a fatura de dezembro (R$ 39,90) recebe um pagamento parcial
+    api.payInvoice(ana, card, "2026-12", "10.00", "2026-11-10").andExpect(status().isCreated());
+
+    changeDays(card, 10, 20);
+
+    List<String> dates = dueDates(id);
+    assertThat(dates.get(1)).isEqualTo("2026-11-20"); // novembro, sem pagamento: recalculada
+    assertThat(dates.get(2)).isEqualTo("2026-12-17"); // dezembro, fatura com pagamento: mantida
+    assertThat(dates.get(3)).isEqualTo("2027-01-20");
+  }
 }

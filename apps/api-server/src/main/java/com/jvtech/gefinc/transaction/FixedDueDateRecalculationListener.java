@@ -3,6 +3,7 @@ package com.jvtech.gefinc.transaction;
 import com.jvtech.gefinc.account.Account;
 import com.jvtech.gefinc.account.AccountRepository;
 import com.jvtech.gefinc.account.CardDaysChangedEvent;
+import com.jvtech.gefinc.invoice.InvoiceBalanceGuard;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -24,16 +25,19 @@ class FixedDueDateRecalculationListener {
   private final TransactionGroupRepository groups;
   private final TransactionRepository transactions;
   private final Clock clock;
+  private final InvoiceBalanceGuard guard;
 
   FixedDueDateRecalculationListener(
       AccountRepository accounts,
       TransactionGroupRepository groups,
       TransactionRepository transactions,
-      Clock clock) {
+      Clock clock,
+      InvoiceBalanceGuard guard) {
     this.accounts = accounts;
     this.groups = groups;
     this.transactions = transactions;
     this.clock = clock;
+    this.guard = guard;
   }
 
   @EventListener
@@ -66,8 +70,12 @@ class FixedDueDateRecalculationListener {
     for (Transaction tx : candidates) {
       LocalDate newDue = FixedSchedule.dueDate(account, group, tx.getInstallmentNumber() - 1);
       YearMonth newMonth = YearMonth.from(newDue);
-      // Só recalcula se a nova data também é futura e não colide com um mês que fica como está.
-      if (newDue.isAfter(today) && !occupied.contains(newMonth)) {
+      // Só recalcula se a nova data também é futura, não colide com um mês que fica como está e
+      // nenhuma das duas faturas (de origem e de destino) tem pagamento registrado (FR-014).
+      boolean paymentsInvolved =
+          guard.hasPayments(group.getUserId(), account.getId(), tx.getReferenceMonth())
+              || guard.hasPayments(group.getUserId(), account.getId(), newMonth.atDay(1));
+      if (newDue.isAfter(today) && !occupied.contains(newMonth) && !paymentsInvolved) {
         tx.reschedule(newDue);
         occupied.add(newMonth);
       } else {

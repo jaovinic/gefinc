@@ -124,4 +124,33 @@ public final class TestApi {
     return json(
         call(user, HttpMethod.POST, "/transaction-groups", body).andExpect(status().isCreated()));
   }
+
+  /**
+   * Compra avulsa no cartão após o fechamento (dia 12), que cai na fatura de dezembro/2026
+   * (vencimento dia 17).
+   */
+  public JsonNode decemberPurchase(
+      TestUser user, long cardId, long categoryId, String description, String amount)
+      throws Exception {
+    return createGroup(
+        user, variableBody(description, amount, cardId, categoryId, "2026-11-12", null));
+  }
+
+  public ResultActions payInvoice(
+      TestUser user, long accountId, String month, String amount, String paidAt) throws Exception {
+    return call(
+        user,
+        HttpMethod.POST,
+        "/accounts/" + accountId + "/invoices/" + month + "/payments",
+        Map.of("amount", amount, "paidAt", paidAt));
+  }
+
+  public ResultActions settleInvoice(TestUser user, long accountId, String month, String paidAt)
+      throws Exception {
+    return call(
+        user,
+        HttpMethod.POST,
+        "/accounts/" + accountId + "/invoices/" + month + "/payments/settle",
+        Map.of("paidAt", paidAt));
+  }
 }

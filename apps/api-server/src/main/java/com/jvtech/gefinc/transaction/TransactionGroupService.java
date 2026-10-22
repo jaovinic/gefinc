@@ -6,6 +6,7 @@ import com.jvtech.gefinc.category.Category;
 import com.jvtech.gefinc.category.CategoryRepository;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.invoice.InvoiceBalanceGuard;
 import com.jvtech.gefinc.transaction.TransactionDtos.AmountChange;
 import com.jvtech.gefinc.transaction.TransactionDtos.GroupImpact;
 import com.jvtech.gefinc.transaction.TransactionDtos.GroupInput;
@@ -31,18 +32,21 @@ public class TransactionGroupService {
   private final AccountRepository accounts;
   private final CategoryRepository categories;
   private final Clock clock;
+  private final InvoiceBalanceGuard guard;
 
   public TransactionGroupService(
       TransactionGroupRepository groups,
       TransactionRepository transactions,
       AccountRepository accounts,
       CategoryRepository categories,
-      Clock clock) {
+      Clock clock,
+      InvoiceBalanceGuard guard) {
     this.groups = groups;
     this.transactions = transactions;
     this.accounts = accounts;
     this.categories = categories;
     this.clock = clock;
+    this.guard = guard;
   }
 
   /** Grupo com as suas ocorrências. */
@@ -250,6 +254,7 @@ public class TransactionGroupService {
   public GroupView changeAmount(long userId, long groupId, AmountChange change) {
     TransactionGroup group = load(userId, groupId);
     requireFixed(group, "Somente lançamentos fixos têm valor mensal alterável.");
+    boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
     List<Transaction> all =
         transactions.findByGroupIdAndUserIdOrderByInstallmentNumber(groupId, userId);
     YearMonth last = YearMonth.from(all.get(all.size() - 1).getReferenceMonth());
@@ -260,14 +265,19 @@ public class TransactionGroupService {
               "O mês deve estar dentro das ocorrências já geradas (até " + last + ").");
     }
     LocalDate from = change.fromMonth().atDay(1);
+    List<LocalDate> changedMonths = new ArrayList<>();
     for (Transaction tx : all) {
       if (!tx.isPaid() && !tx.getReferenceMonth().isBefore(from)) {
         tx.setAmount(change.amount());
+        changedMonths.add(tx.getReferenceMonth());
       }
     }
     group.setTotalAmount(change.amount());
     groups.saveAndFlush(group);
     transactions.flush();
+    if (card) {
+      guard.assertNotOverpaid(userId, group.getAccountId(), changedMonths);
+    }
     return get(userId, groupId);
   }
 
@@ -276,9 +286,20 @@ public class TransactionGroupService {
   public GroupView end(long userId, long groupId, YearMonth endMonth) {
     TransactionGroup group = load(userId, groupId);
     requireFixed(group, "Somente lançamentos fixos podem ser encerrados.");
-    group.setEndMonth(endMonth.atDay(1));
+    boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
+    LocalDate end = endMonth.atDay(1);
+    List<LocalDate> removedMonths =
+        transactions.findByGroupIdAndUserIdOrderByInstallmentNumber(groupId, userId).stream()
+            .filter(t -> !t.isPaid() && t.getReferenceMonth().isAfter(end))
+            .map(Transaction::getReferenceMonth)
+            .distinct()
+            .toList();
+    group.setEndMonth(end);
     groups.saveAndFlush(group);
-    transactions.deletePendingAfter(groupId, userId, endMonth.atDay(1));
+    transactions.deletePendingAfter(groupId, userId, end);
+    if (card) {
+      guard.assertNotOverpaid(userId, group.getAccountId(), removedMonths);
+    }
     return get(userId, groupId);
   }
 
@@ -304,7 +325,17 @@ public class TransactionGroupService {
       throw ApiException.validation("Confirme a exclusão.")
           .withFieldError("confirm", "A exclusão precisa ser confirmada.");
     }
+    boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
+    List<LocalDate> removedMonths =
+        transactions.findByGroupIdAndUserIdOrderByInstallmentNumber(groupId, userId).stream()
+            .filter(t -> !t.isPaid())
+            .map(Transaction::getReferenceMonth)
+            .distinct()
+            .toList();
     transactions.deletePendingOfGroup(groupId, userId);
+    if (card) {
+      guard.assertNotOverpaid(userId, group.getAccountId(), removedMonths);
+    }
     LocalDate lastPaid = transactions.lastPaidMonth(groupId, userId);
     if (lastPaid == null) {
       groups.delete(group);

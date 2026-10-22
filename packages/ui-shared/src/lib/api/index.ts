@@ -12,3 +12,4 @@ export * from './accounts.api';
 export * from './categories.api';
 export * from './reference-data';
 export * from './transactions.api';
+export * from './invoices.api';
