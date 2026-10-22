@@ -26,7 +26,7 @@ interface Draft {
   imports: [IonContent, ReactiveFormsModule, MoneyInput, RouterLink],
   template: `
     <ion-content>
-      <header class="flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 py-3">
+      <header class="gef-app-header">
         <a routerLink="/" class="text-body-base text-gefinc-secondary">Cancelar</a>
         <h1 class="text-title-md font-bold">Nova despesa</h1>
         <span class="w-14"></span>

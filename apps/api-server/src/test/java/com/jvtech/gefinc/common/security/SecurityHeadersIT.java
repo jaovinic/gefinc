@@ -36,7 +36,12 @@ class SecurityHeadersIT extends IntegrationTestBase {
   @Test
   void origensDoWebEDoAppPodemChamarAApi() throws Exception {
     for (String origin :
-        new String[] {"http://localhost:4200", "http://localhost:8100", "capacitor://localhost"}) {
+        new String[] {
+          "http://localhost:4200",
+          "http://localhost:8100",
+          "capacitor://localhost",
+          "https://localhost"
+        }) {
       mockMvc
           .perform(
               options("/transactions")
