@@ -32,12 +32,12 @@ Uma pessoa cria sua conta no GEFINC com e-mail e senha, entra no sistema pela we
 3. **Given** um usuário com sessão ativa por longo período, **When** a sessão de acesso expira, **Then** ela é renovada automaticamente sem exigir nova senha, enquanto a renovação for válida.
 4. **Given** dois usuários com dados cadastrados, **When** um deles tenta acessar um registro do outro, **Then** o acesso é negado e nenhum dado do outro usuário é exibido.
 5. **Given** um usuário no celular, **When** fecha e reabre o aplicativo, **Then** continua conectado sem expor suas credenciais.
-6. **Given** um usuário autenticado, **When** solicita a exclusão da conta e confirma com a senha, **Then** a sessão é encerrada, a conta fica bloqueada e o usuário é informado da data limite (30 dias) para desistir.
+6. **Given** um usuário autenticado, **When** solicita a exclusão da conta e confirma com a senha, **Then** a sessão é encerrada, qualquer requisição seguinte feita com as credenciais anteriores é recusada imediatamente, a conta fica bloqueada e o usuário é informado da data limite (30 dias) para desistir.
 7. **Given** uma conta com exclusão solicitada há menos de 30 dias, **When** o usuário entra com e-mail e senha corretos, **Then** o sistema oferece cancelar a exclusão e, ao confirmar, todos os dados voltam como estavam.
 8. **Given** uma conta com exclusão solicitada há 30 dias ou mais, **When** o prazo termina, **Then** todos os dados do usuário, inclusive o e-mail, são apagados definitivamente e o login deixa de ser possível.
 9. **Given** a confirmação de exclusão, **When** o usuário informa a senha incorreta, **Then** a exclusão não é solicitada.
 10. **Given** um usuário que esqueceu a senha, **When** informa seu e-mail cadastrado na opção de recuperação, **Then** recebe por e-mail um link de uso único, válido por 60 minutos, para criar nova senha.
-11. **Given** um link de recuperação válido, **When** o usuário define uma nova senha que atende às regras de segurança, **Then** a senha é alterada, o link deixa de funcionar e as sessões anteriores são encerradas.
+11. **Given** um link de recuperação válido, **When** o usuário define uma nova senha que atende às regras de segurança, **Then** a senha é alterada, o link deixa de funcionar e as sessões anteriores são encerradas imediatamente, inclusive credenciais de acesso ainda não expiradas.
 12. **Given** um link de recuperação já usado ou expirado, **When** o usuário tenta usá-lo, **Then** o sistema recusa e orienta a solicitar um novo link.
 13. **Given** um e-mail que não pertence a nenhuma conta, **When** alguém solicita a recuperação, **Then** o sistema exibe a mesma mensagem de sucesso, sem revelar se o e-mail existe.
 
@@ -78,6 +78,8 @@ O usuário registra receitas e despesas **fixas** (recorrentes todo mês, como s
 5. **Given** um lançamento fixo, **When** o usuário altera o valor a partir de determinado mês, **Then** os meses anteriores permanecem inalterados.
 6. **Given** uma categoria em uso, **When** o usuário tenta excluí-la, **Then** o sistema exige reatribuir os lançamentos ou impede a exclusão.
 7. **Given** o usuário informa valor zero, negativo ou data inválida, **When** tenta salvar, **Then** o sistema recusa com mensagem clara.
+8. **Given** um cartão com fechamento no dia 10 e vencimento no dia 17, **When** o usuário registra uma compra avulsa no dia 12, **Then** o vencimento é calculado pelo sistema para o dia 17 do mês seguinte e o usuário não precisa informá-lo.
+9. **Given** uma assinatura fixa mensal no mesmo cartão, com data de compra no dia 5, **When** o sistema gera as ocorrências, **Then** cada uma vence no dia 17 do mesmo mês da respectiva competência.
 
 ---
 
@@ -140,6 +142,7 @@ O usuário abre um painel com os indicadores do mês: Total do Mês, Total a Ven
 4. **Given** despesas em mais de um cartão, **When** o painel é exibido, **Then** a distribuição por cartão mostra quanto cada cartão representa.
 5. **Given** o usuário escolhe outro mês, **When** o painel é atualizado, **Then** todos os indicadores e gráficos correspondem ao mês escolhido.
 6. **Given** um mês sem dados, **When** o painel é aberto, **Then** exibe estado vazio com orientação para cadastrar o primeiro lançamento.
+7. **Given** uma fatura que vence em dezembro com pagamento parcial de R$ 300,00 registrado em novembro, **When** o usuário abre o painel de novembro e o de dezembro, **Then** os R$ 300,00 aparecem em "Total Pago" somente em dezembro, e itens quitados por pagamentos de fatura não são somados duas vezes.
 
 ---
 
@@ -168,6 +171,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - Divisão com resto de centavos: a soma das parcelas é sempre exatamente o valor total.
 - Alteração de valor ou exclusão de uma compra parcelada com parcelas já pagas.
 - Lançamento fixo que precisa ser encerrado ou ter o valor alterado em determinado mês.
+- Lançamento fixo em cartão com data de compra depois do dia de fechamento: a ocorrência vai para a fatura do mês seguinte.
 - Exclusão de conta, cartão ou categoria que possua lançamentos.
 - Usuário tenta acessar ou alterar registro de outro usuário (deve ser negado).
 - Sessão expirada ou renovação inválida durante o uso: o usuário é conduzido ao login sem perder dados não enviados.
@@ -177,6 +181,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - E-mail de recuperação não entregue ou atrasado: o usuário pode solicitar novo link após o intervalo mínimo.
 - Novo cadastro com o e-mail de uma conta em período de carência de exclusão: o sistema recusa, informando que o e-mail está em uso, até que a exclusão seja concluída ou cancelada.
 - Usuário com exclusão pendente tenta usar o aplicativo móvel já conectado: o acesso é negado e ele é conduzido ao login, que oferece cancelar a exclusão.
+- Credencial de acesso emitida antes do pedido de exclusão ou da troca de senha e usada logo em seguida: a requisição é recusada.
 - Pagamento de fatura maior que o saldo restante: o sistema recusa e informa o saldo.
 - Pagamento parcial registrado e, depois, uma compra adicionada ou removida na mesma fatura: o saldo restante é recalculado, e nunca pode ficar negativo (pagamentos acima do novo total exigem ajuste).
 - Pagamento desfeito depois de a fatura ter sido quitada: os itens que foram marcados como pagos pela quitação voltam a ficar pendentes, e os marcados individualmente pelo usuário permanecem pagos.
@@ -194,9 +199,9 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - **FR-003**: O sistema MUST armazenar senhas de forma irreversível e MUST NOT exibir senhas ou credenciais em mensagens, telas ou registros de log.
 - **FR-004**: O sistema MUST garantir que cada usuário acesse, liste, altere e exclua somente os próprios dados (contas, categorias, lançamentos).
 - **FR-005**: O sistema MUST manter a sessão do aplicativo móvel em armazenamento seguro do dispositivo.
-- **FR-006**: Usuários MUST poder recuperar o acesso solicitando a redefinição de senha pelo e-mail cadastrado; o sistema MUST enviar um link de uso único com validade de 60 minutos, invalidar o link após o uso ou a expiração e encerrar as sessões anteriores quando a senha for alterada.
+- **FR-006**: Usuários MUST poder recuperar o acesso solicitando a redefinição de senha pelo e-mail cadastrado; o sistema MUST enviar um link de uso único com validade de 60 minutos, invalidar o link após o uso ou a expiração e encerrar imediatamente as sessões anteriores, inclusive as credenciais de acesso ainda não expiradas, quando a senha for alterada.
 - **FR-007**: A solicitação de recuperação MUST apresentar a mesma resposta para e-mails cadastrados e não cadastrados, e MUST limitar a quantidade de solicitações por e-mail em um período, para evitar abuso.
-- **FR-008**: Usuários MUST poder solicitar a exclusão da própria conta e de todos os seus dados, confirmando com a senha; ao solicitar, o sistema MUST encerrar as sessões ativas e bloquear o acesso aos dados.
+- **FR-008**: Usuários MUST poder solicitar a exclusão da própria conta e de todos os seus dados, confirmando com a senha; ao solicitar, o sistema MUST encerrar imediatamente as sessões ativas, inclusive as credenciais de acesso ainda não expiradas, e bloquear o acesso aos dados.
 - **FR-009**: Durante 30 dias após a solicitação, o sistema MUST permitir que o usuário cancele a exclusão ao entrar com suas credenciais, restaurando o acesso a todos os dados sem perdas.
 - **FR-010**: Decorridos 30 dias sem cancelamento, o sistema MUST apagar definitivamente todos os dados do usuário, inclusive o e-mail, sem possibilidade de recuperação.
 
@@ -218,7 +223,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - **FR-018**: O sistema MUST permitir marcar lançamentos individuais como pagos, com data de pagamento, e reverter o pagamento para pendente, inclusive itens de cartão de crédito.
 - **FR-019**: Lançamentos fixos MUST se repetir mensalmente sem novo cadastro até o usuário encerrá-los, e alterações de valor MUST valer apenas a partir do mês indicado.
 - **FR-020**: Para compras parceladas, o sistema MUST gerar automaticamente todas as parcelas, uma por mês, até a quitação.
-- **FR-021**: Para cartões de crédito, o sistema MUST calcular a data de vencimento de cada parcela a partir do dia de fechamento e do dia de vencimento: compras feitas após o fechamento entram na fatura seguinte.
+- **FR-021**: Para cartões de crédito, o sistema MUST calcular a data de vencimento de cada lançamento (parcela, compra avulsa ou ocorrência de lançamento fixo) a partir do dia de fechamento e do dia de vencimento, sem que o usuário informe o vencimento: compras feitas após o fechamento entram na fatura seguinte, e cada ocorrência fixa é tratada como compra na data de compra do mês correspondente.
 - **FR-022**: O sistema MUST permitir parcelamento em qualquer conta ou cartão; fora do cartão de crédito, as parcelas MUST vencer mensalmente a partir da data de vencimento informada, usando o último dia do mês quando o dia não existir.
 - **FR-023**: A soma das parcelas MUST ser exatamente igual ao valor total da compra, com o resto de centavos aplicado à última parcela.
 - **FR-024**: Usuários MUST poder editar e excluir lançamentos; ao alterar ou excluir uma compra parcelada, o sistema MUST informar o efeito sobre as parcelas já pagas e pedir confirmação.
@@ -241,7 +246,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - **FR-035**: Pagamentos parciais MUST NOT alterar o status individual dos itens da fatura; quando o saldo restante chegar a zero, o sistema MUST marcar todos os itens pendentes da fatura como pagos.
 - **FR-036**: Usuários MUST poder usar a ação "pagar fatura" pelo saldo restante total e MUST poder desfazer pagamentos de fatura já registrados, restaurando o saldo restante.
 - **FR-037**: O sistema MUST recusar pagamentos de fatura acima do saldo restante e MUST manter o saldo restante da fatura sempre maior ou igual a zero.
-- **FR-038**: Os pagamentos de fatura MUST ser considerados nos indicadores "Total Pago" e "Total a Vencer" do painel e na projeção de faturas.
+- **FR-038**: Os pagamentos de fatura MUST ser considerados nos indicadores "Total Pago" e "Total a Vencer" do painel e na projeção de faturas, atribuídos ao mês do vencimento da fatura e sem contar duas vezes os itens quitados por eles.
 
 **Experiência por plataforma**
 
@@ -278,8 +283,9 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - O produto atende a pessoas físicas, cada uma com seus próprios dados; não há compartilhamento de contas entre usuários nem perfis familiares nesta versão.
 - A moeda é exclusivamente o real brasileiro (BRL), sem conversão cambial, e o idioma é português do Brasil.
 - O cadastro é feito por e-mail e senha, sem login social; a recuperação de senha depende de um serviço de envio de e-mail disponível ao sistema.
+- Política de senha: no mínimo 10 caracteres e no máximo 72 bytes (UTF-8). A recuperação de senha aceita no máximo 3 solicitações por hora por e-mail.
 - Compras no cartão feitas até o dia de fechamento (inclusive) entram na fatura corrente; compras posteriores entram na fatura seguinte.
-- Quando o dia de vencimento é menor que o de fechamento, a fatura vence no mês seguinte ao fechamento.
+- Quando o dia de vencimento é menor ou igual ao de fechamento, a fatura vence no mês seguinte ao fechamento.
 - Meses sem o dia configurado (29, 30 ou 31) usam o último dia do mês.
 - Lançamentos fixos são projetados para os próximos 12 meses a partir do mês corrente e continuam sendo gerados enquanto não forem encerrados.
 - "Total a Vencer" considera o valor ainda pendente (já descontados itens pagos e pagamentos parciais de fatura) com vencimento a partir de hoje no mês; valores pendentes já vencidos são sinalizados como atrasados.

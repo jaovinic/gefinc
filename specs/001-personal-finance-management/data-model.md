@@ -7,6 +7,11 @@ Modelo relacional (PostgreSQL 16), entregue exclusivamente por migrações Flywa
 `NUMERIC(19,2)`; datas de negócio `DATE`; instantes `TIMESTAMPTZ`; todos os enums como `VARCHAR`
 com `CHECK`.
 
+> **Chaves estrangeiras e exclusão em cascata**: as referências a tabelas pai usam `NO ACTION`
+> (o padrão), nunca `RESTRICT`. `RESTRICT` não pode ser adiado e falharia ao apagar um usuário em
+> cascata (FR-010) quando contas e lançamentos do mesmo usuário são removidos no mesmo comando; `NO ACTION`
+> é checado ao fim do comando e continua impedindo exclusões isoladas de itens em uso.
+
 > **Atenção (Princípio V)**: este modelo estende as 5 tabelas do `spec-genfic.md` §5 com as
 > colunas e tabelas marcadas como **[novo]**. A seção §5 do `spec-genfic.md` deve ser atualizada
 > como tarefa do plano (T-DOC), antes da primeira migração.
@@ -33,6 +38,7 @@ users 1──* password_reset_tokens
 | password_hash | VARCHAR(100) | NOT NULL (BCrypt) |
 | created_at | TIMESTAMPTZ | NOT NULL, default `now()` |
 | deletion_requested_at **[novo]** | TIMESTAMPTZ | NULL = ativo. Preenchido = em carência (30 dias) |
+| token_version **[novo]** | INTEGER | NOT NULL, default 0. Incrementado na troca de senha e no pedido de exclusão. O JWT carrega a versão; o filtro de segurança recusa tokens com versão diferente ou de usuário com exclusão pendente (invalidação imediata, FR-006 e FR-008) |
 
 ### accounts
 
@@ -50,7 +56,7 @@ users 1──* password_reset_tokens
 - `CHECK ((type = 'CREDIT_CARD') = (closing_day IS NOT NULL AND due_day IS NOT NULL))`
   (FR-012: obrigatórios no cartão e proibidos nos demais).
 - `UNIQUE (id, user_id)` — alvo de chaves estrangeiras compostas.
-- Exclusão física só se não houver lançamentos (`ON DELETE RESTRICT` nas referências); caso
+- Exclusão física só se não houver lançamentos (`ON DELETE NO ACTION` nas referências); caso
   contrário a API responde `409 ACCOUNT_IN_USE` e sugere inativação (FR-013).
 
 ### categories
@@ -66,7 +72,7 @@ users 1──* password_reset_tokens
 - `UNIQUE (id, user_id)`.
 - Categorias iniciais (ex.: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Serviços,
   Salário, Outras receitas) são criadas para o usuário no cadastro (FR-014).
-- Excluir categoria em uso: `ON DELETE RESTRICT`; a API aceita `reassignTo=<id>` para mover os
+- Excluir categoria em uso: `ON DELETE NO ACTION`; a API aceita `reassignTo=<id>` para mover os
   lançamentos antes da exclusão, dentro da mesma transação (FR-015).
 
 ### transaction_groups
@@ -82,7 +88,7 @@ users 1──* password_reset_tokens
 | account_id **[novo]** | BIGINT | NOT NULL, FK composta `(account_id, user_id)` → accounts |
 | category_id **[novo]** | BIGINT | NOT NULL, FK composta `(category_id, user_id)` → categories |
 | purchase_date **[novo]** | DATE | NOT NULL (data da compra) |
-| first_due_date **[novo]** | DATE | NOT NULL (vencimento da 1ª ocorrência) |
+| first_due_date **[novo]** | DATE | NOT NULL (vencimento da 1ª ocorrência; em cartão é calculado pelo servidor e o valor informado é ignorado) |
 | end_month **[novo]** | DATE | NULL = recorrência sem fim (primeiro dia do mês). Só para FIXED |
 | version **[novo]** | BIGINT | NOT NULL, bloqueio otimista |
 | created_at **[novo]** | TIMESTAMPTZ | NOT NULL |
@@ -93,6 +99,9 @@ users 1──* password_reset_tokens
   - `INSTALLMENT`: `total_installments ≥ 2`; `total_amount` é o valor total; gera N lançamentos.
   - `FIXED`: `total_installments = 1`; `total_amount` é o valor **mensal** atual; gera
     ocorrências mensais (janela de 12 meses, D4 da pesquisa).
+- Em conta `CREDIT_CARD`, o vencimento de **toda** ocorrência (`VARIABLE`, `INSTALLMENT` e cada mês de
+  `FIXED`, tratado como compra no dia de `purchase_date` daquele mês) é calculado por
+  `DueDateCalculator`, a partir de `closing_day` e `due_day` (FR-021). Fora do cartão, usa `first_due_date`.
 - O tipo (receita/despesa) é herdado de `categories.type`.
 
 ### transactions
@@ -102,15 +111,15 @@ users 1──* password_reset_tokens
 | id | BIGINT PK | |
 | group_id | BIGINT | NOT NULL, FK composta `(group_id, user_id)` → transaction_groups ON DELETE CASCADE |
 | user_id **[novo]** | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
-| account_id | BIGINT | NOT NULL, FK composta `(account_id, user_id)` → accounts ON DELETE RESTRICT |
-| category_id | BIGINT | NOT NULL, FK composta `(category_id, user_id)` → categories ON DELETE RESTRICT |
+| account_id | BIGINT | NOT NULL, FK composta `(account_id, user_id)` → accounts ON DELETE NO ACTION |
+| category_id | BIGINT | NOT NULL, FK composta `(category_id, user_id)` → categories ON DELETE NO ACTION |
 | installment_number | SMALLINT | NOT NULL, `CHECK (installment_number >= 1)` |
 | reference_month **[novo]** | DATE | NOT NULL, 1º dia do mês do `due_date` (`CHECK (reference_month = due_date - (EXTRACT(DAY FROM due_date)::int - 1))`, aritmética pura de datas, independente de fuso) |
 | amount | NUMERIC(19,2) | NOT NULL, `CHECK (amount > 0)` |
 | due_date | DATE | NOT NULL |
 | payment_date | DATE | |
 | status | VARCHAR(7) | NOT NULL, `CHECK IN ('PENDING','PAID')` |
-| settled_by_payment_id **[novo]** | BIGINT | FK → invoice_payments ON DELETE SET NULL. Preenchido quando a quitação da fatura marcou o item |
+| settled_by_payment_id **[novo]** | BIGINT | FK → invoice_payments ON DELETE NO ACTION (o serviço reverte o item antes de apagar o pagamento). Preenchido quando a quitação da fatura marcou o item; nesse caso `payment_date` = `paid_at` do pagamento que quitou |
 | version **[novo]** | BIGINT | NOT NULL |
 
 - `CHECK ((status = 'PAID') = (payment_date IS NOT NULL))`.
@@ -173,6 +182,18 @@ pago_fatura     = Σ invoice_payments.amount WHERE account_id = :a AND invoice_m
 restante        = total − pago_individual − pago_fatura           (invariante: restante ≥ 0)
 ```
 
+**Indicadores do painel de um mês M (por mês de vencimento, FR-030)**
+
+```text
+Total do Mês  = Σ amount das despesas com reference_month = M
+Total Pago    = Σ amount das despesas de M com status PAID e settled_by_payment_id IS NULL
+              + Σ invoice_payments.amount das faturas com invoice_month = M
+                (itens quitados por pagamento de fatura não entram de novo)
+Total a Vencer = Σ restante das faturas de M com due_date ≥ hoje
+              + Σ amount das despesas de M fora de cartão, PENDING e due_date ≥ hoje
+Atrasado      = o mesmo cálculo de Total a Vencer, com due_date < hoje
+```
+
 ## Transições de estado
 
 **Lançamento (`transactions.status`)**
@@ -201,12 +222,12 @@ lançamentos.
 | `closing_day`/`due_day` 1–31, obrigatórios só no cartão | FR-012 | `CHECK` + serviço |
 | valores > 0 com 2 casas decimais; datas válidas | FR-025 | `CHECK` + Bean Validation |
 | soma das parcelas = `total_amount` (resto na última) | FR-023 | `InstallmentScheduler` + teste |
-| vencimento no cartão conforme fechamento | FR-021 | `InstallmentScheduler` |
+| vencimento no cartão conforme fechamento (parcela, avulso e fixo) | FR-021 | `DueDateCalculator` |
 | vencimento mensal fora do cartão | FR-022 | `InstallmentScheduler` |
 | pagamento de fatura ≤ restante; restante ≥ 0 | FR-033, FR-037 | serviço (transação com `FOR UPDATE`) |
 | referências do mesmo usuário | Princípio III | FKs compostas |
 | status ↔ `payment_date` | FR-018 | `CHECK` |
-| exclusão de conta/categoria em uso | FR-013, FR-015 | `RESTRICT` + `409` |
+| exclusão de conta/categoria em uso | FR-013, FR-015 | `NO ACTION` + `409` |
 
 ## Mapeamento dos requisitos para o modelo
 

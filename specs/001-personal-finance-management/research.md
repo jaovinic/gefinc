@@ -32,6 +32,12 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   - Demais contas: parcela *k* vence no mês do primeiro vencimento + (*k*−1), limitada ao
     último dia do mês, preservando o dia original como referência (31/01 → 28/02 → 31/03).
   - Valor: `floor(total/n, 2)` em cada parcela; o resto de centavos vai para a última.
+  - Quando `due_day == closing_day`, o vencimento cai no mês seguinte ao fechamento (a regra é
+    `due_day > closing_day` para o mesmo mês).
+  - A regra do cartão vale para **toda** ocorrência: parcela, compra avulsa e cada mês de um
+    lançamento fixo (tratado como compra no dia de `purchase_date` do mês, limitado ao último dia).
+    O vencimento nunca é informado pelo usuário em cartão. A classe pura `DueDateCalculator`
+    (Java e TypeScript) concentra o cálculo; `InstallmentScheduler` e o serviço de grupos a usam.
 - **Racional**: a constituição exige que o cálculo viva em `utils` (Princípio I) e que o
   resultado seja determinístico (Princípio II); o servidor continua sendo a fonte da verdade.
   Vetores compartilhados evitam divergência silenciosa entre as duas implementações.
@@ -54,6 +60,12 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
 - **Invariante**: `restante ≥ 0` sempre. Operações que o violariam (excluir item, reduzir
   valor, ou pagar acima do restante) retornam `409` com código `INVOICE_BALANCE_VIOLATION`.
   Verificação feita dentro da transação com `SELECT … FOR UPDATE` na linha da conta.
+- **Chaves e exclusão**: referências a pai usam `ON DELETE NO ACTION`, não `RESTRICT` (que não
+  pode ser adiado e falharia na exclusão de usuário em cascata, FR-010). Itens quitados por
+  pagamento recebem `payment_date` = `paid_at` do pagamento; `settled_by_payment_id` não usa
+  `SET NULL`, para que um item não vire "pago individualmente" por engano.
+- **Painel**: "Total Pago" = itens pagos individualmente + pagamentos de fatura do mês do
+  vencimento (itens quitados por pagamento não entram de novo). Ver `data-model.md`.
 - **Alternativas**: tabela `invoices` materializada (duplica dado e exige sincronização);
   marcar itens como pagos a cada pagamento parcial (contradiz a spec).
 
@@ -81,7 +93,12 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   - **Mobile**: ambos os tokens ficam no corpo JSON e são guardados em armazenamento seguro do
     dispositivo (Keychain/Keystore via plugin de secure storage do Capacitor).
   - O cliente web identifica-se com o cabeçalho `X-Client: web` para receber o cookie.
-- **Senhas**: BCrypt com custo 12 (nativo do Spring Security).
+- **Senhas**: BCrypt com custo 12 (nativo do Spring Security). O limite é de **72 bytes** em
+  UTF-8, validado no servidor (não 72 caracteres).
+- **Invalidação imediata**: `users.token_version` (inteiro) é gravado no JWT de acesso. O filtro
+  de segurança faz uma consulta indexada por requisição e recusa tokens com versão diferente ou
+  de usuário com exclusão pendente. A versão sobe na troca de senha e no pedido de exclusão, o
+  que encerra também os tokens de acesso ainda não expirados (FR-006, FR-008).
 - **Racional**: reduz exposição a XSS no web (token longo fora do JavaScript) e atende o
   armazenamento seguro no mobile. Dois modos de entrega são justificados em Complexity Tracking.
 - **Alternativas**: tudo em `localStorage` (vulnerável a XSS); sessão com cookie de servidor
@@ -107,6 +124,8 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   endpoint próprio que recebe e-mail e senha. Um job diário remove, com `DELETE` em cascata,
   usuários com `deletion_requested_at` ≤ agora − 30 dias. O e-mail permanece reservado durante
   a carência (unicidade natural).
+- **Efeito imediato**: o pedido de exclusão incrementa `token_version`; credenciais de acesso
+  emitidas antes são recusadas já na requisição seguinte (ver D5).
 - **Racional**: nenhum dado é acessível durante a carência e a eliminação é completa por
   `ON DELETE CASCADE`, sem lógica espalhada.
 - **Observação**: retenção em backups do banco após a exclusão é decisão operacional, anotada
@@ -182,6 +201,9 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
 - **Frontend**: Jest + Testing Library para componentes e `utils`; Playwright para fluxos
   críticos (cadastro/login, lançar parcelado, pagar fatura parcial, painel) e para o fluxo
   móvel de 3 toques em viewport de celular.
+- **Carga (SC-008)**: script de carga com k6 em `apps/api-server/loadtest/` simulando 1.000
+  usuários simultâneos nos fluxos de lançamento, painel e projeção, executado sob demanda e
+  antes de releases (fora da pipeline padrão).
 - **Vetores compartilhados**: `installments.json` consumido por Java e TypeScript (D2).
 - **Pipeline**: `nx affected -t lint test build`; o build Maven roda via `nx:run-commands`.
 
@@ -190,7 +212,7 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
 - **Decisão**: `apps/api-server` mantém um `pom.xml` próprio e um `project.json` com alvos
   `build`, `test`, `serve` e `lint` que executam o Maven Wrapper (`./mvnw`) por
   `nx:run-commands`. Scripts do `package.json`: `dev` (sobe o PostgreSQL e o Mailpit via Docker
-  Compose e executa `serve` do backend e do web em paralelo), `test`, `build`.
+  Compose e executa `serve` do backend, do web e do mobile no navegador em paralelo), `test`, `build`.
 - **Alternativas**: plugin comunitário de Maven para Nx (dependência extra sem necessidade).
 
 ## D16. Observabilidade e segurança operacional

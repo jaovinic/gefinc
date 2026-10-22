@@ -21,12 +21,13 @@ npm install
 npm run dev
 ```
 
-`npm run dev` executa, em ordem:
+`npm run dev` executa, em ordem (os itens 2 a 4 rodam em paralelo):
 
 1. `docker compose up -d` (PostgreSQL em `localhost:5432` e Mailpit em `localhost:8025`);
 2. `nx run api-server:serve` (API em `http://localhost:8080/api/v1`, migrações Flyway aplicadas
    no boot);
-3. `nx run web-app:serve` (web em `http://localhost:4200`).
+3. `nx run web-app:serve` (web em `http://localhost:4200`);
+4. `nx run mobile-app:serve` (app móvel no navegador, em `http://localhost:8100`).
 
 Variáveis de ambiente locais ficam em `.env` (não versionado; modelo em `.env.example`):
 `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `APP_BASE_URL`.

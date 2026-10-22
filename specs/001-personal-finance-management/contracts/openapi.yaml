@@ -134,7 +134,7 @@ paths:
               required: [token, newPassword]
               properties:
                 token: { type: string }
-                newPassword: { type: string, format: password, minLength: 10 }
+                newPassword: { type: string, format: password, minLength: 10, description: 'Mínimo de 10 caracteres e máximo de 72 bytes em UTF-8' }
       responses:
         '204': { description: Senha alterada; sessões anteriores encerradas }
         '400':
@@ -348,11 +348,14 @@ paths:
       summary: Registra lançamento fixo, avulso ou parcelado (FR-016 a FR-023)
       description: |
         Gera as ocorrências conforme `recurrenceType`:
-        - `VARIABLE`: 1 ocorrência em `firstDueDate`.
-        - `INSTALLMENT`: N parcelas; no cartão, vencimentos pelo fechamento/vencimento da fatura
-          (o `firstDueDate` é calculado pelo servidor e o enviado é ignorado); nas demais contas,
-          mensais a partir de `firstDueDate`. Soma = `totalAmount` (resto na última parcela).
-        - `FIXED`: ocorrências mensais para os próximos 12 meses.
+        Em conta do tipo `CREDIT_CARD`, o vencimento de **toda** ocorrência é calculado pelo
+        servidor a partir de `purchaseDate` e dos dias de fechamento e vencimento do cartão
+        (FR-021); `firstDueDate` é ignorado e pode ser omitido. Nas demais contas,
+        `firstDueDate` é obrigatório (`422` se ausente).
+        - `VARIABLE`: 1 ocorrência.
+        - `INSTALLMENT`: N parcelas, uma por mês. Soma = `totalAmount` (resto na última parcela).
+        - `FIXED`: ocorrências mensais para os próximos 12 meses; no cartão, cada mês é tratado
+          como compra no dia de `purchaseDate` daquele mês (limitado ao último dia do mês).
       requestBody:
         required: true
         content:
@@ -863,7 +866,7 @@ components:
       required: [email, password]
       properties:
         email: { type: string, format: email, maxLength: 254 }
-        password: { type: string, format: password, minLength: 10, maxLength: 72 }
+        password: { type: string, format: password, minLength: 10, description: 'Mínimo de 10 caracteres e máximo de 72 bytes em UTF-8 (limite do BCrypt), validado no servidor' }
     Credentials:
       type: object
       required: [email, password]
@@ -939,7 +942,7 @@ components:
 
     TransactionGroupInput:
       type: object
-      required: [description, recurrenceType, totalAmount, accountId, categoryId, purchaseDate, firstDueDate]
+      required: [description, recurrenceType, totalAmount, accountId, categoryId, purchaseDate]
       properties:
         description: { type: string, minLength: 1, maxLength: 120 }
         recurrenceType: { $ref: '#/components/schemas/RecurrenceType' }
@@ -959,7 +962,7 @@ components:
         firstDueDate:
           type: string
           format: date
-          description: Ignorado em INSTALLMENT no cartão (calculado pelo servidor)
+          description: Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor)
     TransactionGroupUpdate:
       type: object
       required: [description, categoryId, version]
@@ -1108,11 +1111,14 @@ components:
         totalToDue:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: Ainda pendente (após itens pagos e pagamentos de fatura) e não vencido
+          description: Restante ainda não vencido do mês (faturas de cartão pelo restante da fatura; demais itens pelo valor pendente)
         totalPaid:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: Itens pagos + pagamentos de fatura
+          description: >-
+            Soma de itens com vencimento no mês marcados como pagos individualmente (sem `settledByInvoicePayment`)
+            mais os pagamentos de fatura cuja fatura vence no mês. Itens quitados por pagamento de fatura
+            não são somados de novo.
         overdueTotal: { $ref: '#/components/schemas/Money' }
         byCategory:
           type: array

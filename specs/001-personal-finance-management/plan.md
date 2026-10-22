@@ -22,7 +22,7 @@ derivadas; só os pagamentos de fatura são persistidos.
 **Language/Version**: Java 21 (backend); TypeScript 5.x com Angular 17+ (web e mobile). Versões exatas fixadas no scaffolding, usando a última estável da faixa exigida
 **Primary Dependencies**: Spring Boot 3.x (Web, Security, Data JPA, Validation, Mail, Actuator), Flyway, Maven; Angular 17+ (Signals, standalone), Tailwind CSS, Ionic 7+, Capacitor, Chart.js 4, Nx
 **Storage**: PostgreSQL 16 (`NUMERIC(19,2)` para dinheiro); migrações Flyway; Mailpit para e-mail em desenvolvimento
-**Testing**: JUnit 5, AssertJ, Testcontainers (PostgreSQL 16), swagger-request-validator; Jest + Testing Library; Playwright (web e viewport móvel)
+**Testing**: JUnit 5, AssertJ, Testcontainers (PostgreSQL 16), swagger-request-validator; Jest + Testing Library; Playwright (web e viewport móvel); k6 (carga sob demanda)
 **Target Platform**: API em Linux (JVM 21); web em navegadores modernos desktop; app móvel Android e iOS via Capacitor
 **Project Type**: Monorepo Nx: web application + mobile app + API
 **Performance Goals**: painel e projeção em até 2 s (p95) com ~6.000 lançamentos por usuário (SC-006); 1.000 usuários simultâneos sem degradação perceptível (SC-008)
@@ -90,7 +90,7 @@ apps/
 │   └── src/app/{core,auth,accounts,categories,transactions,invoices,dashboard}/
 │
 └── mobile-app/                          # Ionic + Angular + Capacitor
-    └── src/app/{core,auth,quick-expense,transactions,invoices,dashboard}/
+    └── src/app/{core,auth,home,quick-expense}/
 
 packages/
 ├── core-models/                         # tipos gerados do OpenAPI + enums
@@ -119,4 +119,5 @@ unitário direto.
 | `user_id` redundante em `transactions` e FKs compostas | Garante no banco que referências são do mesmo usuário e acelera o índice `(user_id, due_date)` (Princípios III e V) | Filtro só na aplicação deixa um bug de serviço gravar ou ler dados de outro usuário |
 | Cálculo de parcelas implementado em Java e em TypeScript | A constituição exige o cálculo em `utils` (prévia na UI) e o servidor precisa ser autoritativo (Princípios I e II) | Só no servidor adiciona latência e viola a localização exigida; só no cliente não é confiável. Vetores compartilhados evitam divergência |
 | Tabelas e colunas além do `spec-genfic.md` §5 (`invoice_payments`, `refresh_tokens`, `password_reset_tokens`, `active`, `version`, `reference_month`, etc.) | Necessárias para pagamento de fatura, sessões com rotação, recuperação de senha, inativação e concorrência otimista, todas exigidas pela spec e pela clarificação | Remover qualquer uma impede atender FR-002, FR-006, FR-011, FR-033–FR-038 |
+| Consulta indexada ao banco em cada requisição autenticada (`users.token_version`) | Invalidar de imediato os tokens de acesso ao trocar a senha ou pedir exclusão (FR-006, FR-008) | JWT puramente stateless deixa o token válido até 15 minutos após o evento |
 | Materialização de 12 meses de lançamentos fixos + job diário | Consultas de painel e projeção ficam agregações SQL simples e testáveis (FR-019, SC-006) | Expandir recorrência em tempo de leitura complica as consultas e o teste de totais |
