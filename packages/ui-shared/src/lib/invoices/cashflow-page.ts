@@ -1,6 +1,9 @@
 import { Component, effect, signal, untracked, inject } from '@angular/core';
 import type { CashflowMonth } from '@gefinc/core-models';
-import { ErrorView, InvoicesApi, LoadingView, MonthPicker, messageFor, toProblem } from '@gefinc/ui-shared';
+import { InvoicesApi, messageFor, toProblem } from '../api';
+import { MonthPicker } from '../month-picker/month-picker';
+import { ErrorView, LoadingView } from '../state-views/state-views';
+import { Viewport } from '../viewport/viewport';
 import { currentMonth, formatBRL } from '@gefinc/utils';
 
 /** Saldo residual por mês: receitas previstas menos despesas previstas (FR-028). */
@@ -17,6 +20,28 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
         <gef-loading message="Calculando saldo residual…" />
       } @else if (error()) {
         <gef-error [message]="error()!" (retry)="load()" />
+      } @else if (viewport.compact()) {
+        <ul class="space-y-3" aria-label="Saldo residual por mês">
+          @for (row of rows(); track row.month) {
+            <li data-testid="cashflow-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+              <p class="font-semibold">{{ row.month }}</p>
+              <dl class="mt-2 space-y-1 text-body-base">
+                <div class="flex justify-between gap-3">
+                  <dt class="text-gefinc-muted">Receitas previstas</dt>
+                  <dd class="financial-value text-gefinc-primary">{{ money(row.expectedIncome) }}</dd>
+                </div>
+                <div class="flex justify-between gap-3">
+                  <dt class="text-gefinc-muted">Despesas previstas</dt>
+                  <dd class="financial-value">{{ money(row.expectedExpense) }}</dd>
+                </div>
+                <div class="flex justify-between gap-3 border-t border-gefinc-border pt-1">
+                  <dt class="font-semibold">Saldo residual</dt>
+                  <dd class="financial-value font-semibold" [class.text-gefinc-danger]="isNegative(row)" [attr.data-negative]="isNegative(row)">{{ money(row.residual) }}</dd>
+                </div>
+              </dl>
+            </li>
+          }
+        </ul>
       } @else {
         <div class="overflow-x-auto rounded-xl border border-gefinc-border">
           <table class="w-full text-left text-body-base" aria-label="Saldo residual por mês">
@@ -48,6 +73,7 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
 })
 export class CashflowPage {
   private readonly api = inject(InvoicesApi);
+  protected readonly viewport = inject(Viewport);
 
   protected readonly from = signal(currentMonth());
   protected readonly rows = signal<CashflowMonth[]>([]);

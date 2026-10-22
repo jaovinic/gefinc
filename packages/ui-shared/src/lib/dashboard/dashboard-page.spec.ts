@@ -13,9 +13,10 @@ jest.mock('chart.js', () => {
 
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { APP_PATHS } from '../layout/app-paths';
 import { provideRouter } from '@angular/router';
 import { currentMonth } from '@gefinc/utils';
-import { API, configureHttpTesting } from '../../test/testbed';
+import { API, configureHttpTesting } from '../../testing/testbed';
 import { DashboardPage } from './dashboard-page';
 
 const month = currentMonth();
@@ -80,5 +81,20 @@ describe('DashboardPage', () => {
     ctx.http.expectOne((r) => r.url === `${API}/dashboard`).flush({}, { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')?.textContent).toContain('erro inesperado');
+  });
+
+  it('o atalho do estado vazio usa o caminho de lançamentos configurado pelo app', async () => {
+    TestBed.configureTestingModule({ providers: [{ provide: APP_PATHS, useValue: { transactions: '/lancamentos' } }] });
+    const { el } = await setup({ ...full, totalMonth: '0.00', totalPaid: '0.00', totalToDue: '0.00', overdueTotal: '0.00', byCategory: [], byCard: [] });
+    expect(el.querySelector('a[href="/lancamentos"]')).not.toBeNull();
+  });
+
+  it('os indicadores ficam em duas colunas no celular e os valores cabem na tela', async () => {
+    const { el } = await setup(full);
+    const grid = el.querySelector('[data-indicator]')?.parentElement as HTMLElement;
+    expect(grid.className).toContain('grid-cols-2');
+    for (const id of ['total-month', 'to-due', 'paid', 'overdue']) {
+      expect(el.querySelector(`[data-indicator="${id}"] .financial-value`)?.className).toContain('text-title-lg');
+    }
   });
 });

@@ -13,3 +13,6 @@ export * from './lib/categories/categories-page';
 export * from './lib/transactions/transactions-page';
 export * from './lib/transactions/group-form';
 export * from './lib/invoices/invoices-page';
+export * from './lib/layout/app-paths';
+export * from './lib/dashboard/dashboard-page';
+export * from './lib/invoices/cashflow-page';

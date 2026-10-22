@@ -1,91 +1,19 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { Dashboard } from '@gefinc/core-models';
-import { DashboardApi, ErrorView, LoadingView, messageFor, toProblem } from '@gefinc/ui-shared';
-import { currentMonth, formatBRL } from '@gefinc/utils';
+import { DashboardPage } from '@gefinc/ui-shared';
 
 /**
- * Tela inicial do app: resumo do mês e o botão "Nova despesa", ponto de partida do lançamento rápido
- * (FR-041). Recarrega o resumo sempre que a tela volta a aparecer.
+ * Tela inicial do app: o painel do mês e o botão "+ Nova despesa", ponto de partida do lançamento
+ * rápido (FR-014), que continua a um toque do painel.
  */
 @Component({
   selector: 'gef-home-page',
-  imports: [ErrorView, LoadingView, RouterLink],
+  imports: [DashboardPage, RouterLink],
   template: `
-    <div>
-      <section class="space-y-4 p-4 pb-28">
-        <h1 class="text-title-lg font-bold">Resumo de {{ monthLabel() }}</h1>
-        @if (loading()) {
-          <gef-loading message="Carregando o resumo…" />
-        } @else if (error()) {
-          <gef-error [message]="error()!" (retry)="load()" />
-        } @else if (summary(); as d) {
-          <div class="grid grid-cols-2 gap-3">
-            <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="total-month">
-              <p class="text-caption text-gefinc-muted">Total do mês</p>
-              <p class="financial-value text-title-md font-extrabold">{{ money(d.totalMonth) }}</p>
-            </div>
-            <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="to-due">
-              <p class="text-caption text-gefinc-muted">A vencer</p>
-              <p class="financial-value text-title-md font-extrabold text-gefinc-warning">{{ money(d.totalToDue) }}</p>
-            </div>
-            <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="paid">
-              <p class="text-caption text-gefinc-muted">Pago</p>
-              <p class="financial-value text-title-md font-extrabold text-gefinc-primary">{{ money(d.totalPaid) }}</p>
-            </div>
-            <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="overdue">
-              <p class="text-caption text-gefinc-muted">Atrasado</p>
-              <p class="financial-value text-title-md font-extrabold" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
-            </div>
-          </div>
-        }
-      </section>
-      <a
-        routerLink="/quick-expense"
-        class="gef-fab"
-        >+ Nova despesa</a
-      >
+    <div class="gef-page">
+      <gef-dashboard-page />
     </div>
+    <a routerLink="/quick-expense" class="gef-fab">+ Nova despesa</a>
   `,
 })
-export class HomePage implements OnInit {
-  private readonly api = inject(DashboardApi);
-
-  protected readonly summary = signal<Dashboard | null>(null);
-  protected readonly loading = signal(true);
-  protected readonly error = signal<string | null>(null);
-  protected readonly monthLabel = computed(() => {
-    const [year, month] = currentMonth().split('-').map(Number);
-    return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
-  });
-
-  ngOnInit(): void {
-    this.load();
-  }
-
-  /** O Ionic mantém a tela em cache; ao voltar do lançamento rápido o resumo é recarregado. */
-  ionViewWillEnter(): void {
-    if (!this.loading()) {
-      this.load();
-    }
-  }
-
-  protected load(): void {
-    this.loading.set(true);
-    this.error.set(null);
-    this.api.dashboard(currentMonth()).subscribe({
-      next: (data) => {
-        this.summary.set(data);
-        this.loading.set(false);
-      },
-      error: (e: unknown) => {
-        this.error.set(messageFor(toProblem(e)));
-        this.loading.set(false);
-      },
-    });
-  }
-
-  protected money(value: string): string {
-    return formatBRL(value);
-  }
-}
+export class HomePage {}

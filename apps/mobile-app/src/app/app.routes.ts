@@ -1,5 +1,5 @@
 import { Route } from '@angular/router';
-import { AccountsPage, CategoriesPage, InvoicesPage, TransactionsPage, authGuard } from '@gefinc/ui-shared';
+import { AccountsPage, CashflowPage, CategoriesPage, InvoicesPage, TransactionsPage, authGuard } from '@gefinc/ui-shared';
 import { ForgotPasswordPage, LoginPage, RegisterPage } from './auth/auth-pages';
 import { HomePage } from './home/home.page';
 import { MobileShell } from './shell/mobile-shell';
@@ -24,6 +24,7 @@ export const appRoutes: Route[] = [
       { path: 'mais', component: MorePage },
       { path: 'lancamentos', component: TransactionsPage },
       { path: 'faturas', component: InvoicesPage },
+      { path: 'fluxo-de-caixa', component: CashflowPage },
       { path: 'contas', component: AccountsPage },
       { path: 'categorias', component: CategoriesPage },
       // As demais telas (lançamentos, faturas, contas, categorias, fluxo de caixa e minha conta)

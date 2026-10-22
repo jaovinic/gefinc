@@ -1,18 +1,13 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Dashboard } from '@gefinc/core-models';
-import {
-  CardBars,
-  CategoryDonut,
-  ChartSlice,
-  DashboardApi,
-  EmptyView,
-  ErrorView,
-  LoadingView,
-  MonthPicker,
-  messageFor,
-  toProblem,
-} from '@gefinc/ui-shared';
+import { DashboardApi, messageFor, toProblem } from '../api';
+import { CardBars } from '../charts/card-bars';
+import { CategoryDonut } from '../charts/category-donut';
+import { ChartSlice } from '../charts/chart-slice';
+import { APP_PATHS } from '../layout/app-paths';
+import { MonthPicker } from '../month-picker/month-picker';
+import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { currentMonth, formatBRL } from '@gefinc/utils';
 
 const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
@@ -35,25 +30,25 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
       } @else if (data(); as d) {
         @if (isEmpty(d)) {
           <gef-empty title="Sem lançamentos neste mês" hint="Cadastre uma despesa para ver os indicadores e os gráficos.">
-            <a class="gef-btn-secondary inline-block" routerLink="/transactions">Ir para lançamentos</a>
+            <a class="gef-btn-secondary inline-block" [routerLink]="paths.transactions">Ir para lançamentos</a>
           </gef-empty>
         } @else {
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="total-month">
               <p class="text-caption text-gefinc-muted">Total do mês</p>
-              <p class="financial-value text-display-1 font-extrabold">{{ money(d.totalMonth) }}</p>
+              <p class="financial-value text-title-lg font-extrabold sm:text-display-1">{{ money(d.totalMonth) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="to-due">
               <p class="text-caption text-gefinc-muted">A vencer</p>
-              <p class="financial-value text-display-1 font-extrabold text-gefinc-warning">{{ money(d.totalToDue) }}</p>
+              <p class="financial-value text-title-lg font-extrabold sm:text-display-1 text-gefinc-warning">{{ money(d.totalToDue) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="paid">
               <p class="text-caption text-gefinc-muted">Pago</p>
-              <p class="financial-value text-display-1 font-extrabold text-gefinc-primary">{{ money(d.totalPaid) }}</p>
+              <p class="financial-value text-title-lg font-extrabold sm:text-display-1 text-gefinc-primary">{{ money(d.totalPaid) }}</p>
             </div>
             <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-indicator="overdue">
               <p class="text-caption text-gefinc-muted">Atrasado</p>
-              <p class="financial-value text-display-1 font-extrabold" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
+              <p class="financial-value text-title-lg font-extrabold sm:text-display-1" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
             </div>
           </div>
 
@@ -80,6 +75,7 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
 })
 export class DashboardPage {
   private readonly api = inject(DashboardApi);
+  protected readonly paths = inject(APP_PATHS);
 
   protected readonly month = signal(currentMonth());
   protected readonly data = signal<Dashboard | null>(null);

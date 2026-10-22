@@ -34,7 +34,7 @@ export async function signIn(page: Page, email: string) {
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(page.getByRole('heading', { name: /Resumo de/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
 }
 
 /** Abre uma área pela barra de abas inferior. */

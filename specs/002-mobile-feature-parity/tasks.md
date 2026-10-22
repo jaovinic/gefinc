@@ -100,11 +100,11 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Painel com gráficos legíveis em tela pequena, navegação entre meses e fluxo de caixa; o Painel vira a tela inicial do app
 
-- [ ] T035 [P] [US4] [Teste] Mover `apps/web-app/src/app/dashboard/dashboard-page.spec.ts` e `apps/web-app/src/app/invoices/cashflow-page.spec.ts` para `packages/ui-shared/src/lib/dashboard/` e `packages/ui-shared/src/lib/invoices/` e acrescentar casos compactos (indicadores em grade de 2 colunas, gráficos com legenda legível, estado vazio com atalho para criar lançamento); ver falhar
-- [ ] T036 [P] [US4] [Teste] Criar `apps/mobile-app-e2e/src/dashboard-cashflow.spec.ts` (E2E mobile): comparar cada indicador, gráfico e linha do fluxo de caixa com a resposta da API para o mesmo mês (SC-002), trocar de mês, estado vazio, atualização imediata depois de criar e pagar; ver falhar
-- [ ] T037 [US4] Mover `apps/web-app/src/app/dashboard/dashboard-page.ts` e `apps/web-app/src/app/invoices/cashflow-page.ts` para `packages/ui-shared/src/lib/dashboard/` e `packages/ui-shared/src/lib/invoices/` com layout responsivo e gráficos adaptados (`packages/ui-shared/src/lib/charts/`); exportar em `packages/ui-shared/src/index.ts`
-- [ ] T038 [US4] Substituir `apps/mobile-app/src/app/home/home.page.ts` pela tela de Painel de `ui-shared` como tela inicial do mobile, mantendo o botão "+ Nova despesa" (`.gef-fab`) e adicionando `fluxo-de-caixa` ao menu Mais; remover o código antigo da home
-- [ ] T039 [US4] Executar `npx nx e2e web-app-e2e` (invoices-dashboard) e `npx nx e2e mobile-app-e2e` (dashboard-cashflow e quick-expense)
+- [X] T035 [P] [US4] [Teste] Mover `apps/web-app/src/app/dashboard/dashboard-page.spec.ts` e `apps/web-app/src/app/invoices/cashflow-page.spec.ts` para `packages/ui-shared/src/lib/dashboard/` e `packages/ui-shared/src/lib/invoices/` e acrescentar casos compactos (indicadores em grade de 2 colunas, gráficos com legenda legível, estado vazio com atalho para criar lançamento); ver falhar
+- [X] T036 [P] [US4] [Teste] Criar `apps/mobile-app-e2e/src/dashboard-cashflow.spec.ts` (E2E mobile): comparar cada indicador, gráfico e linha do fluxo de caixa com a resposta da API para o mesmo mês (SC-002), trocar de mês, estado vazio, atualização imediata depois de criar e pagar; ver falhar
+- [X] T037 [US4] Mover `apps/web-app/src/app/dashboard/dashboard-page.ts` e `apps/web-app/src/app/invoices/cashflow-page.ts` para `packages/ui-shared/src/lib/dashboard/` e `packages/ui-shared/src/lib/invoices/` com layout responsivo e gráficos adaptados (`packages/ui-shared/src/lib/charts/`); exportar em `packages/ui-shared/src/index.ts`
+- [X] T038 [US4] Substituir `apps/mobile-app/src/app/home/home.page.ts` pela tela de Painel de `ui-shared` como tela inicial do mobile, mantendo o botão "+ Nova despesa" (`.gef-fab`) e adicionando `fluxo-de-caixa` ao menu Mais; remover o código antigo da home
+- [X] T039 [US4] Executar `npx nx e2e web-app-e2e` (invoices-dashboard) e `npx nx e2e mobile-app-e2e` (dashboard-cashflow e quick-expense)
 
 ---
 

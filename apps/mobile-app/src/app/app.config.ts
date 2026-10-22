@@ -4,7 +4,7 @@ import localePt from '@angular/common/locales/pt';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideIonicAngular } from '@ionic/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { authInterceptor } from '@gefinc/ui-shared';
+import { APP_PATHS, authInterceptor } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
 import { provideSession } from './core/session.providers';
 
@@ -17,6 +17,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes, withComponentInputBinding()),
     provideHttpClient(withInterceptors([authInterceptor])),
     { provide: LOCALE_ID, useValue: 'pt-BR' },
+    { provide: APP_PATHS, useValue: { transactions: '/lancamentos' } },
     provideSession(),
   ],
 };
