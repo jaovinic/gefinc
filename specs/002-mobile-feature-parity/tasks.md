@@ -158,13 +158,13 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Bloqueio opcional por biometria, alternativa por senha e conteúdo oculto em apps recentes
 
-- [ ] T065 [P] [US8] [Teste] Escrever `apps/mobile-app/src/app/lock/app-lock.service.spec.ts`: padrão desligado, bloquear quando o tempo em segundo plano passa de 0, 1 ou 5 minutos, desbloquear com sucesso, falhas repetidas oferecem a senha, biometria indisponível ou removida desliga o bloqueio e pede senha, ativar exige confirmar a biometria, preferências por usuário; ver falhar
-- [ ] T066 [P] [US8] [Teste] Escrever `apps/mobile-app/src/app/lock/lock-screen.spec.ts`: cobre todo o conteúdo, tenta a biometria ao aparecer, botões "Tentar de novo" e "Entrar com senha" (encerra a sessão, com confirmação se houver pendentes); ver falhar
-- [ ] T067 [P] [US8] [Teste] Criar `apps/mobile-app-e2e/src/support/native-doubles.ts` (dublês de biometria, rede e notificações injetados pelo teste) e `apps/mobile-app-e2e/src/lock.spec.ts` (E2E mobile): ativar em Minha conta, segundo plano além do tempo, bloqueio, desbloqueio, recusa e alternativa de senha, indisponível; ver falhar
-- [ ] T068 [US8] Implementar `apps/mobile-app/src/app/lock/app-lock.service.ts` (`@aparajita/capacitor-biometric-auth`, `@capacitor/app` para segundo plano e primeiro plano, preferências em Capacitor Preferences por usuário)
-- [ ] T069 [US8] Implementar `apps/mobile-app/src/app/lock/lock-screen.ts` e integrá-la em `apps/mobile-app/src/app/app.ts` por cima de todo o conteúdo; implementar `apps/mobile-app/src/app/lock/privacy.ts` (`@capacitor-community/privacy-screen` ligado enquanto o bloqueio estiver ativo)
-- [ ] T070 [US8] Acrescentar em `apps/mobile-app/src/app/settings/settings.page.ts` a seção de bloqueio (ligar e desligar, tempo, mensagem de indisponibilidade com como habilitar no aparelho, aviso de que no Android a captura de tela fica bloqueada); a exclusão de conta continua exigindo a senha (FR-037)
-- [ ] T071 [US8] Executar `npx nx test mobile-app` e `npx nx e2e mobile-app-e2e` (lock)
+- [X] T065 [P] [US8] [Teste] Escrever `apps/mobile-app/src/app/lock/app-lock.service.spec.ts`: padrão desligado, bloquear quando o tempo em segundo plano passa de 0, 1 ou 5 minutos, desbloquear com sucesso, falhas repetidas oferecem a senha, biometria indisponível ou removida desliga o bloqueio e pede senha, ativar exige confirmar a biometria, preferências por usuário; ver falhar
+- [X] T066 [P] [US8] [Teste] Escrever `apps/mobile-app/src/app/lock/lock-screen.spec.ts`: cobre todo o conteúdo, tenta a biometria ao aparecer, botões "Tentar de novo" e "Entrar com senha" (encerra a sessão, com confirmação se houver pendentes); ver falhar
+- [X] T067 [P] [US8] [Teste] Criar `apps/mobile-app-e2e/src/support/native-doubles.ts` (dublês de biometria, rede e notificações injetados pelo teste) e `apps/mobile-app-e2e/src/lock.spec.ts` (E2E mobile): ativar em Minha conta, segundo plano além do tempo, bloqueio, desbloqueio, recusa e alternativa de senha, indisponível; ver falhar
+- [X] T068 [US8] Implementar `apps/mobile-app/src/app/lock/app-lock.service.ts` (`@aparajita/capacitor-biometric-auth`, `@capacitor/app` para segundo plano e primeiro plano, preferências em Capacitor Preferences por usuário)
+- [X] T069 [US8] Implementar `apps/mobile-app/src/app/lock/lock-screen.ts` e integrá-la em `apps/mobile-app/src/app/app.ts` por cima de todo o conteúdo; implementar `apps/mobile-app/src/app/lock/privacy.ts` (`@capacitor-community/privacy-screen` ligado enquanto o bloqueio estiver ativo)
+- [X] T070 [US8] Acrescentar em `apps/mobile-app/src/app/settings/settings.page.ts` a seção de bloqueio (ligar e desligar, tempo, mensagem de indisponibilidade com como habilitar no aparelho, aviso de que no Android a captura de tela fica bloqueada); a exclusão de conta continua exigindo a senha (FR-037)
+- [X] T071 [US8] Executar `npx nx test mobile-app` e `npx nx e2e mobile-app-e2e` (lock)
 
 ---
 

@@ -1,0 +1,178 @@
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { BIOMETRIC_PORT, BiometricFailure, BiometricPort, PRIVACY_PORT, PrivacyPort } from '../native/native-ports';
+import { DevicePreferences } from './device-preferences';
+import { AppLockService } from './app-lock.service';
+
+describe('AppLockService (bloqueio por biometria)', () => {
+  const lock = signal({ enabled: false, timeoutMinutes: 1 });
+  const prefs = {
+    lock,
+    load: jest.fn(async () => undefined),
+    setLock: jest.fn(async (patch: Partial<{ enabled: boolean; timeoutMinutes: number }>) => lock.update((l) => ({ ...l, ...patch }))),
+  };
+  const biometric = { check: jest.fn(), authenticate: jest.fn() } satisfies Record<keyof BiometricPort, jest.Mock>;
+  const privacy = { enable: jest.fn(async () => undefined), disable: jest.fn(async () => undefined) } satisfies Record<keyof PrivacyPort, jest.Mock>;
+  let now: number;
+  let service: AppLockService;
+
+  beforeEach(() => {
+    lock.set({ enabled: false, timeoutMinutes: 1 });
+    prefs.load.mockClear();
+    prefs.setLock.mockClear();
+    biometric.check.mockReset().mockResolvedValue({ available: true });
+    biometric.authenticate.mockReset().mockResolvedValue(undefined);
+    privacy.enable.mockClear();
+    privacy.disable.mockClear();
+    now = 1_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: DevicePreferences, useValue: prefs },
+        { provide: BIOMETRIC_PORT, useValue: biometric },
+        { provide: PRIVACY_PORT, useValue: privacy },
+      ],
+    });
+    service = TestBed.inject(AppLockService);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it('desligado por padrão: o app abre desbloqueado e a visão de apps recentes não é protegida', async () => {
+    await service.start();
+
+    expect(service.locked()).toBe(false);
+    expect(privacy.enable).not.toHaveBeenCalled();
+  });
+
+  describe('ativar', () => {
+    it('confirma com a biometria, liga o bloqueio e protege a visão de apps recentes', async () => {
+      const result = await service.enable(5);
+
+      expect(result).toEqual({ ok: true });
+      expect(biometric.authenticate).toHaveBeenCalledTimes(1);
+      expect(prefs.setLock).toHaveBeenCalledWith({ enabled: true, timeoutMinutes: 5 });
+      expect(privacy.enable).toHaveBeenCalled();
+    });
+
+    it('sem biometria cadastrada explica o motivo e não liga', async () => {
+      biometric.check.mockResolvedValue({ available: false, reason: 'Nenhuma digital cadastrada' });
+
+      const result = await service.enable(1);
+
+      expect(result).toEqual({ ok: false, reason: 'unavailable', message: 'Nenhuma digital cadastrada' });
+      expect(prefs.setLock).not.toHaveBeenCalled();
+      expect(biometric.authenticate).not.toHaveBeenCalled();
+    });
+
+    it('se o usuário cancelar ou falhar na confirmação, não liga', async () => {
+      biometric.authenticate.mockRejectedValue(new BiometricFailure('cancelled'));
+
+      expect(await service.enable(1)).toMatchObject({ ok: false, reason: 'cancelled' });
+      expect(prefs.setLock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('bloquear e desbloquear', () => {
+    beforeEach(() => lock.set({ enabled: true, timeoutMinutes: 1 }));
+
+    it('abre bloqueado (início do app) e protege a visão de apps recentes', async () => {
+      await service.start();
+
+      expect(service.locked()).toBe(true);
+      expect(privacy.enable).toHaveBeenCalled();
+    });
+
+    it('desbloqueia com a biometria', async () => {
+      await service.start();
+
+      await service.unlock();
+
+      expect(service.locked()).toBe(false);
+      expect(service.failures()).toBe(0);
+    });
+
+    it.each([
+      [0, 0, true],
+      [1, 30_000, false],
+      [1, 61_000, true],
+      [5, 4 * 60_000, false],
+      [5, 5 * 60_000 + 1, true],
+    ])('tempo de bloqueio %s min: voltar do segundo plano depois de %s ms bloqueia = %s', async (minutes, away, expected) => {
+      lock.set({ enabled: true, timeoutMinutes: minutes });
+      await service.start();
+      await service.unlock();
+
+      service.onBackgrounded();
+      now += away;
+      await service.onForegrounded();
+
+      expect(service.locked()).toBe(expected);
+    });
+
+    it('falha de reconhecimento conta e avisa; cancelamento não conta', async () => {
+      await service.start();
+
+      biometric.authenticate.mockRejectedValueOnce(new BiometricFailure('failed'));
+      await service.unlock();
+      expect(service.failures()).toBe(1);
+      expect(service.message()).toBe('Biometria não reconhecida. Tente de novo.');
+      expect(service.locked()).toBe(true);
+
+      biometric.authenticate.mockRejectedValueOnce(new BiometricFailure('cancelled'));
+      await service.unlock();
+      expect(service.failures()).toBe(1);
+      expect(service.message()).toBeNull();
+    });
+
+    it('bloqueio por muitas tentativas pede a senha', async () => {
+      await service.start();
+      biometric.authenticate.mockRejectedValueOnce(new BiometricFailure('lockout'));
+
+      await service.unlock();
+
+      expect(service.locked()).toBe(true);
+      expect(service.message()).toContain('senha');
+      expect(service.passwordRequired()).toBe(true);
+    });
+
+    it('biometria removida do aparelho: desliga o bloqueio, avisa o motivo e exige a senha', async () => {
+      await service.start();
+      service.onBackgrounded();
+      biometric.check.mockResolvedValue({ available: false });
+
+      await service.onForegrounded();
+
+      expect(prefs.setLock).toHaveBeenCalledWith({ enabled: false });
+      expect(privacy.disable).toHaveBeenCalled();
+      expect(service.passwordRequired()).toBe(true);
+      expect(service.message()).toContain('biometria');
+    });
+  });
+
+  describe('desligar', () => {
+    beforeEach(async () => {
+      lock.set({ enabled: true, timeoutMinutes: 1 });
+      await service.start();
+      await service.unlock();
+    });
+
+    it('exige confirmar com a biometria', async () => {
+      const result = await service.disable();
+
+      expect(result).toEqual({ ok: true });
+      expect(prefs.setLock).toHaveBeenCalledWith({ enabled: false });
+      expect(privacy.disable).toHaveBeenCalled();
+    });
+
+    it('sem confirmação, continua ligado', async () => {
+      biometric.authenticate.mockRejectedValue(new BiometricFailure('failed'));
+
+      const result = await service.disable();
+
+      expect(result).toMatchObject({ ok: false });
+      expect(lock().enabled).toBe(true);
+      expect(privacy.disable).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -6,6 +6,7 @@ import { provideIonicAngular } from '@ionic/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { APP_PATHS, authInterceptor } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
+import { provideLock } from './lock/lock.providers';
 import { offlineInterceptor } from './offline/offline.interceptor';
 import { provideOffline } from './offline/offline.providers';
 import { provideSession } from './core/session.providers';
@@ -22,5 +23,6 @@ export const appConfig: ApplicationConfig = {
     { provide: APP_PATHS, useValue: { transactions: '/lancamentos' } },
     provideSession(),
     provideOffline(),
+    provideLock(),
   ],
 };
