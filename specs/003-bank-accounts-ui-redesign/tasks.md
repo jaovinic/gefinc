@@ -56,6 +56,7 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 - [ ] T016 [P] [Teste] Escrever `packages/ui-shared/src/lib/nav/nav-items.spec.ts`: lista única com Painel, Lançamentos, Faturas, Fluxo de caixa, Contas e cartões, Categorias e Minha conta, cada um com ícone e rotas do web e do app; ver falhar
 - [ ] T017 Implementar `packages/ui-shared/src/lib/nav/nav-items.ts` (`NAV_ITEMS`) e exportar
 - [ ] T018 [P] Estender `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` para conferir que `GET /accounts` com os campos novos mantém p95 abaixo de 2 s com 6.000 lançamentos
+- [ ] T019 Atualizar as fixtures e os testes existentes que criam contas bancárias e cartões sem os campos novos (conta `CHECKING` passa a enviar `holderType: "PF"`; cartão passa a enviar `bankAccountId` de uma conta bancária criada antes): `apps/api-server/src/test/java/com/jvtech/gefinc/support/TestApi.java` e os ITs que criam contas (`AccountApiIT`, `AccountIsolationIT`, `TransactionValidationIT`, `CardDaysChangeIT`, `FixedRecurrenceJobIT`, `InvoiceProjectionIT`, `InvoicePaymentIT`, `DashboardPerformanceIT`), `apps/web-app-e2e/src/support.ts` e as specs E2E de web e mobile com `prepareUser`/criação de conta (`accounts`, `transactions`, `invoices-dashboard`, `accessibility`, `quick-expense`, `invoices`, `offline`, `comfort`, `performance`, `dashboard-cashflow`, `accounts-categories`), `packages/ui-shared/src/testing/testbed.ts`, `apps/mobile-app/src/test/testbed.ts` e os mocks de conta dos specs de `ui-shared` e `mobile-app`; ao final, todos os testes **existentes** passam com o contrato novo antes de qualquer história começar
 
 ---
 
@@ -63,14 +64,14 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Tipo de titular PF/PJ, ícone, selo, filtro e tratamento de contas antigas
 
-- [ ] T019 [P] [US1] [Teste] Escrever `packages/ui-shared/src/lib/accounts/account-badge.spec.ts`: o selo mostra ícone e nome, o selo PF ou PJ quando informado, ícone padrão quando a conta não tem ícone (cópia local antiga) e nome longo cortado com o texto completo em `title`; ver falhar
-- [ ] T020 [P] [US1] [Teste] Escrever `packages/ui-shared/src/lib/accounts/icon-picker.spec.ts`: grade de ícones do catálogo com rótulos acessíveis, seleção por toque e por teclado (setas e Enter), valor inicial marcado, funciona como campo de formulário; ver falhar
-- [ ] T021 [P] [US1] [Teste] Criar `packages/ui-shared/src/lib/accounts/account-form.spec.ts` e estender `packages/ui-shared/src/lib/accounts/accounts-page.spec.ts`: titular PF/PJ obrigatório em conta bancária (aviso mantendo o digitado), ícone escolhido enviado, dinheiro sem titular, selo PF/PJ e ícone na lista (tabela e cartões), filtro PF/PJ/todas escondido quando só há um tipo, conta antiga sem titular aparece como PF e pode virar PJ; ver falhar
-- [ ] T022 [P] [US1] [Teste] Criar `apps/web-app-e2e/src/accounts-pf-pj.spec.ts` (E2E web): cadastrar conta PF e PJ com ícones, filtrar, alterar o titular, inativar; e `apps/mobile-app-e2e/src/accounts-pf-pj.spec.ts` (E2E mobile) com o mesmo roteiro em viewport de celular; ver falhar
-- [ ] T023 [US1] Implementar `packages/ui-shared/src/lib/accounts/account-badge.ts` (`gef-account-badge`) e `packages/ui-shared/src/lib/accounts/icon-picker.ts` (`gef-icon-picker`) e exportá-los
-- [ ] T024 [US1] Tornar `packages/ui-shared/src/lib/api/reference-data.ts` tolerante à cópia local antiga (titular ausente = PF, ícone ausente = padrão do tipo via `defaultIconFor`, cartão sem `bankAccountId`) e acrescentar `account(id)` e `cardsOf(bankAccountId)`
-- [ ] T025 [US1] Atualizar `packages/ui-shared/src/lib/accounts/account-form.ts` (tipo conta bancária/dinheiro/cartão, titular PF/PJ como escolha visível, `gef-icon-picker`, nome) e `packages/ui-shared/src/lib/accounts/accounts-page.ts` (selo PF/PJ, ícone, filtro PF/PJ/todas, aviso de conta antiga)
-- [ ] T026 [US1] Executar `npx nx run-many -t lint test --projects=ui-shared,core-models,utils`, o E2E web de contas e o E2E mobile de contas; corrigir regressões
+- [ ] T020 [P] [US1] [Teste] Escrever `packages/ui-shared/src/lib/accounts/account-badge.spec.ts`: o selo mostra ícone e nome, o selo PF ou PJ quando informado, ícone padrão quando a conta não tem ícone (cópia local antiga) e nome longo cortado com o texto completo em `title`; ver falhar
+- [ ] T021 [P] [US1] [Teste] Escrever `packages/ui-shared/src/lib/accounts/icon-picker.spec.ts`: grade de ícones do catálogo com rótulos acessíveis, seleção por toque e por teclado (setas e Enter), valor inicial marcado, funciona como campo de formulário; ver falhar
+- [ ] T022 [P] [US1] [Teste] Criar `packages/ui-shared/src/lib/accounts/account-form.spec.ts` e estender `packages/ui-shared/src/lib/accounts/accounts-page.spec.ts`: titular PF/PJ obrigatório em conta bancária (aviso mantendo o digitado), ícone escolhido enviado, dinheiro sem titular, selo PF/PJ e ícone na lista (tabela e cartões), filtro PF/PJ/todas escondido quando só há um tipo, conta antiga sem titular aparece como PF e pode virar PJ; ver falhar
+- [ ] T023 [P] [US1] [Teste] Criar `apps/web-app-e2e/src/accounts-pf-pj.spec.ts` (E2E web): cadastrar conta PF e PJ com ícones, filtrar, alterar o titular, inativar; e `apps/mobile-app-e2e/src/accounts-pf-pj.spec.ts` (E2E mobile) com o mesmo roteiro em viewport de celular; ver falhar
+- [ ] T024 [US1] Implementar `packages/ui-shared/src/lib/accounts/account-badge.ts` (`gef-account-badge`) e `packages/ui-shared/src/lib/accounts/icon-picker.ts` (`gef-icon-picker`) e exportá-los
+- [ ] T025 [US1] Tornar `packages/ui-shared/src/lib/api/reference-data.ts` tolerante à cópia local antiga (titular ausente = PF, ícone ausente = padrão do tipo via `defaultIconFor`, cartão sem `bankAccountId`) e acrescentar `account(id)` e `cardsOf(bankAccountId)`
+- [ ] T026 [US1] Atualizar `packages/ui-shared/src/lib/accounts/account-form.ts` (tipo conta bancária/dinheiro/cartão, titular PF/PJ como escolha visível, `gef-icon-picker`, nome) e `packages/ui-shared/src/lib/accounts/accounts-page.ts` (selo PF/PJ, ícone, filtro PF/PJ/todas, aviso de conta antiga)
+- [ ] T027 [US1] Executar `npx nx run-many -t lint test --projects=ui-shared,core-models,utils`, o E2E web de contas e o E2E mobile de contas; corrigir regressões
 
 ---
 
@@ -78,15 +79,15 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Vínculo obrigatório em cartões novos, seletor de conta/cartão com ícone e identificação em todas as telas
 
-- [ ] T027 [P] [US2] [Teste] Escrever `packages/ui-shared/src/lib/accounts/account-picker.spec.ts`: campo de formulário que mostra o selecionado com ícone e nome, abre a lista em `gef-sheet`, cada opção mostra ícone, nome, conta vinculada e selo PF/PJ do cartão, operável por teclado, `role="listbox"` com opções rotuladas, contas inativas fora da lista, estado sem contas com atalho; ver falhar
-- [ ] T028 [P] [US2] [Teste] Estender `packages/ui-shared/src/lib/accounts/account-form.spec.ts` (criado em T021) e `accounts-page.spec.ts` para cartões: conta bancária obrigatória (aviso mantendo o digitado), orientação com atalho quando não há conta bancária, nome sugerido a partir da conta, cartão antigo com o aviso "vincule a uma conta bancária", aviso dos cartões ao inativar uma conta bancária, troca de vínculo; ver falhar
-- [ ] T029 [P] [US2] [Teste] Estender `packages/ui-shared/src/lib/transactions/group-form.spec.ts`, `transactions-page.spec.ts`, `packages/ui-shared/src/lib/invoices/invoices-page.spec.ts` e `packages/ui-shared/src/lib/dashboard/dashboard-page.spec.ts`: a escolha de conta/cartão usa o seletor com ícone; linhas e cartões de lançamento, faturas, projeção e distribuição por cartão mostram ícone e nome do cartão e a conta vinculada; ver falhar
-- [ ] T030 [P] [US2] [Teste] Estender `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` e criar `apps/mobile-app/src/app/quick-expense/quick-expense.page.spec.ts`: seletor com ícone no registro rápido e conta padrão preservada; ver falhar
-- [ ] T031 [P] [US2] [Teste] Criar `apps/web-app-e2e/src/cards-linked.spec.ts` (E2E web) e `apps/mobile-app-e2e/src/cards-linked.spec.ts` (E2E mobile): sem conta bancária o cartão orienta a criar uma; criar cartão vinculado com ícone; lançar despesa no cartão e conferir ícone, nome, conta e selo em lançamentos, faturas e painel; trocar o vínculo sem mudar valores; inativar a conta e ler o aviso; ver falhar
-- [ ] T032 [US2] Implementar `packages/ui-shared/src/lib/accounts/account-picker.ts` (`gef-account-picker`, valor de formulário, usa `gef-sheet`) e exportar
-- [ ] T033 [US2] Atualizar `packages/ui-shared/src/lib/accounts/account-form.ts` e `accounts-page.ts` para o vínculo do cartão (seletor de conta bancária, nome sugerido, aviso e atalho sem contas, cartão antigo com aviso, aviso ao inativar conta com cartões)
-- [ ] T034 [US2] Usar `gef-account-picker` e `gef-account-badge` em `packages/ui-shared/src/lib/transactions/group-form.ts`, `transactions-page.ts` (filtro de conta, linhas e cartões), `packages/ui-shared/src/lib/invoices/invoices-page.ts` (seletor de cartão, projeção) e `packages/ui-shared/src/lib/dashboard/dashboard-page.ts` (distribuição por cartão), e em `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts`
-- [ ] T035 [US2] Executar os testes de `ui-shared` e `mobile-app`, `AccountHolderIT`/`CardBankLinkIT`, os E2E web e mobile de contas e cartões e o E2E existente de lançamentos e faturas; corrigir regressões
+- [ ] T028 [P] [US2] [Teste] Escrever `packages/ui-shared/src/lib/accounts/account-picker.spec.ts`: campo de formulário que mostra o selecionado com ícone e nome, abre a lista em `gef-sheet`, cada opção mostra ícone, nome, conta vinculada e selo PF/PJ do cartão, operável por teclado, `role="listbox"` com opções rotuladas, contas inativas fora da lista, estado sem contas com atalho; ver falhar
+- [ ] T029 [P] [US2] [Teste] Estender `packages/ui-shared/src/lib/accounts/account-form.spec.ts` (criado em T022) e `accounts-page.spec.ts` para cartões: conta bancária obrigatória (aviso mantendo o digitado), orientação com atalho quando não há conta bancária, nome sugerido a partir da conta, cartão antigo com o aviso "vincule a uma conta bancária", aviso dos cartões ao inativar uma conta bancária, troca de vínculo; ver falhar
+- [ ] T030 [P] [US2] [Teste] Estender `packages/ui-shared/src/lib/transactions/group-form.spec.ts`, `transactions-page.spec.ts`, `packages/ui-shared/src/lib/invoices/invoices-page.spec.ts` e `packages/ui-shared/src/lib/dashboard/dashboard-page.spec.ts`: a escolha de conta/cartão usa o seletor com ícone; linhas e cartões de lançamento, faturas, projeção e distribuição por cartão mostram ícone e nome do cartão e a conta vinculada; ver falhar
+- [ ] T031 [P] [US2] [Teste] Estender `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` e criar `apps/mobile-app/src/app/quick-expense/quick-expense.page.spec.ts`: seletor com ícone no registro rápido e conta padrão preservada; ver falhar
+- [ ] T032 [P] [US2] [Teste] Criar `apps/web-app-e2e/src/cards-linked.spec.ts` (E2E web) e `apps/mobile-app-e2e/src/cards-linked.spec.ts` (E2E mobile): sem conta bancária o cartão orienta a criar uma; criar cartão vinculado com ícone; lançar despesa no cartão e conferir ícone, nome, conta e selo em lançamentos, faturas e painel; trocar o vínculo sem mudar valores; inativar a conta e ler o aviso; ver falhar
+- [ ] T033 [US2] Implementar `packages/ui-shared/src/lib/accounts/account-picker.ts` (`gef-account-picker`, valor de formulário, usa `gef-sheet`) e exportar
+- [ ] T034 [US2] Atualizar `packages/ui-shared/src/lib/accounts/account-form.ts` e `accounts-page.ts` para o vínculo do cartão (seletor de conta bancária, nome sugerido, aviso e atalho sem contas, cartão antigo com aviso, aviso ao inativar conta com cartões)
+- [ ] T035 [US2] Usar `gef-account-picker` e `gef-account-badge` em `packages/ui-shared/src/lib/transactions/group-form.ts`, `transactions-page.ts` (filtro de conta, linhas e cartões), `packages/ui-shared/src/lib/invoices/invoices-page.ts` (seletor de cartão, projeção) e `packages/ui-shared/src/lib/dashboard/dashboard-page.ts` (distribuição por cartão), e em `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts`
+- [ ] T036 [US2] Executar os testes de `ui-shared` e `mobile-app`, `AccountHolderIT`/`CardBankLinkIT`, os E2E web e mobile de contas e cartões e o E2E existente de lançamentos e faturas; corrigir regressões
 
 ---
 
@@ -94,13 +95,13 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Nova receita ao lado de Nova despesa, registro rápido por natureza e natureza como primeiro campo do cadastro completo
 
-- [ ] T036 [P] [US3] [Teste] Escrever `apps/mobile-app/src/app/home/home.page.spec.ts`: a tela inicial mostra "Nova despesa" e "Nova receita" lado a lado com o mesmo destaque, cada uma com a rota do registro rápido da natureza; ver falhar
-- [ ] T037 [P] [US3] [Teste] Estender `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` e `quick-expense.page.spec.ts`: padrões de conta e categoria **por natureza** (receita sem histórico usa "Salário" ou a primeira categoria de receita), título, rótulos e categorias só da natureza, cor de receita, salvar envia a natureza certa e preserva o digitado em falha; ver falhar
-- [ ] T038 [P] [US3] [Teste] Estender `packages/ui-shared/src/lib/transactions/group-form.spec.ts`: o seletor segmentado "Receita | Despesa" é o primeiro campo, troca a lista de categorias e zera a categoria escolhida; ver falhar
-- [ ] T039 [P] [US3] [Teste] Criar `apps/mobile-app-e2e/src/income.spec.ts` (E2E mobile): encontrar "Nova receita" na tela inicial, registrar receita em até 3 toques contando os toques, categorias só de receita, receita sem conexão enviada uma única vez, receita aparece no painel e no fluxo de caixa; ver falhar
-- [ ] T040 [US3] Implementar `apps/mobile-app/src/app/home/home.page.ts` com as duas ações e `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` + `quick-expense-defaults.service.ts` por natureza (parâmetro `kind`), ajustando `apps/mobile-app/src/app/app.routes.ts`
-- [ ] T041 [US3] Trocar a natureza de `<select>` por seletor segmentado no topo de `packages/ui-shared/src/lib/transactions/group-form.ts`
-- [ ] T042 [US3] Executar `npx nx run-many -t lint test --projects=ui-shared,mobile-app` e o E2E mobile de receita e de despesa rápida (3 toques); corrigir regressões
+- [ ] T037 [P] [US3] [Teste] Escrever `apps/mobile-app/src/app/home/home.page.spec.ts`: a tela inicial mostra "Nova despesa" e "Nova receita" lado a lado com o mesmo destaque, cada uma com a rota do registro rápido da natureza; ver falhar
+- [ ] T038 [P] [US3] [Teste] Estender `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` e `quick-expense.page.spec.ts`: padrões de conta e categoria **por natureza** (receita sem histórico usa "Salário" ou a primeira categoria de receita), título, rótulos e categorias só da natureza, cor de receita, salvar envia a natureza certa e preserva o digitado em falha; ver falhar
+- [ ] T039 [P] [US3] [Teste] Estender `packages/ui-shared/src/lib/transactions/group-form.spec.ts`: o seletor segmentado "Receita | Despesa" é o primeiro campo, troca a lista de categorias e zera a categoria escolhida; ver falhar
+- [ ] T040 [P] [US3] [Teste] Criar `apps/mobile-app-e2e/src/income.spec.ts` (E2E mobile): encontrar "Nova receita" na tela inicial, registrar receita em até 3 toques contando os toques, categorias só de receita, receita sem conexão enviada uma única vez, receita aparece no painel e no fluxo de caixa; ver falhar
+- [ ] T041 [US3] Implementar `apps/mobile-app/src/app/home/home.page.ts` com as duas ações e `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` + `quick-expense-defaults.service.ts` por natureza (parâmetro `kind`), ajustando `apps/mobile-app/src/app/app.routes.ts`
+- [ ] T042 [US3] Trocar a natureza de `<select>` por seletor segmentado no topo de `packages/ui-shared/src/lib/transactions/group-form.ts`
+- [ ] T043 [US3] Executar `npx nx run-many -t lint test --projects=ui-shared,mobile-app` e o E2E mobile de receita e de despesa rápida (3 toques); corrigir regressões
 
 ---
 
@@ -108,11 +109,11 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Barra lateral esquerda com logo, recolher, gaveta em tela estreita e teclado
 
-- [ ] T043 [P] [US4] [Teste] Escrever `apps/web-app/src/app/layout/shell.spec.ts`: menu lateral com logo e os itens de `NAV_ITEMS` com ícone e nome, item atual com `aria-current="page"` e destaque não só por cor, recolher mostra só ícones com nome em dica e foco, escolha lembrada em `localStorage` (e funcionando se o armazenamento falhar), abaixo de 1024 px vira gaveta com botão, foco preso, Escape e toque fora fecham, rodapé com Minha conta e Sair; ver falhar
-- [ ] T044 [P] [US4] [Teste] Escrever `apps/web-app-e2e/src/sidenav.spec.ts` (E2E web): menu em tela larga, navegar por todas as áreas só pelo teclado, recolher e recarregar, janela estreita com gaveta, Sair; ver falhar
-- [ ] T045 [US4] Estender `packages/ui-shared/src/lib/layout/sheet.ts` com a entrada `side` (`bottom` ou `left`) para servir de gaveta, com teste em `sheet.spec.ts` escrito antes
-- [ ] T046 [US4] Reescrever `apps/web-app/src/app/layout/shell.ts` como barra lateral esquerda (logo, `NAV_ITEMS`, recolher, rodapé) com gaveta em tela estreita, mantendo o aviso global e o conteúdo; atualizar `apps/web-app/src/app/app.routes.ts` se necessário
-- [ ] T047 [US4] Executar `npx nx run-many -t lint test --projects=web-app,ui-shared` e todo o E2E web (as buscas por link de menu nos testes existentes passam a usar o menu lateral); corrigir regressões
+- [ ] T044 [P] [US4] [Teste] Escrever `apps/web-app/src/app/layout/shell.spec.ts`: menu lateral com logo e os itens de `NAV_ITEMS` com ícone e nome, item atual com `aria-current="page"` e destaque não só por cor, recolher mostra só ícones com nome em dica e foco, escolha lembrada em `localStorage` (e funcionando se o armazenamento falhar), abaixo de 1024 px vira gaveta com botão, foco preso, Escape e toque fora fecham, rodapé com Minha conta e Sair; ver falhar
+- [ ] T045 [P] [US4] [Teste] Escrever `apps/web-app-e2e/src/sidenav.spec.ts` (E2E web): menu em tela larga, navegar por todas as áreas só pelo teclado, recolher e recarregar, janela estreita com gaveta, Sair; ver falhar
+- [ ] T046 [US4] Estender `packages/ui-shared/src/lib/layout/sheet.ts` com a entrada `side` (`bottom` ou `left`) para servir de gaveta, com teste em `sheet.spec.ts` escrito antes
+- [ ] T047 [US4] Reescrever `apps/web-app/src/app/layout/shell.ts` como barra lateral esquerda (logo, `NAV_ITEMS`, recolher, rodapé) com gaveta em tela estreita, mantendo o aviso global e o conteúdo; atualizar `apps/web-app/src/app/app.routes.ts` se necessário
+- [ ] T048 [US4] Executar `npx nx run-many -t lint test --projects=web-app,ui-shared` e todo o E2E web (as buscas por link de menu nos testes existentes passam a usar o menu lateral); corrigir regressões
 
 ---
 
@@ -120,19 +121,19 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Arquivos da marca, aplicação do logo, ícones e tokens em todas as telas, estados, toasts, movimento reduzido e auditorias
 
-- [ ] T048 [P] [US5] [Teste] Escrever `packages/ui-shared/src/lib/state-views/state-views.spec.ts` estendido: `gef-empty` e `gef-error` com ícone (entrada `icon`), mensagem e ação; `gef-loading` anunciado; ver falhar
-- [ ] T049 [P] [US5] [Teste] Escrever `packages/ui-shared/src/lib/layout/toast-host.spec.ts` e `packages/ui-shared/src/lib/api/notice.service.spec.ts` estendido: `NoticeService.toast(mensagem, { undo })` mostra confirmação discreta em `role="status"`, some sozinha, aceita Desfazer (executa a ação e fecha) e empilha no máximo 3; ver falhar
-- [ ] T050 [P] [US5] [Teste] Estender `packages/ui-shared/src/lib/transactions/transactions-page.spec.ts` e `packages/ui-shared/src/lib/invoices/invoices-page.spec.ts`: receita com sinal "+" e despesa com "−" mais ícone de seta, status com ícone (pago, pendente, atrasado) além de texto e cor, pagar um item mostra toast com Desfazer que chama o desfazer do pagamento; ver falhar
-- [ ] T051 [P] [US5] [Teste] Estender `packages/ui-shared/src/lib/auth/login/login.spec.ts`, `register`, `forgot-password` e `reset-password` e `packages/ui-shared/src/lib/auth/auth-card.ts`: as telas de acesso mostram o `gef-logo`; ver falhar
-- [ ] T052 [P] [US5] [Teste] Criar `apps/web-app-e2e/src/identity.spec.ts` (E2E web) e `apps/mobile-app-e2e/src/identity.spec.ts` (E2E mobile): cor de fundo `#090D16` e superfícies `#131B2E` calculadas, fonte Plus Jakarta Sans em uso, logo nas telas de acesso e nos shells, `link rel=icon` e `apple-touch-icon` e `manifest` presentes e com arquivos que carregam, com `prefers-reduced-motion` as transições e animações somem; ver falhar
-- [ ] T053 [P] [US5] [Teste] Estender `apps/web-app-e2e/src/accessibility.spec.ts` (web) e `apps/mobile-app-e2e/src/comfort.spec.ts` (mobile) para as telas novas e para todas as combinações de cor novas (axe AA sem violações) e conferir que receita/despesa e status nunca dependem só da cor; ver falhar
-- [ ] T054 [US5] Implementar `tools/brand/generate-assets.mjs` (renderiza os SVG no Chromium do Playwright: favicons 16/32/48 e `favicon.ico`, `apple-touch-icon` 180, ícones 192/512 do manifesto, ícones de Android `mipmap-*` com `foreground` adaptável e monocromático, ícone de notificação, `AppIcon-512@2x.png` 1024 do iOS; valida tamanhos e cabeçalhos) e rodar `npm run brand:generate`, versionando os arquivos gerados
-- [ ] T055 [US5] Aplicar os favicons e o manifesto: `apps/web-app/src/index.html`, `apps/web-app/public/`, `apps/mobile-app/src/index.html`, `apps/mobile-app/public/`, `apps/mobile-app/android/app/src/main/res/` (mipmap, `ic_launcher_foreground`, cor de fundo adaptável, `ic_stat_gefinc.xml` com o símbolo) e `apps/mobile-app/ios/App/App/Assets.xcassets/AppIcon.appiconset/`
-- [ ] T056 [US5] Consolidar os tokens em `packages/ui-shared/src/styles/theme.css` (paleta do manual, gradiente de marca, estados de foco, `prefers-reduced-motion`, sombras e raios) e ajustar `apps/mobile-app/src/styles.css` para usar os mesmos tokens
-- [ ] T057 [US5] Implementar `packages/ui-shared/src/lib/state-views/state-views.ts` com ícones, `packages/ui-shared/src/lib/layout/toast-host.ts` + `NoticeService.toast` (nos dois shells e na raiz do app) e usar `gef-logo` em `packages/ui-shared/src/lib/auth/auth-card.ts`, no cabeçalho de `apps/mobile-app/src/app/shell/mobile-shell.ts` e no shell lateral do web
-- [ ] T058 [US5] Aplicar nas telas a hierarquia visual: sinal, cor e ícone de natureza (receita/despesa) e de status em `transactions-page.ts`, `invoices-page.ts`, `dashboard-page.ts` e `cashflow-page.ts` (em `packages/ui-shared/src/lib/invoices/`), e o toast com Desfazer ao pagar item e ao pagar fatura
-- [ ] T059 [US5] Revisão de consistência de títulos, espaçamentos, botões, formulários, tabelas, cartões e listas em todas as telas do web (`packages/ui-shared/src/lib/*`) e do app (`apps/mobile-app/src/app/*`), sem remover função existente, com as ações principais ao alcance do polegar no app
-- [ ] T060 [US5] Executar `npx nx run-many -t lint test build`, todo o E2E web e mobile e `npm run brand:test`; corrigir regressões
+- [ ] T049 [P] [US5] [Teste] Escrever `packages/ui-shared/src/lib/state-views/state-views.spec.ts` estendido: `gef-empty` e `gef-error` com ícone (entrada `icon`), mensagem e ação; `gef-loading` anunciado; ver falhar
+- [ ] T050 [P] [US5] [Teste] Escrever `packages/ui-shared/src/lib/layout/toast-host.spec.ts` e `packages/ui-shared/src/lib/api/notice.service.spec.ts` estendido: `NoticeService.toast(mensagem, { undo })` mostra confirmação discreta em `role="status"`, some sozinha, aceita Desfazer (executa a ação e fecha) e empilha no máximo 3; ver falhar
+- [ ] T051 [P] [US5] [Teste] Estender `packages/ui-shared/src/lib/transactions/transactions-page.spec.ts` e `packages/ui-shared/src/lib/invoices/invoices-page.spec.ts`: receita com sinal "+" e despesa com "−" mais ícone de seta, status com ícone (pago, pendente, atrasado) além de texto e cor, pagar um item mostra toast com Desfazer que chama o desfazer do pagamento; ver falhar
+- [ ] T052 [P] [US5] [Teste] Estender `packages/ui-shared/src/lib/auth/login/login.spec.ts`, `register`, `forgot-password` e `reset-password` e `packages/ui-shared/src/lib/auth/auth-card.ts`: as telas de acesso mostram o `gef-logo`; ver falhar
+- [ ] T053 [P] [US5] [Teste] Criar `apps/web-app-e2e/src/identity.spec.ts` (E2E web) e `apps/mobile-app-e2e/src/identity.spec.ts` (E2E mobile): cor de fundo `#090D16` e superfícies `#131B2E` calculadas, fonte Plus Jakarta Sans em uso, logo nas telas de acesso e nos shells, `link rel=icon` e `apple-touch-icon` e `manifest` presentes e com arquivos que carregam, com `prefers-reduced-motion` as transições e animações somem; ver falhar
+- [ ] T054 [P] [US5] [Teste] Estender `apps/web-app-e2e/src/accessibility.spec.ts` (web) e `apps/mobile-app-e2e/src/comfort.spec.ts` (mobile) para as telas novas e para todas as combinações de cor novas (axe AA sem violações) e conferir que receita/despesa e status nunca dependem só da cor; ver falhar
+- [ ] T055 [US5] Implementar `tools/brand/generate-assets.mjs` (renderiza os SVG no Chromium do Playwright: favicons 16/32/48 e `favicon.ico`, `apple-touch-icon` 180, ícones 192/512 do manifesto, ícones de Android `mipmap-*` com `foreground` adaptável e monocromático, ícone de notificação, `AppIcon-512@2x.png` 1024 do iOS; valida tamanhos e cabeçalhos) e rodar `npm run brand:generate`, versionando os arquivos gerados
+- [ ] T056 [US5] Aplicar os favicons e o manifesto: `apps/web-app/src/index.html`, `apps/web-app/public/`, `apps/mobile-app/src/index.html`, `apps/mobile-app/public/`, `apps/mobile-app/android/app/src/main/res/` (mipmap, `ic_launcher_foreground`, cor de fundo adaptável, `ic_stat_gefinc.xml` com o símbolo) e `apps/mobile-app/ios/App/App/Assets.xcassets/AppIcon.appiconset/`
+- [ ] T057 [US5] Consolidar os tokens em `packages/ui-shared/src/styles/theme.css` (paleta do manual, gradiente de marca, estados de foco, `prefers-reduced-motion`, sombras e raios) e ajustar `apps/mobile-app/src/styles.css` para usar os mesmos tokens
+- [ ] T058 [US5] Implementar `packages/ui-shared/src/lib/state-views/state-views.ts` com ícones, `packages/ui-shared/src/lib/layout/toast-host.ts` + `NoticeService.toast` (nos dois shells e na raiz do app) e usar `gef-logo` em `packages/ui-shared/src/lib/auth/auth-card.ts`, no cabeçalho de `apps/mobile-app/src/app/shell/mobile-shell.ts` e no shell lateral do web
+- [ ] T059 [US5] Aplicar nas telas a hierarquia visual: sinal, cor e ícone de natureza (receita/despesa) e de status em `transactions-page.ts`, `invoices-page.ts`, `dashboard-page.ts` e `cashflow-page.ts` (em `packages/ui-shared/src/lib/invoices/`), e o toast com Desfazer ao pagar item e ao pagar fatura
+- [ ] T060 [US5] Revisão de consistência de títulos, espaçamentos, botões, formulários, tabelas, cartões e listas em todas as telas do web (`packages/ui-shared/src/lib/*`) e do app (`apps/mobile-app/src/app/*`), sem remover função existente, com as ações principais ao alcance do polegar no app
+- [ ] T061 [US5] Executar `npx nx run-many -t lint test build`, todo o E2E web e mobile e `npm run brand:test`; corrigir regressões
 
 ---
 
@@ -140,13 +141,13 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 
 **Purpose**: Documentação, constituição, desempenho, aparelho real e verificação final
 
-- [ ] T061 [P] Atualizar `README.md` (menu lateral, contas PF/PJ e cartões vinculados, receita no app, como gerar a marca com `npm run brand:generate`) e `docs/operations.md` (migração V7, cartões antigos sem vínculo, geração e troca do logo)
-- [ ] T062 [P] Emendar `.specify/memory/constitution.md` (Princípio VI: lançamento rápido de despesa **e de receita** em até 3 toques; navegação lateral no web; versão MINOR com Sync Impact Report) e conferir os modelos em `.specify/templates/`
-- [ ] T063 [P] Medir SC-009 em `apps/mobile-app-e2e/src/performance.spec.ts` (já existente) com os componentes novos de ícone e seletor (painel, lançamentos e faturas em até 2 s com 6.000 lançamentos, online e do cache)
-- [ ] T064 Rodar `npx nx run-many -t lint test build --skip-nx-cache`, `cd apps/api-server && DB_PORT=5433 ./mvnw test`, `npx nx e2e web-app-e2e` e `npx nx e2e mobile-app-e2e`; tudo verde
-- [ ] T065 Gerar o APK, instalar no Galaxy S21 e rodar `apps/mobile-app-e2e/device/android-smoke.cjs` e o roteiro do `quickstart.md` (ícone do app, receita em 3 toques, seletor com ícones, identidade); capturar telas e registrar os achados
-- [ ] T066 Rodar `npx nx run mobile-app:sync` para o iOS, conferir o `AppIcon` e registrar em `docs/operations.md` que o build em iPhone segue pendente de um Mac
-- [ ] T067 Conferir a spec (FR-001 a FR-036 e SC-001 a SC-010) contra o que foi entregue e atualizar `specs/003-bank-accounts-ui-redesign/tasks.md` com notas de implementação
+- [ ] T062 [P] Atualizar `README.md` (menu lateral, contas PF/PJ e cartões vinculados, receita no app, como gerar a marca com `npm run brand:generate`) e `docs/operations.md` (migração V7, cartões antigos sem vínculo, geração e troca do logo)
+- [ ] T063 [P] Emendar `.specify/memory/constitution.md` (Princípio VI: lançamento rápido de despesa **e de receita** em até 3 toques; navegação lateral no web; versão MINOR com Sync Impact Report) e conferir os modelos em `.specify/templates/`
+- [ ] T064 [P] Medir SC-009 em `apps/mobile-app-e2e/src/performance.spec.ts` (já existente) com os componentes novos de ícone e seletor (painel, lançamentos e faturas em até 2 s com 6.000 lançamentos, online e do cache)
+- [ ] T065 Rodar `npx nx run-many -t lint test build --skip-nx-cache`, `cd apps/api-server && DB_PORT=5433 ./mvnw test`, `npx nx e2e web-app-e2e` e `npx nx e2e mobile-app-e2e`; tudo verde
+- [ ] T066 Gerar o APK, instalar no Galaxy S21 e rodar `apps/mobile-app-e2e/device/android-smoke.cjs` e o roteiro do `quickstart.md` (ícone do app, receita em 3 toques, seletor com ícones, identidade); capturar telas e registrar os achados
+- [ ] T067 Rodar `npx nx run mobile-app:sync` para o iOS, conferir o `AppIcon` e registrar em `docs/operations.md` que o build em iPhone segue pendente de um Mac
+- [ ] T068 Conferir a spec (FR-001 a FR-036 e SC-001 a SC-010) contra o que foi entregue e atualizar `specs/003-bank-accounts-ui-redesign/tasks.md` com notas de implementação
 
 ---
 
@@ -155,15 +156,15 @@ description: "Lista de tarefas da feature Contas PF/PJ, cartões vinculados com 
 ### Phase Dependencies
 
 - **Setup (Fase 1)** → **Foundational (Fase 2)** → histórias → **Polish (Fase 8)**.
-- A Fase 2 bloqueia as histórias: banco, API e contrato (T005–T011), ícones, logo e itens de navegação (T012–T017).
+- A Fase 2 bloqueia as histórias: banco, API e contrato (T005–T011), ícones, logo e itens de navegação (T012–T017) e a atualização das fixtures existentes (T019).
 
 ### User Story Dependencies
 
 - **US1 (P1)**: depende da Fase 2 (colunas, contrato, ícones).
 - **US2 (P2)**: depende de US1 (contas bancárias para vincular, badge e seletor de ícone).
-- **US3 (P3)**: independente de US1 e US2 no código do app, mas usa o seletor de US2 no registro rápido; pode começar depois de T032.
+- **US3 (P3)**: independente de US1 e US2 no código do app, mas usa o seletor de US2 no registro rápido; pode começar depois de T033.
 - **US4 (P4)**: depende só da Fase 2 (`NAV_ITEMS`, `gef-icon`, `gef-logo`).
-- **US5 (P5)**: depende das anteriores para aplicar logo, ícones e estados nas telas finais; o gerador da marca (T054) pode começar logo depois da Fase 1.
+- **US5 (P5)**: depende das anteriores para aplicar logo, ícones e estados nas telas finais; o gerador da marca (T055) pode começar logo depois da Fase 1.
 
 ### Within Each User Story
 
