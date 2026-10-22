@@ -1,0 +1,29 @@
+name: gefinc
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: gefinc-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gefinc}
+      POSTGRES_USER: ${DB_USER:-gefinc}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-gefinc}
+    ports:
+      - "5432:5432"
+    volumes:
+      - gefinc-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-gefinc} -d ${POSTGRES_DB:-gefinc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: gefinc-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  gefinc-pgdata:

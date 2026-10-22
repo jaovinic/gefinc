@@ -38,8 +38,8 @@ Variáveis de ambiente locais ficam em `.env` (não versionado; modelo em `.env.
 npx nx run-many -t test            # unitários e integração (Testcontainers sobe o PostgreSQL)
 npx nx run api-server:test         # só o backend
 npx nx run utils:test              # cálculo de parcelas e dinheiro (vetores compartilhados)
-npx nx run web-app:e2e             # Playwright: fluxos críticos no navegador
-npx nx run mobile-app:e2e          # Playwright em viewport de celular (limite de 3 toques)
+npx nx e2e web-app-e2e             # Playwright: fluxos críticos no navegador
+npx nx e2e mobile-app-e2e          # Playwright em viewport de celular (limite de 3 toques)
 ```
 
 ## 3. Aplicativo móvel

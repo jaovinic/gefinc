@@ -1,0 +1,108 @@
+{
+  "name": "mobile-app",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "prefix": "gef",
+  "sourceRoot": "apps/mobile-app/src",
+  "tags": [
+    "scope:mobile",
+    "type:app"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@angular/build:application",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "outputPath": "dist/apps/mobile-app",
+        "browser": "apps/mobile-app/src/main.ts",
+        "tsConfig": "apps/mobile-app/tsconfig.app.json",
+        "assets": [
+          {
+            "glob": "**/*",
+            "input": "apps/mobile-app/public"
+          }
+        ],
+        "styles": [
+          "apps/mobile-app/src/styles.css"
+        ]
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "500kb",
+              "maximumError": "1mb"
+            },
+            {
+              "type": "anyComponentStyle",
+              "maximumWarning": "4kb",
+              "maximumError": "8kb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "optimization": false,
+          "extractLicenses": false,
+          "sourceMap": true
+        }
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "readyWhen": {
+        "signal": true
+      },
+      "executor": "@angular/build:dev-server",
+      "defaultConfiguration": "development",
+      "options": {
+        "port": 8100
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "mobile-app:build:production"
+        },
+        "development": {
+          "buildTarget": "mobile-app:build:development"
+        }
+      }
+    },
+    "serve-static": {
+      "continuous": true,
+      "readyWhen": {
+        "signal": true
+      },
+      "dependsOn": [
+        "build"
+      ],
+      "executor": "@nx/web:file-server",
+      "options": {
+        "buildTarget": "mobile-app:build",
+        "port": 8100,
+        "staticFilePath": "dist/apps/mobile-app/browser",
+        "spa": true
+      }
+    },
+    "sync": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "npx cap sync"
+      }
+    },
+    "open": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/mobile-app",
+        "command": "npx cap open {args.platform}"
+      }
+    }
+  }
+}

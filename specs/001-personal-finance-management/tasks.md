@@ -31,17 +31,17 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **Purpose**: Inicialização do monorepo e dos projetos
 
-- [ ] T001 Criar os arquivos de workspace Nx na raiz: `package.json` (scripts `dev`, `test`, `build`, `lint`; `dev` sobe o Docker Compose e executa `api-server:serve`, `web-app:serve` e `mobile-app:serve` em paralelo), `nx.json` e `tsconfig.base.json`
-- [ ] T002 [P] Criar as bibliotecas `packages/core-models/`, `packages/ui-shared/` e `packages/utils/` (cada uma com `project.json`, `tsconfig.lib.json`, `jest.config.ts` e `src/index.ts`)
-- [ ] T003 Criar o projeto Maven `apps/api-server/pom.xml` (Java 21, Spring Boot 3.x, Web, Security, Data JPA, Validation, Mail, Actuator, Flyway + driver PostgreSQL, biblioteca JWT, Testcontainers, GreenMail, swagger-request-validator, Spotless), o Maven Wrapper `apps/api-server/mvnw` e a classe `apps/api-server/src/main/java/com/jvtech/gefinc/GefincApplication.java`
-- [ ] T004 Criar `apps/api-server/project.json` com os alvos Nx `build`, `test`, `serve` e `lint` executando `./mvnw` por `nx:run-commands` (depende de T003)
-- [ ] T005 [P] Criar o app Angular standalone `apps/web-app/` com Tailwind CSS, Jest e Playwright (`apps/web-app/project.json`, `apps/web-app/tailwind.config.js`, `apps/web-app/playwright.config.ts`)
-- [ ] T006 [P] Criar o app Ionic + Angular + Capacitor `apps/mobile-app/` com Tailwind CSS para estilo, conforme o Princípio VI da constituição (`apps/mobile-app/project.json`, `apps/mobile-app/capacitor.config.ts`, `apps/mobile-app/playwright.config.ts` com viewport de celular)
-- [ ] T007 Adicionar as plataformas nativas ao app móvel (`npx cap add android` e, apenas em macOS, `npx cap add ios`), gerando `apps/mobile-app/android/` e `apps/mobile-app/ios/`, e conferir que `npx nx run mobile-app:sync` conclui (depende de T006)
-- [ ] T008 [P] Criar `docker-compose.yml` (PostgreSQL 16 e Mailpit) e `.env.example` (`DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `APP_BASE_URL`)
-- [ ] T009 [P] Configurar ESLint e Prettier na raiz (`.eslintrc.json`, `.prettierrc`) com regra de fronteira de módulos Nx proibindo importação entre apps
-- [ ] T010 [P] Criar o pipeline `.github/workflows/ci.yml` executando `nx affected -t lint test build` com Docker disponível para o Testcontainers
-- [ ] T011 T-DOC: atualizar `spec-genfic.md` §5 com as tabelas e colunas novas descritas em `specs/001-personal-finance-management/data-model.md` (`invoice_payments`, `refresh_tokens`, `password_reset_tokens` e colunas de apoio), como exige o Princípio V; fazer antes da primeira migração
+- [X] T001 Criar os arquivos de workspace Nx na raiz: `package.json` (scripts `dev`, `test`, `build`, `lint`; `dev` sobe o Docker Compose e executa `api-server:serve`, `web-app:serve` e `mobile-app:serve` em paralelo), `nx.json` e `tsconfig.base.json`
+- [X] T002 [P] Criar as bibliotecas `packages/core-models/`, `packages/ui-shared/` e `packages/utils/` (cada uma com `project.json`, `tsconfig.lib.json`, `jest.config.ts` e `src/index.ts`)
+- [X] T003 Criar o projeto Maven `apps/api-server/pom.xml` (Java 21, Spring Boot 3.x, Web, Security, Data JPA, Validation, Mail, Actuator, Flyway + driver PostgreSQL, biblioteca JWT, Testcontainers, GreenMail, swagger-request-validator, Spotless), o Maven Wrapper `apps/api-server/mvnw` e a classe `apps/api-server/src/main/java/com/jvtech/gefinc/GefincApplication.java`
+- [X] T004 Criar `apps/api-server/project.json` com os alvos Nx `build`, `test`, `serve` e `lint` executando `./mvnw` por `nx:run-commands` (depende de T003)
+- [X] T005 [P] Criar o app Angular standalone `apps/web-app/` com Tailwind CSS, Jest e Playwright (`apps/web-app/project.json`, `apps/web-app/tailwind.config.js`, `apps/web-app-e2e/playwright.config.mts`)
+- [X] T006 [P] Criar o app Ionic + Angular + Capacitor `apps/mobile-app/` com Tailwind CSS para estilo, conforme o Princípio VI da constituição (`apps/mobile-app/project.json`, `apps/mobile-app/capacitor.config.ts`, `apps/mobile-app-e2e/playwright.config.mts` com viewport de celular)
+- [X] T007 Adicionar as plataformas nativas ao app móvel (`npx cap add android` e, apenas em macOS, `npx cap add ios`), gerando `apps/mobile-app/android/` e `apps/mobile-app/ios/`, e conferir que `npx nx run mobile-app:sync` conclui (depende de T006)
+- [X] T008 [P] Criar `docker-compose.yml` (PostgreSQL 16 e Mailpit) e `.env.example` (`DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `APP_BASE_URL`)
+- [X] T009 [P] Configurar ESLint e Prettier na raiz (`.eslintrc.json`, `.prettierrc`) com regra de fronteira de módulos Nx proibindo importação entre apps
+- [X] T010 [P] Criar o pipeline `.github/workflows/ci.yml` executando `nx affected -t lint test build` com Docker disponível para o Testcontainers
+- [X] T011 T-DOC: atualizar `spec-genfic.md` §5 com as tabelas e colunas novas descritas em `specs/001-personal-finance-management/data-model.md` (`invoice_payments`, `refresh_tokens`, `password_reset_tokens` e colunas de apoio), como exige o Princípio V; fazer antes da primeira migração
 
 ---
 
@@ -85,7 +85,7 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 - [ ] T028 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordResetIT.java` (e-mail recebido via GreenMail, link válido por 60 minutos e de uso único, expirado/usado `400`, resposta idêntica para e-mail inexistente, limite de 3 por hora `429`, novo link invalida o anterior, sessões antigas revogadas, token de acesso emitido antes da troca recusado na hora)
 - [ ] T029 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AccountDeletionIT.java` (senha incorreta recusada, token de acesso emitido antes do pedido recusado na hora, login com exclusão pendente responde `423` sem tokens, cancelamento restaura o acesso, e-mail reservado durante a carência, job apaga em cascata após 30 dias usando `Clock` fixo, inclusive usuário com contas, categorias e lançamentos)
 - [ ] T030 [P] [US1] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordPolicyTest.java` (mínimo de 10 caracteres e máximo de 72 **bytes** em UTF-8, incluindo acentos e emoji)
-- [ ] T031 [P] [US1] Teste E2E `apps/web-app/e2e/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
+- [ ] T031 [P] [US1] Teste E2E `apps/web-app-e2e/src/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
 
 ### Implementation for User Story 1
 
@@ -240,7 +240,7 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 - [ ] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
 - [ ] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
 - [ ] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
-- [ ] T103 [P] [US6] Teste E2E `apps/web-app/e2e/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
+- [ ] T103 [P] [US6] Teste E2E `apps/web-app-e2e/src/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
 
 **Checkpoint**: Painel mensal completo
 
@@ -254,7 +254,7 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 7 (MANDATORY para o limite de toques) ⚠️
 
-- [ ] T104 [P] [US7] Teste E2E `apps/mobile-app/e2e/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
+- [ ] T104 [P] [US7] Teste E2E `apps/mobile-app-e2e/src/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
 - [ ] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
 
 ### Implementation for User Story 7

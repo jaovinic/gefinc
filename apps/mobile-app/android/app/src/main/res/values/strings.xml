@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GEFINC</string>
+    <string name="title_activity_main">GEFINC</string>
+    <string name="package_name">com.jvtech.gefinc</string>
+    <string name="custom_url_scheme">com.jvtech.gefinc</string>
+</resources>
