@@ -1,4 +1,4 @@
-import { Component, computed, forwardRef, input, signal } from '@angular/core';
+import { Component, ElementRef, afterNextRender, computed, forwardRef, input, signal, viewChild } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { formatBRL, fromCents, isValidMoney, toCents } from '@gefinc/utils';
 
@@ -41,6 +41,10 @@ const MAX_DIGITS = 15;
 })
 export class MoneyInput implements ControlValueAccessor {
   readonly label = input('');
+  /** Foca o campo ao abrir a tela, para o teclado numérico aparecer sem um toque extra. */
+  readonly autofocus = input(false);
+
+  private readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
 
   protected readonly cents = signal<bigint | null>(null);
   protected readonly disabled = signal(false);
@@ -48,6 +52,14 @@ export class MoneyInput implements ControlValueAccessor {
     const cents = this.cents();
     return cents === null ? '' : formatBRL(fromCents(cents)).replace('R$ ', '');
   });
+
+  constructor() {
+    afterNextRender(() => {
+      if (this.autofocus()) {
+        this.field()?.nativeElement.focus();
+      }
+    });
+  }
 
   private onChange: (value: string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;

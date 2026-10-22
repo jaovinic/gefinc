@@ -31,12 +31,24 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
-  webServer: {
-    command: isCI ? 'npx nx run mobile-app:serve-static' : 'npx nx run mobile-app:serve',
-    url: getReadyUrl('http://localhost:8100'),
-    reuseExistingServer: true,
-    cwd: workspaceRoot
-  },
+  webServer: [
+    {
+      // Banco e Mailpit (docker compose) e a API em modo local; `exec` + fork=false libera a porta ao encerrar.
+      command:
+        'docker compose up -d --wait && cd apps/api-server && exec ./mvnw -B spring-boot:run '
+        + '-Dspring-boot.run.fork=false -Dspring-boot.run.profiles=local',
+      url: 'http://localhost:8080/api/v1/actuator/health',
+      reuseExistingServer: true,
+      timeout: 240_000,
+      cwd: workspaceRoot,
+    },
+    {
+      command: isCI ? 'npx nx run mobile-app:serve-static' : 'npx nx run mobile-app:serve',
+      url: getReadyUrl('http://localhost:8100'),
+      reuseExistingServer: true,
+      cwd: workspaceRoot,
+    },
+  ],
   projects: [
     // Limite de 3 toques (RNF03): os testes rodam em viewport de celular.
     { name: 'mobile-chrome', use: { ...devices['Pixel 7'] } },

@@ -21,8 +21,11 @@ export function provideSession(): (Provider | EnvironmentProviders)[] {
       },
     },
     provideAppInitializer(async () => {
-      await inject(SecureTokenStore).load();
-      await inject(SessionService).restore();
+      // `inject` só funciona antes do primeiro `await`.
+      const tokens = inject(SecureTokenStore);
+      const session = inject(SessionService);
+      await tokens.load();
+      await session.restore();
     }),
   ];
 }

@@ -307,14 +307,14 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 7 (MANDATORY para o limite de toques) ⚠️
 
-- [ ] T104 [P] [US7] Teste E2E `apps/mobile-app-e2e/src/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
-- [ ] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
+- [X] T104 [P] [US7] Teste E2E `apps/mobile-app-e2e/src/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
+- [X] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
 
 ### Implementation for User Story 7
 
-- [ ] T106 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
-- [ ] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
-- [ ] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
+- [X] T106 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
+- [X] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
+- [X] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
 
 **Checkpoint**: Todas as histórias funcionam
 

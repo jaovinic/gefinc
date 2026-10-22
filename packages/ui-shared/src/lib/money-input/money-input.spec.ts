@@ -76,3 +76,23 @@ describe('MoneyInput', () => {
     expect(input.disabled).toBe(true);
   });
 });
+
+@Component({
+  imports: [MoneyInput, ReactiveFormsModule],
+  template: `<gef-money-input label="Valor" [autofocus]="true" [formControl]="control" />`,
+})
+class AutofocusHost {
+  control = new FormControl<string | null>(null);
+}
+
+describe('MoneyInput autofocus', () => {
+  it('foca o campo ao abrir quando solicitado', async () => {
+    const fixture = TestBed.createComponent(AutofocusHost);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('input'));
+    fixture.nativeElement.remove();
+  });
+});
