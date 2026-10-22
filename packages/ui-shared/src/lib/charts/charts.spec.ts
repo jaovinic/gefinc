@@ -89,6 +89,7 @@ describe('gráficos', () => {
     fixture.destroy();
     expect(created.every((c) => c.destroyed)).toBe(true);
   });
+});
 
 describe('distribuição por cartão (barras em HTML)', () => {
   function render(data: ChartSlice[]) {
