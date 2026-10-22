@@ -15,15 +15,15 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
     <gef-auth-card heading="Criar nova senha">
       @if (done()) {
         <p class="gef-alert-success" role="status">Senha alterada. Entre com a nova senha.</p>
-        <p class="mt-4 text-body-base"><a class="gef-link" routerLink="/login">Ir para o login</a></p>
+        <a class="gef-btn-secondary mt-4 block text-center" routerLink="/login">Ir para o login</a>
       } @else if (!token()) {
         <p class="gef-alert-error" role="alert">Link inválido. Solicite um novo.</p>
-        <p class="mt-4 text-body-base"><a class="gef-link" routerLink="/forgot-password">Solicitar novo link</a></p>
+        <a class="gef-btn-secondary mt-4 block text-center" routerLink="/forgot-password">Solicitar novo link</a>
       } @else {
         @if (error(); as message) {
           <p class="gef-alert-error mb-4" role="alert">{{ message }}</p>
           @if (linkExpired()) {
-            <p class="mb-4 text-body-base"><a class="gef-link" routerLink="/forgot-password">Solicitar novo link</a></p>
+            <a class="gef-btn-secondary mb-4 block text-center" routerLink="/forgot-password">Solicitar novo link</a>
           }
         }
         <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>

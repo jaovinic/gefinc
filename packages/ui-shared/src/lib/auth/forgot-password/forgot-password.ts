@@ -16,7 +16,7 @@ import { AuthCard } from '../auth-card';
             O link abre no navegador do celular; depois de criar a nova senha, volte ao aplicativo e entre.
           }
         </p>
-        <p class="mt-4 text-body-base"><a class="gef-link" routerLink="/login">Voltar para o login</a></p>
+        <a class="gef-btn-secondary mt-4 block w-full text-center" routerLink="/login">Voltar para o login</a>
       } @else {
         @if (error(); as message) {
           <p class="gef-alert-error mb-4" role="alert">{{ message }}</p>
@@ -31,7 +31,7 @@ import { AuthCard } from '../auth-card';
           </div>
           <button type="submit" class="gef-btn-primary" [disabled]="busy()">Enviar link</button>
         </form>
-        <p class="mt-4 text-body-base"><a class="gef-link" routerLink="/login">Voltar para o login</a></p>
+        <a class="gef-btn-secondary mt-4 block w-full text-center" routerLink="/login">Voltar para o login</a>
       }
     </gef-auth-card>
   `,

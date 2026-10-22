@@ -245,7 +245,7 @@ describe('TransactionsPage', () => {
       for (const label of ['Pagar Mercado', 'Editar Mercado', 'Excluir Mercado', 'Desfazer Cinema', 'Alterar valor Salário', 'Encerrar Salário']) {
         const button = el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
         expect(button).not.toBeNull();
-        expect(button.className).toContain('gef-action');
+        expect(button.className).toContain('gef-btn-sm');
       }
     });
 

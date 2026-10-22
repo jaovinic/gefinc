@@ -39,11 +39,11 @@ import { SyncEngine } from './sync-engine';
                 <p class="font-medium">{{ op.label }}</p>
                 <p class="text-caption text-gefinc-danger">{{ op.error }}</p>
                 <div class="mt-2 flex flex-wrap gap-1">
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Tentar de novo ' + op.label" (click)="retry(op)">Tentar de novo</button>
+                  <button type="button" class="gef-btn-sm" [attr.aria-label]="'Tentar de novo ' + op.label" (click)="retry(op)">Tentar de novo</button>
                   @if (op.kind === 'CREATE_GROUP') {
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Corrigir ' + op.label" (click)="correcting.set(op)">Corrigir</button>
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Corrigir ' + op.label" (click)="correcting.set(op)">Corrigir</button>
                   }
-                  <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Descartar ' + op.label" (click)="discard(op)">Descartar</button>
+                  <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Descartar ' + op.label" (click)="discard(op)">Descartar</button>
                 </div>
               </li>
             }

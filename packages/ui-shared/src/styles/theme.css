@@ -121,6 +121,16 @@ table td {
   .gef-btn-secondary {
     @apply min-h-11 rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:border-gefinc-primary disabled:opacity-50 md:min-h-0;
   }
+  /* Botões compactos das ações de linha (Pagar, Editar, Excluir…) e botões em forma de link. */
+  .gef-btn-sm {
+    @apply inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-gefinc-border bg-gefinc-bg px-3 text-body-base font-semibold text-gefinc-text hover:border-gefinc-secondary hover:text-gefinc-secondary disabled:opacity-50 md:min-h-9;
+  }
+  .gef-btn-sm-primary {
+    @apply border-gefinc-primary/50 bg-gefinc-primary/10 text-gefinc-primary hover:border-gefinc-primary hover:text-gefinc-primary;
+  }
+  .gef-btn-sm-danger {
+    @apply border-gefinc-danger/40 bg-gefinc-danger/10 text-[#fda4af] hover:border-gefinc-danger hover:text-[#fda4af];
+  }
   .gef-link {
     @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;
   }

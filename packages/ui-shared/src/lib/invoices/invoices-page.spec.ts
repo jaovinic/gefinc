@@ -194,7 +194,7 @@ describe('InvoicesPage', () => {
       expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${month}"]`)).not.toBeNull();
       const undo = el.querySelector('button[aria-label^="Desfazer pagamento"]') as HTMLButtonElement;
       expect(undo).not.toBeNull();
-      expect(undo.className).toContain('gef-action');
+      expect(undo.className).toContain('gef-btn-sm');
     });
   });
 });

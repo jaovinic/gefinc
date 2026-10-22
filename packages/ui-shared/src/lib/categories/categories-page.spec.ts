@@ -69,7 +69,7 @@ describe('CategoriesPage', () => {
     for (const label of ['Editar Alimentação', 'Excluir Alimentação', 'Editar Salário']) {
       const button = el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
       expect(button).not.toBeNull();
-      expect(button.className).toContain('gef-action');
+      expect(button.className).toContain('gef-btn-sm');
     }
   });
 });

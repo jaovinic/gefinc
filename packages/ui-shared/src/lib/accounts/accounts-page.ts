@@ -76,12 +76,12 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
                   {{ account.active ? 'Ativa' : 'Inativa' }}
                 </span>
               </div>
-              <div class="mt-2 flex flex-wrap gap-1 border-t border-gefinc-border pt-2">
-                <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
-                <button type="button" class="gef-link gef-action" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
+              <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
+                <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
+                <button type="button" class="gef-btn-sm" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
                   {{ account.active ? 'Inativar' : 'Reativar' }}
                 </button>
-                <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + account.name" (click)="remove(account)">Excluir</button>
+                <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + account.name" (click)="remove(account)">Excluir</button>
               </div>
             </li>
           }
@@ -113,13 +113,13 @@ import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form'
                       <span class="text-gefinc-muted">Inativa</span>
                     }
                   </td>
-                  <td class="space-x-2 px-4 py-3 text-right">
-                    <button type="button" class="gef-link" (click)="startEdit(account)">Editar</button>
-                    <button type="button" class="gef-link" (click)="toggleActive(account)">
+                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
+                    <button type="button" class="gef-btn-sm" (click)="startEdit(account)">Editar</button>
+                    <button type="button" class="gef-btn-sm" (click)="toggleActive(account)">
                       {{ account.active ? 'Inativar' : 'Reativar' }}
                     </button>
-                    <button type="button" class="text-gefinc-danger hover:underline" (click)="remove(account)">Excluir</button>
-                  </td>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" (click)="remove(account)">Excluir</button>
+                  </div></td>
                 </tr>
               }
             </tbody>

@@ -150,7 +150,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
               @for (payment of inv.payments; track payment.id) {
                 <li class="flex items-center justify-between px-4 py-3">
                   <span>{{ br(payment.paidAt) }} · <span class="financial-value">{{ money(payment.amount) }}</span></span>
-                  <button type="button" class="gef-link gef-action" [attr.aria-label]="'Desfazer pagamento de ' + br(payment.paidAt)" (click)="undo(payment.id)">Desfazer</button>
+                  <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer pagamento de ' + br(payment.paidAt)" (click)="undo(payment.id)">Desfazer</button>
                 </li>
               }
             </ul>

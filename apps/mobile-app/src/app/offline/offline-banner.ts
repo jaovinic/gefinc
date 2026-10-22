@@ -42,7 +42,7 @@ import { SyncEngine } from './sync-engine';
                 Sincronizar agora
               </button>
             }
-            <a class="gef-action gef-link" routerLink="/pendencias">Ver pendências</a>
+            <a class="gef-btn-secondary" routerLink="/pendencias">Ver pendências</a>
           </div>
         }
       </div>

@@ -45,9 +45,10 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
         </div>
         <button type="submit" class="gef-btn-primary" [disabled]="busy()">Criar conta</button>
       </form>
-      <p class="mt-4 text-body-base">
-        Já tem conta? <a class="gef-link" routerLink="/login">Entrar</a>
-      </p>
+      <div class="mt-4 space-y-3 border-t border-gefinc-border pt-4 text-center">
+        <p class="text-caption text-gefinc-muted">Já tem conta?</p>
+        <a class="gef-btn-secondary block w-full text-center" routerLink="/login">Entrar</a>
+      </div>
     </gef-auth-card>
   `,
 })

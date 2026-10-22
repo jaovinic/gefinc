@@ -86,9 +86,9 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
                     <span class="h-4 w-4 rounded-full" [style.background]="category.colorHex" aria-hidden="true"></span>
                     {{ category.name }}
                   </span>
-                  <span class="space-x-3">
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + category.name" (click)="startEdit(category)">Editar</button>
-                    <button type="button" class="gef-action text-gefinc-danger hover:underline" [attr.aria-label]="'Excluir ' + category.name" (click)="remove(category)">Excluir</button>
+                  <span class="flex gap-2">
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + category.name" (click)="startEdit(category)">Editar</button>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + category.name" (click)="remove(category)">Excluir</button>
                   </span>
                 </li>
               }

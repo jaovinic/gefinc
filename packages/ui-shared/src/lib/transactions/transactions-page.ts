@@ -204,18 +204,18 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
               @if (isLocal(tx)) {
                 <p class="mt-2 border-t border-gefinc-border pt-2 text-caption text-gefinc-warning">Pendente de envio</p>
               } @else {
-              <div class="mt-2 flex flex-wrap gap-1 border-t border-gefinc-border pt-2">
+              <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
                   @if (tx.status === 'PENDING') {
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Pagar ' + tx.description" (click)="openPay(tx)">Pagar</button>
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-primary" [attr.aria-label]="'Pagar ' + tx.description" (click)="openPay(tx)">Pagar</button>
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
                   } @else {
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
                   }
                   @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
-                    <button type="button" class="gef-link gef-action" [attr.aria-label]="'Encerrar ' + tx.description" (click)="endHere(tx)">Encerrar aqui</button>
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
+                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Encerrar ' + tx.description" (click)="endHere(tx)">Encerrar aqui</button>
                   }
-                  <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
+                  <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
                 </div>
               }
             </li>
@@ -250,29 +250,29 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                   </td>
                   <td class="max-w-56 px-4 py-3"><gef-account-badge [account]="accountOf(tx)" [showHolder]="false" /></td>
                   <td class="px-4 py-3 text-gefinc-muted">{{ installmentLabel(tx) }}</td>
-                  <td class="financial-value px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
+                  <td class="financial-value whitespace-nowrap px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
                     <span class="inline-flex items-center justify-end gap-1"><gef-icon [name]="isIncome(tx) ? 'arrow-up' : 'arrow-down'" [size]="14" />{{ signed(tx) }}</span>
                   </td>
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css"><gef-icon [name]="badge(tx).icon" [size]="12" />{{ badge(tx).label }}</span>
                   </td>
-                  <td class="space-x-2 px-4 py-3 text-right">
+                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
                     @if (isLocal(tx)) {
                       <span class="text-caption text-gefinc-warning">Pendente de envio</span>
                     } @else {
                     @if (tx.status === 'PENDING') {
-                      <button type="button" class="gef-link" (click)="openPay(tx)">Pagar</button>
-                      <button type="button" class="gef-link" (click)="openEdit(tx)">Editar</button>
+                      <button type="button" class="gef-btn-sm gef-btn-sm-primary" (click)="openPay(tx)">Pagar</button>
+                      <button type="button" class="gef-btn-sm" (click)="openEdit(tx)">Editar</button>
                     } @else {
-                      <button type="button" class="gef-link" (click)="unpay(tx)">Desfazer</button>
+                      <button type="button" class="gef-btn-sm" (click)="unpay(tx)">Desfazer</button>
                     }
                     @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
-                      <button type="button" class="gef-link" (click)="openAmount(tx)">Alterar valor daqui</button>
-                      <button type="button" class="gef-link" (click)="endHere(tx)">Encerrar aqui</button>
+                      <button type="button" class="gef-btn-sm" (click)="openAmount(tx)">Alterar valor daqui</button>
+                      <button type="button" class="gef-btn-sm" (click)="endHere(tx)">Encerrar aqui</button>
                     }
-                    <button type="button" class="text-gefinc-danger hover:underline" (click)="openDelete(tx)">Excluir</button>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" (click)="openDelete(tx)">Excluir</button>
                   }
-                  </td>
+                  </div></td>
                 </tr>
               }
             </tbody>

@@ -33,7 +33,7 @@ import { Icon } from '../icons/icon';
       }
     </div>
     @if (value() && !disabled()) {
-      <button type="button" class="gef-link mt-1 text-caption" (click)="choose(null)">Usar o ícone padrão</button>
+      <button type="button" class="gef-btn-sm mt-2" (click)="choose(null)">Usar o ícone padrão</button>
     }
   `,
 })

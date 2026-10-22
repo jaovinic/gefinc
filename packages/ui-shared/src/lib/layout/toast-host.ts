@@ -16,7 +16,7 @@ import { Icon } from '../icons/icon';
           <gef-icon name="check" [size]="18" />
           <span class="flex-1">{{ toast.message }}</span>
           @if (toast.undo) {
-            <button type="button" class="gef-link min-h-9 px-2 font-semibold" (click)="notices.runUndo(toast.id)">Desfazer</button>
+            <button type="button" class="gef-btn-sm min-h-9 border-gefinc-secondary/50 px-2 text-gefinc-secondary" (click)="notices.runUndo(toast.id)">Desfazer</button>
           }
           <button type="button" class="min-h-9 min-w-9 text-gefinc-muted" aria-label="Fechar aviso" (click)="notices.dismissToast(toast.id)">
             <gef-icon name="close" [size]="16" />
