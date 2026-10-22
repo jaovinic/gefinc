@@ -5,6 +5,9 @@ import {
   Login,
   Register,
   ResetPassword,
+  AccountsPage,
+  CategoriesPage,
+  TransactionsPage,
   authGuard,
 } from '@gefinc/ui-shared';
 import { Shell } from './layout/shell';
@@ -36,7 +39,7 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'transactions',
-        loadComponent: () => import('./transactions/transactions-page').then((m) => m.TransactionsPage),
+        component: TransactionsPage,
       },
       {
         path: 'invoices',
@@ -48,11 +51,11 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'categories',
-        loadComponent: () => import('@gefinc/ui-shared').then((m) => m.CategoriesPage),
+        component: CategoriesPage,
       },
       {
         path: 'accounts',
-        loadComponent: () => import('@gefinc/ui-shared').then((m) => m.AccountsPage),
+        component: AccountsPage,
       },
       {
         path: 'settings',

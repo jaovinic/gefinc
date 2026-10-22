@@ -1,7 +1,10 @@
 import { HttpTestingController } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
-import { API, clickButton, configureHttpTesting, select } from '../../test/testbed';
+import { API, clickButton, configureHttpTesting, select } from '../../testing/testbed';
+import { Viewport } from '../viewport/viewport';
 import { TransactionsPage } from './transactions-page';
 
 const pending = {
@@ -17,7 +20,20 @@ function page(content: unknown[]) {
 }
 
 describe('TransactionsPage', () => {
-  async function setup(content: unknown[] = [pending, late, paid, fixedIncome]) {
+  async function setup(
+    content: unknown[] = [pending, late, paid, fixedIncome],
+    options: { compact?: boolean; query?: Record<string, string> } = {},
+  ) {
+    const extra: unknown[] = [];
+    if (options.compact !== undefined) {
+      extra.push({ provide: Viewport, useValue: { compact: signal(options.compact) } });
+    }
+    if (options.query) {
+      extra.push({ provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(options.query) } } });
+    }
+    if (extra.length > 0) {
+      TestBed.configureTestingModule({ providers: extra as never[] });
+    }
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(TransactionsPage);
     fixture.detectChanges();
@@ -135,5 +151,95 @@ describe('TransactionsPage', () => {
     );
     fixture.detectChanges();
     expect(el.textContent).toContain('Este lançamento já está pago.');
+  });
+
+  it('abre já filtrada pelos parâmetros da rota (toque em um lembrete)', async () => {
+    const ctx = (() => {
+      TestBed.configureTestingModule({
+        providers: [{ provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ month: '2026-12', status: 'PENDING' }) } } }],
+      });
+      return configureHttpTesting();
+    })();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+
+    const request = ctx.http.expectOne((r) => r.url === `${API}/transactions`);
+    expect(request.request.params.get('month')).toBe('2026-12');
+    expect(request.request.params.get('status')).toBe('PENDING');
+    request.flush(page([]));
+    ctx.flushReference();
+  });
+
+  describe('no celular (layout compacto)', () => {
+    const compact = { compact: true };
+
+    it('mostra cartões em vez de tabela, com data, categoria, conta, valor e status', async () => {
+      const { el } = await setup(undefined, compact);
+
+      expect(el.querySelector('table')).toBeNull();
+      const cards = el.querySelectorAll('[data-testid="transaction-card"]');
+      expect(cards).toHaveLength(4);
+      const mercado = cards[0].textContent ?? '';
+      for (const text of ['Mercado', 'R$ 150,00', '15/11/2026', 'Alimentação', 'Itaú', 'Pend']) {
+        expect(mercado).toContain(text);
+      }
+      expect(cards[1].textContent).toContain('Vencido');
+      expect(cards[2].textContent).toContain('Pago');
+      expect(el.textContent).toContain('4 lançamento(s)');
+    });
+
+    it('cada ação tem rótulo acessível com o nome do lançamento e área de toque confortável', async () => {
+      const { el } = await setup(undefined, compact);
+
+      for (const label of ['Pagar Mercado', 'Editar Mercado', 'Excluir Mercado', 'Desfazer Cinema', 'Alterar valor Salário', 'Encerrar Salário']) {
+        const button = el.querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+        expect(button).not.toBeNull();
+        expect(button.className).toContain('gef-action');
+      }
+    });
+
+    it('os filtros ficam atrás do botão Filtros e aplicam a consulta', async () => {
+      const { http, el, fixture } = await setup(undefined, compact);
+      expect(el.querySelector('select[aria-label="Status"]')).toBeNull();
+
+      clickButton(el, 'Filtros');
+      fixture.detectChanges();
+      expect(el.querySelector('[role="dialog"][aria-label="Filtros"]')).not.toBeNull();
+      select(el, 'select[aria-label="Status"]', 'PENDING');
+      fixture.detectChanges();
+
+      const request = listRequest(http);
+      expect(request.request.params.get('status')).toBe('PENDING');
+      request.flush(page([pending]));
+    });
+
+    it('pagar abre o painel inferior e confirma o pagamento', async () => {
+      const { http, el, fixture } = await setup(undefined, compact);
+
+      (el.querySelector('button[aria-label="Pagar Mercado"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+      expect(dialog.classList).toContain('gef-sheet');
+      expect(dialog.textContent).toContain('Registrar o pagamento de');
+
+      clickButton(el, 'Confirmar');
+      const pay = http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` });
+      expect(pay.request.body).toEqual({ paymentDate: todayIso() });
+      pay.flush({ ...pending, status: 'PAID', paymentDate: todayIso() });
+      listRequest(http).flush(page([]));
+    });
+
+    it('Novo lançamento abre o formulário em um painel inferior', async () => {
+      const { el, fixture, flushReference } = await setup(undefined, compact);
+
+      clickButton(el, 'Novo lançamento');
+      fixture.detectChanges();
+      flushReference(); // o formulário atualiza contas e categorias ao abrir
+      fixture.detectChanges();
+
+      const dialog = el.querySelector('[role="dialog"][aria-label="Novo lançamento"]') as HTMLElement;
+      expect(dialog).not.toBeNull();
+      expect(dialog.querySelector('form')).not.toBeNull();
+    });
   });
 });

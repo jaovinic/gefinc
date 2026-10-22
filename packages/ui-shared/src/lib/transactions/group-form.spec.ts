@@ -1,6 +1,6 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { API, configureHttpTesting, select, type } from '../../test/testbed';
+import { API, configureHttpTesting, select, type } from '../../testing/testbed';
 import { GroupForm } from './group-form';
 
 describe('GroupForm', () => {
@@ -82,6 +82,25 @@ describe('GroupForm', () => {
     expect(el.textContent).toContain('Informe a descrição.');
     expect(el.textContent).toContain('Escolha a conta.');
     expect(el.textContent).toContain('Escolha a categoria.');
+  });
+
+  it('valor zerado não é enviado e mostra o aviso, mantendo o que foi digitado', async () => {
+    const { http, el, fixture } = await setup();
+    type(el, '#description', 'Padaria');
+    select(el, '#accountId', '1');
+    fixture.detectChanges();
+    select(el, '#categoryId', '10');
+    type(el, 'gef-money-input input', '0');
+    type(el, '#purchaseDate', '2026-11-08');
+    type(el, '#firstDueDate', '2026-11-12');
+    fixture.detectChanges();
+
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(el.textContent).toContain('Informe um valor maior que zero.');
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Padaria');
   });
 });
 

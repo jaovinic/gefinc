@@ -76,12 +76,12 @@ description: "Lista de tarefas da feature Paridade de funcionalidades nos aplica
 
 **Purpose**: Lista, filtros, cadastro dos três tipos, edição, pagamento e exclusão no app, mantendo o lançamento rápido em até 3 toques
 
-- [ ] T025 [P] [US2] [Teste] Mover `apps/web-app/src/app/transactions/transactions-page.spec.ts` e `group-form.spec.ts` para `packages/ui-shared/src/lib/transactions/` e acrescentar casos compactos (filtros em `gef-sheet`, linhas em cartões, prévia das parcelas legível, ações por linha); ver falhar
-- [ ] T026 [P] [US2] [Teste] Criar `apps/mobile-app-e2e/src/transactions.spec.ts` (E2E mobile): despesa avulsa, fixa e parcelada em cartão (prévia 33,33 / 33,33 / 33,34), filtros por mês, conta, categoria, tipo e status, pagar e desfazer, alterar valor de fixa a partir de um mês, encerrar, excluir com confirmação e aviso de parcelas pagas, conflito de versão com opção de recarregar, valor menor ou igual a zero preservando o digitado; ver falhar
-- [ ] T027 [US2] Mover `apps/web-app/src/app/transactions/transactions-page.ts` para `packages/ui-shared/src/lib/transactions/` com layout responsivo (filtros em `gef-sheet`, linhas em cartões no celular) e aceitar filtros iniciais por parâmetros de rota (`month`, `status`, `date`), usados depois pelos lembretes
-- [ ] T028 [US2] Mover `apps/web-app/src/app/transactions/group-form.ts` para `packages/ui-shared/src/lib/transactions/` com layout responsivo e rolagem segura com teclado aberto; exportar ambos em `packages/ui-shared/src/index.ts`
-- [ ] T029 [US2] Ligar as rotas de lançamentos no web e no mobile (`lancamentos` sob o shell) e manter `quick-expense` com botão "+ Nova despesa" no Painel, preservando o limite de 3 toques (o E2E `quick-expense.spec.ts` continua verde)
-- [ ] T030 [US2] Executar `npx nx e2e web-app-e2e` (transactions) e `npx nx e2e mobile-app-e2e` (transactions e quick-expense); corrigir regressões
+- [X] T025 [P] [US2] [Teste] Mover `apps/web-app/src/app/transactions/transactions-page.spec.ts` e `group-form.spec.ts` para `packages/ui-shared/src/lib/transactions/` e acrescentar casos compactos (filtros em `gef-sheet`, linhas em cartões, prévia das parcelas legível, ações por linha); ver falhar
+- [X] T026 [P] [US2] [Teste] Criar `apps/mobile-app-e2e/src/transactions.spec.ts` (E2E mobile): despesa avulsa, fixa e parcelada em cartão (prévia 33,33 / 33,33 / 33,34), filtros por mês, conta, categoria, tipo e status, pagar e desfazer, alterar valor de fixa a partir de um mês, encerrar, excluir com confirmação e aviso de parcelas pagas, conflito de versão com opção de recarregar, valor menor ou igual a zero preservando o digitado; ver falhar
+- [X] T027 [US2] Mover `apps/web-app/src/app/transactions/transactions-page.ts` para `packages/ui-shared/src/lib/transactions/` com layout responsivo (filtros em `gef-sheet`, linhas em cartões no celular) e aceitar filtros iniciais por parâmetros de rota (`month`, `status`, `date`), usados depois pelos lembretes
+- [X] T028 [US2] Mover `apps/web-app/src/app/transactions/group-form.ts` para `packages/ui-shared/src/lib/transactions/` com layout responsivo e rolagem segura com teclado aberto; exportar ambos em `packages/ui-shared/src/index.ts`
+- [X] T029 [US2] Ligar as rotas de lançamentos no web e no mobile (`lancamentos` sob o shell) e manter `quick-expense` com botão "+ Nova despesa" no Painel, preservando o limite de 3 toques (o E2E `quick-expense.spec.ts` continua verde)
+- [X] T030 [US2] Executar `npx nx e2e web-app-e2e` (transactions) e `npx nx e2e mobile-app-e2e` (transactions e quick-expense); corrigir regressões
 
 ---
 

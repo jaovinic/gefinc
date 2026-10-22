@@ -55,3 +55,11 @@ export async function categoryId(request: APIRequestContext, user: TestUser, nam
   expect(found, `categoria ${name}`).toBeTruthy();
   return found!.id;
 }
+
+/** Data local de hoje em ISO, como o app usa por padrão. */
+export function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}

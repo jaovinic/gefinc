@@ -1,8 +1,15 @@
 import { Component, OnInit, computed, inject, output, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefinc/core-models';
-import { MoneyInput, ReferenceData, TransactionsApi, messageFor, toProblem } from '@gefinc/ui-shared';
+import { ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
+import { MoneyInput } from '../money-input/money-input';
 import { formatBRL, invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+
+/** O valor precisa ser maior que zero (sem nenhum dígito diferente de zero, é zero). */
+function positiveAmount(control: AbstractControl): ValidationErrors | null {
+  const value = control.value as string | null;
+  return value && !/[1-9]/.test(value) ? { positive: true } : null;
+}
 
 const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   VARIABLE: 'Avulso',
@@ -148,7 +155,7 @@ export class GroupForm implements OnInit {
     description: ['', [Validators.required, Validators.maxLength(120)]],
     accountId: [0],
     categoryId: [0],
-    totalAmount: this.fb.control<string | null>(null, Validators.required),
+    totalAmount: this.fb.control<string | null>(null, [Validators.required, positiveAmount]),
     totalInstallments: [2, [Validators.min(1), Validators.max(120)]],
     purchaseDate: [todayIso(), Validators.required],
     firstDueDate: [todayIso()],
