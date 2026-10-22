@@ -97,6 +97,14 @@ paths:
     post:
       tags: [Auth]
       summary: Encerra a sessão e revoga o refresh token
+      description: |
+        No web, o refresh token vem do cookie (cabeçalho `X-Client: web`) e o cookie é apagado. No
+        mobile, informe o `refreshToken` no corpo para revogá-lo.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
       responses:
         '204': { description: Sessão encerrada }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -223,6 +231,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
   /accounts/{accountId}:
@@ -828,9 +837,11 @@ components:
 
     Problem:
       type: object
+      additionalProperties: true
       required: [type, title, status, code]
       properties:
         type: { type: string }
+        instance: { type: string }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
@@ -846,6 +857,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Problem'
         - type: object
+          additionalProperties: true
           properties:
             errors:
               type: array
@@ -859,6 +871,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/Problem'
         - type: object
+          additionalProperties: true
           required: [deletionDate]
           properties:
             deletionDate: { type: string, format: date }
@@ -918,13 +931,17 @@ components:
         dueDay: { type: integer, minimum: 1, maximum: 31 }
       description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos."
     AccountUpdate:
-      allOf:
-        - $ref: '#/components/schemas/AccountInput'
-        - type: object
-          required: [active, version]
-          properties:
-            active: { type: boolean }
-            version: { type: integer, format: int64 }
+      type: object
+      required: [name, type, active, version]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        type: { $ref: '#/components/schemas/AccountType' }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+        active: { type: boolean }
+        version: { type: integer, format: int64 }
+      description: "O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput."
+
 
     Category:
       type: object
@@ -956,8 +973,7 @@ components:
           type: integer
           minimum: 1
           maximum: 120
-          default: 1
-          description: Obrigatório (≥ 2) para INSTALLMENT; 1 nos demais
+          description: Obrigatório para INSTALLMENT (1 vira um avulso; até 120); nos demais tipos é 1 e pode ser omitido
         accountId: { type: integer, format: int64 }
         categoryId: { type: integer, format: int64 }
         purchaseDate: { type: string, format: date }

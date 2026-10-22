@@ -31,17 +31,17 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **Purpose**: Inicialização do monorepo e dos projetos
 
-- [ ] T001 Criar os arquivos de workspace Nx na raiz: `package.json` (scripts `dev`, `test`, `build`, `lint`; `dev` sobe o Docker Compose e executa `api-server:serve`, `web-app:serve` e `mobile-app:serve` em paralelo), `nx.json` e `tsconfig.base.json`
-- [ ] T002 [P] Criar as bibliotecas `packages/core-models/`, `packages/ui-shared/` e `packages/utils/` (cada uma com `project.json`, `tsconfig.lib.json`, `jest.config.ts` e `src/index.ts`)
-- [ ] T003 Criar o projeto Maven `apps/api-server/pom.xml` (Java 21, Spring Boot 3.x, Web, Security, Data JPA, Validation, Mail, Actuator, Flyway + driver PostgreSQL, biblioteca JWT, Testcontainers, GreenMail, swagger-request-validator, Spotless), o Maven Wrapper `apps/api-server/mvnw` e a classe `apps/api-server/src/main/java/com/jvtech/gefinc/GefincApplication.java`
-- [ ] T004 Criar `apps/api-server/project.json` com os alvos Nx `build`, `test`, `serve` e `lint` executando `./mvnw` por `nx:run-commands` (depende de T003)
-- [ ] T005 [P] Criar o app Angular standalone `apps/web-app/` com Tailwind CSS, Jest e Playwright (`apps/web-app/project.json`, `apps/web-app/tailwind.config.js`, `apps/web-app/playwright.config.ts`)
-- [ ] T006 [P] Criar o app Ionic + Angular + Capacitor `apps/mobile-app/` com Tailwind CSS para estilo, conforme o Princípio VI da constituição (`apps/mobile-app/project.json`, `apps/mobile-app/capacitor.config.ts`, `apps/mobile-app/playwright.config.ts` com viewport de celular)
-- [ ] T007 Adicionar as plataformas nativas ao app móvel (`npx cap add android` e, apenas em macOS, `npx cap add ios`), gerando `apps/mobile-app/android/` e `apps/mobile-app/ios/`, e conferir que `npx nx run mobile-app:sync` conclui (depende de T006)
-- [ ] T008 [P] Criar `docker-compose.yml` (PostgreSQL 16 e Mailpit) e `.env.example` (`DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `APP_BASE_URL`)
-- [ ] T009 [P] Configurar ESLint e Prettier na raiz (`.eslintrc.json`, `.prettierrc`) com regra de fronteira de módulos Nx proibindo importação entre apps
-- [ ] T010 [P] Criar o pipeline `.github/workflows/ci.yml` executando `nx affected -t lint test build` com Docker disponível para o Testcontainers
-- [ ] T011 T-DOC: atualizar `spec-genfic.md` §5 com as tabelas e colunas novas descritas em `specs/001-personal-finance-management/data-model.md` (`invoice_payments`, `refresh_tokens`, `password_reset_tokens` e colunas de apoio), como exige o Princípio V; fazer antes da primeira migração
+- [X] T001 Criar os arquivos de workspace Nx na raiz: `package.json` (scripts `dev`, `test`, `build`, `lint`; `dev` sobe o Docker Compose e executa `api-server:serve`, `web-app:serve` e `mobile-app:serve` em paralelo), `nx.json` e `tsconfig.base.json`
+- [X] T002 [P] Criar as bibliotecas `packages/core-models/`, `packages/ui-shared/` e `packages/utils/` (cada uma com `project.json`, `tsconfig.lib.json`, `jest.config.ts` e `src/index.ts`)
+- [X] T003 Criar o projeto Maven `apps/api-server/pom.xml` (Java 21, Spring Boot 3.x, Web, Security, Data JPA, Validation, Mail, Actuator, Flyway + driver PostgreSQL, biblioteca JWT, Testcontainers, GreenMail, swagger-request-validator, Spotless), o Maven Wrapper `apps/api-server/mvnw` e a classe `apps/api-server/src/main/java/com/jvtech/gefinc/GefincApplication.java`
+- [X] T004 Criar `apps/api-server/project.json` com os alvos Nx `build`, `test`, `serve` e `lint` executando `./mvnw` por `nx:run-commands` (depende de T003)
+- [X] T005 [P] Criar o app Angular standalone `apps/web-app/` com Tailwind CSS, Jest e Playwright (`apps/web-app/project.json`, `apps/web-app/tailwind.config.js`, `apps/web-app-e2e/playwright.config.mts`)
+- [X] T006 [P] Criar o app Ionic + Angular + Capacitor `apps/mobile-app/` com Tailwind CSS para estilo, conforme o Princípio VI da constituição (`apps/mobile-app/project.json`, `apps/mobile-app/capacitor.config.ts`, `apps/mobile-app-e2e/playwright.config.mts` com viewport de celular)
+- [X] T007 Adicionar as plataformas nativas ao app móvel (`npx cap add android` e, apenas em macOS, `npx cap add ios`), gerando `apps/mobile-app/android/` e `apps/mobile-app/ios/`, e conferir que `npx nx run mobile-app:sync` conclui (depende de T006)
+- [X] T008 [P] Criar `docker-compose.yml` (PostgreSQL 16 e Mailpit) e `.env.example` (`DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `APP_BASE_URL`)
+- [X] T009 [P] Configurar ESLint e Prettier na raiz (`.eslintrc.json`, `.prettierrc`) com regra de fronteira de módulos Nx proibindo importação entre apps
+- [X] T010 [P] Criar o pipeline `.github/workflows/ci.yml` executando `nx affected -t lint test build` com Docker disponível para o Testcontainers
+- [X] T011 T-DOC: atualizar `spec-genfic.md` §5 com as tabelas e colunas novas descritas em `specs/001-personal-finance-management/data-model.md` (`invoice_payments`, `refresh_tokens`, `password_reset_tokens` e colunas de apoio), como exige o Princípio V; fazer antes da primeira migração
 
 ---
 
@@ -51,22 +51,31 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **⚠️ CRITICAL**: Nenhuma história começa antes desta fase terminar
 
-- [ ] T012 [P] Copiar o contrato para `packages/core-models/openapi/gefinc.openapi.yaml`, criar o alvo `generate` em `packages/core-models/project.json` (openapi-typescript → `packages/core-models/src/generated/api.ts`) e exportar os tipos em `packages/core-models/src/index.ts`
-- [ ] T013 [P] Criar os vetores de teste compartilhados `packages/core-models/fixtures/installments.json`: cartão fechando dia 10 e vencendo dia 17 (compra dia 5 e dia 12), compra no próprio dia de fechamento, vencimento anterior ao fechamento (fecha 25, vence 5), dia 31 em mês curto, virada de ano, R$ 100,00 em 3 parcelas (33,33/33,33/33,34), parcela única, `closing_day == due_day` (vence no mês seguinte ao fechamento), compra avulsa e ocorrência fixa em cartão (o vencimento informado é ignorado) e carnê na conta corrente (R$ 300,00 em 3 parcelas com primeiro vencimento em 10/11)
-- [ ] T014 [P] Escrever testes que falham para `Money` em `packages/utils/src/lib/money.spec.ts` (parse de string decimal, soma/subtração exata, divisão em parcelas com resto, formatação BRL, rejeição de mais de 2 casas decimais)
-- [ ] T015 Implementar `Money` em `packages/utils/src/lib/money.ts` (string decimal sobre centavos em `BigInt`, formatação `R$ 1.234,56`) e exportar em `packages/utils/src/index.ts` (depende de T014)
-- [ ] T016 [P] Criar o tratamento de erros RFC 7807 em `apps/api-server/src/main/java/com/jvtech/gefinc/common/error/` (`ApiException.java`, `ErrorCode.java`, `GlobalExceptionHandler.java` com campo `code` e lista `errors` para validação)
-- [ ] T017 [P] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/common/config/ClockConfig.java` com `Clock` no fuso `America/Sao_Paulo`
-- [ ] T018 [P] Criar `apps/api-server/src/main/resources/application.yml` e `application-local.yml` (datasource por variáveis de ambiente, Flyway, `ddl-auto: validate`, e-mail, propriedades JWT, origens CORS)
-- [ ] T019 [P] Criar o log estruturado em `apps/api-server/src/main/java/com/jvtech/gefinc/common/logging/CorrelationIdFilter.java` e `apps/api-server/src/main/resources/logback-spring.xml` (JSON, sem e-mail, valores ou tokens)
-- [ ] T020 [P] Escrever o teste que falha `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/JwtServiceTest.java` (emissão, validação, expiração de 15 minutos, assinatura inválida, claim com a versão do token)
-- [ ] T021 Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/common/security/JwtService.java`, `SecurityConfig.java` (stateless; filtro JWT que, a cada requisição, confere `users.token_version` e a exclusão pendente por meio da interface `TokenVersionLookup`, com implementação provisória em memória nesta fase, substituída pelo adaptador de T033; CORS; cabeçalhos de segurança; rotas públicas: register, login, refresh, password-reset/request, password-reset/confirm e account-deletion/cancel, enquanto logout e account-deletion exigem autenticação) e `CurrentUser.java` que expõe o `userId` do token (depende de T020)
-- [ ] T022 [P] Criar o suporte de testes `apps/api-server/src/test/java/com/jvtech/gefinc/support/IntegrationTestBase.java` (Testcontainers PostgreSQL 16, helpers para criar e autenticar usuários de teste) e `support/ContractAssertions.java` (valida respostas contra `packages/core-models/openapi/gefinc.openapi.yaml`; depende de T012)
-- [ ] T023 [P] Criar a casca do web em `apps/web-app/src/app/core/` (`api-client.ts`, `auth.interceptor.ts` com cabeçalho `X-Client: web`, `withCredentials`, uma renovação de token em `401` e, se ela falhar, preservação do rascunho do formulário em `sessionStorage` com redirecionamento ao login e retomada depois, tratamento de `409 STALE_VERSION` com mensagem de conflito e recarga do registro, `app.routes.ts`, `app.config.ts` com locale `pt-BR`) e o layout com botão de sair em `apps/web-app/src/app/layout/`
-- [ ] T024 [P] Criar a casca do mobile em `apps/mobile-app/src/app/core/` (`api-client.ts`, `secure-storage.service.ts` sobre o plugin de armazenamento seguro do Capacitor, `auth.interceptor.ts` com preservação do rascunho do formulário e retomada após novo login quando a renovação falhar, tratamento de `409 STALE_VERSION` com mensagem de conflito e recarga do registro, `app.routes.ts`) e a ação de sair
-- [ ] T025 [P] Criar componentes base em `packages/ui-shared/src/lib/` (`money-input/`, `state-views/` para carregamento, vazio e erro, `month-picker/`) com testes Jest
+- [X] T012 [P] Copiar o contrato para `packages/core-models/openapi/gefinc.openapi.yaml`, criar o alvo `generate` em `packages/core-models/project.json` (openapi-typescript → `packages/core-models/src/generated/api.ts`) e exportar os tipos em `packages/core-models/src/index.ts`
+- [X] T013 [P] Criar os vetores de teste compartilhados `packages/core-models/fixtures/installments.json`: cartão fechando dia 10 e vencendo dia 17 (compra dia 5 e dia 12), compra no próprio dia de fechamento, vencimento anterior ao fechamento (fecha 25, vence 5), dia 31 em mês curto, virada de ano, R$ 100,00 em 3 parcelas (33,33/33,33/33,34), parcela única, `closing_day == due_day` (vence no mês seguinte ao fechamento), compra avulsa e ocorrência fixa em cartão (o vencimento informado é ignorado) e carnê na conta corrente (R$ 300,00 em 3 parcelas com primeiro vencimento em 10/11)
+- [X] T014 [P] Escrever testes que falham para `Money` em `packages/utils/src/lib/money.spec.ts` (parse de string decimal, soma/subtração exata, divisão em parcelas com resto, formatação BRL, rejeição de mais de 2 casas decimais)
+- [X] T015 Implementar `Money` em `packages/utils/src/lib/money.ts` (string decimal sobre centavos em `BigInt`, formatação `R$ 1.234,56`) e exportar em `packages/utils/src/index.ts` (depende de T014)
+- [X] T016 [P] Criar o tratamento de erros RFC 7807 em `apps/api-server/src/main/java/com/jvtech/gefinc/common/error/` (`ApiException.java`, `ErrorCode.java`, `GlobalExceptionHandler.java` com campo `code` e lista `errors` para validação)
+- [X] T017 [P] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/common/config/ClockConfig.java` com `Clock` no fuso `America/Sao_Paulo`
+- [X] T018 [P] Criar `apps/api-server/src/main/resources/application.yml` e `application-local.yml` (datasource por variáveis de ambiente, Flyway, `ddl-auto: validate`, e-mail, propriedades JWT, origens CORS)
+- [X] T019 [P] Criar o log estruturado em `apps/api-server/src/main/java/com/jvtech/gefinc/common/logging/CorrelationIdFilter.java` e `apps/api-server/src/main/resources/logback-spring.xml` (JSON, sem e-mail, valores ou tokens)
+- [X] T020 [P] Escrever o teste que falha `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/JwtServiceTest.java` (emissão, validação, expiração de 15 minutos, assinatura inválida, claim com a versão do token)
+- [X] T021 Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/common/security/JwtService.java`, `SecurityConfig.java` (stateless; filtro JWT que, a cada requisição, confere `users.token_version` e a exclusão pendente por meio da interface `TokenVersionLookup`, com implementação provisória em memória nesta fase, substituída pelo adaptador de T033; CORS; cabeçalhos de segurança; rotas públicas: register, login, refresh, password-reset/request, password-reset/confirm e account-deletion/cancel, enquanto logout e account-deletion exigem autenticação) e `CurrentUser.java` que expõe o `userId` do token (depende de T020)
+- [X] T022 [P] Criar o suporte de testes `apps/api-server/src/test/java/com/jvtech/gefinc/support/IntegrationTestBase.java` (Testcontainers PostgreSQL 16, helpers para criar e autenticar usuários de teste) e `support/ContractAssertions.java` (valida respostas contra `packages/core-models/openapi/gefinc.openapi.yaml`; depende de T012)
+- [X] T023 [P] Criar a casca do web em `apps/web-app/src/app/core/` (`api-client.ts`, `auth.interceptor.ts` com cabeçalho `X-Client: web`, `withCredentials`, uma renovação de token em `401` e, se ela falhar, preservação do rascunho do formulário em `sessionStorage` com redirecionamento ao login e retomada depois, tratamento de `409 STALE_VERSION` com mensagem de conflito e recarga do registro, `app.routes.ts`, `app.config.ts` com locale `pt-BR`) e o layout com botão de sair em `apps/web-app/src/app/layout/`
+- [X] T024 [P] Criar a casca do mobile em `apps/mobile-app/src/app/core/` (`api-client.ts`, `secure-storage.service.ts` sobre o plugin de armazenamento seguro do Capacitor, `auth.interceptor.ts` com preservação do rascunho do formulário e retomada após novo login quando a renovação falhar, tratamento de `409 STALE_VERSION` com mensagem de conflito e recarga do registro, `app.routes.ts`) e a ação de sair
+- [X] T025 [P] Criar componentes base em `packages/ui-shared/src/lib/` (`money-input/`, `state-views/` para carregamento, vazio e erro, `month-picker/`) com testes Jest
 
 **Checkpoint**: Fundação pronta; as histórias podem começar
+
+> **Notas de implementação da fundação**
+> - O cliente de API, o interceptor de autenticação, a sessão, o `TokenStore`, os rascunhos e o aviso de conflito
+>   (`409 STALE_VERSION`) ficam em `packages/ui-shared/src/lib/api/`, compartilhados por web e mobile; cada app
+>   mantém só `core/session.providers.ts` (token em memória + cookie no web; armazenamento seguro no mobile).
+> - O tema do manual de identidade visual (`docs/gefinc_identidade_visual_design_system.md`) está em
+>   `packages/ui-shared/src/styles/theme.css` (Tailwind v4, dark-first), importado pelos dois apps.
+> - Projetos E2E do Nx: `apps/web-app-e2e` e `apps/mobile-app-e2e` (Playwright, Chromium; mobile em Pixel 7).
+> - Ionic 9: os componentes standalone vêm de `@ionic/angular` (sem o subcaminho `/standalone`).
 
 ---
 
@@ -80,27 +89,36 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 > **Escreva primeiro e confirme que FALHAM antes da implementação**
 
-- [ ] T026 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AuthRegistrationLoginIT.java` (cadastro, e-mail duplicado `409`, senha fraca `422`, login, credenciais erradas com mensagem genérica, rotas protegidas sem token `401`)
-- [ ] T027 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/RefreshTokenIT.java` (renovação com rotação, cookie `HttpOnly` no modo web e corpo no mobile, reuso de token rotacionado revoga a família, logout revoga)
-- [ ] T028 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordResetIT.java` (e-mail recebido via GreenMail, link válido por 60 minutos e de uso único, expirado/usado `400`, resposta idêntica para e-mail inexistente, limite de 3 por hora `429`, novo link invalida o anterior, sessões antigas revogadas, token de acesso emitido antes da troca recusado na hora)
-- [ ] T029 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AccountDeletionIT.java` (senha incorreta recusada, token de acesso emitido antes do pedido recusado na hora, login com exclusão pendente responde `423` sem tokens, cancelamento restaura o acesso, e-mail reservado durante a carência, job apaga em cascata após 30 dias usando `Clock` fixo, inclusive usuário com contas, categorias e lançamentos)
-- [ ] T030 [P] [US1] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordPolicyTest.java` (mínimo de 10 caracteres e máximo de 72 **bytes** em UTF-8, incluindo acentos e emoji)
-- [ ] T031 [P] [US1] Teste E2E `apps/web-app/e2e/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
+- [X] T026 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AuthRegistrationLoginIT.java` (cadastro, e-mail duplicado `409`, senha fraca `422`, login, credenciais erradas com mensagem genérica, rotas protegidas sem token `401`)
+- [X] T027 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/RefreshTokenIT.java` (renovação com rotação, cookie `HttpOnly` no modo web e corpo no mobile, reuso de token rotacionado revoga a família, logout revoga)
+- [X] T028 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordResetIT.java` (e-mail recebido via GreenMail, link válido por 60 minutos e de uso único, expirado/usado `400`, resposta idêntica para e-mail inexistente, limite de 3 por hora `429`, novo link invalida o anterior, sessões antigas revogadas, token de acesso emitido antes da troca recusado na hora)
+- [X] T029 [P] [US1] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/auth/AccountDeletionIT.java` (senha incorreta recusada, token de acesso emitido antes do pedido recusado na hora, login com exclusão pendente responde `423` sem tokens, cancelamento restaura o acesso, e-mail reservado durante a carência, job apaga em cascata após 30 dias usando `Clock` fixo, inclusive usuário com contas, categorias e lançamentos)
+- [X] T030 [P] [US1] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/auth/PasswordPolicyTest.java` (mínimo de 10 caracteres e máximo de 72 **bytes** em UTF-8, incluindo acentos e emoji)
+- [X] T031 [P] [US1] Teste E2E `apps/web-app-e2e/src/auth.spec.ts` (cadastro, login, logout, fluxo de recuperação de senha via Mailpit, solicitar e cancelar exclusão)
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] Criar a migração `apps/api-server/src/main/resources/db/migration/V1__users_and_tokens.sql` (`users` com índice único em `lower(email)` e coluna `token_version`, `refresh_tokens`, `password_reset_tokens` e índices, conforme `data-model.md`)
-- [ ] T033 [P] [US1] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/user/User.java` e `UserRepository.java`, mais o adaptador `TokenVersionLookup` usado pelo filtro JWT (T021)
-- [ ] T034 [P] [US1] Criar as entidades e repositórios `auth/RefreshToken.java`, `RefreshTokenRepository.java`, `PasswordResetToken.java`, `PasswordResetTokenRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T035 [US1] Implementar `auth/PasswordPolicy.java` e `auth/RegistrationService.java` (BCrypt custo 12, e-mail único sem diferenciar maiúsculas) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`, publicando `user/UserRegisteredEvent.java` ao concluir o cadastro
-- [ ] T036 [US1] Implementar `auth/TokenService.java` (geração, hash SHA-256, rotação, revogação por família) e `auth/AuthService.java` (login emitindo o JWT com a versão do usuário, refresh, logout, resposta `423` com a data limite em exclusão pendente) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T037 [US1] Implementar `auth/PasswordResetService.java` (token de 60 minutos, limite de 3 por hora por e-mail, resposta sempre `202`, incrementa `token_version` ao confirmar a nova senha) e `common/mail/MailService.java` com o modelo `apps/api-server/src/main/resources/mail/password-reset.txt` em pt-BR
-- [ ] T038 [US1] Implementar `auth/AccountDeletionService.java` (confirmação por senha, revogação de sessões e incremento de `token_version`, cancelamento) e `auth/AccountDeletionJob.java` (`@Scheduled` diário, remove usuários com carência vencida) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
-- [ ] T039 [US1] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/auth/AuthController.java` com todos os endpoints `/auth/*` do contrato, entregando o refresh token em cookie `HttpOnly; Secure; SameSite=Strict` quando `X-Client: web` e no corpo nos demais casos
-- [ ] T040 [P] [US1] Criar as telas web `apps/web-app/src/app/auth/` (`login/`, `register/`, `forgot-password/`, `reset-password/`, `delete-account/`) com validação e mensagens em pt-BR
-- [ ] T041 [P] [US1] Criar as telas mobile `apps/mobile-app/src/app/auth/` e a restauração de sessão ao abrir o app, guardando os tokens no armazenamento seguro do dispositivo
+- [X] T032 [US1] Criar a migração `apps/api-server/src/main/resources/db/migration/V1__users_and_tokens.sql` (`users` com índice único em `lower(email)` e coluna `token_version`, `refresh_tokens`, `password_reset_tokens` e índices, conforme `data-model.md`)
+- [X] T033 [P] [US1] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/user/User.java` e `UserRepository.java`, mais o adaptador `TokenVersionLookup` usado pelo filtro JWT (T021)
+- [X] T034 [P] [US1] Criar as entidades e repositórios `auth/RefreshToken.java`, `RefreshTokenRepository.java`, `PasswordResetToken.java`, `PasswordResetTokenRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T035 [US1] Implementar `auth/PasswordPolicy.java` e `auth/RegistrationService.java` (BCrypt custo 12, e-mail único sem diferenciar maiúsculas) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`, publicando `user/UserRegisteredEvent.java` ao concluir o cadastro
+- [X] T036 [US1] Implementar `auth/TokenService.java` (geração, hash SHA-256, rotação, revogação por família) e `auth/AuthService.java` (login emitindo o JWT com a versão do usuário, refresh, logout, resposta `423` com a data limite em exclusão pendente) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T037 [US1] Implementar `auth/PasswordResetService.java` (token de 60 minutos, limite de 3 por hora por e-mail, resposta sempre `202`, incrementa `token_version` ao confirmar a nova senha) e `common/mail/MailService.java` com o modelo `apps/api-server/src/main/resources/mail/password-reset.txt` em pt-BR
+- [X] T038 [US1] Implementar `auth/AccountDeletionService.java` (confirmação por senha, revogação de sessões e incremento de `token_version`, cancelamento) e `auth/AccountDeletionJob.java` (`@Scheduled` diário, remove usuários com carência vencida) em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/`
+- [X] T039 [US1] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/auth/AuthController.java` com todos os endpoints `/auth/*` do contrato, entregando o refresh token em cookie `HttpOnly; Secure; SameSite=Strict` quando `X-Client: web` e no corpo nos demais casos
+- [X] T040 [P] [US1] Criar as telas web `apps/web-app/src/app/auth/` (`login/`, `register/`, `forgot-password/`, `reset-password/`, `delete-account/`) com validação e mensagens em pt-BR
+- [X] T041 [P] [US1] Criar as telas mobile `apps/mobile-app/src/app/auth/` e a restauração de sessão ao abrir o app, guardando os tokens no armazenamento seguro do dispositivo
 
 **Checkpoint**: Usuários podem se cadastrar, entrar, recuperar a senha e excluir a conta
+
+> **Notas de implementação da US1**
+> - As telas de acesso (login, cadastro, recuperação e exclusão de conta) ficam em `packages/ui-shared/src/lib/auth/`
+>   e são roteadas por web e mobile; o mobile as envolve em `ion-content` (`apps/mobile-app/src/app/auth/auth-pages.ts`).
+>   A redefinição de senha e a exclusão de conta são feitas no web (o link do e-mail abre o web).
+> - O `logout` aceita um corpo opcional com o `refreshToken` (mobile); o contrato foi ajustado (`requestBody` opcional,
+>   `instance` e membros de extensão em `Problem`).
+> - O limite de 3 solicitações de redefinição por hora é controlado em memória (igual para e-mails cadastrados ou não).
+> - E2E do web: `cd apps/web-app-e2e && DB_PORT=5433 npx playwright test` (ajuste `DB_PORT` se a 5432 estiver ocupada).
 
 ---
 
@@ -112,18 +130,24 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 2 (MANDATORY) ⚠️
 
-- [ ] T042 [P] [US2] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountApiIT.java` (criar os três tipos, dias obrigatórios só no cartão e proibidos nos demais, dias fora de 1 a 31 `422`, edição, inativação e reativação, listagem com e sem inativas, versão desatualizada `409`, mudança dos dias do cartão publica o evento de alteração)
-- [ ] T043 [P] [US2] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountIsolationIT.java` (usuário B recebe `404` ao ler, editar ou excluir conta do usuário A)
+- [X] T042 [P] [US2] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountApiIT.java` (criar os três tipos, dias obrigatórios só no cartão e proibidos nos demais, dias fora de 1 a 31 `422`, edição, inativação e reativação, listagem com e sem inativas, versão desatualizada `409`, mudança dos dias do cartão publica o evento de alteração)
+- [X] T043 [P] [US2] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/account/AccountIsolationIT.java` (usuário B recebe `404` ao ler, editar ou excluir conta do usuário A)
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] Criar a migração `apps/api-server/src/main/resources/db/migration/V2__accounts.sql` (`accounts` com `CHECK` de tipo, dias e coerência cartão/dias, `UNIQUE (id, user_id)`, `active`, `version`)
-- [ ] T045 [P] [US2] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/account/Account.java` (com `@Version`) e `AccountRepository.java` (toda consulta filtrada por `userId`)
-- [ ] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: a violação de chave estrangeira por lançamentos vinculados é convertida em `409 ACCOUNT_IN_USE`, o que passa a valer assim que a tabela de lançamentos existir na US3)
-- [ ] T047 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountController.java` conforme `/accounts` do contrato
-- [ ] T048 [P] [US2] Criar a tela web `apps/web-app/src/app/accounts/` (lista, formulário com campos de fechamento e vencimento só para cartão, inativar e reativar)
+- [X] T044 [US2] Criar a migração `apps/api-server/src/main/resources/db/migration/V2__accounts.sql` (`accounts` com `CHECK` de tipo, dias e coerência cartão/dias, `UNIQUE (id, user_id)`, `active`, `version`)
+- [X] T045 [P] [US2] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/account/Account.java` (com `@Version`) e `AccountRepository.java` (toda consulta filtrada por `userId`)
+- [X] T046 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountService.java` (validação dos dias, publicação de `account/CardDaysChangedEvent.java` ao mudar os dias do cartão, inativação, regra de exclusão: a violação de chave estrangeira por lançamentos vinculados é convertida em `409 ACCOUNT_IN_USE`, o que passa a valer assim que a tabela de lançamentos existir na US3)
+- [X] T047 [US2] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/account/AccountController.java` conforme `/accounts` do contrato
+- [X] T048 [P] [US2] Criar a tela web `apps/web-app/src/app/accounts/` (lista, formulário com campos de fechamento e vencimento só para cartão, inativar e reativar)
 
 **Checkpoint**: Contas e cartões funcionam de forma independente
+
+> **Notas de implementação da US2**
+> - O tipo da conta não muda depois do cadastro (regra do serviço); o nome é único entre as contas ativas, sem
+>   diferenciar maiúsculas (`409 ACCOUNT_NAME_TAKEN`, acrescentado ao contrato).
+> - A rota de exclusão de conta do usuário passou a ser `/settings` ("Minha conta"); `/accounts` é o cadastro de contas.
+> - Rodar o E2E em máquina com a porta 5432 ocupada: `DB_PORT=5433 npx playwright test` em `apps/web-app-e2e`.
 
 ---
 
@@ -135,34 +159,43 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 3 (MANDATORY) ⚠️
 
-- [ ] T049 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/category/CategoryApiIT.java` (categorias iniciais criadas no cadastro, CRUD, nome único por tipo, cor inválida `422`, exclusão em uso `409`, `reassignTo` com tipo diferente `422`, isolamento entre usuários)
-- [ ] T050 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupFixedVariableIT.java` (avulso gera 1 lançamento no mês do vencimento; fixo gera 12 ocorrências; `amount-changes` altera só de um mês em diante e preserva anteriores e pagas; `end` remove as pendentes posteriores; no cartão, avulso e fixo ignoram o vencimento informado e usam o da fatura, cenários 8 e 9 da US3; conta inativa recusa novo lançamento com `422 ACCOUNT_INACTIVE`)
-- [ ] T051 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionPayUnpayListIT.java` (pagar com data, desfazer remove a data, filtros por mês, conta, categoria, tipo e status, paginação, indicador de atraso)
-- [ ] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados e grupos de conta inativa)
-- [ ] T053 [P] [US3] Testes `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionIsolationIT.java` (acesso cruzado `404`, conta ou categoria de outro usuário `404`) e `account/AccountInUseIT.java` (excluir conta com lançamentos `409 ACCOUNT_IN_USE`)
-- [ ] T054 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionValidationIT.java` (valor zero ou negativo, data inválida, campos obrigatórios, mais de 2 casas decimais, versão desatualizada `409`)
-- [ ] T055 [P] [US3] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/DueDateCalculatorTest.java` lendo `packages/core-models/fixtures/installments.json` (fechamento, compra no dia de fechamento, `closing_day == due_day`, mês curto, virada de ano, ocorrência fixa em cartão)
-- [ ] T056 [P] [US3] Teste `packages/utils/src/lib/due-date.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
-- [ ] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
+- [X] T049 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/category/CategoryApiIT.java` (categorias iniciais criadas no cadastro, CRUD, nome único por tipo, cor inválida `422`, exclusão em uso `409`, `reassignTo` com tipo diferente `422`, isolamento entre usuários)
+- [X] T050 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupFixedVariableIT.java` (avulso gera 1 lançamento no mês do vencimento; fixo gera 12 ocorrências; `amount-changes` altera só de um mês em diante e preserva anteriores e pagas; `end` remove as pendentes posteriores; no cartão, avulso e fixo ignoram o vencimento informado e usam o da fatura, cenários 8 e 9 da US3; conta inativa recusa novo lançamento com `422 ACCOUNT_INACTIVE`)
+- [X] T051 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionPayUnpayListIT.java` (pagar com data, desfazer remove a data, filtros por mês, conta, categoria, tipo e status, paginação, indicador de atraso)
+- [X] T052 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/FixedRecurrenceJobIT.java` (completa a janela de 12 meses, é idempotente, ignora grupos encerrados e grupos de conta inativa)
+- [X] T053 [P] [US3] Testes `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionIsolationIT.java` (acesso cruzado `404`, conta ou categoria de outro usuário `404`) e `account/AccountInUseIT.java` (excluir conta com lançamentos `409 ACCOUNT_IN_USE`)
+- [X] T054 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionValidationIT.java` (valor zero ou negativo, data inválida, campos obrigatórios, mais de 2 casas decimais, versão desatualizada `409`)
+- [X] T055 [P] [US3] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/DueDateCalculatorTest.java` lendo `packages/core-models/fixtures/installments.json` (fechamento, compra no dia de fechamento, `closing_day == due_day`, mês curto, virada de ano, ocorrência fixa em cartão)
+- [X] T056 [P] [US3] Teste `packages/utils/src/lib/due-date.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
+- [X] T057 [P] [US3] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` (ocorrência fixa pendente futura é recalculada; paga, avulsa e parcela são mantidas; vencimento hoje ou anterior não muda, regra `> hoje`; compra nova segue os novos dias)
 
 ### Implementation for User Story 3
 
-- [ ] T058 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V3__categories.sql` (`categories` com `CHECK` de tipo e cor, `UNIQUE (user_id, type, name)` e `UNIQUE (id, user_id)`)
-- [ ] T059 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V4__transaction_groups_and_transactions.sql` (`transaction_groups` e `transactions` com chaves estrangeiras compostas (`ON DELETE NO ACTION` para conta e categoria), `CHECK` de status/pagamento, `reference_month`, unicidades `(group_id, installment_number)` e `(group_id, reference_month)` e os índices por `user_id`)
-- [ ] T060 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/` (`Category.java`, `CategoryRepository.java`, `CategoryService.java` com `reassignTo`, `CategoryController.java`)
-- [ ] T061 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/DefaultCategorySeeder.java`, que cria as categorias iniciais ao receber `UserRegisteredEvent`
-- [ ] T062 [P] [US3] Criar as entidades e repositórios `transaction/TransactionGroup.java`, `Transaction.java`, `TransactionGroupRepository.java`, `TransactionRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` (`@Version`, consultas sempre por `userId`)
-- [ ] T063 [P] [US3] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/DueDateCalculator.java` (vencimento da fatura a partir da data da compra e dos dias de fechamento e vencimento do cartão; usada por avulso, fixo e parcelas)
-- [ ] T064 [P] [US3] Implementar `packages/utils/src/lib/due-date.ts` (mesma regra, para prévia na interface) e exportar em `packages/utils/src/index.ts`
-- [ ] T065 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `VARIABLE` e `FIXED` (geração das 12 ocorrências, edição, `amount-changes`, `end`; em conta de cartão o vencimento de cada ocorrência vem do `DueDateCalculator`, e fora do cartão exige `firstDueDate`)
-- [ ] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão e ignorando grupos de conta inativa)
-- [ ] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`, sem a trava de faturas com pagamento, que é acrescentada na US5
-- [ ] T068 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionService.java` (listagem filtrada e paginada, edição, pagar, desfazer, indicador de atraso com `Clock`)
-- [ ] T069 [US3] Implementar `transaction/TransactionGroupController.java` e `transaction/TransactionController.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` conforme o contrato
-- [ ] T070 [P] [US3] Criar a tela web `apps/web-app/src/app/categories/` (lista, criação, edição, exclusão com reatribuição)
-- [ ] T071 [P] [US3] Criar a tela web `apps/web-app/src/app/transactions/` (tabela analítica por mês com filtros, formulário de lançamento fixo e avulso (em cartão o campo de vencimento some e a prévia do vencimento vem de `packages/utils`), pagar e desfazer, alterar valor a partir de um mês, encerrar fixo)
+- [X] T058 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V3__categories.sql` (`categories` com `CHECK` de tipo e cor, `UNIQUE (user_id, type, name)` e `UNIQUE (id, user_id)`)
+- [X] T059 [US3] Criar a migração `apps/api-server/src/main/resources/db/migration/V4__transaction_groups_and_transactions.sql` (`transaction_groups` e `transactions` com chaves estrangeiras compostas (`ON DELETE NO ACTION` para conta e categoria), `CHECK` de status/pagamento, `reference_month`, unicidades `(group_id, installment_number)` e `(group_id, reference_month)` e os índices por `user_id`)
+- [X] T060 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/` (`Category.java`, `CategoryRepository.java`, `CategoryService.java` com `reassignTo`, `CategoryController.java`)
+- [X] T061 [P] [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/category/DefaultCategorySeeder.java`, que cria as categorias iniciais ao receber `UserRegisteredEvent`
+- [X] T062 [P] [US3] Criar as entidades e repositórios `transaction/TransactionGroup.java`, `Transaction.java`, `TransactionGroupRepository.java`, `TransactionRepository.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` (`@Version`, consultas sempre por `userId`)
+- [X] T063 [P] [US3] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/DueDateCalculator.java` (vencimento da fatura a partir da data da compra e dos dias de fechamento e vencimento do cartão; usada por avulso, fixo e parcelas)
+- [X] T064 [P] [US3] Implementar `packages/utils/src/lib/due-date.ts` (mesma regra, para prévia na interface) e exportar em `packages/utils/src/index.ts`
+- [X] T065 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `VARIABLE` e `FIXED` (geração das 12 ocorrências, edição, `amount-changes`, `end`; em conta de cartão o vencimento de cada ocorrência vem do `DueDateCalculator`, e fora do cartão exige `firstDueDate`)
+- [X] T066 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedRecurrenceJob.java` (`@Scheduled` diário que completa a janela de 12 meses, usando o `DueDateCalculator` em conta de cartão e ignorando grupos de conta inativa)
+- [X] T067 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java`, que ouve `CardDaysChangedEvent` e aplica a regra do FR-014 usando o `DueDateCalculator`, sem a trava de faturas com pagamento, que é acrescentada na US5
+- [X] T068 [US3] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionService.java` (listagem filtrada e paginada, edição, pagar, desfazer, indicador de atraso com `Clock`)
+- [X] T069 [US3] Implementar `transaction/TransactionGroupController.java` e `transaction/TransactionController.java` em `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/` conforme o contrato
+- [X] T070 [P] [US3] Criar a tela web `apps/web-app/src/app/categories/` (lista, criação, edição, exclusão com reatribuição)
+- [X] T071 [P] [US3] Criar a tela web `apps/web-app/src/app/transactions/` (tabela analítica por mês com filtros, formulário de lançamento fixo e avulso (em cartão o campo de vencimento some e a prévia do vencimento vem de `packages/utils`), pagar e desfazer, alterar valor a partir de um mês, encerrar fixo)
 
 **Checkpoint**: Controle básico de receitas e despesas funcionando
+
+> **Notas de implementação da US3**
+> - A rotina `FixedRecurrenceJob` e o recálculo por mudança dos dias do cartão (`FixedDueDateRecalculationListener`)
+>   só consideram ocorrências pendentes com vencimento posterior a hoje **e** cuja nova data também seja posterior a hoje;
+>   se o novo mês colidir com uma ocorrência que fica como está, a ocorrência é mantida.
+> - A restrição de unicidade `(group_id, reference_month)` é `DEFERRABLE INITIALLY DEFERRED` para permitir trocar meses
+>   entre ocorrências do mesmo grupo na mesma transação.
+> - `alterar valor a partir de um mês` só aceita meses dentro das ocorrências já geradas.
+> - Excluir um grupo preserva as ocorrências pagas; num fixo, o grupo é encerrado no último mês pago.
 
 ---
 
@@ -174,19 +207,25 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 4 (MANDATORY) ⚠️
 
-- [ ] T072 [P] [US4] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/InstallmentSchedulerTest.java` que lê `packages/core-models/fixtures/installments.json`
-- [ ] T073 [P] [US4] Teste `packages/utils/src/lib/installments.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
-- [ ] T074 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupInstallmentIT.java` (cenários 1 a 7 da US4: fechamento, compra após o fechamento, resto de centavos, parcela única, carnê, pagar só a parcela 2)
-- [ ] T075 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/GroupImpactAndDeleteIT.java` (`/impact` informa pagas e pendentes, `DELETE` exige `confirm=true`, parcelas pagas são preservadas, edição de descrição e categoria)
+- [X] T072 [P] [US4] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/InstallmentSchedulerTest.java` que lê `packages/core-models/fixtures/installments.json`
+- [X] T073 [P] [US4] Teste `packages/utils/src/lib/installments.spec.ts` lendo os mesmos vetores de `packages/core-models/fixtures/installments.json`
+- [X] T074 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/TransactionGroupInstallmentIT.java` (cenários 1 a 7 da US4: fechamento, compra após o fechamento, resto de centavos, parcela única, carnê, pagar só a parcela 2)
+- [X] T075 [P] [US4] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/GroupImpactAndDeleteIT.java` (`/impact` informa pagas e pendentes, `DELETE` exige `confirm=true`, parcelas pagas são preservadas, edição de descrição e categoria)
 
 ### Implementation for User Story 4
 
-- [ ] T076 [US4] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/InstallmentScheduler.java` (delega o vencimento no cartão ao `DueDateCalculator`, mensal fora do cartão, último dia do mês, resto de centavos na última parcela)
-- [ ] T077 [P] [US4] Implementar `packages/utils/src/lib/installments.ts` (mesma regra, usando `due-date.ts`, para prévia na interface) e exportar em `packages/utils/src/index.ts`
-- [ ] T078 [US4] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `INSTALLMENT` (usa `InstallmentScheduler` e os dias da conta) e adicionar `impact` e a exclusão com confirmação em `TransactionGroupController.java`
-- [ ] T079 [P] [US4] Criar o formulário web `apps/web-app/src/app/transactions/installment-form/` com prévia das parcelas e o diálogo de confirmação ao editar ou excluir `apps/web-app/src/app/transactions/group-impact-dialog/`
+- [X] T076 [US4] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/InstallmentScheduler.java` (delega o vencimento no cartão ao `DueDateCalculator`, mensal fora do cartão, último dia do mês, resto de centavos na última parcela)
+- [X] T077 [P] [US4] Implementar `packages/utils/src/lib/installments.ts` (mesma regra, usando `due-date.ts`, para prévia na interface) e exportar em `packages/utils/src/index.ts`
+- [X] T078 [US4] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/TransactionGroupService.java` para `INSTALLMENT` (usa `InstallmentScheduler` e os dias da conta) e adicionar `impact` e a exclusão com confirmação em `TransactionGroupController.java`
+- [X] T079 [P] [US4] Criar o formulário web `apps/web-app/src/app/transactions/installment-form/` com prévia das parcelas e o diálogo de confirmação ao editar ou excluir `apps/web-app/src/app/transactions/group-impact-dialog/`
 
 **Checkpoint**: Compras parceladas geradas e verificadas
+
+> **Notas de implementação da US4**
+> - `impact` e a exclusão com confirmação já haviam sido entregues com a US3; aqui entraram a agenda de parcelas
+>   (`InstallmentScheduler` / `installments.ts`) e a criação do tipo `INSTALLMENT`. Uma parcela vira um lançamento avulso.
+> - O formulário de parcelas está integrado ao `group-form.ts` (com a prévia das parcelas), e o diálogo de impacto à
+>   exclusão fica na própria página de lançamentos (`transactions-page.ts`), em vez de componentes separados.
 
 ---
 
@@ -198,29 +237,37 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 5 (MANDATORY) ⚠️
 
-- [ ] T080 [P] [US5] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceCalculatorTest.java` (total, pago individual, pago por fatura, restante, restante nunca negativo)
-- [ ] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`, pagamento aceito em cartão inativo)
-- [ ] T082 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceBalanceGuardIT.java` (excluir ou reduzir um item que deixaria o restante negativo responde `409`; dois pagamentos simultâneos não ultrapassam o restante)
-- [ ] T083 [P] [US5] Testes de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceProjectionIT.java` (totais por cartão e mês, mês vazio zerado, fatura com vencimentos distintos exibe o mais recente) e `dashboard/CashflowIT.java` (saldo residual = receitas − despesas, valor negativo, usuário B não enxerga o fluxo do usuário A)
-- [ ] T084 [P] [US5] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceIsolationIT.java` (fatura, pagamento e projeção de outro usuário respondem `404` ou vazio)
-- [ ] T085 [P] [US5] Ampliar o teste `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` com o caso de fatura de origem ou de destino com pagamento registrado (a ocorrência fixa permanece com a data antiga)
+- [X] T080 [P] [US5] Teste unitário `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceCalculatorTest.java` (total, pago individual, pago por fatura, restante, restante nunca negativo)
+- [X] T081 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoicePaymentIT.java` (cenários 6 a 10 da US5, quitação marca os itens pendentes, desfazer após a quitação reverte só os itens quitados automaticamente, pagamento acima do restante `409 INVOICE_BALANCE_VIOLATION`, valor zero ou negativo `422`, pagamento aceito em cartão inativo)
+- [X] T082 [P] [US5] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceBalanceGuardIT.java` (excluir ou reduzir um item que deixaria o restante negativo responde `409`; dois pagamentos simultâneos não ultrapassam o restante)
+- [X] T083 [P] [US5] Testes de integração `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceProjectionIT.java` (totais por cartão e mês, mês vazio zerado, fatura com vencimentos distintos exibe o mais recente) e `dashboard/CashflowIT.java` (saldo residual = receitas − despesas, valor negativo, usuário B não enxerga o fluxo do usuário A)
+- [X] T084 [P] [US5] Teste de isolamento `apps/api-server/src/test/java/com/jvtech/gefinc/invoice/InvoiceIsolationIT.java` (fatura, pagamento e projeção de outro usuário respondem `404` ou vazio)
+- [X] T085 [P] [US5] Ampliar o teste `apps/api-server/src/test/java/com/jvtech/gefinc/transaction/CardDaysChangeIT.java` com o caso de fatura de origem ou de destino com pagamento registrado (a ocorrência fixa permanece com a data antiga)
 
 ### Implementation for User Story 5
 
-- [ ] T086 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
-- [ ] T087 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
-- [ ] T088 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
-- [ ] T089 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
-- [ ] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
-- [ ] T091 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
-- [ ] T092 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
-- [ ] T093 [US5] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java` para ignorar ocorrências cuja fatura de origem ou de destino tenha `invoice_payments` (regra do FR-014; depende da migração de pagamentos de fatura)
-- [ ] T094 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
-- [ ] T095 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
-- [ ] T096 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
-- [ ] T097 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
+- [X] T086 [US5] Criar a migração `apps/api-server/src/main/resources/db/migration/V5__invoice_payments.sql` (`invoice_payments`, coluna `transactions.settled_by_payment_id` com chave estrangeira `ON DELETE NO ACTION` e `CHECK`, índice por conta e mês)
+- [X] T087 [P] [US5] Criar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePayment.java` e `InvoicePaymentRepository.java`
+- [X] T088 [US5] Adicionar `settledByPaymentId` a `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/Transaction.java` e as consultas de soma por fatura em `TransactionRepository.java`
+- [X] T089 [P] [US5] Implementar a classe pura `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceCalculator.java`
+- [X] T090 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceService.java` (fatura derivada com itens e pagamentos, `dueDate` igual ao maior vencimento dos itens, projeção por cartão e mês)
+- [X] T091 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoicePaymentService.java` (trava a linha da conta com `FOR UPDATE`, valida o restante, quita e marca os itens com `payment_date` igual à data do pagamento que quitou, desfaz o pagamento revertendo antes os itens quitados por ele)
+- [X] T092 [US5] Aplicar a trava de saldo nas operações de excluir e editar lançamentos em `transaction/TransactionService.java` e `transaction/TransactionGroupService.java` (responde `409 INVOICE_BALANCE_VIOLATION` com o restante)
+- [X] T093 [US5] Estender `apps/api-server/src/main/java/com/jvtech/gefinc/transaction/FixedDueDateRecalculationListener.java` para ignorar ocorrências cuja fatura de origem ou de destino tenha `invoice_payments` (regra do FR-014; depende da migração de pagamentos de fatura)
+- [X] T094 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/invoice/InvoiceController.java` (fatura, pagamentos, `settle`, `DELETE /invoice-payments/{id}`, `/invoices/projection`)
+- [X] T095 [US5] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/CashflowService.java` e `CashflowController.java` (`/cashflow`)
+- [X] T096 [P] [US5] Criar a tela web `apps/web-app/src/app/invoices/` (detalhe da fatura com itens e restante, diálogo de pagamento parcial e total, desfazer, tabela de projeção por cartão)
+- [X] T097 [P] [US5] Criar a visão web `apps/web-app/src/app/invoices/cashflow/` com o saldo residual por mês e destaque para valores negativos
 
 **Checkpoint**: Faturas, pagamentos e saldo residual corretos
+
+> **Notas de implementação da US5**
+> - `InvoiceBalanceGuard` trava a linha da conta (`SELECT … FOR UPDATE`) e confirma o saldo depois de cada operação que
+>   mexe nos itens de um cartão (pagar item, editar valor, excluir ou encerrar lançamento, alterar valor de fixo);
+>   o restante nunca fica negativo e pagamentos simultâneos não ultrapassam o total (teste com duas threads).
+> - Pagar um item individualmente também é recusado (409) se, somado aos pagamentos da fatura, ultrapassar o total.
+> - `TransactionMapper` passou a ser público para a fatura reutilizar a resposta dos lançamentos.
+> - A trava do FR-014 (não mover ocorrências entre faturas com pagamento) está no `FixedDueDateRecalculationListener`.
 
 ---
 
@@ -232,17 +279,23 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 6 (MANDATORY) ⚠️
 
-- [ ] T098 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
-- [ ] T099 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
+- [X] T098 [P] [US6] Teste de integração `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardIT.java` (Total do Mês, Total a Vencer, Total Pago com pagamentos parciais atribuídos ao mês do vencimento e sem contar duas vezes os itens quitados pela fatura, atrasados, por categoria, por cartão, mês por vencimento, mês vazio, isolamento entre usuários)
+- [X] T099 [P] [US6] Teste de desempenho `apps/api-server/src/test/java/com/jvtech/gefinc/dashboard/DashboardPerformanceIT.java` (6.000 lançamentos de um usuário, painel e projeção com p95 abaixo de 2 s, SC-006)
 
 ### Implementation for User Story 6
 
-- [ ] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
-- [ ] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
-- [ ] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
-- [ ] T103 [P] [US6] Teste E2E `apps/web-app/e2e/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
+- [X] T100 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/dashboard/DashboardRepository.java` (agregações SQL nativas por `reference_month`, conforme as fórmulas de indicadores do `data-model.md`), `DashboardService.java` e `DashboardController.java` (`/dashboard`)
+- [X] T101 [P] [US6] Criar os gráficos `packages/ui-shared/src/lib/charts/` (rosca por categoria com a cor da categoria e barras por cartão, Chart.js 4) com testes Jest
+- [X] T102 [US6] Criar o painel web `apps/web-app/src/app/dashboard/` (cartões de indicadores, seletor de mês, gráficos, estado vazio com orientação)
+- [X] T103 [P] [US6] Teste E2E `apps/web-app-e2e/src/invoices-dashboard.spec.ts` (compra parcelada, pagamento parcial da fatura, conferência dos totais do painel)
 
 **Checkpoint**: Painel mensal completo
+
+> **Notas de implementação da US6**
+> - O painel substitui a página inicial provisória do web (`/`); o mobile terá o resumo do mês na US7.
+> - Os gráficos (Chart.js 4) mostram sempre uma legenda textual acessível com os valores em reais; os testes
+>   simulam o Chart.js, pois o jsdom não tem canvas.
+> - Teste de desempenho: 6.000 lançamentos, p95 do painel, da projeção e do fluxo de caixa abaixo de 2 s.
 
 ---
 
@@ -254,14 +307,24 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 ### Tests for User Story 7 (MANDATORY para o limite de toques) ⚠️
 
-- [ ] T104 [P] [US7] Teste E2E `apps/mobile-app/e2e/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
-- [ ] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
+- [X] T104 [P] [US7] Teste E2E `apps/mobile-app-e2e/src/quick-expense.spec.ts` em viewport de celular (conta os toques e exige no máximo 3, ajuste inline de conta, categoria e data, campos obrigatórios ausentes preservam o que foi digitado)
+- [X] T105 [P] [US7] Teste unitário `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.spec.ts` (conta, categoria e data padrão ou últimas usadas)
 
 ### Implementation for User Story 7
 
-- [ ] T106 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
-- [ ] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
-- [ ] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
+- [X] T106 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense-defaults.service.ts` (guarda a última conta e categoria usadas)
+- [X] T107 [US7] Implementar `apps/mobile-app/src/app/quick-expense/quick-expense.page.ts` (formulário aberto pelo botão da tela inicial: valor, ajustes inline, salvar; em falha de rede mantém o rascunho e informa o usuário)
+- [X] T108 [P] [US7] Criar a tela inicial `apps/mobile-app/src/app/home/` (ponto de partida do FR-041) com o botão de ação do lançamento rápido e o Total do Mês obtido de `/dashboard`
+
+> **Notas de implementação da US7 e do acabamento**
+> - US7: fluxo padrão a partir da tela inicial com 2 toques (o campo de valor já abre focado); conta e categoria
+>   padrão são as últimas usadas (`@capacitor/preferences`). O inicializador do app móvel foi corrigido (chamava
+>   `inject()` depois de um `await`).
+> - Logs: `LogRedactionIT` achou que os `toString()` dos DTOs imprimiam e-mail e senha em logs DEBUG do Spring; todos os
+>   DTOs agora imprimem `[REDACTED]`.
+> - Acessibilidade: verificação automática (axe, WCAG A e AA) das telas do web em `accessibility.spec.ts`; links em
+>   texto passaram a ter sublinhado.
+> - O k6 não está instalado nesta máquina: o script de carga foi conferido só quanto à sintaxe e aos endpoints.
 
 **Checkpoint**: Todas as histórias funcionam
 
@@ -271,14 +334,14 @@ description: "Lista de tarefas da feature Gestão Financeira Pessoal (GEFINC)"
 
 **Purpose**: Melhorias que atravessam várias histórias
 
-- [ ] T109 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
-- [ ] T110 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
-- [ ] T111 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
-- [ ] T112 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
-- [ ] T113 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
-- [ ] T114 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
-- [ ] T115 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
-- [ ] T116 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
+- [X] T109 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` garantindo que e-mail, senha, tokens e valores não aparecem nos logs (FR-003)
+- [X] T110 [P] Teste `apps/api-server/src/test/java/com/jvtech/gefinc/common/security/SecurityHeadersIT.java` (cabeçalhos de segurança e CORS restrito às origens do web e do app)
+- [X] T111 [P] Revisão de acessibilidade, textos em pt-BR e estados de carregamento, vazio e erro em `apps/web-app/src/app/` e `apps/mobile-app/src/app/`
+- [X] T112 [P] Atualizar `README.md` com instruções de execução, testes e a estrutura final do monorepo
+- [X] T113 [P] Criar `docs/operations.md` registrando a retenção de backups após a exclusão de conta e o backlog de limitação de tentativas de login
+- [X] T114 [P] Criar o teste de carga `apps/api-server/loadtest/concurrent-users.js` (k6, 1.000 usuários simultâneos nos fluxos de lançamento, painel e projeção, SC-008) com instruções de execução no cabeçalho do script
+- [X] T115 Executar o roteiro de validação de `specs/001-personal-finance-management/quickstart.md` de ponta a ponta e corrigir as divergências encontradas
+- [X] T116 Executar `npx nx run-many -t lint test build` e os testes E2E do web e do mobile, e corrigir as falhas
 
 ---
 

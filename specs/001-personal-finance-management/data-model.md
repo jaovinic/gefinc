@@ -67,7 +67,7 @@ users 1──* password_reset_tokens
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
 | name | VARCHAR(60) | NOT NULL, único por `(user_id, type)` |
 | type | VARCHAR(7) | NOT NULL, `CHECK IN ('INCOME','EXPENSE')` |
-| color_hex | CHAR(7) | NOT NULL, `CHECK (color_hex ~ '^#[0-9A-Fa-f]{6}$')` |
+| color_hex | VARCHAR(7) | NOT NULL, `CHECK (color_hex ~ '^#[0-9A-Fa-f]{6}$')` |
 
 - `UNIQUE (id, user_id)`.
 - Categorias iniciais (ex.: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Serviços,
@@ -128,8 +128,8 @@ users 1──* password_reset_tokens
 
 - `CHECK ((status = 'PAID') = (payment_date IS NOT NULL))`.
 - `CHECK (settled_by_payment_id IS NULL OR status = 'PAID')`.
-- `UNIQUE (group_id, installment_number)` (parcelas) e `UNIQUE (group_id, reference_month)`
-  (idempotência das recorrências).
+- `UNIQUE (group_id, installment_number)` (parcelas) e `UNIQUE (group_id, reference_month) DEFERRABLE
+  INITIALLY DEFERRED` (idempotência das recorrências; adiável para permitir trocar meses ao recalcular vencimentos).
 - Índices: `(user_id, due_date)`, `(user_id, account_id, due_date)`,
   `(user_id, category_id, due_date)`, `(user_id, status, due_date)`.
 
@@ -155,7 +155,7 @@ users 1──* password_reset_tokens
 | id | BIGINT PK | |
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
 | family_id | UUID | NOT NULL (identifica o login; reuso revoga a família) |
-| token_hash | CHAR(64) | NOT NULL, UNIQUE (SHA-256 em hex) |
+| token_hash | VARCHAR(64) | NOT NULL, UNIQUE (SHA-256 em hex) |
 | expires_at | TIMESTAMPTZ | NOT NULL |
 | revoked_at | TIMESTAMPTZ | |
 | replaced_by_id | BIGINT | FK → refresh_tokens |
@@ -167,12 +167,12 @@ users 1──* password_reset_tokens
 |---|---|---|
 | id | BIGINT PK | |
 | user_id | BIGINT | NOT NULL, FK → users ON DELETE CASCADE |
-| token_hash | CHAR(64) | NOT NULL, UNIQUE |
+| token_hash | VARCHAR(64) | NOT NULL, UNIQUE |
 | expires_at | TIMESTAMPTZ | NOT NULL (criação + 60 min) |
 | used_at | TIMESTAMPTZ | |
 | created_at | TIMESTAMPTZ | NOT NULL |
 
-- Índice `(user_id, created_at)` para o limite de 3 solicitações por hora.
+- Índice `(user_id, created_at)` (consultas por usuário). O limite de 3 solicitações por hora é controlado em memória, por e-mail (ver `research.md`, D6).
 
 ## Fatura (visão derivada, sem tabela)
 

@@ -38,8 +38,8 @@ Variáveis de ambiente locais ficam em `.env` (não versionado; modelo em `.env.
 npx nx run-many -t test            # unitários e integração (Testcontainers sobe o PostgreSQL)
 npx nx run api-server:test         # só o backend
 npx nx run utils:test              # cálculo de parcelas e dinheiro (vetores compartilhados)
-npx nx run web-app:e2e             # Playwright: fluxos críticos no navegador
-npx nx run mobile-app:e2e          # Playwright em viewport de celular (limite de 3 toques)
+npx nx e2e web-app-e2e             # Playwright: fluxos críticos no navegador
+npx nx e2e mobile-app-e2e          # Playwright em viewport de celular (limite de 3 toques)
 ```
 
 ## 3. Aplicativo móvel
@@ -85,6 +85,7 @@ No emulador Android, a API local é acessada por `http://10.0.2.2:8080/api/v1`.
 | Sintoma | Causa provável | Solução |
 |---|---|---|
 | API não sobe: erro de conexão | PostgreSQL ainda iniciando | Aguarde o healthcheck ou rode `docker compose ps` |
+| `docker compose up` falha com "address already in use" na porta 5432 | Outro PostgreSQL na máquina | Defina `DB_PORT=5433` (no `.env` ou no shell) antes de `npm run dev` |
 | Testes de integração não iniciam | Docker parado | Inicie o Docker (Testcontainers precisa dele) |
 | `401` constante no web | Cookie de refresh bloqueado | Use `http://localhost:4200` (mesmo site) e confira CORS em `application-local.yml` |
 | E-mail de recuperação não chega | Mailpit parado | Verifique `http://localhost:8025` e as variáveis `SMTP_*` |

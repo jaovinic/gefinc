@@ -1,0 +1,29 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { messageFor, toProblem } from './problem';
+
+function http(status: number, body: unknown) {
+  return new HttpErrorResponse({ status, error: body });
+}
+
+describe('problem', () => {
+  it('interpreta código, detalhe, erros por campo e extensões', () => {
+    const problem = toProblem(
+      http(422, { code: 'VALIDATION_ERROR', detail: 'Há campos inválidos.', errors: [{ field: 'email', message: 'E-mail inválido.' }] }),
+    );
+    expect(problem.code).toBe('VALIDATION_ERROR');
+    expect(problem.fieldErrors).toEqual({ email: 'E-mail inválido.' });
+    expect(messageFor(problem)).toBe('Há campos inválidos.');
+  });
+
+  it('traduz códigos conhecidos e situações de rede e servidor', () => {
+    expect(messageFor(toProblem(http(401, { code: 'INVALID_CREDENTIALS' })))).toBe('E-mail ou senha incorretos.');
+    expect(messageFor(toProblem(http(409, { code: 'EMAIL_ALREADY_REGISTERED' })))).toBe('Este e-mail já está cadastrado.');
+    expect(messageFor(toProblem(http(0, null)))).toContain('Sem conexão');
+    expect(messageFor(toProblem(http(500, {})))).toContain('erro inesperado');
+  });
+
+  it('expõe a data limite da exclusão pendente', () => {
+    const problem = toProblem(http(423, { code: 'ACCOUNT_DELETION_PENDING', deletionDate: '2026-12-10' }));
+    expect(problem.extras['deletionDate']).toBe('2026-12-10');
+  });
+});

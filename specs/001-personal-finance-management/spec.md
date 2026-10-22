@@ -213,7 +213,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - **FR-011**: Usuários MUST poder cadastrar, editar, listar e inativar contas dos tipos conta bancária, dinheiro em espécie e cartão de crédito; contas inativas MUST NOT receber novos lançamentos nem novas ocorrências de lançamentos fixos (as ocorrências já geradas permanecem), mas suas faturas pendentes continuam podendo ser pagas.
 - **FR-012**: Para cartões de crédito, o sistema MUST exigir dia de fechamento e dia de vencimento da fatura, ambos entre 1 e 31.
 - **FR-013**: O sistema MUST impedir a exclusão definitiva de conta ou cartão com lançamentos, oferecendo a inativação para preservar o histórico.
-- **FR-014**: Ao alterar os dias de fechamento ou vencimento de um cartão, o sistema MUST recalcular o vencimento das ocorrências de lançamentos fixos que estejam pendentes, com vencimento posterior a hoje, e cuja fatura de origem e de destino não tenham pagamento registrado. As demais ocorrências MUST manter suas datas.
+- **FR-014**: Ao alterar os dias de fechamento ou vencimento de um cartão, o sistema MUST recalcular o vencimento das ocorrências de lançamentos fixos que estejam pendentes, com vencimento posterior a hoje, desde que o novo vencimento calculado também seja posterior a hoje e a fatura de origem e a de destino não tenham pagamento registrado. As demais ocorrências MUST manter suas datas.
 
 **Categorias**
 

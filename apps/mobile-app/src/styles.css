@@ -1,0 +1,25 @@
+@import 'tailwindcss';
+@import '../../../packages/ui-shared/src/styles/theme.css';
+@source '../../../packages/ui-shared/src';
+
+/* Ionic core CSS */
+@import '@ionic/angular/css/core.css';
+@import '@ionic/angular/css/normalize.css';
+@import '@ionic/angular/css/structure.css';
+@import '@ionic/angular/css/typography.css';
+
+/* Tokens do Ionic mapeados para a identidade visual do GEFINC (dark-first) */
+:root {
+  --ion-font-family: var(--font-sans);
+  --ion-background-color: #090d16;
+  --ion-text-color: #f8fafc;
+  --ion-color-primary: #00e599;
+  --ion-color-primary-contrast: #090d16;
+  --ion-color-secondary: #00b4d8;
+  --ion-color-danger: #f43f5e;
+  --ion-color-warning: #f59e0b;
+  --ion-item-background: #131b2e;
+  --ion-card-background: #131b2e;
+  --ion-toolbar-background: #131b2e;
+  --ion-border-color: #1e293b;
+}

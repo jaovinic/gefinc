@@ -1,0 +1,97 @@
+{
+  "_comment": "Vetores de teste compartilhados entre o backend (Java) e packages/utils (TypeScript). Valores monetários em string decimal; datas em YYYY-MM-DD.",
+  "dueDate": [
+    { "name": "cartão 10/17: compra antes do fechamento vence no mesmo mês", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "expected": "2026-11-17" },
+    { "name": "cartão 10/17: compra no próprio dia de fechamento entra na fatura corrente", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-10", "expected": "2026-11-17" },
+    { "name": "cartão 10/17: compra após o fechamento vai para o mês seguinte", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-12", "expected": "2026-12-17" },
+    { "name": "cartão 25/5: vencimento anterior ao fechamento cai no mês seguinte", "closingDay": 25, "dueDay": 5, "purchaseDate": "2026-11-20", "expected": "2026-12-05" },
+    { "name": "cartão 25/5: compra após o fechamento atravessa a virada de ano", "closingDay": 25, "dueDay": 5, "purchaseDate": "2026-12-26", "expected": "2027-02-05" },
+    { "name": "cartão 15/15: fechamento igual ao vencimento vence no mês seguinte", "closingDay": 15, "dueDay": 15, "purchaseDate": "2026-11-10", "expected": "2026-12-15" },
+    { "name": "cartão 31/10: fechamento 31 em fevereiro usa o último dia", "closingDay": 31, "dueDay": 10, "purchaseDate": "2026-02-28", "expected": "2026-03-10" },
+    { "name": "cartão 10/31: vencimento 31 em fevereiro usa o último dia", "closingDay": 10, "dueDay": 31, "purchaseDate": "2026-02-05", "expected": "2026-02-28" },
+    { "name": "cartão 10/17: compra após o fechamento em dezembro vence em janeiro", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-12-12", "expected": "2027-01-17" },
+    { "name": "cartão 10/29: ano bissexto mantém o dia 29", "closingDay": 10, "dueDay": 29, "purchaseDate": "2028-02-05", "expected": "2028-02-29" }
+  ],
+  "installments": [
+    {
+      "name": "cartão 10/17: R$ 100,00 em 4 parcelas, compra dia 5",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "100.00", "count": 4,
+      "expected": [
+        { "number": 1, "amount": "25.00", "dueDate": "2026-11-17" },
+        { "number": 2, "amount": "25.00", "dueDate": "2026-12-17" },
+        { "number": 3, "amount": "25.00", "dueDate": "2027-01-17" },
+        { "number": 4, "amount": "25.00", "dueDate": "2027-02-17" }
+      ]
+    },
+    {
+      "name": "cartão 10/17: R$ 100,00 em 4 parcelas, compra dia 12 (após o fechamento)",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-12", "total": "100.00", "count": 4,
+      "expected": [
+        { "number": 1, "amount": "25.00", "dueDate": "2026-12-17" },
+        { "number": 2, "amount": "25.00", "dueDate": "2027-01-17" },
+        { "number": 3, "amount": "25.00", "dueDate": "2027-02-17" },
+        { "number": 4, "amount": "25.00", "dueDate": "2027-03-17" }
+      ]
+    },
+    {
+      "name": "cartão: R$ 100,00 em 3 parcelas deixa o resto de centavos na última",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "100.00", "count": 3,
+      "expected": [
+        { "number": 1, "amount": "33.33", "dueDate": "2026-11-17" },
+        { "number": 2, "amount": "33.33", "dueDate": "2026-12-17" },
+        { "number": 3, "amount": "33.34", "dueDate": "2027-01-17" }
+      ]
+    },
+    {
+      "name": "cartão: R$ 0,10 em 3 parcelas",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "0.10", "count": 3,
+      "expected": [
+        { "number": 1, "amount": "0.03", "dueDate": "2026-11-17" },
+        { "number": 2, "amount": "0.03", "dueDate": "2026-12-17" },
+        { "number": 3, "amount": "0.04", "dueDate": "2027-01-17" }
+      ]
+    },
+    {
+      "name": "cartão: parcela única",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "59.90", "count": 1,
+      "expected": [
+        { "number": 1, "amount": "59.90", "dueDate": "2026-11-17" }
+      ]
+    },
+    {
+      "name": "cartão 25/5: parcelas atravessam a virada de ano",
+      "kind": "card", "closingDay": 25, "dueDay": 5, "purchaseDate": "2026-12-20", "total": "10.00", "count": 2,
+      "expected": [
+        { "number": 1, "amount": "5.00", "dueDate": "2027-01-05" },
+        { "number": 2, "amount": "5.00", "dueDate": "2027-02-05" }
+      ]
+    },
+    {
+      "name": "conta corrente: carnê de R$ 300,00 em 3 parcelas com primeiro vencimento em 10/11",
+      "kind": "account", "purchaseDate": "2026-11-01", "firstDueDate": "2026-11-10", "total": "300.00", "count": 3,
+      "expected": [
+        { "number": 1, "amount": "100.00", "dueDate": "2026-11-10" },
+        { "number": 2, "amount": "100.00", "dueDate": "2026-12-10" },
+        { "number": 3, "amount": "100.00", "dueDate": "2027-01-10" }
+      ]
+    },
+    {
+      "name": "conta corrente: dia 31 usa o último dia de cada mês e preserva o dia original",
+      "kind": "account", "purchaseDate": "2026-01-15", "firstDueDate": "2026-01-31", "total": "300.00", "count": 3,
+      "expected": [
+        { "number": 1, "amount": "100.00", "dueDate": "2026-01-31" },
+        { "number": 2, "amount": "100.00", "dueDate": "2026-02-28" },
+        { "number": 3, "amount": "100.00", "dueDate": "2026-03-31" }
+      ]
+    },
+    {
+      "name": "conta corrente: R$ 100,00 em 3 parcelas",
+      "kind": "account", "purchaseDate": "2026-11-01", "firstDueDate": "2026-11-10", "total": "100.00", "count": 3,
+      "expected": [
+        { "number": 1, "amount": "33.33", "dueDate": "2026-11-10" },
+        { "number": 2, "amount": "33.33", "dueDate": "2026-12-10" },
+        { "number": 3, "amount": "33.34", "dueDate": "2027-01-10" }
+      ]
+    }
+  ]
+}

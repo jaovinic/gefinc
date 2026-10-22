@@ -1,0 +1,18 @@
+# Artefatos gerados e dependências
+/dist
+/tmp
+/coverage
+/.nx/cache
+/.nx/workspace-data
+/.angular
+node_modules
+package-lock.json
+
+# Documentação de especificação (Markdown/YAML mantidos à mão)
+/specs
+/.specify
+/.claude
+*.md
+/apps/mobile-app/android
+/apps/mobile-app/ios
+/apps/api-server/target

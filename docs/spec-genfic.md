@@ -35,8 +35,16 @@ O GEFINC é uma plataforma integrada (Web e Mobile) para planejamento financeiro
 - **RNF03 - Responsividade:** A interface web deve ser otimizada para visualização tabular analítica em desktop, enquanto a aplicação mobile deve priorizar telas de cadastro rápido de despesa em menos de 3 toques.
 
 ## 5. Estrutura Inicial de Entidades (JPA / Banco de Dados)
-- `users`: id, email, password_hash, created_at
-- `accounts`: id, user_id, name, type (CHECKING, CASH, CREDIT_CARD), closing_day, due_day
+- `users`: id, email, password_hash, created_at, deletion_requested_at, token_version
+- `accounts`: id, user_id, name, type (CHECKING, CASH, CREDIT_CARD), closing_day, due_day, active, version
 - `categories`: id, user_id, name, type (INCOME, EXPENSE), color_hex
-- `transaction_groups`: id, user_id, description, recurrence_type (FIXED, VARIABLE, INSTALLMENT), total_installments, total_amount
-- `transactions`: id, group_id, account_id, category_id, installment_number, amount, due_date, payment_date, status (PENDING, PAID)
+- `transaction_groups`: id, user_id, description, recurrence_type (FIXED, VARIABLE, INSTALLMENT), total_installments, total_amount, account_id, category_id, purchase_date, first_due_date, end_month, version, created_at
+- `transactions`: id, group_id, user_id, account_id, category_id, installment_number, reference_month, amount, due_date, payment_date, status (PENDING, PAID), settled_by_payment_id, version
+- `invoice_payments`: id, user_id, account_id, invoice_month, amount, paid_at, created_at
+- `refresh_tokens`: id, user_id, family_id, token_hash, expires_at, revoked_at, replaced_by_id, created_at
+- `password_reset_tokens`: id, user_id, token_hash, expires_at, used_at, created_at
+
+> Colunas e tabelas que não constavam da versão inicial foram acrescentadas no planejamento da feature
+> `001-personal-finance-management` (pagamento de fatura, sessões com rotação, recuperação de senha,
+> inativação de contas e concorrência otimista). O detalhamento (tipos, restrições, índices e regras) está em
+> `specs/001-personal-finance-management/data-model.md`.

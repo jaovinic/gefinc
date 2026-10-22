@@ -1,0 +1,83 @@
+/*
+ * Tema GEFINC (manual de identidade visual, seção 3 a 5). Tailwind v4: os tokens viram utilitários
+ * como `bg-gefinc-surface`, `text-gefinc-muted` e `border-gefinc-border`. O produto é dark-first.
+ */
+@theme {
+  --color-gefinc-bg: #090d16;
+  --color-gefinc-surface: #131b2e;
+  --color-gefinc-border: #1e293b;
+  --color-gefinc-muted: #94a3b8;
+  --color-gefinc-text: #f8fafc;
+  --color-gefinc-primary: #00e599;
+  --color-gefinc-secondary: #00b4d8;
+  --color-gefinc-accent: #7c3aed;
+  --color-gefinc-danger: #f43f5e;
+  --color-gefinc-warning: #f59e0b;
+
+  --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, system-ui, sans-serif;
+
+  --text-display-1: 2rem;
+  --text-display-1--line-height: 2.375rem;
+  --text-title-lg: 1.5rem;
+  --text-title-lg--line-height: 1.875rem;
+  --text-title-md: 1.125rem;
+  --text-title-md--line-height: 1.5rem;
+  --text-body-base: 0.875rem;
+  --text-body-base--line-height: 1.25rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 0.75rem;
+}
+
+html,
+body {
+  background-color: var(--color-gefinc-bg);
+  color: var(--color-gefinc-text);
+  font-family: var(--font-sans);
+  color-scheme: dark;
+}
+
+/* Algarismos tabulares: valores e tabelas não oscilam de largura (manual, seção 4.2). */
+.financial-value,
+.currency-display,
+table td {
+  font-feature-settings:
+    'tnum' on,
+    'lnum' on;
+}
+
+/* Componentes reutilizados nas telas (formulários e botões) */
+@layer components {
+  .gef-label {
+    @apply mb-1 block text-caption font-medium text-gefinc-muted;
+  }
+  .gef-input {
+    @apply w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-body-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-primary;
+  }
+  .gef-btn-primary {
+    @apply w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50;
+  }
+  .gef-btn-danger {
+    @apply w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:opacity-90 disabled:opacity-50;
+  }
+  .gef-btn-secondary {
+    @apply rounded-lg border border-gefinc-border px-4 py-2 text-body-base text-gefinc-text hover:border-gefinc-primary disabled:opacity-50;
+  }
+  .gef-link {
+    @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;
+  }
+  .gef-field-error {
+    @apply mt-1 text-caption text-gefinc-danger;
+  }
+  .gef-alert-error {
+    @apply rounded-lg border border-gefinc-danger/40 bg-gefinc-danger/10 px-3 py-2 text-body-base text-gefinc-danger;
+  }
+  .gef-alert-success {
+    @apply rounded-lg border border-gefinc-primary/40 bg-gefinc-primary/10 px-3 py-2 text-body-base text-gefinc-primary;
+  }
+  .gef-alert-warning {
+    @apply rounded-lg border border-gefinc-warning/40 bg-gefinc-warning/10 px-3 py-2 text-body-base text-gefinc-warning;
+  }
+}
