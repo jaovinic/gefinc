@@ -242,3 +242,18 @@ US3 → US4 → US5 → US6 entregam a paridade completa com o web. US7, US8 e U
 
 - iOS não tem build nem verificação nesta máquina (sem Mac); só o código compartilhado e a sincronização de projeto são validados.
 - A confirmação da digital e a entrega real da notificação dependem de ação manual no aparelho.
+
+## Notas de implementação (feature concluída)
+
+- **Resultado**: 85/85 tarefas. Backend 234 testes; utils 52; ui-shared 125; mobile-app 156; web-app 3; E2E web 13 e mobile 44 (perfil Pixel 7); roteiro no Galaxy S21 (Android 15) 4/4.
+- **T083**: roteiro `apps/mobile-app-e2e/device/android-smoke.cjs` no S21 (login com Keystore, todas as áreas, modo offline pelo estado real da rede, lembrete agendado no AlarmManager). A confirmação da digital é **manual** (o diálogo do sistema não é automatizável).
+- **T084 / iOS**: `cap sync` atualizou `Package.swift` (4 plugins novos) e `Info.plist` (`NSFaceIDUsageDescription`). Sem Mac, **não houve build nem teste em iPhone**: pendência conhecida.
+- **Desvios do plano** (todos por achados em teste ou no aparelho):
+  - Formulários de conta/categoria ficam inline (só filtros, ações e formulários longos usam `gef-sheet`); decisão de simplicidade.
+  - "Corrigir" uma operação recusada só existe para lançamentos novos (`GroupForm` com `initial`); pagamentos recusados podem ser tentados de novo ou descartados.
+  - FR-033 ajustado: sessão expirada mantém a fila (para não perder o que o usuário registrou); sair ou excluir a conta apaga tudo.
+  - `ion-router-outlet` trocado por `router-outlet` (o Ionic mantinha a tela de login no DOM, duplicando ids).
+  - Lembretes usam alarme **inexato** (`isExactNotification: false`): o exato fazia o Android abrir a tela "Alarmes e lembretes".
+  - O envio online de operações da fila já leva `Idempotency-Key` e a reaproveita ao enfileirar, para a resposta perdida não duplicar.
+  - Eventos de segundo plano causados pelo diálogo da biometria são ignorados (janela de 2 s); sem isso o bloqueio entrava em ciclo.
+- **Achados corrigidos pela auditoria de conforto**: zoom bloqueado no viewport, alvos de toque abaixo de 44 px, contraste do botão de perigo, estouro horizontal em Lançamentos, margem lateral ausente nas telas migradas.
