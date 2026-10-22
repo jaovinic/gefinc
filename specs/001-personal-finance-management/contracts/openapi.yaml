@@ -241,7 +241,9 @@ paths:
     put:
       tags: [Accounts]
       summary: Edita ou inativa/reativa conta (FR-011)
-      description: Novos dias de fechamento/vencimento valem só para lançamentos futuros.
+      description: |
+        Novos dias de fechamento/vencimento valem para compras futuras. Ocorrências fixas pendentes
+        com vencimento futuro são recalculadas, exceto as de faturas com pagamento registrado (FR-014).
       requestBody:
         required: true
         content:
@@ -272,7 +274,7 @@ paths:
   /categories:
     get:
       tags: [Categories]
-      summary: Lista categorias (FR-014)
+      summary: Lista categorias (FR-015)
       parameters:
         - name: type
           in: query
@@ -287,7 +289,7 @@ paths:
                 items: { $ref: '#/components/schemas/Category' }
     post:
       tags: [Categories]
-      summary: Cria categoria (FR-014)
+      summary: Cria categoria (FR-015)
       requestBody:
         required: true
         content:
@@ -326,7 +328,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Categories]
-      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-015)
+      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-016)
       parameters:
         - name: reassignTo
           in: query
@@ -345,13 +347,13 @@ paths:
   /transaction-groups:
     post:
       tags: [Transaction Groups]
-      summary: Registra lançamento fixo, avulso ou parcelado (FR-016 a FR-023)
+      summary: Registra lançamento fixo, avulso ou parcelado (FR-017 a FR-024)
       description: |
         Gera as ocorrências conforme `recurrenceType`:
         Em conta do tipo `CREDIT_CARD`, o vencimento de **toda** ocorrência é calculado pelo
         servidor a partir de `purchaseDate` e dos dias de fechamento e vencimento do cartão
-        (FR-021); `firstDueDate` é ignorado e pode ser omitido. Nas demais contas,
-        `firstDueDate` é obrigatório (`422` se ausente).
+        (FR-022); `firstDueDate` é ignorado e pode ser omitido. Nas demais contas,
+        `firstDueDate` é obrigatório (`422` se ausente). Conta inativa responde `422` (`ACCOUNT_INACTIVE`).
         - `VARIABLE`: 1 ocorrência.
         - `INSTALLMENT`: N parcelas, uma por mês. Soma = `totalAmount` (resto na última parcela).
         - `FIXED`: ocorrências mensais para os próximos 12 meses; no cartão, cada mês é tratado
@@ -385,7 +387,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     put:
       tags: [Transaction Groups]
-      summary: Edita descrição, categoria e conta das ocorrências pendentes (FR-024)
+      summary: Edita descrição, categoria e conta das ocorrências pendentes (FR-025)
       requestBody:
         required: true
         content:
@@ -402,7 +404,7 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Transaction Groups]
-      summary: Exclui o grupo e as ocorrências pendentes (FR-024)
+      summary: Exclui o grupo e as ocorrências pendentes (FR-025)
       description: |
         Exige `confirm=true`. Ocorrências já pagas são preservadas; consulte antes
         `/transaction-groups/{groupId}/impact`. Se a exclusão violar o saldo de uma fatura
@@ -422,7 +424,7 @@ paths:
       - $ref: '#/components/parameters/GroupId'
     get:
       tags: [Transaction Groups]
-      summary: Mostra o efeito de excluir ou alterar o grupo sobre parcelas pagas (FR-024)
+      summary: Mostra o efeito de excluir ou alterar o grupo sobre parcelas pagas (FR-025)
       responses:
         '200':
           description: Impacto
@@ -436,7 +438,7 @@ paths:
       - $ref: '#/components/parameters/GroupId'
     post:
       tags: [Transaction Groups]
-      summary: Altera o valor de um lançamento fixo a partir de um mês (FR-019)
+      summary: Altera o valor de um lançamento fixo a partir de um mês (FR-020)
       requestBody:
         required: true
         content:
@@ -461,7 +463,7 @@ paths:
       - $ref: '#/components/parameters/GroupId'
     post:
       tags: [Transaction Groups]
-      summary: Encerra um lançamento fixo (FR-019)
+      summary: Encerra um lançamento fixo (FR-020)
       requestBody:
         required: true
         content:
@@ -487,7 +489,7 @@ paths:
   /transactions:
     get:
       tags: [Transactions]
-      summary: Lista lançamentos com filtros (FR-026)
+      summary: Lista lançamentos com filtros (FR-027)
       parameters:
         - name: month
           in: query
@@ -536,7 +538,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Transactions]
-      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-024)
+      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-025)
       requestBody:
         required: true
         content:
@@ -557,7 +559,7 @@ paths:
       - $ref: '#/components/parameters/TransactionId'
     post:
       tags: [Transactions]
-      summary: Marca o lançamento como pago (FR-018)
+      summary: Marca o lançamento como pago (FR-019)
       requestBody:
         required: true
         content:
@@ -582,7 +584,7 @@ paths:
       - $ref: '#/components/parameters/TransactionId'
     post:
       tags: [Transactions]
-      summary: Reverte o pagamento do lançamento (FR-018)
+      summary: Reverte o pagamento do lançamento (FR-019)
       responses:
         '200':
           description: Voltou para pendente
@@ -599,7 +601,7 @@ paths:
       - $ref: '#/components/parameters/MonthPath'
     get:
       tags: [Invoices]
-      summary: Consulta uma fatura de cartão com itens, pagos e restante (FR-027, FR-034)
+      summary: Consulta uma fatura de cartão com itens, pagos e restante (FR-028, FR-035)
       responses:
         '200':
           description: Fatura
@@ -614,10 +616,10 @@ paths:
       - $ref: '#/components/parameters/MonthPath'
     post:
       tags: [Invoices]
-      summary: Registra pagamento total ou parcial da fatura (FR-033 a FR-037)
+      summary: Registra pagamento total ou parcial da fatura (FR-034 a FR-038)
       description: |
         Valor deve ser > 0 e ≤ restante. Se o restante chegar a zero, todos os itens
-        pendentes passam a pagos (FR-035). Acima do restante: `409 INVOICE_BALANCE_VIOLATION`.
+        pendentes passam a pagos (FR-036). Acima do restante: `409 INVOICE_BALANCE_VIOLATION`.
       requestBody:
         required: true
         content:
@@ -639,7 +641,7 @@ paths:
       - $ref: '#/components/parameters/MonthPath'
     post:
       tags: [Invoices]
-      summary: Paga a fatura pelo saldo restante total (FR-036)
+      summary: Paga a fatura pelo saldo restante total (FR-037)
       requestBody:
         required: true
         content:
@@ -666,7 +668,7 @@ paths:
         schema: { type: integer, format: int64 }
     delete:
       tags: [Invoices]
-      summary: Desfaz um pagamento de fatura (FR-036)
+      summary: Desfaz um pagamento de fatura (FR-037)
       description: Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos.
       responses:
         '200':
@@ -679,7 +681,7 @@ paths:
   /invoices/projection:
     get:
       tags: [Invoices]
-      summary: Projeção de faturas futuras por cartão (FR-027)
+      summary: Projeção de faturas futuras por cartão (FR-028)
       parameters:
         - name: from
           in: query
@@ -703,7 +705,7 @@ paths:
   /dashboard:
     get:
       tags: [Dashboard]
-      summary: Indicadores e gráficos do mês, por vencimento (FR-029, FR-030)
+      summary: Indicadores e gráficos do mês, por vencimento (FR-030, FR-031)
       parameters:
         - name: month
           in: query
@@ -719,7 +721,7 @@ paths:
   /cashflow:
     get:
       tags: [Dashboard]
-      summary: Saldo residual por mês = receitas previstas − despesas previstas (FR-028)
+      summary: Saldo residual por mês = receitas previstas − despesas previstas (FR-029)
       parameters:
         - name: from
           in: query
@@ -1043,7 +1045,10 @@ components:
       properties:
         accountId: { type: integer, format: int64 }
         month: { $ref: '#/components/schemas/Month' }
-        dueDate: { type: string, format: date }
+        dueDate:
+          type: string
+          format: date
+          description: Vencimento mais recente entre os itens da fatura (pode haver mais de um após mudança dos dias do cartão)
         total: { $ref: '#/components/schemas/Money' }
         paidIndividually: { $ref: '#/components/schemas/Money' }
         paidByInvoicePayments: { $ref: '#/components/schemas/Money' }

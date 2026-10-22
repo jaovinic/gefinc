@@ -27,7 +27,7 @@ derivadas; só os pagamentos de fatura são persistidos.
 **Project Type**: Monorepo Nx: web application + mobile app + API
 **Performance Goals**: painel e projeção em até 2 s (p95) com ~6.000 lançamentos por usuário (SC-006); 1.000 usuários simultâneos sem degradação perceptível (SC-008)
 **Constraints**: dinheiro sempre exato (sem `float`/`double`); isolamento por `user_id` em todas as consultas; sessão stateless; interface em pt-BR; app móvel exige internet; lançamento rápido em até 3 toques
-**Scale/Scope**: 1 instância da API (jobs agendados idempotentes); 7 histórias de usuário, 41 requisitos funcionais, ~36 operações de API, 6 tabelas de domínio mais 2 de tokens
+**Scale/Scope**: 1 instância da API (jobs agendados idempotentes); 7 histórias de usuário, 42 requisitos funcionais, ~36 operações de API, 6 tabelas de domínio mais 2 de tokens
 
 ## Constitution Check
 
@@ -118,6 +118,6 @@ unitário direto.
 | Dois modos de entrega do refresh token (cookie HttpOnly no web; corpo + secure storage no mobile) | Segurança contra XSS no web e armazenamento seguro exigido no mobile (RNF02, Princípio III) | Token em `localStorage` expõe o refresh token a XSS; cookie no mobile híbrido não é confiável entre origens |
 | `user_id` redundante em `transactions` e FKs compostas | Garante no banco que referências são do mesmo usuário e acelera o índice `(user_id, due_date)` (Princípios III e V) | Filtro só na aplicação deixa um bug de serviço gravar ou ler dados de outro usuário |
 | Cálculo de parcelas implementado em Java e em TypeScript | A constituição exige o cálculo em `utils` (prévia na UI) e o servidor precisa ser autoritativo (Princípios I e II) | Só no servidor adiciona latência e viola a localização exigida; só no cliente não é confiável. Vetores compartilhados evitam divergência |
-| Tabelas e colunas além do `spec-genfic.md` §5 (`invoice_payments`, `refresh_tokens`, `password_reset_tokens`, `active`, `version`, `reference_month`, etc.) | Necessárias para pagamento de fatura, sessões com rotação, recuperação de senha, inativação e concorrência otimista, todas exigidas pela spec e pela clarificação | Remover qualquer uma impede atender FR-002, FR-006, FR-011, FR-033–FR-038 |
+| Tabelas e colunas além do `spec-genfic.md` §5 (`invoice_payments`, `refresh_tokens`, `password_reset_tokens`, `active`, `version`, `reference_month`, etc.) | Necessárias para pagamento de fatura, sessões com rotação, recuperação de senha, inativação e concorrência otimista, todas exigidas pela spec e pela clarificação | Remover qualquer uma impede atender FR-002, FR-006, FR-011, FR-034–FR-039 |
 | Consulta indexada ao banco em cada requisição autenticada (`users.token_version`) | Invalidar de imediato os tokens de acesso ao trocar a senha ou pedir exclusão (FR-006, FR-008) | JWT puramente stateless deixa o token válido até 15 minutos após o evento |
-| Materialização de 12 meses de lançamentos fixos + job diário | Consultas de painel e projeção ficam agregações SQL simples e testáveis (FR-019, SC-006) | Expandir recorrência em tempo de leitura complica as consultas e o teste de totais |
+| Materialização de 12 meses de lançamentos fixos + job diário | Consultas de painel e projeção ficam agregações SQL simples e testáveis (FR-020, SC-006) | Expandir recorrência em tempo de leitura complica as consultas e o teste de totais |

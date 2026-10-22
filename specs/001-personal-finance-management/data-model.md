@@ -71,9 +71,9 @@ users 1──* password_reset_tokens
 
 - `UNIQUE (id, user_id)`.
 - Categorias iniciais (ex.: Alimentação, Moradia, Transporte, Saúde, Lazer, Educação, Serviços,
-  Salário, Outras receitas) são criadas para o usuário no cadastro (FR-014).
+  Salário, Outras receitas) são criadas para o usuário no cadastro (FR-015).
 - Excluir categoria em uso: `ON DELETE NO ACTION`; a API aceita `reassignTo=<id>` para mover os
-  lançamentos antes da exclusão, dentro da mesma transação (FR-015).
+  lançamentos antes da exclusão, dentro da mesma transação (FR-016).
 
 ### transaction_groups
 
@@ -101,7 +101,11 @@ users 1──* password_reset_tokens
     ocorrências mensais (janela de 12 meses, D4 da pesquisa).
 - Em conta `CREDIT_CARD`, o vencimento de **toda** ocorrência (`VARIABLE`, `INSTALLMENT` e cada mês de
   `FIXED`, tratado como compra no dia de `purchase_date` daquele mês) é calculado por
-  `DueDateCalculator`, a partir de `closing_day` e `due_day` (FR-021). Fora do cartão, usa `first_due_date`.
+  `DueDateCalculator`, a partir de `closing_day` e `due_day` (FR-022). Fora do cartão, usa `first_due_date`.
+- Ao editar `closing_day` ou `due_day` de uma conta `CREDIT_CARD`, o serviço recalcula `due_date` e
+  `reference_month` das ocorrências de grupos `FIXED` com `status = 'PENDING'` e `due_date > hoje`,
+  ignorando as que pertençam a faturas (de origem ou de destino) com `invoice_payments` (FR-014).
+  Parcelas, avulsos, itens pagos e itens quitados não são recalculados.
 - O tipo (receita/despesa) é herdado de `categories.type`.
 
 ### transactions
@@ -182,7 +186,10 @@ pago_fatura     = Σ invoice_payments.amount WHERE account_id = :a AND invoice_m
 restante        = total − pago_individual − pago_fatura           (invariante: restante ≥ 0)
 ```
 
-**Indicadores do painel de um mês M (por mês de vencimento, FR-030)**
+`due_date da fatura = MAX(due_date dos itens do mês)`. Após uma mudança nos dias do cartão, os itens
+do mesmo mês podem ter vencimentos distintos; cada item mantém a própria data para efeito de atraso.
+
+**Indicadores do painel de um mês M (por mês de vencimento, FR-031)**
 
 ```text
 Total do Mês  = Σ amount das despesas com reference_month = M
@@ -220,22 +227,23 @@ lançamentos.
 |---|---|---|
 | e-mail único e válido; senha dentro da política | FR-001 | serviço + índice único |
 | `closing_day`/`due_day` 1–31, obrigatórios só no cartão | FR-012 | `CHECK` + serviço |
-| valores > 0 com 2 casas decimais; datas válidas | FR-025 | `CHECK` + Bean Validation |
-| soma das parcelas = `total_amount` (resto na última) | FR-023 | `InstallmentScheduler` + teste |
-| vencimento no cartão conforme fechamento (parcela, avulso e fixo) | FR-021 | `DueDateCalculator` |
-| vencimento mensal fora do cartão | FR-022 | `InstallmentScheduler` |
-| pagamento de fatura ≤ restante; restante ≥ 0 | FR-033, FR-037 | serviço (transação com `FOR UPDATE`) |
+| valores > 0 com 2 casas decimais; datas válidas | FR-026 | `CHECK` + Bean Validation |
+| soma das parcelas = `total_amount` (resto na última) | FR-024 | `InstallmentScheduler` + teste |
+| vencimento no cartão conforme fechamento (parcela, avulso e fixo) | FR-022 | `DueDateCalculator` |
+| vencimento mensal fora do cartão | FR-023 | `InstallmentScheduler` |
+| pagamento de fatura ≤ restante; restante ≥ 0 | FR-034, FR-038 | serviço (transação com `FOR UPDATE`) |
 | referências do mesmo usuário | Princípio III | FKs compostas |
-| status ↔ `payment_date` | FR-018 | `CHECK` |
-| exclusão de conta/categoria em uso | FR-013, FR-015 | `NO ACTION` + `409` |
+| status ↔ `payment_date` | FR-019 | `CHECK` |
+| exclusão de conta/categoria em uso | FR-013, FR-016 | `NO ACTION` + `409` |
+| conta inativa não recebe novos lançamentos | FR-011 | serviço (`422 ACCOUNT_INACTIVE`) |
 
 ## Mapeamento dos requisitos para o modelo
 
 | Requisitos | Entidades |
 |---|---|
 | FR-001–FR-010 | users, refresh_tokens, password_reset_tokens |
-| FR-011–FR-013 | accounts |
-| FR-014–FR-015 | categories |
-| FR-016–FR-026 | transaction_groups, transactions |
-| FR-027–FR-032 | transactions (agregações), invoice_payments |
-| FR-033–FR-038 | invoice_payments, transactions.settled_by_payment_id |
+| FR-011–FR-014 | accounts |
+| FR-015–FR-016 | categories |
+| FR-017–FR-027 | transaction_groups, transactions |
+| FR-028–FR-033 | transactions (agregações), invoice_payments |
+| FR-034–FR-039 | invoice_payments, transactions.settled_by_payment_id |

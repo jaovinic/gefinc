@@ -55,7 +55,7 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   `settled_by_payment_id` = id do pagamento. Desfazer qualquer pagamento reverte para PENDING
   todos os itens da fatura com `settled_by_payment_id` não nulo.
 - **Racional**: a spec define fatura como visão derivada (Key Entities); persistir só o
-  pagamento mantém uma única fonte de verdade e atende FR-033 a FR-038 e o caso de borda de
+  pagamento mantém uma única fonte de verdade e atende FR-034 a FR-039 e o caso de borda de
   desfazer após quitação.
 - **Invariante**: `restante ≥ 0` sempre. Operações que o violariam (excluir item, reduzir
   valor, ou pagar acima do restante) retornam `409` com código `INVOICE_BALANCE_VIOLATION`.
@@ -77,9 +77,13 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
   ocorrências PENDING com `reference_month ≥ M`; encerrar define `end_month` e remove as
   ocorrências PENDING posteriores.
 - **Racional**: consultas de painel e projeção usam agregações SQL simples sobre
-  `transactions`, sem expandir regras em tempo de leitura; atende SC-006 e FR-019.
+  `transactions`, sem expandir regras em tempo de leitura; atende SC-006 e FR-020.
 - **Alternativas**: expansão em tempo de leitura (consultas complexas e difíceis de testar);
   janela infinita (volume ilimitado).
+- **Mudança dos dias do cartão**: `AccountService` publica `CardDaysChangedEvent`; um listener recalcula,
+  com o `DueDateCalculator`, as ocorrências de grupos `FIXED` pendentes com `due_date > hoje` cuja fatura
+  de origem e de destino não tenham pagamento (FR-014). Evita restante negativo e não exige histórico de
+  vigência dos dias. A fatura pode ter itens com vencimentos distintos no mês; seu `dueDate` é o maior.
 - **Premissa operacional**: uma única instância da API roda o job; execuções repetidas são
   inofensivas por causa da unicidade.
 

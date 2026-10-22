@@ -55,9 +55,11 @@ O usuário cadastra os meios de pagamento que usa: contas bancárias, dinheiro e
 
 1. **Given** um usuário autenticado, **When** cadastra uma conta bancária ou dinheiro em espécie informando nome e tipo, **Then** o item aparece na sua lista de contas.
 2. **Given** um usuário autenticado, **When** cadastra um cartão de crédito sem informar dia de fechamento ou dia de vencimento, **Then** o cadastro é recusado indicando os campos obrigatórios.
-3. **Given** um cartão cadastrado, **When** o usuário altera o dia de fechamento ou vencimento, **Then** as novas datas valem para lançamentos futuros e as faturas já pagas não são alteradas.
+3. **Given** um cartão cadastrado, **When** o usuário altera o dia de fechamento ou vencimento, **Then** as novas datas valem para compras registradas dali em diante e para as ocorrências fixas pendentes com vencimento futuro; parcelas e compras avulsas já registradas, itens pagos e faturas com pagamento registrado mantêm suas datas.
 4. **Given** uma conta com lançamentos associados, **When** o usuário tenta excluí-la, **Then** o sistema impede a exclusão ou oferece inativá-la, preservando o histórico.
 5. **Given** um dia de fechamento ou vencimento fora do intervalo 1 a 31, **When** o usuário tenta salvar, **Then** o sistema recusa o valor.
+6. **Given** uma assinatura fixa pendente no cartão, com vencimento futuro e sem pagamento na fatura, **When** o usuário altera o dia de vencimento do cartão, **Then** as próximas ocorrências passam a vencer no novo dia.
+7. **Given** uma conta inativa, **When** o usuário tenta registrar um novo lançamento nela, **Then** o sistema recusa e orienta a reativar a conta.
 
 ---
 
@@ -172,17 +174,17 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - Alteração de valor ou exclusão de uma compra parcelada com parcelas já pagas.
 - Lançamento fixo que precisa ser encerrado ou ter o valor alterado em determinado mês.
 - Lançamento fixo em cartão com data de compra depois do dia de fechamento: a ocorrência vai para a fatura do mês seguinte.
+- Cartão com dias alterados no meio do mês: a fatura do mês continua única e exibe o vencimento mais recente entre seus itens; cada item mantém a própria data para efeito de atraso.
 - Exclusão de conta, cartão ou categoria que possua lançamentos.
 - Usuário tenta acessar ou alterar registro de outro usuário (deve ser negado).
 - Sessão expirada ou renovação inválida durante o uso: o usuário é conduzido ao login sem perder dados não enviados.
 - Falha de conexão ao salvar um lançamento no celular: o usuário é informado e não perde o que digitou.
-- Dois dispositivos do mesmo usuário alterando o mesmo lançamento quase ao mesmo tempo.
+- Dois dispositivos do mesmo usuário alterando o mesmo lançamento quase ao mesmo tempo: o segundo a salvar recebe aviso de conflito e vê a versão atual do registro antes de decidir.
 - Várias solicitações seguidas de recuperação de senha para o mesmo e-mail: apenas o link mais recente é válido, e excedido o limite de solicitações o sistema pede para aguardar.
 - E-mail de recuperação não entregue ou atrasado: o usuário pode solicitar novo link após o intervalo mínimo.
 - Novo cadastro com o e-mail de uma conta em período de carência de exclusão: o sistema recusa, informando que o e-mail está em uso, até que a exclusão seja concluída ou cancelada.
 - Usuário com exclusão pendente tenta usar o aplicativo móvel já conectado: o acesso é negado e ele é conduzido ao login, que oferece cancelar a exclusão.
 - Credencial de acesso emitida antes do pedido de exclusão ou da troca de senha e usada logo em seguida: a requisição é recusada.
-- Pagamento de fatura maior que o saldo restante: o sistema recusa e informa o saldo.
 - Pagamento parcial registrado e, depois, uma compra adicionada ou removida na mesma fatura: o saldo restante é recalculado, e nunca pode ficar negativo (pagamentos acima do novo total exigem ajuste).
 - Pagamento desfeito depois de a fatura ter sido quitada: os itens que foram marcados como pagos pela quitação voltam a ficar pendentes, e os marcados individualmente pelo usuário permanecem pagos.
 - Pagamento parcial com valor zero, negativo ou com mais de duas casas decimais: o sistema recusa.
@@ -207,52 +209,53 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 
 **Contas e cartões**
 
-- **FR-011**: Usuários MUST poder cadastrar, editar, listar e inativar contas dos tipos conta bancária, dinheiro em espécie e cartão de crédito.
+- **FR-011**: Usuários MUST poder cadastrar, editar, listar e inativar contas dos tipos conta bancária, dinheiro em espécie e cartão de crédito; contas inativas MUST NOT receber novos lançamentos.
 - **FR-012**: Para cartões de crédito, o sistema MUST exigir dia de fechamento e dia de vencimento da fatura, ambos entre 1 e 31.
 - **FR-013**: O sistema MUST impedir a exclusão definitiva de conta ou cartão com lançamentos, oferecendo a inativação para preservar o histórico.
+- **FR-014**: Ao alterar os dias de fechamento ou vencimento de um cartão, o sistema MUST recalcular o vencimento das ocorrências de lançamentos fixos que estejam pendentes, com vencimento posterior a hoje, e cuja fatura de origem e de destino não tenham pagamento registrado. As demais ocorrências MUST manter suas datas.
 
 **Categorias**
 
-- **FR-014**: Usuários MUST poder criar, editar e excluir categorias do tipo receita ou despesa, com nome e cor, e o sistema MUST oferecer um conjunto inicial de categorias comuns.
-- **FR-015**: O sistema MUST impedir a exclusão de categoria em uso ou exigir a reatribuição dos lançamentos.
+- **FR-015**: Usuários MUST poder criar, editar e excluir categorias do tipo receita ou despesa, com nome e cor, e o sistema MUST oferecer um conjunto inicial de categorias comuns.
+- **FR-016**: O sistema MUST impedir a exclusão de categoria em uso ou exigir a reatribuição dos lançamentos.
 
 **Lançamentos**
 
-- **FR-016**: Usuários MUST poder registrar receitas e despesas dos tipos fixo (recorrência mensal), variável/avulso e parcelado.
-- **FR-017**: Cada lançamento MUST registrar descrição ou loja, categoria, conta ou cartão, valor total, quantidade de parcelas, valor da parcela, data da compra, data de vencimento e status (pendente ou pago).
-- **FR-018**: O sistema MUST permitir marcar lançamentos individuais como pagos, com data de pagamento, e reverter o pagamento para pendente, inclusive itens de cartão de crédito.
-- **FR-019**: Lançamentos fixos MUST se repetir mensalmente sem novo cadastro até o usuário encerrá-los, e alterações de valor MUST valer apenas a partir do mês indicado.
-- **FR-020**: Para compras parceladas, o sistema MUST gerar automaticamente todas as parcelas, uma por mês, até a quitação.
-- **FR-021**: Para cartões de crédito, o sistema MUST calcular a data de vencimento de cada lançamento (parcela, compra avulsa ou ocorrência de lançamento fixo) a partir do dia de fechamento e do dia de vencimento, sem que o usuário informe o vencimento: compras feitas após o fechamento entram na fatura seguinte, e cada ocorrência fixa é tratada como compra na data de compra do mês correspondente.
-- **FR-022**: O sistema MUST permitir parcelamento em qualquer conta ou cartão; fora do cartão de crédito, as parcelas MUST vencer mensalmente a partir da data de vencimento informada, usando o último dia do mês quando o dia não existir.
-- **FR-023**: A soma das parcelas MUST ser exatamente igual ao valor total da compra, com o resto de centavos aplicado à última parcela.
-- **FR-024**: Usuários MUST poder editar e excluir lançamentos; ao alterar ou excluir uma compra parcelada, o sistema MUST informar o efeito sobre as parcelas já pagas e pedir confirmação.
-- **FR-025**: O sistema MUST validar os dados dos lançamentos (valor maior que zero, datas válidas, campos obrigatórios) e apresentar mensagens claras em português.
-- **FR-026**: Usuários MUST poder listar e filtrar lançamentos por mês, conta/cartão, categoria, tipo e status.
+- **FR-017**: Usuários MUST poder registrar receitas e despesas dos tipos fixo (recorrência mensal), variável/avulso e parcelado.
+- **FR-018**: Cada lançamento MUST registrar descrição ou loja, categoria, conta ou cartão, valor total, quantidade de parcelas, valor da parcela, data da compra, data de vencimento e status (pendente ou pago).
+- **FR-019**: O sistema MUST permitir marcar lançamentos individuais como pagos, com data de pagamento, e reverter o pagamento para pendente, inclusive itens de cartão de crédito.
+- **FR-020**: Lançamentos fixos MUST se repetir mensalmente sem novo cadastro até o usuário encerrá-los, e alterações de valor MUST valer apenas a partir do mês indicado.
+- **FR-021**: Para compras parceladas, o sistema MUST gerar automaticamente todas as parcelas, uma por mês, até a quitação.
+- **FR-022**: Para cartões de crédito, o sistema MUST calcular a data de vencimento de cada lançamento (parcela, compra avulsa ou ocorrência de lançamento fixo) a partir do dia de fechamento e do dia de vencimento, sem que o usuário informe o vencimento: compras feitas após o fechamento entram na fatura seguinte, e cada ocorrência fixa é tratada como compra na data de compra do mês correspondente.
+- **FR-023**: O sistema MUST permitir parcelamento em qualquer conta ou cartão; fora do cartão de crédito, as parcelas MUST vencer mensalmente a partir da data de vencimento informada, usando o último dia do mês quando o dia não existir.
+- **FR-024**: A soma das parcelas MUST ser exatamente igual ao valor total da compra, com o resto de centavos aplicado à última parcela.
+- **FR-025**: Usuários MUST poder editar e excluir lançamentos; ao alterar ou excluir uma compra parcelada, o sistema MUST informar o efeito sobre as parcelas já pagas e pedir confirmação.
+- **FR-026**: O sistema MUST validar os dados dos lançamentos (valor maior que zero, datas válidas, campos obrigatórios) e apresentar mensagens claras em português.
+- **FR-027**: Usuários MUST poder listar e filtrar lançamentos por mês, conta/cartão, categoria, tipo e status.
 
 **Projeção e painel**
 
-- **FR-027**: O sistema MUST exibir a projeção de faturas futuras por cartão, com o total comprometido em cada mês futuro.
-- **FR-028**: O sistema MUST calcular o saldo residual de cada mês como total de receitas previstas menos total de despesas previstas.
-- **FR-029**: O sistema MUST exibir um painel mensal com Total do Mês, Total a Vencer e Total Pago, gráfico de gastos por categoria e distribuição por cartão.
-- **FR-030**: Painel, projeção de faturas e saldo residual MUST atribuir cada lançamento ao mês da sua data de vencimento, e não ao mês da data da compra.
-- **FR-031**: Projeções, saldos e painel MUST refletir imediatamente qualquer criação, alteração, pagamento ou exclusão de lançamentos.
-- **FR-032**: Valores monetários MUST ser exibidos em reais (R$) com duas casas decimais e datas no formato brasileiro.
+- **FR-028**: O sistema MUST exibir a projeção de faturas futuras por cartão, com o total comprometido em cada mês futuro.
+- **FR-029**: O sistema MUST calcular o saldo residual de cada mês como total de receitas previstas menos total de despesas previstas.
+- **FR-030**: O sistema MUST exibir um painel mensal com Total do Mês, Total a Vencer e Total Pago, gráfico de gastos por categoria e distribuição por cartão.
+- **FR-031**: Painel, projeção de faturas e saldo residual MUST atribuir cada lançamento ao mês da sua data de vencimento, e não ao mês da data da compra.
+- **FR-032**: Projeções, saldos e painel MUST refletir imediatamente qualquer criação, alteração, pagamento ou exclusão de lançamentos.
+- **FR-033**: Valores monetários MUST ser exibidos em reais (R$) com duas casas decimais e datas no formato brasileiro.
 
 **Pagamento de faturas de cartão**
 
-- **FR-033**: Usuários MUST poder registrar o pagamento de uma fatura de cartão informando um valor qualquer, maior que zero e menor ou igual ao saldo restante, e a data do pagamento.
-- **FR-034**: O sistema MUST deduzir cada pagamento do total da fatura, exibindo para cada fatura o total, o valor pago e o saldo restante; o valor pago considera os pagamentos de fatura somados aos itens marcados individualmente como pagos.
-- **FR-035**: Pagamentos parciais MUST NOT alterar o status individual dos itens da fatura; quando o saldo restante chegar a zero, o sistema MUST marcar todos os itens pendentes da fatura como pagos.
-- **FR-036**: Usuários MUST poder usar a ação "pagar fatura" pelo saldo restante total e MUST poder desfazer pagamentos de fatura já registrados, restaurando o saldo restante.
-- **FR-037**: O sistema MUST recusar pagamentos de fatura acima do saldo restante e MUST manter o saldo restante da fatura sempre maior ou igual a zero.
-- **FR-038**: Os pagamentos de fatura MUST ser considerados nos indicadores "Total Pago" e "Total a Vencer" do painel e na projeção de faturas, atribuídos ao mês do vencimento da fatura e sem contar duas vezes os itens quitados por eles.
+- **FR-034**: Usuários MUST poder registrar o pagamento de uma fatura de cartão informando um valor maior que zero, respeitado o limite do saldo restante (FR-038), e a data do pagamento.
+- **FR-035**: O sistema MUST deduzir cada pagamento do total da fatura, exibindo para cada fatura o total, o valor pago e o saldo restante; o valor pago considera os pagamentos de fatura somados aos itens marcados individualmente como pagos.
+- **FR-036**: Pagamentos parciais MUST NOT alterar o status individual dos itens da fatura; quando o saldo restante chegar a zero, o sistema MUST marcar todos os itens pendentes da fatura como pagos.
+- **FR-037**: Usuários MUST poder usar a ação "pagar fatura" pelo saldo restante total e MUST poder desfazer pagamentos de fatura já registrados, restaurando o saldo restante.
+- **FR-038**: O sistema MUST recusar pagamentos de fatura acima do saldo restante e MUST manter o saldo restante da fatura sempre maior ou igual a zero.
+- **FR-039**: Os pagamentos de fatura MUST ser considerados nos indicadores "Total Pago" e "Total a Vencer" do painel e na projeção de faturas, atribuídos ao mês do vencimento da fatura e sem contar duas vezes os itens quitados por eles.
 
 **Experiência por plataforma**
 
-- **FR-039**: A versão web MUST priorizar a visualização tabular e analítica adequada a telas de desktop.
-- **FR-040**: O aplicativo móvel MUST permitir registrar uma despesa avulsa a partir da tela inicial em no máximo 3 toques.
-- **FR-041**: A interface MUST estar em português do Brasil e MUST apresentar estados de carregamento, vazio e erro.
+- **FR-040**: A versão web MUST priorizar a visualização tabular e analítica adequada a telas de desktop.
+- **FR-041**: O aplicativo móvel MUST permitir registrar uma despesa avulsa a partir da tela inicial em no máximo 3 toques.
+- **FR-042**: A interface MUST estar em português do Brasil e MUST apresentar estados de carregamento, vazio e erro.
 
 ### Key Entities *(include if feature involves data)*
 
