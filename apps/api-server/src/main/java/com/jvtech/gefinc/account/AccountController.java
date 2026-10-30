@@ -3,6 +3,7 @@ package com.jvtech.gefinc.account;
 import com.jvtech.gefinc.account.AccountDtos.AccountInput;
 import com.jvtech.gefinc.account.AccountDtos.AccountResponse;
 import com.jvtech.gefinc.account.AccountDtos.AccountUpdate;
+import com.jvtech.gefinc.account.AccountDtos.AccountUsage;
 import com.jvtech.gefinc.common.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -45,6 +46,11 @@ public class AccountController {
   public AccountResponse get(@PathVariable long id) {
     long userId = CurrentUser.id();
     return service.response(userId, service.get(userId, id));
+  }
+
+  @GetMapping("/{id}/usage")
+  public AccountUsage usage(@PathVariable long id) {
+    return service.usage(CurrentUser.id(), id);
   }
 
   @PutMapping("/{id}")

@@ -19,5 +19,7 @@ test('categorias iniciais, criação, edição e exclusão', async ({ page }) =>
   await expect(page.getByRole('listitem').filter({ hasText: 'Animais' })).toBeVisible();
 
   await page.getByRole('listitem').filter({ hasText: 'Animais' }).getByRole('button', { name: 'Excluir' }).click();
+  await expect(page.getByRole('alertdialog')).toContainText('será excluída definitivamente');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir categoria "Animais"' }).click();
   await expect(page.getByRole('listitem').filter({ hasText: 'Animais' })).toHaveCount(0);
 });

@@ -16,6 +16,17 @@ const nubank = {
 const carteira = { id: 2, name: 'Carteira', type: 'CASH', icon: 'cash', active: true, version: 3 };
 const antigo = { id: 3, name: 'Cartão antigo', type: 'CREDIT_CARD', closingDay: 1, dueDay: 8, icon: 'card', active: true, version: 0 };
 
+const noBalances = { asOf: '2026-11-10', total: '0.00', accounts: [], unlinkedCardPayments: '0.00' };
+const withBalances = {
+  asOf: '2026-11-10',
+  total: '1300.00',
+  accounts: [
+    { accountId: 7, name: 'Itaú pessoal', type: 'CHECKING', active: true, balance: '1500.00', openingBalance: '0.00' },
+    { accountId: 2, name: 'Carteira', type: 'CASH', active: true, balance: '-200.00', openingBalance: '0.00' },
+  ],
+  unlinkedCardPayments: '0.00',
+};
+
 function setup(compact = false) {
   TestBed.configureTestingModule({
     providers: [
@@ -32,7 +43,8 @@ function setup(compact = false) {
   fixture.detectChanges();
   const expectList = (inactive: boolean) =>
     http.expectOne((r) => r.method === 'GET' && r.url === `${API}/accounts` && r.params.get('includeInactive') === String(inactive));
-  return { http, fixture, el: fixture.nativeElement as HTMLElement, expectList };
+  const expectBalances = () => http.expectOne((r) => r.method === 'GET' && r.url === `${API}/balances`);
+  return { http, fixture, el: fixture.nativeElement as HTMLElement, expectList, expectBalances };
 }
 
 function click(el: HTMLElement, label: string) {
@@ -47,7 +59,12 @@ function type(el: HTMLElement, selector: string, value: string) {
 }
 
 describe('AccountsPage', () => {
-  afterEach(() => TestBed.inject(HttpTestingController).verify());
+  afterEach(() => {
+    const http = TestBed.inject(HttpTestingController);
+    // Os saldos têm carga própria: o que um teste não tratou é respondido aqui, antes de conferir pendências.
+    http.match((r) => r.method === 'GET' && r.url === `${API}/balances`).forEach((r) => r.flush(noBalances));
+    http.verify();
+  });
 
   it('mostra carregamento e depois a tabela com tipo e dias do cartão', async () => {
     const { el, fixture, expectList } = setup();
@@ -140,21 +157,148 @@ describe('AccountsPage', () => {
     expectList(false).flush([]);
   });
 
-  it('excluir conta com lançamentos mostra a orientação do servidor', async () => {
-    const { http, el, fixture, expectList } = setup();
-    expectList(false).flush([nubank]);
-    fixture.detectChanges();
+  describe('excluir conta (confirmação e guarda de integridade)', () => {
+    const free = { canDelete: true, transactionCount: 0, invoicePaymentCount: 0, linkedCards: [], openingBalance: '0.00' };
+    const used = { canDelete: false, transactionCount: 12, invoicePaymentCount: 2, linkedCards: [{ id: 1, name: 'Nubank' }], openingBalance: '0.00' };
+    const dialog = (el: HTMLElement) => el.querySelector('[role="alertdialog"]') as HTMLElement | null;
+    const confirmButton = (el: HTMLElement) => el.querySelector('[data-testid="confirm-confirm"]') as HTMLButtonElement;
 
-    click(el, 'Excluir');
-    http
-      .expectOne({ method: 'DELETE', url: `${API}/accounts/1` })
-      .flush(
-        { code: 'ACCOUNT_IN_USE', detail: 'Esta conta possui lançamentos. Inative a conta para preservar o histórico.' },
-        { status: 409, statusText: 'Conflict' },
+    async function open(prepared: object) {
+      const ctx = setup();
+      ctx.expectList(false).flush([nubank]);
+      ctx.fixture.detectChanges();
+      click(ctx.el, 'Excluir');
+      ctx.http.expectOne({ method: 'GET', url: `${API}/accounts/1/usage` }).flush(prepared);
+      ctx.fixture.detectChanges();
+      return ctx;
+    }
+
+    it('Excluir só consulta o uso e abre a confirmação: nada é excluído antes de confirmar', async () => {
+      const { http, el, fixture } = await open(free);
+      http.expectNone({ method: 'DELETE', url: `${API}/accounts/1` });
+      const box = dialog(el) as HTMLElement;
+      expect(box.textContent).toContain('A conta "Nubank" será excluída definitivamente. Esta ação não pode ser desfeita.');
+      expect(confirmButton(el).textContent?.trim()).toBe('Excluir conta "Nubank"');
+      expect(document.activeElement).toBe(el.querySelector('[data-testid="confirm-cancel"]'));
+
+      (el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(dialog(el)).toBeNull();
+      http.expectNone({ method: 'DELETE', url: `${API}/accounts/1` });
+    });
+
+    it('Escape cancela sem excluir', async () => {
+      const { http, el, fixture } = await open(free);
+      (dialog(el) as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      expect(dialog(el)).toBeNull();
+      http.expectNone({ method: 'DELETE', url: `${API}/accounts/1` });
+    });
+
+    it('confirmar exclui, fecha, recarrega a lista e avisa; o duplo toque envia uma só exclusão', async () => {
+      const { http, el, fixture, expectList } = await open(free);
+      const notices = TestBed.inject(NoticeService);
+      confirmButton(el).click();
+      fixture.detectChanges();
+      expect(confirmButton(el).disabled).toBe(true);
+      expect(confirmButton(el).textContent?.trim()).toBe('Excluindo…');
+      confirmButton(el).click();
+      http.expectOne({ method: 'DELETE', url: `${API}/accounts/1` }).flush(null, { status: 204, statusText: 'No Content' });
+      expectList(false).flush([]);
+      fixture.detectChanges();
+
+      expect(dialog(el)).toBeNull();
+      expect(notices.toasts()[0].message).toBe('Conta excluída.');
+    });
+
+    it('conta com dados mostra o bloqueio composto e oferece Inativar conta em vez de excluir', async () => {
+      const { http, el, fixture, expectList } = await open(used);
+      const text = dialog(el)?.textContent ?? '';
+      expect(text).toContain(
+        'A conta "Nubank" não pode ser excluída: possui 12 lançamentos, 2 pagamentos de fatura e cartão vinculado (Nubank). Inative a conta para preservar o histórico.',
       );
-    fixture.detectChanges();
+      expect(confirmButton(el)).toBeNull();
+      expect(el.querySelector('[data-testid="confirm-cancel"]')?.textContent?.trim()).toBe('Fechar');
 
-    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Inative a conta');
+      (el.querySelector('[data-testid="confirm-inactivate"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(dialog(el)).toBeNull();
+      http.expectNone({ method: 'DELETE', url: `${API}/accounts/1` });
+      // banco ou cartão sem cartões vinculados inativa direto
+      http.expectOne({ method: 'PUT', url: `${API}/accounts/1` }).flush({ ...nubank, active: false, version: 1 });
+      expectList(false).flush([]);
+    });
+
+    it('conta inativa bloqueada não oferece Inativar conta', async () => {
+      const ctx = setup();
+      ctx.expectList(false).flush([{ ...nubank, active: false }]);
+      ctx.fixture.detectChanges();
+      click(ctx.el, 'Excluir');
+      ctx.http.expectOne({ method: 'GET', url: `${API}/accounts/1/usage` }).flush(used);
+      ctx.fixture.detectChanges();
+      expect(ctx.el.querySelector('[data-testid="confirm-blocked"]')).not.toBeNull();
+      expect(ctx.el.querySelector('[data-testid="confirm-inactivate"]')).toBeNull();
+    });
+
+    it('saldo inicial diferente de zero orienta a zerá-lo', async () => {
+      const { el } = await open({ ...free, canDelete: false, openingBalance: '500.00' });
+      expect(dialog(el)?.textContent).toContain('possui saldo inicial de R$ 500,00. Zere o saldo inicial para poder excluir.');
+    });
+
+    it('409 ao confirmar mantém o diálogo aberto e atualiza a prévia com o bloqueio atual', async () => {
+      const { http, el, fixture } = await open(free);
+      confirmButton(el).click();
+      http
+        .expectOne({ method: 'DELETE', url: `${API}/accounts/1` })
+        .flush({ code: 'ACCOUNT_IN_USE', detail: 'Esta conta passou a ter lançamentos.' }, { status: 409, statusText: 'Conflict' });
+      http.expectOne({ method: 'GET', url: `${API}/accounts/1/usage` }).flush(used);
+      fixture.detectChanges();
+
+      expect(dialog(el)).not.toBeNull();
+      expect(el.querySelector('[data-testid="confirm-blocked"]')?.textContent).toContain('possui 12 lançamentos');
+      expect(confirmButton(el)).toBeNull();
+    });
+
+    it('409 com a prévia ainda livre mostra a mensagem do servidor dentro do diálogo', async () => {
+      const { http, el, fixture } = await open(free);
+      confirmButton(el).click();
+      http
+        .expectOne({ method: 'DELETE', url: `${API}/accounts/1` })
+        .flush({ code: 'ACCOUNT_IN_USE', detail: 'Esta conta passou a ter lançamentos.' }, { status: 409, statusText: 'Conflict' });
+      http.expectOne({ method: 'GET', url: `${API}/accounts/1/usage` }).flush(free);
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="confirm-error"]')?.textContent).toContain('passou a ter lançamentos');
+      expect(confirmButton(el)).not.toBeNull();
+    });
+
+    it('404 ao excluir trata como já excluída e recarrega', async () => {
+      const { http, el, fixture, expectList } = await open(free);
+      confirmButton(el).click();
+      http.expectOne({ method: 'DELETE', url: `${API}/accounts/1` }).flush({ code: 'NOT_FOUND' }, { status: 404, statusText: 'Not Found' });
+      expectList(false).flush([]);
+      fixture.detectChanges();
+      expect(dialog(el)).toBeNull();
+    });
+
+    it('outro erro aparece dentro do diálogo, que continua aberto', async () => {
+      const { http, el, fixture } = await open(free);
+      confirmButton(el).click();
+      http.expectOne({ method: 'DELETE', url: `${API}/accounts/1` }).flush({}, { status: 500, statusText: 'Server Error' });
+      fixture.detectChanges();
+      expect(dialog(el)).not.toBeNull();
+      expect(el.querySelector('[data-testid="confirm-error"]')?.textContent).toContain('erro inesperado');
+    });
+
+    it('falha ao consultar o uso mostra o erro na tela e não abre o diálogo', async () => {
+      const { http, el, fixture, expectList } = setup();
+      expectList(false).flush([nubank]);
+      fixture.detectChanges();
+      click(el, 'Excluir');
+      http.expectOne({ method: 'GET', url: `${API}/accounts/1/usage` }).flush({}, { status: 500, statusText: 'Server Error' });
+      fixture.detectChanges();
+      expect(dialog(el)).toBeNull();
+      expect(el.querySelector('[role="alert"]')?.textContent).toContain('erro inesperado');
+    });
   });
 
   it('mostrar inativas pede a lista completa', async () => {
@@ -334,5 +478,84 @@ describe('AccountsPage', () => {
 
     expect(el.querySelector('[data-testid="card-days-notice"]')?.textContent).toContain('lançamentos fixos pendentes');
     expect(el.querySelector('[data-testid="card-days-notice"]')?.textContent).toContain('vencimento futuro');
+  });
+
+  describe('saldo atual por conta', () => {
+    const balanceCells = (el: HTMLElement) => Array.from(el.querySelectorAll('[data-testid="account-balance"]'));
+
+    it('mostra o saldo das contas bancárias e de dinheiro, com sinal e cor no negativo, e traço no cartão (tabela)', () => {
+      const { el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush([itau, nubank, carteira]);
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+
+      const cells = balanceCells(el);
+      expect(cells).toHaveLength(3);
+      expect(cells[0].textContent).toContain('R$ 1.500,00');
+      expect(cells[0].querySelector('.financial-value')?.className).toContain('text-gefinc-primary');
+      expect(cells[1].textContent?.trim()).toBe('—');
+      expect(cells[2].textContent).toContain('-R$ 200,00');
+      expect(cells[2].querySelector('.financial-value')?.className).toContain('text-gefinc-danger');
+      expect(cells[2].querySelector('svg')).not.toBeNull();
+    });
+
+    it('no celular cada conta tem o saldo atual no cartão; o cartão de crédito não mostra saldo', () => {
+      const { el, fixture, expectList, expectBalances } = setup(true);
+      expectList(false).flush([itau, nubank, carteira]);
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+
+      const cards = Array.from(el.querySelectorAll('[data-testid="account-card"]'));
+      expect(cards[0].textContent).toContain('Saldo atual');
+      expect(cards[0].textContent).toContain('R$ 1.500,00');
+      expect(cards[1].textContent).not.toContain('Saldo atual');
+      expect(cards[2].textContent).toContain('-R$ 200,00');
+    });
+
+    it('a lista de contas aparece antes dos saldos chegarem', () => {
+      const { el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush([itau]);
+      fixture.detectChanges();
+      expect(el.textContent).toContain('Itaú pessoal');
+      expect(el.querySelector('[data-testid="balance-pending"]')?.textContent).toContain('Carregando');
+
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+      expect(el.textContent).toContain('R$ 1.500,00');
+    });
+
+    it('falha nos saldos não bloqueia a lista: mostra aviso com nova tentativa e traços', () => {
+      const { el, fixture, expectList, expectBalances, http } = setup();
+      expectList(false).flush([itau]);
+      expectBalances().flush({}, { status: 500, statusText: 'Server Error' });
+      fixture.detectChanges();
+
+      expect(el.textContent).toContain('Itaú pessoal');
+      expect(el.querySelector('[data-testid="balances-error"]')?.textContent).toContain('Não foi possível carregar os saldos');
+      expect(balanceCells(el)[0].textContent?.trim()).toBe('—');
+
+      (el.querySelector('[data-testid="balances-error"] button') as HTMLButtonElement).click();
+      http.expectOne((r) => r.url === `${API}/balances`).flush(withBalances);
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="balances-error"]')).toBeNull();
+      expect(balanceCells(el)[0].textContent).toContain('R$ 1.500,00');
+    });
+
+    it('falha na lista não impede a carga dos saldos, que seguem independentes', () => {
+      const { el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush({}, { status: 500, statusText: 'Server Error' });
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+      expect(el.textContent).toContain('erro inesperado');
+      expect(el.querySelector('[data-testid="balances-error"]')).toBeNull();
+    });
+
+    it('conta inativa sem saldo na resposta mostra R$ 0,00', () => {
+      const { el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush([{ ...carteira, active: false }]);
+      expectBalances().flush(noBalances);
+      fixture.detectChanges();
+      expect(balanceCells(el)[0].textContent).toContain('R$ 0,00');
+    });
   });
 });

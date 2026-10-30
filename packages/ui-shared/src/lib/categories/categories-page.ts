@@ -1,15 +1,16 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { CATEGORY_TYPES, ERROR_CODES, type Category, type CategoryType } from '@gefinc/core-models';
-import { CategoriesApi, ReferenceData, messageFor, toProblem } from '../api';
+import { CATEGORY_TYPES, ERROR_CODES, type Category, type CategoryType, type CategoryUsage } from '@gefinc/core-models';
+import { CategoriesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { ConfirmDialog } from '../layout/confirm-dialog';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 
 const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME: 'Receitas' };
 
-/** Categorias de receita e de despesa; excluir uma categoria em uso exige escolher a que recebe os lançamentos. */
+/** Categorias de receita e de despesa; só se exclui categoria sem lançamentos (com confirmação), sem mover lançamentos. */
 @Component({
   selector: 'gef-categories-page',
-  imports: [ReactiveFormsModule, EmptyView, ErrorView, LoadingView],
+  imports: [ReactiveFormsModule, ConfirmDialog, EmptyView, ErrorView, LoadingView],
   template: `
     <section class="space-y-6">
       <header class="flex items-center justify-between">
@@ -49,28 +50,8 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
         </form>
       }
 
-      @if (reassigning(); as pending) {
-        <div class="gef-alert-warning space-y-3" role="alert">
-          <p>
-            A categoria "{{ pending.name }}" possui lançamentos. Escolha a categoria que vai recebê-los:
-          </p>
-          <div class="flex items-center gap-3">
-            <select class="gef-input max-w-xs" [value]="reassignTarget()" (change)="reassignTarget.set(+$any($event.target).value)">
-              <option value="0">Selecione…</option>
-              @for (option of sameType(pending); track option.id) {
-                <option [value]="option.id">{{ option.name }}</option>
-              }
-            </select>
-            <button type="button" class="gef-btn-secondary" [disabled]="reassignTarget() === 0" (click)="confirmReassign(pending)">
-              Mover e excluir
-            </button>
-            <button type="button" class="gef-btn-secondary" (click)="reassigning.set(null)">Cancelar</button>
-          </div>
-        </div>
-      }
-
       @if (loading()) {
-        <gef-loading message="Carregando categorias…" />
+        <gef-loading variant="list" message="Carregando categorias…" />
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (categories().length === 0) {
@@ -88,7 +69,7 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
                   </span>
                   <span class="flex gap-2">
                     <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + category.name" (click)="startEdit(category)">Editar</button>
-                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + category.name" (click)="remove(category)">Excluir</button>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + category.name" (click)="askDelete(category)">Excluir</button>
                   </span>
                 </li>
               }
@@ -97,12 +78,27 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
         }
       }
     </section>
+    <gef-confirm-dialog
+      [open]="!!deleting()"
+      [heading]="deleteBlocked() ? 'Categoria não pode ser excluída' : 'Excluir categoria'"
+      [confirmLabel]="deleteLabel()"
+      [busy]="deleteBusy()"
+      [error]="deleteError()"
+      [blocked]="deleteBlocked()"
+      (confirmed)="confirmDelete()"
+      (cancelled)="closeDelete()"
+    >
+      @if (deleting(); as pending) {
+        <p>A categoria "{{ pending.category.name }}" será excluída definitivamente. Esta ação não pode ser desfeita.</p>
+      }
+    </gef-confirm-dialog>
   `,
 })
 export class CategoriesPage implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(CategoriesApi);
   private readonly reference = inject(ReferenceData);
+  private readonly notices = inject(NoticeService);
 
   protected readonly types = CATEGORY_TYPES;
   protected readonly labels = TYPE_LABELS;
@@ -113,8 +109,20 @@ export class CategoriesPage implements OnInit {
   protected readonly formOpen = signal(false);
   protected readonly busy = signal(false);
   protected readonly editing = signal<Category | null>(null);
-  protected readonly reassigning = signal<Category | null>(null);
-  protected readonly reassignTarget = signal(0);
+  /** Exclusão em confirmação: a categoria e a prévia do que a impede (GET usage). */
+  protected readonly deleting = signal<{ category: Category; usage: CategoryUsage } | null>(null);
+  protected readonly deleteBusy = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+  private readonly usageLoading = signal(false);
+  protected readonly deleteBlocked = computed(() => {
+    const pending = this.deleting();
+    if (!pending || pending.usage.canDelete) {
+      return null;
+    }
+    const count = Math.max(pending.usage.transactionCount, pending.usage.groupCount);
+    return `A categoria "${pending.category.name}" está em uso em ${count} ${count === 1 ? 'lançamento' : 'lançamentos'}. Altere a categoria desses lançamentos e tente novamente.`;
+  });
+  protected readonly deleteLabel = computed(() => `Excluir categoria "${this.deleting()?.category.name ?? ''}"`);
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(60)]],
@@ -144,10 +152,6 @@ export class CategoriesPage implements OnInit {
 
   protected byType(type: CategoryType): Category[] {
     return this.categories().filter((c) => c.type === type);
-  }
-
-  protected sameType(category: Category): Category[] {
-    return this.categories().filter((c) => c.type === category.type && c.id !== category.id);
   }
 
   protected startCreate(): void {
@@ -195,29 +199,75 @@ export class CategoriesPage implements OnInit {
     });
   }
 
-  protected remove(category: Category): void {
+  /** Consulta o uso da categoria e abre a confirmação: nada é excluído sem o usuário confirmar. */
+  protected askDelete(category: Category): void {
+    if (this.usageLoading()) {
+      return;
+    }
     this.message.set(null);
-    this.api.remove(category.id).subscribe({
-      next: () => this.load(),
+    this.usageLoading.set(true);
+    this.api.usage(category.id).subscribe({
+      next: (usage) => {
+        this.usageLoading.set(false);
+        this.deleteError.set(null);
+        this.deleting.set({ category, usage });
+      },
       error: (e: unknown) => {
+        this.usageLoading.set(false);
         const problem = toProblem(e);
-        if (problem.code === ERROR_CODES.categoryInUse) {
-          this.reassignTarget.set(0);
-          this.reassigning.set(category);
+        if (problem.status === 404) {
+          this.load();
+        }
+        this.message.set(messageFor(problem));
+      },
+    });
+  }
+
+  protected closeDelete(): void {
+    if (!this.deleteBusy()) {
+      this.deleting.set(null);
+      this.deleteError.set(null);
+    }
+  }
+
+  protected confirmDelete(): void {
+    const pending = this.deleting();
+    if (!pending || this.deleteBusy() || this.deleteBlocked()) {
+      return;
+    }
+    this.deleteBusy.set(true);
+    this.deleteError.set(null);
+    this.api.remove(pending.category.id).subscribe({
+      next: () => {
+        this.deleteBusy.set(false);
+        this.deleting.set(null);
+        this.load();
+        this.notices.toast('Categoria excluída.');
+      },
+      error: (e: unknown) => {
+        this.deleteBusy.set(false);
+        const problem = toProblem(e);
+        if (problem.status === 404) {
+          this.deleting.set(null);
+          this.load();
+          this.notices.toast('A categoria já havia sido excluída.');
+        } else if (problem.code === ERROR_CODES.categoryInUse) {
+          this.refreshUsage(pending.category, messageFor(problem));
         } else {
-          this.message.set(messageFor(problem));
+          this.deleteError.set(messageFor(problem));
         }
       },
     });
   }
 
-  protected confirmReassign(category: Category): void {
-    this.api.remove(category.id, this.reassignTarget()).subscribe({
-      next: () => {
-        this.reassigning.set(null);
-        this.load();
+  /** O servidor recusou: atualiza a prévia (mostra o bloqueio atual) e mantém o diálogo aberto. */
+  private refreshUsage(category: Category, detail: string): void {
+    this.api.usage(category.id).subscribe({
+      next: (usage) => {
+        this.deleting.set({ category, usage });
+        this.deleteError.set(usage.canDelete ? detail : null);
       },
-      error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
+      error: () => this.deleteError.set(detail),
     });
   }
 }

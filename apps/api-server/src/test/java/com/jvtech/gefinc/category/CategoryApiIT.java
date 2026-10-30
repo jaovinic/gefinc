@@ -95,7 +95,7 @@ class CategoryApiIT extends IntegrationTestBase {
   }
 
   @Test
-  void excluirCategoriaEmUsoExigeReatribuicao() throws Exception {
+  void categoriaEmUsoNaoEExcluidaEOsLancamentosFicamIntactos() throws Exception {
     long account = api.checking(ana, "Itaú");
     long lazer = api.category(ana, "Lazer");
     long viagens =
@@ -104,7 +104,6 @@ class CategoryApiIT extends IntegrationTestBase {
                     ana, HttpMethod.POST, "/categories", body("Viagens", "EXPENSE", "#00AA00")))
             .get("id")
             .asLong();
-    long salario = api.category(ana, "Salário");
     JsonNode group =
         api.createGroup(
             ana, api.variableBody("Cinema", "40.00", account, lazer, "2026-11-08", "2026-11-08"));
@@ -112,26 +111,70 @@ class CategoryApiIT extends IntegrationTestBase {
     api.call(ana, HttpMethod.DELETE, "/categories/" + lazer, null)
         .andExpect(status().isConflict())
         .andExpect(matchesContract())
+        .andExpect(jsonPath("$.code").value("CATEGORY_IN_USE"))
+        .andExpect(jsonPath("$.transactionCount").value(1))
+        .andExpect(jsonPath("$.groupCount").value(1))
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Esta categoria não pode ser excluída: está em uso em 1 lançamento."
+                        + " Altere a categoria desses lançamentos e tente novamente."));
+
+    // reassignTo foi removido: o parâmetro é ignorado e nada é movido nem excluído
+    api.call(ana, HttpMethod.DELETE, "/categories/" + lazer + "?reassignTo=" + viagens, null)
+        .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("CATEGORY_IN_USE"));
 
-    // tipo diferente, a própria categoria ou categoria de outro usuário não servem
-    api.call(ana, HttpMethod.DELETE, "/categories/" + lazer + "?reassignTo=" + salario, null)
-        .andExpect(status().isUnprocessableEntity());
-    api.call(ana, HttpMethod.DELETE, "/categories/" + lazer + "?reassignTo=" + lazer, null)
-        .andExpect(status().isUnprocessableEntity());
+    assertThat(api.get(ana, "/categories").findValues("id"))
+        .extracting(JsonNode::asLong)
+        .contains(lazer, viagens);
+    JsonNode unchanged = api.get(ana, "/transaction-groups/" + group.get("id").asLong());
+    assertThat(unchanged.get("categoryId").asLong()).isEqualTo(lazer);
+    assertThat(unchanged.get("transactions").get(0).get("categoryId").asLong()).isEqualTo(lazer);
+
+    // liberada a categoria (lançamentos removidos), a exclusão passa
     api.call(
             ana,
             HttpMethod.DELETE,
-            "/categories/" + lazer + "?reassignTo=" + api.category(bia, "Lazer"),
+            "/transaction-groups/" + group.get("id").asLong() + "?confirm=true",
             null)
-        .andExpect(status().isNotFound());
-
-    api.call(ana, HttpMethod.DELETE, "/categories/" + lazer + "?reassignTo=" + viagens, null)
         .andExpect(status().isNoContent());
+    api.call(ana, HttpMethod.DELETE, "/categories/" + lazer, null)
+        .andExpect(status().isNoContent());
+  }
 
-    JsonNode moved = api.get(ana, "/transaction-groups/" + group.get("id").asLong());
-    assertThat(moved.get("categoryId").asLong()).isEqualTo(viagens);
-    assertThat(moved.get("transactions").get(0).get("categoryId").asLong()).isEqualTo(viagens);
+  @Test
+  void usoDaCategoriaInformaAsContagens() throws Exception {
+    long account = api.checking(ana, "Itaú");
+    long lazer = api.category(ana, "Lazer");
+    api.call(ana, HttpMethod.GET, "/categories/" + lazer + "/usage", null)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.canDelete").value(true))
+        .andExpect(jsonPath("$.transactionCount").value(0))
+        .andExpect(jsonPath("$.groupCount").value(0));
+
+    api.createGroup(
+        ana, api.variableBody("Cinema", "40.00", account, lazer, "2026-11-08", "2026-11-08"));
+    api.createGroup(
+        ana, api.variableBody("Teatro", "60.00", account, lazer, "2026-11-09", "2026-11-09"));
+    api.call(ana, HttpMethod.GET, "/categories/" + lazer + "/usage", null)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.canDelete").value(false))
+        .andExpect(jsonPath("$.transactionCount").value(2))
+        .andExpect(jsonPath("$.groupCount").value(2));
+  }
+
+  @Test
+  void excluirOuVerUsoDeCategoriaDeOutroUsuarioRespondeNaoEncontrado() throws Exception {
+    long anaCategory = api.category(ana, "Lazer");
+    api.call(bia, HttpMethod.GET, "/categories/" + anaCategory + "/usage", null)
+        .andExpect(status().isNotFound());
+    api.call(bia, HttpMethod.DELETE, "/categories/" + anaCategory, null)
+        .andExpect(status().isNotFound());
+    api.call(ana, HttpMethod.GET, "/categories/" + anaCategory + "/usage", null)
+        .andExpect(status().isOk());
   }
 
   @Test

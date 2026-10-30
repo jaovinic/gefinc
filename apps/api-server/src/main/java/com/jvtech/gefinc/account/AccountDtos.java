@@ -1,10 +1,13 @@
 package com.jvtech.gefinc.account;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.math.BigDecimal;
+import java.util.List;
 
 /** Corpos de requisição e resposta de {@code /accounts}, conforme o contrato OpenAPI. */
 public final class AccountDtos {
@@ -23,7 +26,9 @@ public final class AccountDtos {
           Integer dueDay,
       HolderType holderType,
       AccountIcon icon,
-      Long bankAccountId) {
+      Long bankAccountId,
+      @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
+          BigDecimal openingBalance) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {
@@ -44,6 +49,8 @@ public final class AccountDtos {
       HolderType holderType,
       AccountIcon icon,
       Long bankAccountId,
+      @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
+          BigDecimal openingBalance,
       @NotNull(message = "Informe se a conta está ativa.") Boolean active,
       @NotNull(message = "Informe a versão.") Long version) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
@@ -63,6 +70,7 @@ public final class AccountDtos {
       AccountIcon icon,
       Long bankAccountId,
       String bankAccountName,
+      BigDecimal openingBalance,
       boolean active,
       long version) {
 
@@ -84,8 +92,34 @@ public final class AccountDtos {
           icon,
           a.getBankAccountId(),
           bank != null ? bank.getName() : null,
+          a.getOpeningBalance(),
           a.isActive(),
           a.getVersion());
+    }
+  }
+
+  public record LinkedCard(long id, String name) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "LinkedCard[REDACTED]";
+    }
+  }
+
+  /**
+   * Prévia da exclusão: o que impede excluir a conta. {@code canDelete} só é verdadeiro sem
+   * lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial.
+   */
+  public record AccountUsage(
+      boolean canDelete,
+      long transactionCount,
+      long invoicePaymentCount,
+      List<LinkedCard> linkedCards,
+      BigDecimal openingBalance) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "AccountUsage[REDACTED]";
     }
   }
 }

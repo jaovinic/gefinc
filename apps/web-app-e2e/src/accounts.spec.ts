@@ -56,8 +56,19 @@ test.describe('contas e cartões', () => {
     await page.getByRole('row', { name: /Carteira/ }).getByRole('button', { name: 'Reativar' }).click();
     await expect(page.getByRole('row', { name: /Carteira/ })).toContainText('Ativa');
 
-    // exclui a carteira (sem lançamentos)
+    // exclui a carteira (sem dados): a confirmação aparece e o foco inicial fica em Cancelar
     await page.getByRole('row', { name: /Carteira/ }).getByRole('button', { name: 'Excluir' }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText('será excluída definitivamente');
+    await expect(confirm.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+
+    // Escape mantém a conta
+    await page.keyboard.press('Escape');
+    await expect(confirm).toHaveCount(0);
+    await expect(page.getByRole('row', { name: /Carteira/ })).toHaveCount(1);
+
+    await page.getByRole('row', { name: /Carteira/ }).getByRole('button', { name: 'Excluir' }).click();
+    await confirm.getByRole('button', { name: 'Excluir conta "Carteira"' }).click();
     await expect(page.getByRole('row', { name: /Carteira/ })).toHaveCount(0);
   });
 });

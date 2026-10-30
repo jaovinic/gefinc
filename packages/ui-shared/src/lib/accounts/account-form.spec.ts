@@ -185,4 +185,141 @@ describe('AccountForm', () => {
     });
     put.flush({ ...itau, holderType: 'PJ' });
   });
+
+  it('conta bancária e dinheiro oferecem o saldo inicial opcional; cartão não', () => {
+    const { el, selectType } = setup();
+    expect(el.querySelector('[data-field="openingBalance"]')?.textContent).toContain('Saldo inicial (opcional)');
+    selectType('CASH');
+    expect(el.querySelector('[data-field="openingBalance"]')).not.toBeNull();
+    selectType('CREDIT_CARD');
+    expect(el.querySelector('[data-field="openingBalance"]')).toBeNull();
+  });
+
+  it('envia o saldo inicial informado ao criar a conta', () => {
+    const { http, el, type, submit, holder } = setup();
+    type('#name', 'Itaú pessoal');
+    holder('PF');
+    type('[data-field="openingBalance"] input', '150050');
+    expect((el.querySelector('[data-field="openingBalance"] input') as HTMLInputElement).value).toBe('1.500,50');
+    submit();
+    const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+    expect(post.request.body).toEqual({ name: 'Itaú pessoal', type: 'CHECKING', holderType: 'PF', openingBalance: '1500.50' });
+    post.flush({ ...itau }, { status: 201, statusText: 'Created' });
+  });
+
+  it('sem saldo inicial informado não envia o campo; cartão nunca o envia', () => {
+    const { http, type, selectType, submit, pickBank } = setup();
+    selectType('CREDIT_CARD');
+    pickBank('Itaú');
+    type('#closingDay', '10');
+    type('#dueDay', '17');
+    submit();
+    const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+    expect(post.request.body).not.toHaveProperty('openingBalance');
+    post.flush({ id: 7 }, { status: 201, statusText: 'Created' });
+  });
+
+  it('ao editar mostra o saldo inicial atual e só o reenvia quando alterado', () => {
+    const { http, el, type, submit } = setup((h) => h.account.set({ ...itau, openingBalance: '200.00' } as Account));
+    expect((el.querySelector('[data-field="openingBalance"] input') as HTMLInputElement).value).toBe('200,00');
+    submit();
+    const first = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+    expect(first.request.body).not.toHaveProperty('openingBalance');
+    first.flush({ ...itau });
+
+    type('[data-field="openingBalance"] input', '30000');
+    submit();
+    const second = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+    expect(second.request.body.openingBalance).toBe('300.00');
+    second.flush({ ...itau });
+  });
+
+  const sign = (el: HTMLElement, fixture: { detectChanges(): void }, value: 'POSITIVE' | 'NEGATIVE') => {
+    (el.querySelector(`#opening-${value}`) as HTMLInputElement).click();
+    fixture.detectChanges();
+  };
+
+  it('oferece a escolha Positivo (tenho) ou Negativo (devendo) com ícone, positivo por padrão', () => {
+    const { el } = setup();
+    const options = Array.from(el.querySelectorAll('[data-field="openingSign"] label'));
+    expect(options.map((o) => o.textContent?.trim())).toEqual(['Positivo (tenho)', 'Negativo (devendo)']);
+    expect(options.every((o) => o.querySelector('svg') !== null)).toBe(true);
+    expect((el.querySelector('#opening-POSITIVE') as HTMLInputElement).checked).toBe(true);
+    expect(el.querySelector('[data-testid="opening-help"]')?.textContent).not.toContain('cheque especial');
+  });
+
+  it('saldo inicial negativo: valor digitado sem sinal, escolha Negativo e envio com sinal', () => {
+    const { http, el, type, submit, holder, fixture } = setup();
+    type('#name', 'Conta devedora');
+    holder('PF');
+    type('[data-field="openingBalance"] input', '30000');
+    sign(el, fixture, 'NEGATIVE');
+    expect(el.querySelector('[data-testid="opening-help"]')?.textContent).toContain('já começa devendo');
+    expect(el.querySelector('[data-field="openingBalance"] input')?.className).toContain('text-gefinc-danger');
+    submit();
+    const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+    expect(post.request.body.openingBalance).toBe('-300.00');
+    post.flush({ ...itau }, { status: 201, statusText: 'Created' });
+  });
+
+  it('escolher Negativo sem valor não envia saldo; valor zero com Negativo envia 0.00, nunca -0.00', () => {
+    const { http, el, type, submit, holder, fixture } = setup();
+    type('#name', 'Conta');
+    holder('PF');
+    sign(el, fixture, 'NEGATIVE');
+    submit();
+    const first = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+    expect(first.request.body).not.toHaveProperty('openingBalance');
+    first.flush({ ...itau }, { status: 201, statusText: 'Created' });
+
+    type('[data-field="openingBalance"] input', '0');
+    submit();
+    const second = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+    expect(second.request.body.openingBalance).toBe('0.00');
+    second.flush({ ...itau }, { status: 201, statusText: 'Created' });
+  });
+
+  it('abrir conta com saldo inicial negativo mostra o valor e o sentido corretos, sem reenviar sem mudança', () => {
+    const { http, el, submit } = setup((h) => h.account.set({ ...itau, openingBalance: '-50.00' } as Account));
+    expect((el.querySelector('[data-field="openingBalance"] input') as HTMLInputElement).value).toBe('50,00');
+    expect((el.querySelector('#opening-NEGATIVE') as HTMLInputElement).checked).toBe(true);
+    expect((el.querySelector('#opening-POSITIVE') as HTMLInputElement).checked).toBe(false);
+    expect(el.querySelector('[data-testid="negative-opening"]')).toBeNull();
+    submit();
+    const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+    expect(put.request.body).not.toHaveProperty('openingBalance');
+    put.flush({ ...itau });
+  });
+
+  it('trocar o sentido de um saldo existente reenvia o valor com o novo sinal', () => {
+    const { http, el, submit, fixture } = setup((h) => h.account.set({ ...itau, openingBalance: '-50.00' } as Account));
+    sign(el, fixture, 'POSITIVE');
+    submit();
+    const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+    expect(put.request.body.openingBalance).toBe('50.00');
+    put.flush({ ...itau });
+  });
+
+  it('esvaziar o valor de uma conta negativa envia 0.00', () => {
+    const { http, el, type, submit } = setup((h) => h.account.set({ ...itau, openingBalance: '-50.00' } as Account));
+    type('[data-field="openingBalance"] input', '');
+    expect((el.querySelector('#opening-NEGATIVE') as HTMLInputElement).checked).toBe(true);
+    submit();
+    const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+    expect(put.request.body.openingBalance).toBe('0.00');
+    put.flush({ ...itau });
+  });
+
+  it('mostra o erro do servidor no campo de saldo inicial', () => {
+    const { http, el, type, submit, holder, fixture } = setup();
+    type('#name', 'Itaú');
+    holder('PF');
+    type('[data-field="openingBalance"] input', '100');
+    submit();
+    http
+      .expectOne({ method: 'POST', url: `${API}/accounts` })
+      .flush({ status: 422, errors: [{ field: 'openingBalance', message: 'Saldo inicial inválido.' }] }, { status: 422, statusText: 'Unprocessable' });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-field="openingBalance"]')?.textContent).toContain('Saldo inicial inválido.');
+  });
 });

@@ -17,6 +17,8 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePayment, 
   List<InvoicePayment> findByUserIdAndAccountIdAndInvoiceMonthOrderByIdAsc(
       long userId, long accountId, LocalDate invoiceMonth);
 
+  long countByUserIdAndAccountId(long userId, long accountId);
+
   boolean existsByUserIdAndAccountIdAndInvoiceMonth(
       long userId, long accountId, LocalDate invoiceMonth);
 
@@ -38,4 +40,10 @@ public interface InvoicePaymentRepository extends JpaRepository<InvoicePayment, 
       @Param("accounts") Collection<Long> accounts,
       @Param("from") LocalDate from,
       @Param("to") LocalDate to);
+
+  /** Linhas {@code [accountId, soma]} dos pagamentos de fatura feitos até a data (inclusive). */
+  @Query(
+      "select p.accountId, sum(p.amount) from InvoicePayment p where p.userId = :userId"
+          + " and p.paidAt <= :until group by p.accountId")
+  List<Object[]> sumsPaidUntil(@Param("userId") long userId, @Param("until") LocalDate until);
 }

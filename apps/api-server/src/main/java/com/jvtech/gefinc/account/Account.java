@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.math.BigDecimal;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -49,6 +50,9 @@ public class Account {
 
   @Column(name = "bank_account_id")
   private Long bankAccountId;
+
+  @Column(name = "opening_balance", nullable = false, precision = 19, scale = 2)
+  private BigDecimal openingBalance = BigDecimal.ZERO.setScale(2);
 
   @Column(nullable = false)
   private boolean active = true;
@@ -101,6 +105,10 @@ public class Account {
     return bankAccountId;
   }
 
+  public BigDecimal getOpeningBalance() {
+    return openingBalance;
+  }
+
   public boolean isActive() {
     return active;
   }
@@ -126,6 +134,10 @@ public class Account {
     this.holderType = holderType;
     this.icon = icon;
     this.bankAccountId = bankAccountId;
+  }
+
+  public void setOpeningBalance(BigDecimal openingBalance) {
+    this.openingBalance = openingBalance.setScale(2);
   }
 
   public void setActive(boolean active) {

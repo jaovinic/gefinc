@@ -1,7 +1,10 @@
 import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { ACCOUNT_TYPES, type Account, type AccountIcon, type AccountType, type HolderType } from '@gefinc/core-models';
+import { fromCents, isValidMoney, toCents } from '@gefinc/utils';
 import { AccountsApi, messageFor, toProblem } from '../api';
+import { Icon } from '../icons/icon';
+import { MoneyInput } from '../money-input/money-input';
 import { IconPicker } from './icon-picker';
 import { AccountPicker } from './account-picker';
 
@@ -40,9 +43,26 @@ function profile(group: AbstractControl): ValidationErrors | null {
   return Object.keys(errors).length > 0 ? errors : null;
 }
 
+type OpeningSign = 'POSITIVE' | 'NEGATIVE';
+
+/**
+ * O campo de valor só aceita algarismos (sem sinal): o saldo inicial vira valor absoluto no campo e
+ * o sentido (positivo ou negativo) é escolhido à parte. Saldo zero ou ausente deixa o campo vazio.
+ */
+function openingToField(opening: string | undefined): { amount: string | null; sign: OpeningSign } {
+  if (!opening || !isValidMoney(opening)) {
+    return { amount: null, sign: 'POSITIVE' };
+  }
+  const cents = toCents(opening);
+  if (cents === 0n) {
+    return { amount: null, sign: 'POSITIVE' };
+  }
+  return cents < 0n ? { amount: fromCents(-cents), sign: 'NEGATIVE' } : { amount: fromCents(cents), sign: 'POSITIVE' };
+}
+
 @Component({
   selector: 'gef-account-form',
-  imports: [ReactiveFormsModule, IconPicker, AccountPicker],
+  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
       @if (error(); as message) {
@@ -122,6 +142,39 @@ function profile(group: AbstractControl): ValidationErrors | null {
           </div>
         }
 
+        @if (form.controls.type.value !== 'CREDIT_CARD') {
+          <div class="sm:col-span-2" data-field="openingBalance">
+            <gef-money-input
+              label="Saldo inicial (opcional)"
+              [tone]="form.controls.openingBalance.value ? (negative() ? 'expense' : 'income') : 'neutral'"
+              formControlName="openingBalance"
+            />
+            <fieldset class="mt-2">
+              <legend class="sr-only">Sentido do saldo inicial</legend>
+              <div class="flex gap-2" data-field="openingSign">
+                <label class="gef-segment" data-kind="INCOME">
+                  <input type="radio" formControlName="openingSign" value="POSITIVE" id="opening-POSITIVE" />
+                  <gef-icon name="arrow-up" [size]="16" /><span>Positivo (tenho)</span>
+                </label>
+                <label class="gef-segment" data-kind="EXPENSE">
+                  <input type="radio" formControlName="openingSign" value="NEGATIVE" id="opening-NEGATIVE" />
+                  <gef-icon name="arrow-down" [size]="16" /><span>Negativo (devendo)</span>
+                </label>
+              </div>
+            </fieldset>
+            <p class="mt-1 text-caption text-gefinc-muted" data-testid="opening-help">
+              {{
+                negative()
+                  ? 'A conta já começa devendo: este valor entra no saldo como negativo.'
+                  : 'Quanto havia na conta antes de usar o app. Se ela já começa devendo, escolha Negativo.'
+              }}
+            </p>
+            @if (serverErrors()['openingBalance']; as message) {
+              <p class="gef-field-error">{{ message }}</p>
+            }
+          </div>
+        }
+
         <div class="sm:col-span-2">
           <span class="gef-label" id="icon-label">Ícone</span>
           <gef-icon-picker label="Ícone" formControlName="icon" />
@@ -165,6 +218,10 @@ export class AccountForm {
       type: this.fb.nonNullable.control<AccountType>('CHECKING'),
       holderType: this.fb.control<HolderType | null>(null),
       icon: this.fb.control<AccountIcon | null>(null),
+      /** Valor absoluto do saldo inicial: o campo de valor (`gef-money-input`) não aceita sinal. */
+      openingBalance: this.fb.control<string | null>(null),
+      /** Sentido do saldo inicial: positivo ou negativo (conta que já começa devendo). */
+      openingSign: this.fb.nonNullable.control<OpeningSign>('POSITIVE'),
       bankAccountId: this.fb.control<number | null>(null),
       closingDay: this.fb.control<number | null>(null),
       dueDay: this.fb.control<number | null>(null),
@@ -175,15 +232,22 @@ export class AccountForm {
   protected readonly serverErrors = signal<Record<string, string>>({});
   protected readonly busy = signal(false);
 
+  protected negative(): boolean {
+    return this.form.controls.openingSign.value === 'NEGATIVE';
+  }
+
   constructor() {
     effect(() => {
       const account = this.account();
       this.resetToken();
+      const opening = openingToField(account?.openingBalance);
       this.form.reset({
         name: account?.name ?? '',
         type: account?.type ?? 'CHECKING',
         holderType: account?.type === 'CHECKING' ? (account.holderType ?? 'PF') : null,
         icon: account?.icon ?? null,
+        openingBalance: opening.amount,
+        openingSign: opening.sign,
         bankAccountId: account?.bankAccountId ?? null,
         closingDay: account?.closingDay ?? null,
         dueDay: account?.dueDay ?? null,
@@ -205,6 +269,27 @@ export class AccountForm {
     });
   }
 
+  /** Saldo inicial com sinal, em string decimal; `0.00` nunca sai com sinal negativo. */
+  private signedOpening(raw: { openingBalance: string | null; openingSign: OpeningSign }): string {
+    const cents = raw.openingBalance ? toCents(raw.openingBalance) : 0n;
+    return fromCents(raw.openingSign === 'NEGATIVE' && cents > 0n ? -cents : cents);
+  }
+
+  /**
+   * Cartão nunca envia saldo inicial. Conta nova envia o valor informado (com o sentido escolhido);
+   * conta existente só o reenvia quando o valor ou o sentido foram mexidos (campo esvaziado vale `0.00`).
+   */
+  private openingPart(raw: { type: AccountType; openingBalance: string | null; openingSign: OpeningSign }): { openingBalance?: string } {
+    if (raw.type === 'CREDIT_CARD') {
+      return {};
+    }
+    if (!this.account()) {
+      return raw.openingBalance ? { openingBalance: this.signedOpening(raw) } : {};
+    }
+    const touched = this.form.controls.openingBalance.dirty || this.form.controls.openingSign.dirty;
+    return touched ? { openingBalance: this.signedOpening(raw) } : {};
+  }
+
   protected submit(): void {
     if (this.busy()) {
       return;
@@ -222,6 +307,7 @@ export class AccountForm {
         ? { closingDay: raw.closingDay ?? undefined, dueDay: raw.dueDay ?? undefined, bankAccountId: raw.bankAccountId ?? undefined }
         : {}),
       ...(raw.icon ? { icon: raw.icon } : {}),
+      ...this.openingPart(raw),
     };
     const account = this.account();
     this.error.set(null);

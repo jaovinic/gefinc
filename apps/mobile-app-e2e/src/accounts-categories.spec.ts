@@ -57,7 +57,7 @@ test.describe('contas, cartões e categorias no celular', () => {
     expect(accounts.find((a) => a.name === 'Nubank Roxinho')).toMatchObject({ type: 'CREDIT_CARD', closingDay: 10 });
   });
 
-  test('conta com lançamentos não pode ser excluída: o app orienta a inativar', async ({ page, request }) => {
+  test('conta com lançamentos não pode ser excluída: o diálogo bloqueia e oferece inativar', async ({ page, request }) => {
     const user = await newUser(request);
     const account = await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' });
     await apiPost(request, user, '/transaction-groups', {
@@ -74,10 +74,16 @@ test.describe('contas, cartões e categorias no celular', () => {
     await openTab(page, 'Contas');
     await page.getByRole('button', { name: 'Excluir Carteira' }).click();
 
-    await expect(page.getByRole('alert')).toContainText('Inative a conta');
+    const blocked = page.getByRole('alertdialog');
+    await expect(blocked).toContainText('não pode ser excluída');
+    await expect(blocked).toContainText('1 lançamento');
+    await expect(blocked.getByRole('button', { name: 'Excluir conta "Carteira"' })).toHaveCount(0);
+    await blocked.getByRole('button', { name: 'Inativar conta' }).click();
+    await expect(blocked).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Excluir Carteira' })).toHaveCount(0);
   });
 
-  test('cria, renomeia e exclui categoria; categoria em uso pede a reatribuição', async ({ page, request }) => {
+  test('cria, renomeia e exclui categoria com confirmação; categoria em uso é bloqueada', async ({ page, request }) => {
     const user = await newUser(request);
     const account = await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' });
     const food = await categoryId(request, user, 'Alimentação');
@@ -106,11 +112,17 @@ test.describe('contas, cartões e categorias no celular', () => {
     await expect(page.getByText('Pets e bichos')).toBeVisible();
 
     await page.getByRole('button', { name: 'Excluir Pets e bichos' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('será excluída definitivamente');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir categoria "Pets e bichos"' }).click();
     await expect(page.getByText('Pets e bichos')).toHaveCount(0);
 
-    // categoria em uso: pede para onde mover os lançamentos
+    // categoria em uso: bloqueada, sem opção de mover os lançamentos
     await page.getByRole('button', { name: 'Excluir Alimentação' }).click();
-    await expect(page.getByRole('alert')).toContainText('possui lançamentos');
-    await expect(page.getByRole('button', { name: 'Mover e excluir' })).toBeDisabled();
+    const blocked = page.getByRole('alertdialog');
+    await expect(blocked).toContainText('está em uso em 1 lançamento');
+    await expect(blocked.getByRole('button', { name: 'Excluir categoria "Alimentação"' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mover e excluir' })).toHaveCount(0);
+    await blocked.getByTestId('confirm-cancel').click();
+    await expect(blocked).toHaveCount(0);
   });
 });

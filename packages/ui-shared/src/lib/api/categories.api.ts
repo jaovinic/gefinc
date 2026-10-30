@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Category, CategoryInput, CategoryType } from '@gefinc/core-models';
+import type { Category, CategoryInput, CategoryType, CategoryUsage } from '@gefinc/core-models';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api.tokens';
 
@@ -23,9 +23,13 @@ export class CategoriesApi {
     return this.http.put<Category>(`${this.base}/categories/${id}`, input);
   }
 
-  /** Exclui a categoria; em uso, informe `reassignTo` para mover os lançamentos antes. */
-  remove(id: number, reassignTo?: number): Observable<void> {
-    const params = reassignTo === undefined ? new HttpParams() : new HttpParams().set('reassignTo', reassignTo);
-    return this.http.delete<void>(`${this.base}/categories/${id}`, { params });
+  /** Prévia da exclusão: quantos lançamentos e grupos usam a categoria. */
+  usage(id: number): Observable<CategoryUsage> {
+    return this.http.get<CategoryUsage>(`${this.base}/categories/${id}/usage`);
+  }
+
+  /** Exclui a categoria; em uso o servidor responde 409 (`CATEGORY_IN_USE`) e nada é movido. */
+  remove(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/categories/${id}`);
   }
 }

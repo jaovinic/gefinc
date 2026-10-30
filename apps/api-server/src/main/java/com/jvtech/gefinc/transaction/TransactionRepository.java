@@ -20,14 +20,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
   int maxInstallment(@Param("groupId") long groupId);
 
   @Query(
-      "select count(t) > 0 from Transaction t where t.userId = :userId and t.categoryId = :categoryId")
-  boolean existsByCategory(@Param("userId") long userId, @Param("categoryId") long categoryId);
+      "select count(t) from Transaction t where t.userId = :userId and t.categoryId = :categoryId")
+  long countByCategory(@Param("userId") long userId, @Param("categoryId") long categoryId);
 
-  @Modifying(clearAutomatically = true, flushAutomatically = true)
-  @Query(
-      "update Transaction t set t.categoryId = :to where t.userId = :userId and t.categoryId = :from")
-  int reassignCategory(
-      @Param("userId") long userId, @Param("from") long from, @Param("to") long to);
+  @Query("select count(t) from Transaction t where t.userId = :userId and t.accountId = :accountId")
+  long countByAccount(@Param("userId") long userId, @Param("accountId") long accountId);
 
   @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
@@ -51,6 +48,28 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
       @Param("groupId") long groupId,
       @Param("userId") long userId,
       @Param("afterMonth") LocalDate afterMonth);
+
+  /** Apaga todas as ocorrências do grupo, inclusive as já pagas ou recebidas. */
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("delete from Transaction t where t.groupId = :groupId and t.userId = :userId")
+  int deleteAllOfGroup(@Param("groupId") long groupId, @Param("userId") long userId);
+
+  /**
+   * Receitas pendentes com vencimento até hoje, fora de cartão, passam a recebidas na data de
+   * vencimento. Receitas em cartão (legado) e despesas não são tocadas.
+   */
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query(
+      "update Transaction t set t.status = com.jvtech.gefinc.transaction.TransactionStatus.PAID,"
+          + " t.paymentDate = t.dueDate, t.version = t.version + 1"
+          + " where t.userId = :userId"
+          + " and t.status = com.jvtech.gefinc.transaction.TransactionStatus.PENDING"
+          + " and t.dueDate <= :today"
+          + " and t.categoryId in (select c.id from Category c where c.userId = :userId"
+          + " and c.type = com.jvtech.gefinc.category.CategoryType.INCOME)"
+          + " and t.accountId in (select a.id from Account a where a.userId = :userId"
+          + " and a.type <> com.jvtech.gefinc.account.AccountType.CREDIT_CARD)")
+  int settleDueIncome(@Param("userId") long userId, @Param("today") LocalDate today);
 
   @Query(
       "select count(t) from Transaction t where t.groupId = :groupId and t.userId = :userId"

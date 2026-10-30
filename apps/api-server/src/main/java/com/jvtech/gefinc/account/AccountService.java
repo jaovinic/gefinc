@@ -3,9 +3,19 @@ package com.jvtech.gefinc.account;
 import com.jvtech.gefinc.account.AccountDtos.AccountInput;
 import com.jvtech.gefinc.account.AccountDtos.AccountResponse;
 import com.jvtech.gefinc.account.AccountDtos.AccountUpdate;
+import com.jvtech.gefinc.account.AccountDtos.AccountUsage;
+import com.jvtech.gefinc.account.AccountDtos.LinkedCard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.invoice.InvoicePaymentRepository;
+import com.jvtech.gefinc.transaction.TransactionGroupRepository;
+import com.jvtech.gefinc.transaction.TransactionRepository;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -19,10 +29,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountService {
 
   private final AccountRepository accounts;
+  private final TransactionRepository transactions;
+  private final TransactionGroupRepository groups;
+  private final InvoicePaymentRepository payments;
   private final ApplicationEventPublisher events;
 
-  public AccountService(AccountRepository accounts, ApplicationEventPublisher events) {
+  public AccountService(
+      AccountRepository accounts,
+      TransactionRepository transactions,
+      TransactionGroupRepository groups,
+      InvoicePaymentRepository payments,
+      ApplicationEventPublisher events) {
     this.accounts = accounts;
+    this.transactions = transactions;
+    this.groups = groups;
+    this.payments = payments;
     this.events = events;
   }
 
@@ -42,11 +63,15 @@ public class AccountService {
   public Account create(long userId, AccountInput input) {
     String name = input.name().strip();
     validateDays(input.type(), input.closingDay(), input.dueDay());
+    validateOpeningBalance(input.type(), input.openingBalance());
     validateProfile(userId, input.type(), input.holderType(), input.bankAccountId(), true, null);
     assertNameFree(userId, name, null);
     try {
       Account account = new Account(userId, name, input.type(), input.closingDay(), input.dueDay());
       account.changeProfile(input.holderType(), input.icon(), input.bankAccountId());
+      if (input.openingBalance() != null) {
+        account.setOpeningBalance(input.openingBalance());
+      }
       return accounts.saveAndFlush(account);
     } catch (DataIntegrityViolationException e) {
       throw nameTaken();
@@ -67,6 +92,7 @@ public class AccountService {
     }
     String name = input.name().strip();
     validateDays(account.getType(), input.closingDay(), input.dueDay());
+    validateOpeningBalance(account.getType(), input.openingBalance());
     boolean onlyActiveChanged =
         account.isCreditCard()
             && account.getBankAccountId() == null
@@ -97,6 +123,9 @@ public class AccountService {
     if (!onlyActiveChanged) {
       account.changeProfile(input.holderType(), input.icon(), input.bankAccountId());
     }
+    if (input.openingBalance() != null) {
+      account.setOpeningBalance(input.openingBalance());
+    }
     account.setActive(input.active());
     try {
       accounts.saveAndFlush(account);
@@ -110,20 +139,29 @@ public class AccountService {
   }
 
   /**
-   * Exclui a conta. Se houver lançamentos vinculados, o banco recusa (chave estrangeira) e a
-   * resposta é {@code 409}: o usuário deve inativar a conta em vez de excluí-la (FR-013).
+   * Prévia da exclusão: contagens do que impede excluir a conta (lançamentos, pagamentos de fatura,
+   * cartões vinculados e saldo inicial). Só leitura; o servidor refaz a checagem ao excluir.
+   */
+  @Transactional(readOnly = true)
+  public AccountUsage usage(long userId, long id) {
+    return usageOf(userId, get(userId, id));
+  }
+
+  /**
+   * Exclui a conta somente se ela não tem nenhum dado relacionado: lançamentos (ou grupos),
+   * pagamentos de fatura, cartões vinculados e saldo inicial diferente de zero. Caso contrário a
+   * resposta é {@code 409}: o usuário deve inativar a conta em vez de excluí-la (FR-013). A
+   * checagem e a exclusão ocorrem na mesma transação, com a linha da conta travada.
    */
   @Transactional
   public void delete(long userId, long id) {
-    Account account = get(userId, id);
-    List<Account> cards = accounts.findCardsOfBank(userId, id);
-    if (!cards.isEmpty()) {
-      String names = cards.stream().map(Account::getName).collect(Collectors.joining(", "));
-      throw new ApiException(
-          ErrorCode.ACCOUNT_IN_USE,
-          "Esta conta tem cartões vinculados ("
-              + names
-              + "). Inative a conta ou troque o vínculo dos cartões.");
+    Account account =
+        accounts
+            .findForUpdate(id, userId)
+            .orElseThrow(() -> ApiException.notFound("Conta não encontrada."));
+    AccountUsage usage = usageOf(userId, account);
+    if (!usage.canDelete()) {
+      throw blocked(usage);
     }
     try {
       accounts.delete(account);
@@ -131,8 +169,76 @@ public class AccountService {
     } catch (DataIntegrityViolationException e) {
       throw new ApiException(
           ErrorCode.ACCOUNT_IN_USE,
-          "Esta conta possui lançamentos. Inative a conta para preservar o histórico.");
+          "Esta conta passou a ter lançamentos. Inative-a para preservar o histórico.");
     }
+  }
+
+  private AccountUsage usageOf(long userId, Account account) {
+    long id = account.getId();
+    long groupCount = groups.countByAccount(userId, id);
+    // Todo grupo tem ocorrências; o número exibido são as ocorrências (grupos só como reserva).
+    long transactionCount = Math.max(transactions.countByAccount(userId, id), groupCount);
+    long paymentCount = payments.countByUserIdAndAccountId(userId, id);
+    List<LinkedCard> cards =
+        accounts.findCardsOfBank(userId, id).stream()
+            .map(c -> new LinkedCard(c.getId(), c.getName()))
+            .toList();
+    BigDecimal opening =
+        account.getOpeningBalance() == null ? BigDecimal.ZERO : account.getOpeningBalance();
+    boolean canDelete =
+        transactionCount == 0 && paymentCount == 0 && cards.isEmpty() && opening.signum() == 0;
+    return new AccountUsage(canDelete, transactionCount, paymentCount, cards, opening);
+  }
+
+  private static ApiException blocked(AccountUsage usage) {
+    List<String> parts = new ArrayList<>();
+    if (usage.transactionCount() > 0) {
+      parts.add(plural(usage.transactionCount(), "lançamento", "lançamentos"));
+    }
+    if (usage.invoicePaymentCount() > 0) {
+      parts.add(plural(usage.invoicePaymentCount(), "pagamento de fatura", "pagamentos de fatura"));
+    }
+    if (!usage.linkedCards().isEmpty()) {
+      String names =
+          usage.linkedCards().stream().map(LinkedCard::name).collect(Collectors.joining(", "));
+      parts.add(
+          (usage.linkedCards().size() == 1 ? "cartão vinculado (" : "cartões vinculados (")
+              + names
+              + ")");
+    }
+    boolean hasOpeningBalance = usage.openingBalance().signum() != 0;
+    boolean hasHistory = !parts.isEmpty();
+    if (hasOpeningBalance) {
+      parts.add("saldo inicial de " + formatMoney(usage.openingBalance()));
+    }
+    String list =
+        parts.size() == 1
+            ? parts.get(0)
+            : String.join(", ", parts.subList(0, parts.size() - 1))
+                + " e "
+                + parts.get(parts.size() - 1);
+    String advice =
+        hasHistory
+            ? " Inative a conta para preservar o histórico."
+            : " Zere o saldo inicial para poder excluir.";
+    return new ApiException(
+            ErrorCode.ACCOUNT_IN_USE,
+            "Esta conta não pode ser excluída: possui " + list + "." + advice)
+        .with("transactionCount", usage.transactionCount())
+        .with("invoicePaymentCount", usage.invoicePaymentCount())
+        .with("linkedCardCount", usage.linkedCards().size())
+        .with("hasOpeningBalance", hasOpeningBalance);
+  }
+
+  private static String plural(long n, String one, String many) {
+    return n + " " + (n == 1 ? one : many);
+  }
+
+  private static String formatMoney(BigDecimal value) {
+    DecimalFormat format =
+        new DecimalFormat(
+            "#,##0.00", DecimalFormatSymbols.getInstance(Locale.forLanguageTag("pt-BR")));
+    return (value.signum() < 0 ? "-" : "") + "R$ " + format.format(value.abs());
   }
 
   /** Resposta de uma conta, já com o titular herdado e o nome da conta bancária do cartão. */
@@ -228,6 +334,13 @@ public class AccountService {
     }
     if (error != null) {
       throw error;
+    }
+  }
+
+  /** Cartão de crédito não tem saldo inicial: só aceita ausente ou zero. */
+  private void validateOpeningBalance(AccountType type, BigDecimal openingBalance) {
+    if (type == AccountType.CREDIT_CARD && openingBalance != null && openingBalance.signum() != 0) {
+      throw field(null, "openingBalance", "Cartão de crédito não tem saldo inicial.");
     }
   }
 

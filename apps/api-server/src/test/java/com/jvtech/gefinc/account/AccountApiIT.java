@@ -134,6 +134,93 @@ class AccountApiIT extends IntegrationTestBase {
   }
 
   @Test
+  void saldoInicialAusenteVale0EEPersistidoQuandoInformado() throws Exception {
+    create(body("Sem saldo", "CHECKING", null, null))
+        .andExpect(status().isCreated())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("0.00"));
+
+    Map<String, Object> withBalance = body("Com saldo", "CHECKING", null, null);
+    withBalance.put("openingBalance", "1234.56");
+    JsonNode created =
+        objectMapper.readTree(
+            create(withBalance)
+                .andExpect(status().isCreated())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.openingBalance").value("1234.56"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    mockMvc
+        .perform(
+            get("/accounts/" + created.get("id").asLong())
+                .header(HttpHeaders.AUTHORIZATION, ana.bearer()))
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("1234.56"));
+
+    Map<String, Object> negative = body("No vermelho", "CASH", null, null);
+    negative.put("openingBalance", "-50.00");
+    create(negative)
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.openingBalance").value("-50.00"));
+  }
+
+  @Test
+  void editaOSaldoInicialEAusenciaMantemOValorAtual() throws Exception {
+    Map<String, Object> input = body("Itaú", "CHECKING", null, null);
+    input.put("openingBalance", "100.00");
+    JsonNode account = createOk(input);
+
+    // Sem o campo: não zera o saldo inicial.
+    JsonNode renamed =
+        objectMapper.readTree(
+            update(account.get("id").asLong(), updateBody(account, Map.of("name", "Itaú PF")))
+                .andExpect(status().isOk())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.openingBalance").value("100.00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    update(account.get("id").asLong(), updateBody(renamed, Map.of("openingBalance", "250.75")))
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("250.75"));
+  }
+
+  @Test
+  void cartaoComSaldoInicialDiferenteDeZeroERecusado() throws Exception {
+    Map<String, Object> card = body("Nubank", "CREDIT_CARD", 10, 17);
+    card.put("openingBalance", "10.00");
+    create(card)
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.errors[?(@.field=='openingBalance')]").exists());
+
+    card.put("openingBalance", "0.00");
+    JsonNode created =
+        objectMapper.readTree(
+            create(card)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.openingBalance").value("0.00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    update(created.get("id").asLong(), updateBody(created, Map.of("openingBalance", "5.00")))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.errors[?(@.field=='openingBalance')]").exists());
+  }
+
+  @Test
+  void saldoInicialForaDoFormatoDeDinheiroERecusado() throws Exception {
+    Map<String, Object> input = body("Itaú", "CHECKING", null, null);
+    input.put("openingBalance", "10");
+    create(input).andExpect(status().isUnprocessableEntity());
+  }
+
+  @Test
   void cartaoSemDiasERecusadoIndicandoOsCampos() throws Exception {
     create(body("Nubank", "CREDIT_CARD", null, null))
         .andExpect(status().isUnprocessableEntity())
