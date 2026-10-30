@@ -1,6 +1,7 @@
 package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.auth.AuthDtos.AccountDeletionRequest;
+import com.jvtech.gefinc.auth.AuthDtos.ChangePasswordRequest;
 import com.jvtech.gefinc.auth.AuthDtos.DeletionScheduled;
 import com.jvtech.gefinc.auth.AuthDtos.LoginRequest;
 import com.jvtech.gefinc.auth.AuthDtos.PasswordResetConfirm;
@@ -8,6 +9,7 @@ import com.jvtech.gefinc.auth.AuthDtos.PasswordResetRequest;
 import com.jvtech.gefinc.auth.AuthDtos.RefreshRequest;
 import com.jvtech.gefinc.auth.AuthDtos.RegisterRequest;
 import com.jvtech.gefinc.auth.AuthDtos.TokenResponse;
+import com.jvtech.gefinc.auth.AuthDtos.UpdateProfileRequest;
 import com.jvtech.gefinc.auth.AuthDtos.UserProfile;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
@@ -23,6 +25,8 @@ import java.util.Arrays;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,6 +48,7 @@ public class AuthController {
   private final AuthService auth;
   private final PasswordResetService passwordReset;
   private final AccountDeletionService deletion;
+  private final ProfileService profile;
   private final AppProperties properties;
 
   public AuthController(
@@ -51,11 +56,13 @@ public class AuthController {
       AuthService auth,
       PasswordResetService passwordReset,
       AccountDeletionService deletion,
+      ProfileService profile,
       AppProperties properties) {
     this.registration = registration;
     this.auth = auth;
     this.passwordReset = passwordReset;
     this.deletion = deletion;
+    this.profile = profile;
     this.properties = properties;
   }
 
@@ -63,7 +70,7 @@ public class AuthController {
   @ResponseStatus(HttpStatus.CREATED)
   public UserProfile register(@Valid @RequestBody RegisterRequest body) {
     User user = registration.register(body.email(), body.password());
-    return new UserProfile(user.getId(), user.getEmail(), user.getCreatedAt());
+    return ProfileService.toProfile(user);
   }
 
   @PostMapping("/login")
@@ -111,6 +118,28 @@ public class AuthController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void confirmPasswordReset(@Valid @RequestBody PasswordResetConfirm body) {
     passwordReset.confirm(body.token(), body.newPassword());
+  }
+
+  @GetMapping("/me")
+  public UserProfile me() {
+    return profile.get(CurrentUser.id());
+  }
+
+  @PatchMapping("/me")
+  public UserProfile updateMe(@Valid @RequestBody UpdateProfileRequest body) {
+    return profile.rename(CurrentUser.id(), body.name());
+  }
+
+  /** Troca a senha e devolve uma sessão nova: as anteriores (inclusive esta) deixam de valer. */
+  @PostMapping("/password")
+  public TokenResponse changePassword(
+      @Valid @RequestBody ChangePasswordRequest body,
+      HttpServletRequest request,
+      HttpServletResponse response) {
+    return respond(
+        profile.changePassword(CurrentUser.id(), body.currentPassword(), body.newPassword()),
+        request,
+        response);
   }
 
   @PostMapping("/account-deletion")

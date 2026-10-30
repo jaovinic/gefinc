@@ -68,7 +68,26 @@ public final class AuthDtos {
     }
   }
 
-  public record UserProfile(long id, String email, Instant createdAt) {
+  public record UpdateProfileRequest(
+      @Size(max = 80, message = "O nome pode ter no máximo 80 caracteres.") String name) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "UpdateProfileRequest[REDACTED]";
+    }
+  }
+
+  public record ChangePasswordRequest(
+      @NotBlank(message = "Informe a senha atual.") String currentPassword,
+      @ValidPassword String newPassword) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "ChangePasswordRequest[REDACTED]";
+    }
+  }
+
+  public record UserProfile(long id, String email, String name, Instant createdAt) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {

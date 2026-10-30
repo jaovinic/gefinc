@@ -1,7 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { NAV_ITEMS, NoticeService, SessionService } from '@gefinc/ui-shared';
+import { CurrentUser, NAV_ITEMS, NoticeService, SessionService } from '@gefinc/ui-shared';
 import { of } from 'rxjs';
 import { Shell } from './shell';
 
@@ -12,6 +12,15 @@ const STORAGE_KEY = 'gefinc.ui.sidebar-collapsed';
 
 describe('Shell (menu lateral)', () => {
   const logout = jest.fn(() => of(undefined));
+  const load = jest.fn();
+  /** Só o que o atalho Minha conta lê do usuário atual. */
+  const currentUser = {
+    profile: signal({ id: 1, email: 'ana@example.com', name: 'Ana Souza', createdAt: '2026-01-01T00:00:00Z' }),
+    failed: signal(false),
+    displayName: signal<string | null>('Ana Souza'),
+    initial: signal<string | null>('A'),
+    load,
+  };
 
   async function setup() {
     TestBed.resetTestingModule();
@@ -20,9 +29,11 @@ describe('Shell (menu lateral)', () => {
         provideRouter([
           { path: '', component: Page },
           { path: 'transactions', component: Page },
+          { path: 'settings', component: Page },
           { path: 'login', component: Page },
         ]),
         { provide: SessionService, useValue: { logout } },
+        { provide: CurrentUser, useValue: currentUser },
       ],
     });
     const router = TestBed.inject(Router);
@@ -37,6 +48,7 @@ describe('Shell (menu lateral)', () => {
 
   beforeEach(() => {
     logout.mockClear();
+    load.mockClear();
     try {
       localStorage.clear();
     } catch {
@@ -52,6 +64,39 @@ describe('Shell (menu lateral)', () => {
     const links = Array.from(side.querySelectorAll('a.gef-nav-link'));
     expect(links.map((l) => l.textContent?.trim())).toEqual(NAV_ITEMS.map((i) => i.label));
     expect(links.every((l) => l.querySelector('svg') !== null)).toBe(true);
+  });
+
+  it('a barra do topo traz o atalho Minha conta com nome e inicial, fixo à direita', async () => {
+    const { el } = await setup();
+    const topbar = el.querySelector('header.gef-topbar') as HTMLElement;
+    const chip = topbar.querySelector('gef-account-chip') as HTMLElement;
+    const link = chip.querySelector('a[data-testid="account-chip"]') as HTMLAnchorElement;
+
+    expect(link.getAttribute('href')).toBe('/settings');
+    expect(link.getAttribute('aria-label')).toBe('Minha conta — Ana Souza');
+    expect(link.textContent).toContain('Ana Souza');
+    expect(link.querySelector('gef-avatar')?.textContent?.trim()).toBe('A');
+    expect(chip.classList.contains('ml-auto')).toBe(true);
+    expect(load).toHaveBeenCalled();
+  });
+
+  it('no desktop a barra do topo esconde o botão de menu e o logo, mas mantém o atalho', async () => {
+    const { el } = await setup();
+    const topbar = el.querySelector('header.gef-topbar') as HTMLElement;
+
+    expect(topbar.querySelector('button[aria-label="Abrir menu"]')?.classList.contains('lg:hidden')).toBe(true);
+    expect(topbar.querySelector('gef-logo')?.classList.contains('lg:hidden')).toBe(true);
+    expect(topbar.querySelector('gef-account-chip')?.classList.contains('lg:hidden')).toBe(false);
+  });
+
+  it('o atalho da barra do topo também marca a página atual', async () => {
+    const { fixture, el, router } = await setup();
+    const chip = () => el.querySelector('header a[data-testid="account-chip"]') as HTMLAnchorElement;
+    expect(chip().getAttribute('aria-current')).toBeNull();
+
+    await router.navigateByUrl('/settings');
+    fixture.detectChanges();
+    expect(chip().getAttribute('aria-current')).toBe('page');
   });
 
   it('Minha conta e Sair ficam no rodapé do menu', async () => {

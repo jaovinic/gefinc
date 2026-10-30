@@ -40,7 +40,10 @@ describe('Minha conta (app móvel)', () => {
     });
     const fixture = TestBed.createComponent(SettingsPage);
     fixture.detectChanges();
-    return { fixture, el: fixture.nativeElement as HTMLElement, http: TestBed.inject(HttpTestingController) };
+    const http = TestBed.inject(HttpTestingController);
+    http.expectOne('http://api.test/api/v1/auth/me').flush({ id: 1, email: 'ana@example.com', name: 'Ana', createdAt: '2026-01-01T00:00:00Z' });
+    fixture.detectChanges();
+    return { fixture, el: fixture.nativeElement as HTMLElement, http };
   }
 
   beforeEach(() => {
@@ -79,7 +82,7 @@ describe('Minha conta (app móvel)', () => {
     const input = el.querySelector('#password') as HTMLInputElement;
     input.value = 'senha-forte-123';
     input.dispatchEvent(new Event('input'));
-    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    (input.closest('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
 
     http.expectOne('http://api.test/api/v1/auth/account-deletion').flush({ deletionDate: '2026-12-10' }, { status: 202, statusText: 'Accepted' });
     fixture.detectChanges();
@@ -95,7 +98,7 @@ describe('Minha conta (app móvel)', () => {
     const input = el.querySelector('#password') as HTMLInputElement;
     input.value = 'errada-errada';
     input.dispatchEvent(new Event('input'));
-    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    (input.closest('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
 
     http.expectOne('http://api.test/api/v1/auth/account-deletion').flush({ code: 'INVALID_CREDENTIALS' }, { status: 401, statusText: 'Unauthorized' });
     fixture.detectChanges();

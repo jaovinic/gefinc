@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { Icon, Logo, NAV_ITEMS, NoticeService, SessionService, Sheet, type NavItem } from '@gefinc/ui-shared';
+import { AccountChip, Icon, Logo, NAV_ITEMS, NoticeService, SessionService, Sheet, type NavItem } from '@gefinc/ui-shared';
 
 const COLLAPSED_KEY = 'gefinc.ui.sidebar-collapsed';
 
@@ -33,7 +33,7 @@ function writeCollapsed(collapsed: boolean): void {
  */
 @Component({
   selector: 'gef-shell',
-  imports: [Icon, Logo, NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet, Sheet],
+  imports: [AccountChip, Icon, Logo, NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet, Sheet],
   template: `
     <ng-template #links let-items>
       @for (item of items; track item.key) {
@@ -87,10 +87,11 @@ function writeCollapsed(collapsed: boolean): void {
 
       <div class="flex min-w-0 flex-1 flex-col">
         <header class="gef-topbar">
-          <button type="button" class="gef-sidenav-toggle" aria-label="Abrir menu" (click)="drawerOpen.set(true)">
+          <button type="button" class="gef-sidenav-toggle lg:hidden" aria-label="Abrir menu" (click)="drawerOpen.set(true)">
             <gef-icon name="menu" [size]="22" />
           </button>
-          <gef-logo variant="full" [size]="28" />
+          <gef-logo class="shrink-0 lg:hidden" variant="full" [size]="28" />
+          <gef-account-chip class="ml-auto min-w-0" [link]="profileLink" />
         </header>
 
         @if (notices.message(); as message) {
@@ -135,6 +136,8 @@ export class Shell {
   protected readonly drawerOpen = signal(false);
   protected readonly mainItems: readonly NavItem[] = NAV_ITEMS.filter((i) => i.key !== 'settings');
   protected readonly footerItems: readonly NavItem[] = NAV_ITEMS.filter((i) => i.key === 'settings');
+  /** Destino do atalho Minha conta na barra do topo (o mesmo item do rodapé do menu). */
+  protected readonly profileLink = NAV_ITEMS.find((i) => i.key === 'settings')!.web;
 
   protected toggle(): void {
     const next = !this.collapsed();

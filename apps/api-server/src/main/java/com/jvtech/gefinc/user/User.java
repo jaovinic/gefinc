@@ -19,6 +19,9 @@ public class User {
   @Column(nullable = false)
   private String email;
 
+  @Column(length = 80)
+  private String name;
+
   @Column(name = "password_hash", nullable = false)
   private String passwordHash;
 
@@ -45,6 +48,15 @@ public class User {
 
   public String getEmail() {
     return email;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  /** Nome de exibição; em branco volta a ficar sem nome. */
+  public void rename(String newName) {
+    this.name = newName == null || newName.isBlank() ? null : newName.strip();
   }
 
   public String getPasswordHash() {
