@@ -43,25 +43,26 @@ public class AccountController {
   }
 
   @GetMapping("/{id}")
-  public AccountResponse get(@PathVariable long id) {
+  public AccountResponse get(@PathVariable("id") long id) {
     long userId = CurrentUser.id();
     return service.response(userId, service.get(userId, id));
   }
 
   @GetMapping("/{id}/usage")
-  public AccountUsage usage(@PathVariable long id) {
+  public AccountUsage usage(@PathVariable("id") long id) {
     return service.usage(CurrentUser.id(), id);
   }
 
   @PutMapping("/{id}")
-  public AccountResponse update(@PathVariable long id, @Valid @RequestBody AccountUpdate body) {
+  public AccountResponse update(
+      @PathVariable("id") long id, @Valid @RequestBody AccountUpdate body) {
     long userId = CurrentUser.id();
     return service.response(userId, service.update(userId, id, body));
   }
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void delete(@PathVariable long id) {
+  public void delete(@PathVariable("id") long id) {
     service.delete(CurrentUser.id(), id);
   }
 }
