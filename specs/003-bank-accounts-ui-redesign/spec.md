@@ -61,7 +61,7 @@ A pessoa cadastra cada cartão de crédito **vinculado a uma conta bancária**, 
 
 ### User Story 3 - Lançar receitas pelo aplicativo Android e iOS (Priority: P3)
 
-A pessoa encontra, na tela inicial do aplicativo, uma ação clara para **registrar uma receita**, ao lado da ação de despesa, com o mesmo fluxo rápido de poucos toques.
+A pessoa encontra, na tela inicial do aplicativo, uma ação clara para **registrar um lançamento** ("Novo lançamento"), na qual escolhe **Despesa ou Receita**, com o mesmo fluxo rápido de poucos toques. _Atualizado em round 3: em vez de dois botões lado a lado ("Nova despesa" e "Nova receita"), a tela inicial tem um único botão "Novo lançamento" (`/novo?tipo=despesa|receita`) e a natureza é escolhida na própria tela._
 
 **Why this priority**: Receitas são metade do controle financeiro e hoje o usuário não as acha no app; é uma lacuna de descoberta que impede o uso diário.
 
@@ -69,8 +69,8 @@ A pessoa encontra, na tela inicial do aplicativo, uma ação clara para **regist
 
 **Acceptance Scenarios**:
 
-1. **Given** a tela inicial do aplicativo, **When** o usuário olha as ações principais, **Then** vê claramente "Nova despesa" e "Nova receita".
-2. **Given** a ação "Nova receita", **When** o usuário registra uma receita usando conta, categoria e data padrão ou as últimas usadas, **Then** conclui em no máximo 3 toques.
+1. **Given** a tela inicial do aplicativo, **When** o usuário olha as ações principais, **Then** vê claramente o botão "Novo lançamento", que abre a tela com a escolha entre Despesa e Receita (round 3; antes, "Nova despesa" e "Nova receita" lado a lado).
+2. **Given** a tela "Novo lançamento" com a natureza Receita escolhida, **When** o usuário registra uma receita usando conta, categoria e data padrão ou as últimas usadas, **Then** conclui em no máximo 3 toques a partir da tela inicial (abrir, escolher Receita, salvar); a despesa leva 2 (abrir e salvar).
 3. **Given** o registro rápido de receita, **When** o usuário precisa mudar conta, categoria ou data, **Then** ajusta sem sair do fluxo; as categorias oferecidas são só as de receita.
 4. **Given** a lista de lançamentos, **When** o usuário quer lançar algo completo (fixo, parcelado ou receita recorrente), **Then** a ação "Novo lançamento" deixa clara a escolha entre receita e despesa antes de preencher o resto.
 5. **Given** uma receita registrada sem conexão, **When** o aplicativo volta a ter conexão, **Then** ela é enviada uma única vez, como as despesas.
@@ -165,7 +165,7 @@ Toda a interface, no web e nos aplicativos, passa a seguir a identidade visual d
 
 **Receita no aplicativo**
 
-- **FR-018**: A tela inicial do aplicativo MUST oferecer, lado a lado e com igual destaque, as ações "Nova despesa" e "Nova receita".
+- **FR-018**: A tela inicial do aplicativo MUST oferecer uma única ação "Novo lançamento", que abre a tela de lançamento rápido (`/novo?tipo=despesa|receita`) com a escolha entre Despesa e Receita visível no topo. _Atualizado em round 3: substitui as ações "Nova despesa" e "Nova receita" lado a lado._
 - **FR-019**: O registro rápido de receita MUST ser concluído em no máximo 3 toques a partir da tela inicial, usando conta, categoria e data padrão ou as últimas usadas, e MUST oferecer apenas categorias de receita.
 - **FR-020**: O cadastro completo de lançamento no aplicativo MUST pedir, logo no início, a escolha entre receita e despesa, de forma visível, antes dos demais campos (valor, tipo fixo/avulso/parcelado, conta, categoria e datas).
 - **FR-021**: Receitas MUST funcionar sem conexão e ser enviadas uma única vez, como as despesas, e MUST ser distinguíveis de despesas por sinal, cor e ícone em todas as telas.
@@ -208,7 +208,7 @@ Toda a interface, no web e nos aplicativos, passa a seguir a identidade visual d
 
 - **SC-001**: Um usuário cadastra uma conta bancária PF, uma PJ e um cartão vinculado a cada uma, com ícone, em até 5 minutos, sem ajuda, em 90% das tentativas.
 - **SC-002**: Em 100% das telas que mostram conta ou cartão (lista de contas, lançamentos, escolha no formulário, faturas, painel, fluxo de caixa e projeção), o ícone e o nome aparecem e, para cartões, também a conta vinculada.
-- **SC-003**: Registrar uma receita pelo aplicativo, a partir da tela inicial, leva no máximo 3 toques em 100% dos testes de usabilidade, e a ação "Nova receita" é encontrada em até 5 segundos por 95% dos testadores na primeira vez.
+- **SC-003**: Registrar uma receita pelo aplicativo, a partir da tela inicial, leva no máximo 3 toques (abrir "Novo lançamento", escolher Receita, salvar) em 100% dos testes de usabilidade, e a ação "Novo lançamento" é encontrada em até 5 segundos por 95% dos testadores na primeira vez. _Atualizado em round 3: antes citava a ação "Nova receita"._
 - **SC-004**: Nenhum cartão novo é criado sem conta bancária vinculada (0 exceções em testes), e 100% dos cartões antigos continuam funcionando sem perder dados.
 - **SC-005**: Em 100% das áreas do web, o menu lateral esquerdo com ícones está presente e a área atual fica destacada; o menu é operável só pelo teclado em 100% dos itens.
 - **SC-006**: Uma lista de verificação da identidade visual (paleta, fonte, logo, favicons, ícone do app, ícones, estados) é cumprida em 100% das telas do web e do app.

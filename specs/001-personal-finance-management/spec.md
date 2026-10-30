@@ -219,6 +219,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 
 - **FR-015**: Usuários MUST poder criar, editar e excluir categorias do tipo receita ou despesa, com nome e cor, e o sistema MUST oferecer um conjunto inicial de categorias comuns.
 - **FR-016**: O sistema MUST impedir a exclusão de categoria em uso ou exigir a reatribuição dos lançamentos.
+  *(Atualizado na feature 003: a categoria em uso é sempre bloqueada (`409 CATEGORY_IN_USE`); a reatribuição em massa foi removida. Ver `specs/003-bank-accounts-ui-redesign/data-model.md`, "Regra de exclusão".)*
 
 **Lançamentos**
 

@@ -50,7 +50,7 @@ test.describe('painel e fluxo de caixa no celular', () => {
       await expect(cards).toContainText(c.name);
       await expect(cards).toContainText(brl(c.amount));
     }
-    await expect(page.getByRole('link', { name: 'Nova despesa' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Novo lançamento' })).toBeVisible();
   });
 
   test('trocar de mês atualiza tudo; mês vazio mostra o atalho para criar o primeiro lançamento', async ({ page, request }) => {

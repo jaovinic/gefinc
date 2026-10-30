@@ -83,6 +83,33 @@ test.describe('uso sem internet', () => {
     expect(mercado?.status).toBe('PAID');
   });
 
+  test('receita lançada sem conexão já aparece como recebida (data de hoje) e chega uma única vez', async ({ page, request, context }) => {
+    const user = await seed(request);
+    await signIn(page, user.email);
+    await openTab(page, 'Lançamentos');
+    await expect(card(page, 'Mercado')).toBeVisible();
+    await openTab(page, 'Painel');
+    await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
+
+    await context.setOffline(true);
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await page.getByLabel('Receita').check();
+    await page.keyboard.type('25000');
+    await page.getByLabel('Descrição (opcional)').fill('Bônus');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(banner(page)).toContainText('1 operação pendente de envio');
+
+    await openTab(page, 'Lançamentos');
+    await expect(card(page, 'Bônus')).toContainText('Pendente de envio');
+    await expect(card(page, 'Bônus')).toContainText('Recebido');
+
+    await context.setOffline(false);
+    await expect(banner(page)).toHaveCount(0, { timeout: 20_000 });
+    await expect(card(page, 'Bônus')).not.toContainText('Pendente de envio');
+    await expect(card(page, 'Bônus')).toContainText('Recebido');
+    expect(await countOf(request, user, 'Bônus')).toBe(1);
+  });
+
   test('envio interrompido com resposta perdida e reenviado não duplica o lançamento', async ({ page, request }) => {
     const user = await seed(request);
     await signIn(page, user.email);
@@ -156,6 +183,8 @@ test.describe('uso sem internet', () => {
     await expect(rejected).toContainText(/inativ/i);
 
     await page.getByRole('button', { name: 'Descartar Farmácia' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('O lançamento ainda não enviado será perdido');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Descartar lançamento' }).click();
     await expect(page.getByText('Nenhuma pendência')).toBeVisible();
     expect(await countOf(request, user, 'Farmácia')).toBe(0);
   });

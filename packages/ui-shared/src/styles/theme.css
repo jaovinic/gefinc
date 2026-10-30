@@ -13,6 +13,8 @@
   --color-gefinc-accent: #7c3aed;
   --color-gefinc-danger: #f43f5e;
   --color-gefinc-warning: #f59e0b;
+  /* Foco de campo de digitação: neutro (contraste 6:1 sobre a superfície), nunca verde nem ciano. */
+  --color-gefinc-focus: #94a3b8;
 
   --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, system-ui, sans-serif;
@@ -44,10 +46,43 @@ body {
   --gradient-aurora: linear-gradient(135deg, #00e599 0%, #00b4d8 100%);
 }
 
+/* Toque: sem o atraso de duplo toque e sem o retângulo cinza do navegador móvel; o retorno é o estado
+   pressionado dos botões. O ajuste de texto evita que o celular aumente a fonte ao girar a tela. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+a,
+button,
+summary,
+label,
+[role='button'] {
+  touch-action: manipulation;
+}
+
 /* Foco visível em tudo que recebe teclado (WCAG 2.4.7). */
 :focus-visible {
   outline: 2px solid var(--color-gefinc-secondary);
   outline-offset: 2px;
+}
+/* Campos de digitação têm foco neutro (cinza-azulado). Fora de camada, logo após o anel global, para
+   vencer o `outline-none` dos utilitários; botões, links e chips mantêm o anel global. */
+input:not([type='checkbox']):not([type='radio']):focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.gef-input:focus-visible {
+  outline: 2px solid var(--color-gefinc-focus);
+  outline-offset: 0;
+}
+/* Campo de valor: o foco vem do contorno do invólucro (`.gef-money-field:focus-within`), não do input. */
+.gef-money-field input:not([type='checkbox']):not([type='radio']):focus-visible {
+  outline: none;
+}
+/* Seletor de data e demais controles nativos sem tom verde ou ciano. */
+input[type='date'],
+select {
+  accent-color: var(--color-gefinc-focus);
 }
 
 /* Quem pede menos movimento no sistema não vê transições nem animações (FR-034). */
@@ -59,6 +94,36 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+@keyframes gef-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes gef-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.98);
+  }
+}
+
+/* Indicadores do painel: o valor encolhe com a largura do cartão para nunca ser cortado no celular
+   (a partir de `sm` vale o tamanho do manual). Fora de camada para vencer o utilitário de tamanho. */
+.gef-kpi {
+  container-type: inline-size;
+}
+@media (max-width: 39.999rem) {
+  .gef-kpi .financial-value {
+    font-size: clamp(0.8125rem, 12cqw, 1.5rem);
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  /* Saldo geral: em destaque (até 2rem), mas ainda cabendo numa linha com sinal, ícone e milhões. */
+  .gef-kpi[data-indicator='balance-total'] .financial-value {
+    font-size: clamp(1.25rem, 9cqw, 2rem);
+    line-height: 1.25;
   }
 }
 
@@ -126,21 +191,55 @@ table td {
   .gef-label {
     @apply mb-1 block text-caption font-medium text-gefinc-muted;
   }
+  /* 16 px no celular: abaixo disso o iOS dá zoom ao focar o campo e a tela "pula". */
   .gef-input {
-    @apply min-h-11 w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-body-base md:min-h-0 text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-primary;
+    @apply min-h-11 w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-focus md:min-h-0 md:text-body-base;
   }
+  .gef-input[aria-invalid='true'] {
+    @apply border-gefinc-danger;
+  }
+  /* Invólucro do campo de valor (R$ + número): o contorno neutro aparece quando o campo interno tem foco. */
+  .gef-money-field {
+    @apply flex min-h-11 items-stretch rounded-lg border border-gefinc-border bg-gefinc-surface px-3 md:min-h-0;
+  }
+  .gef-money-field:focus-within {
+    @apply border-gefinc-focus;
+    box-shadow: 0 0 0 1px var(--color-gefinc-focus);
+  }
+  .gef-money-field[data-size='hero'] {
+    @apply min-h-20 items-center justify-center rounded-2xl px-4 md:min-h-20;
+  }
+  /* Escolha de natureza (despesa ou receita): o tom vem da natureza, não do foco. */
+  .gef-segment[data-kind='EXPENSE']:has(input:checked) {
+    @apply border-gefinc-danger bg-gefinc-danger/10 text-gefinc-danger;
+  }
+  .gef-segment[data-kind='INCOME']:has(input:checked) {
+    @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
+  }
+  .gef-input:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+  /* Estado pressionado: retorno imediato ao toque (o hover não existe em tela sensível ao toque). */
   .gef-btn-primary {
-    @apply min-h-11 w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base md:min-h-0 font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base font-semibold text-gefinc-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
   }
   .gef-btn-danger {
-    @apply min-h-11 w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-bg hover:opacity-90 disabled:opacity-50 md:min-h-0;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
   }
   .gef-btn-secondary {
-    @apply min-h-11 rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text hover:border-gefinc-primary disabled:opacity-50 md:min-h-0;
+    @apply min-h-11 rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text transition-[transform,background-color] hover:border-gefinc-primary active:scale-[0.98] active:bg-gefinc-bg disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
+  }
+  /* Botão só com ícone (fechar, mês anterior/próximo): alvo de toque de 44 px. */
+  .gef-icon-btn {
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-gefinc-muted transition-colors hover:text-gefinc-text active:bg-gefinc-bg md:min-h-9 md:min-w-9;
+  }
+  /* Carregamento por esqueleto: mostra a forma do conteúdo em vez de um giro solto. */
+  .gef-skeleton {
+    @apply animate-pulse rounded-lg bg-gefinc-border/70;
   }
   /* Botões compactos das ações de linha (Pagar, Editar, Excluir…) e botões em forma de link. */
   .gef-btn-sm {
-    @apply inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-gefinc-border bg-gefinc-bg px-3 text-body-base font-semibold text-gefinc-text hover:border-gefinc-secondary hover:text-gefinc-secondary disabled:opacity-50 md:min-h-9;
+    @apply inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-gefinc-border bg-gefinc-bg px-3 text-body-base font-semibold text-gefinc-text transition-[transform,background-color] hover:border-gefinc-secondary hover:text-gefinc-secondary active:scale-[0.97] active:bg-gefinc-surface disabled:opacity-50 disabled:active:scale-100 md:min-h-9;
   }
   .gef-btn-sm-primary {
     @apply border-gefinc-primary/50 bg-gefinc-primary/10 text-gefinc-primary hover:border-gefinc-primary hover:text-gefinc-primary;
@@ -153,9 +252,11 @@ table td {
   }
   .gef-sheet-backdrop {
     @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4;
+    animation: gef-fade-in 0.15s ease-out;
   }
   .gef-sheet {
-    @apply max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gefinc-border bg-gefinc-surface p-4;
+    @apply max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-gefinc-border bg-gefinc-surface p-4;
+    animation: gef-pop-in 0.18s ease-out;
   }
   .gef-sheet-backdrop-left {
     @apply items-stretch justify-start p-0;
@@ -203,8 +304,26 @@ table td {
     content: attr(data-label);
     @apply absolute left-full z-20 ml-2 whitespace-nowrap rounded-md border border-gefinc-border bg-gefinc-surface px-2 py-1 text-caption font-semibold text-gefinc-text shadow-lg;
   }
+  /* Barra do topo: fixa ao rolar; em tela larga leva só o atalho Minha conta, à direita. */
   .gef-topbar {
-    @apply flex items-center gap-3 border-b border-gefinc-border bg-gefinc-surface px-4 py-3 lg:hidden;
+    @apply sticky top-0 z-30 flex items-center gap-3 border-b border-gefinc-border bg-gefinc-surface px-4 py-3 lg:px-6;
+  }
+  /* Atalho "Minha conta" (avatar + nome); o nome é cortado com reticências quando falta espaço. */
+  .gef-account-chip {
+    @apply inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-full border border-gefinc-border bg-gefinc-bg py-1 pl-1 pr-3 text-body-base font-semibold text-gefinc-text transition-colors hover:border-gefinc-primary active:bg-gefinc-surface max-[359px]:pr-1;
+  }
+  .gef-account-chip-active {
+    @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
+  }
+  .gef-account-chip-name {
+    @apply max-w-[9rem] truncate sm:max-w-[14rem] max-[359px]:sr-only;
+  }
+  .gef-avatar {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-body-base font-extrabold text-gefinc-bg;
+    background: var(--gradient-aurora);
+  }
+  .gef-avatar-lg {
+    @apply h-14 w-14 text-title-lg;
   }
   .gef-state-icon {
     @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-gefinc-border bg-gefinc-bg text-gefinc-muted;

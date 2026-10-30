@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, InjectionToken, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
+import type { Observable } from 'rxjs';
 import type {
   CategoryType,
   GroupImpact,
@@ -11,6 +12,7 @@ import type {
 import { NoticeService, ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { Icon } from '../icons/icon';
+import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
 import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
@@ -18,12 +20,15 @@ import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
 import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 import { GroupForm } from './group-form';
+import { incomeDateHint } from './income-hint';
 
 type Panel =
   | { kind: 'pay'; tx: Transaction }
   | { kind: 'edit'; tx: Transaction }
-  | { kind: 'amount'; tx: Transaction }
-  | { kind: 'delete'; tx: Transaction; impact: GroupImpact };
+  | { kind: 'amount'; tx: Transaction };
+
+/** Ações destrutivas que pedem confirmação num diálogo modal (nos dois formatos de tela). */
+type Confirming = { kind: 'delete'; tx: Transaction; impact: GroupImpact } | { kind: 'end'; tx: Transaction };
 
 const PAGE_SIZE = 25;
 
@@ -39,7 +44,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
   selector: 'gef-transactions-page',
-  imports: [AccountBadge, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, ConfirmDialog, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-4">
       <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -89,8 +94,8 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
           </select>
           <select class="gef-input" aria-label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)">
             <option value="">Todos os status</option>
-            <option value="PENDING">Pendentes</option>
-            <option value="PAID">Pagos</option>
+            <option value="PENDING">{{ kind() === 'INCOME' ? 'A receber' : 'Pendentes' }}</option>
+            <option value="PAID">{{ kind() === 'INCOME' ? 'Recebidas' : 'Pagos' }}</option>
           </select>
           <select class="gef-input" aria-label="Conta" [ngModel]="accountId()" (ngModelChange)="accountId.set(+$event)">
             <option value="0">Todas as contas</option>
@@ -114,8 +119,12 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
       <ng-template #panelTpl let-p>
         @switch (p.kind) {
           @case ('pay') {
-            <p>Registrar o pagamento de <strong>{{ p.tx.description }}</strong>?</p>
-            <label class="gef-label" for="paymentDate">Data do pagamento</label>
+            @if (isIncome(p.tx) && isFuture(p.tx)) {
+              <p>Antecipar o recebimento de <strong>{{ p.tx.description }}</strong>? O valor entra na conta agora e a receita deixa de ficar a receber até {{ br(p.tx.dueDate) }}.</p>
+            } @else {
+              <p>Registrar o {{ isIncome(p.tx) ? 'recebimento' : 'pagamento' }} de <strong>{{ p.tx.description }}</strong>?</p>
+            }
+            <label class="gef-label" for="paymentDate">Data do {{ isIncome(p.tx) ? 'recebimento' : 'pagamento' }}</label>
             <input id="paymentDate" class="gef-input max-w-48" type="date" [(ngModel)]="paymentDate" />
             <div class="flex gap-3">
               <button type="button" class="gef-btn-primary max-w-40" (click)="confirmPay(p.tx)">Confirmar</button>
@@ -128,8 +137,11 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
               <gef-money-input label="Valor" [ngModel]="editAmount()" (ngModelChange)="editAmount.set($event)" />
               @if (!isCard(p.tx)) {
                 <div>
-                  <label class="gef-label" for="editDue">Vencimento</label>
+                  <label class="gef-label" for="editDue">{{ isIncome(p.tx) ? 'Data do recebimento' : 'Vencimento' }}</label>
                   <input id="editDue" class="gef-input" type="date" [(ngModel)]="editDueDate" />
+                  @if (isIncome(p.tx) && editDueDate) {
+                    <p class="mt-1 text-caption text-gefinc-muted" aria-live="polite">{{ incomeHint(editDueDate) }}</p>
+                  }
                 </div>
               }
             </div>
@@ -149,16 +161,6 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
               <button type="button" class="gef-btn-secondary" (click)="panel.set(null)">Cancelar</button>
             </div>
           }
-          @case ('delete') {
-            <p>
-              Excluir <strong>{{ p.tx.description }}</strong>? Serão removidos {{ p.impact.pendingCount }} lançamento(s)
-              pendente(s); {{ p.impact.paidCount }} já pago(s) serão preservados.
-            </p>
-            <div class="flex gap-3">
-              <button type="button" class="gef-btn-danger max-w-40" (click)="confirmDelete(p.tx)">Excluir</button>
-              <button type="button" class="gef-btn-secondary" (click)="panel.set(null)">Cancelar</button>
-            </div>
-          }
         }
       </ng-template>
       @if (panel(); as p) {
@@ -172,9 +174,42 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
           </div>
         }
       }
+      <gef-confirm-dialog
+        [open]="!!confirming()"
+        [heading]="confirming()?.kind === 'end' ? 'Encerrar lançamento' : 'Excluir lançamento'"
+        [confirmLabel]="confirmLabel()"
+        [busyLabel]="confirming()?.kind === 'end' ? 'Encerrando…' : 'Excluindo…'"
+        [busy]="acting()"
+        [error]="confirmError()"
+        (confirmed)="confirmAction()"
+        (cancelled)="closeConfirm()"
+      >
+        @if (confirming(); as c) {
+          @if (c.kind === 'end') {
+            <p>
+              Encerrar <strong>{{ c.tx.description }}</strong> em {{ endMonthLabel(c.tx) }}? As ocorrências pendentes depois deste mês serão removidas; as já pagas e as anteriores
+              permanecem.
+            </p>
+          } @else if (settlesByDate(c.tx) && c.tx.recurrenceType === 'VARIABLE') {
+            <p>
+              Excluir <strong>{{ c.tx.description }}</strong>?
+              @if (c.tx.status === 'PAID') {
+                O valor de <span class="financial-value">{{ money(c.tx.amount) }}</span> sai do saldo da conta.
+              } @else {
+                A receita ainda não entrou no saldo e será removida.
+              }
+            </p>
+          } @else {
+            <p>
+              Excluir <strong>{{ c.tx.description }}</strong>? Serão removidos {{ c.impact.pendingCount }} lançamento(s) pendente(s); {{ c.impact.paidCount }} já
+              {{ isIncome(c.tx) ? 'recebido(s)' : 'pago(s)' }} serão preservados.
+            </p>
+          }
+        }
+      </gef-confirm-dialog>
 
       @if (loading()) {
-        <gef-loading message="Carregando lançamentos…" />
+        <gef-loading variant="list" message="Carregando lançamentos…" />
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (items().length === 0) {
@@ -201,7 +236,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                   <gef-account-badge class="mt-2" [account]="accountOf(tx)" [showHolder]="false" />
                 </div>
                 <div class="shrink-0 text-right">
-                  <p class="financial-value flex items-center justify-end gap-1 font-bold" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
+                  <p class="financial-value flex items-center justify-end gap-1 font-bold" [class.text-gefinc-primary]="isIncome(tx)" [class.text-gefinc-danger]="!isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
                     <gef-icon [name]="isIncome(tx) ? 'arrow-up' : 'arrow-down'" [size]="14" />{{ signed(tx) }}
                   </p>
                   <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css"><gef-icon [name]="badge(tx).icon" [size]="12" />{{ badge(tx).label }}</span>
@@ -210,18 +245,8 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
               @if (isLocal(tx)) {
                 <p class="mt-2 border-t border-gefinc-border pt-2 text-caption text-gefinc-warning">Pendente de envio</p>
               } @else {
-              <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
-                  @if (tx.status === 'PENDING') {
-                    <button type="button" class="gef-btn-sm gef-btn-sm-primary" [attr.aria-label]="'Pagar ' + tx.description" (click)="openPay(tx)">Pagar</button>
-                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
-                  } @else {
-                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
-                  }
-                  @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
-                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
-                    <button type="button" class="gef-btn-sm" [attr.aria-label]="'Encerrar ' + tx.description" (click)="endHere(tx)">Encerrar aqui</button>
-                  }
-                  <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
+                <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
+                  <ng-container *ngTemplateOutlet="actionsTpl; context: { $implicit: tx }" />
                 </div>
               }
             </li>
@@ -256,7 +281,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                   </td>
                   <td class="max-w-56 px-4 py-3"><gef-account-badge [account]="accountOf(tx)" [showHolder]="false" /></td>
                   <td class="px-4 py-3 text-gefinc-muted">{{ installmentLabel(tx) }}</td>
-                  <td class="financial-value whitespace-nowrap px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
+                  <td class="financial-value whitespace-nowrap px-4 py-3 text-right" [class.text-gefinc-primary]="isIncome(tx)" [class.text-gefinc-danger]="!isIncome(tx)" [attr.data-kind]="isIncome(tx) ? 'income' : 'expense'">
                     <span class="inline-flex items-center justify-end gap-1"><gef-icon [name]="isIncome(tx) ? 'arrow-up' : 'arrow-down'" [size]="14" />{{ signed(tx) }}</span>
                   </td>
                   <td class="px-4 py-3">
@@ -266,18 +291,8 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
                     @if (isLocal(tx)) {
                       <span class="text-caption text-gefinc-warning">Pendente de envio</span>
                     } @else {
-                    @if (tx.status === 'PENDING') {
-                      <button type="button" class="gef-btn-sm gef-btn-sm-primary" (click)="openPay(tx)">Pagar</button>
-                      <button type="button" class="gef-btn-sm" (click)="openEdit(tx)">Editar</button>
-                    } @else {
-                      <button type="button" class="gef-btn-sm" (click)="unpay(tx)">Desfazer</button>
+                      <ng-container *ngTemplateOutlet="actionsTpl; context: { $implicit: tx }" />
                     }
-                    @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
-                      <button type="button" class="gef-btn-sm" (click)="openAmount(tx)">Alterar valor daqui</button>
-                      <button type="button" class="gef-btn-sm" (click)="endHere(tx)">Encerrar aqui</button>
-                    }
-                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" (click)="openDelete(tx)">Excluir</button>
-                  }
                   </div></td>
                 </tr>
               }
@@ -286,6 +301,22 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
         </div>
         <ng-container *ngTemplateOutlet="paginationTpl" />
       }
+      <ng-template #actionsTpl let-tx>
+        @if (tx.status === 'PENDING') {
+          <button type="button" class="gef-btn-sm gef-btn-sm-primary" [attr.aria-label]="payLabel(tx) + ' ' + tx.description" (click)="openPay(tx)">{{ payLabel(tx) }}</button>
+        }
+        @if (canEdit(tx)) {
+          <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + tx.description" (click)="openEdit(tx)">Editar</button>
+        }
+        @if (canUndo(tx)) {
+          <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer ' + tx.description" (click)="unpay(tx)">Desfazer</button>
+        }
+        @if (tx.recurrenceType === 'FIXED' && tx.status === 'PENDING') {
+          <button type="button" class="gef-btn-sm" [attr.aria-label]="'Alterar valor ' + tx.description" (click)="openAmount(tx)">Alterar valor daqui</button>
+          <button type="button" class="gef-btn-sm" [attr.aria-label]="'Encerrar ' + tx.description" (click)="askEnd(tx)">Encerrar aqui</button>
+        }
+        <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
+      </ng-template>
       <ng-template #paginationTpl>
         <nav class="flex items-center justify-between text-body-base text-gefinc-muted" aria-label="Paginação">
           <span>{{ total() }} lançamento(s)</span>
@@ -328,7 +359,9 @@ export class TransactionsPage implements OnInit {
   );
   protected readonly panel = signal<Panel | null>(null);
   /** Ação do painel em andamento: toques repetidos não registram a operação de novo. */
-  private readonly acting = signal(false);
+  protected readonly acting = signal(false);
+  protected readonly confirming = signal<Confirming | null>(null);
+  protected readonly confirmError = signal<string | null>(null);
 
   protected paymentDate = todayIso();
   protected editDueDate = '';
@@ -421,6 +454,40 @@ export class TransactionsPage implements OnInit {
     return this.incomeIds().has(tx.categoryId);
   }
 
+  protected incomeHint(date: string): string {
+    return incomeDateHint(date, todayIso());
+  }
+
+  protected isFuture(tx: Transaction): boolean {
+    return tx.dueDate > todayIso();
+  }
+
+  /** Receber só vale para receita ainda pendente (futura); "Antecipar" enquanto a data não chegou. */
+  protected payLabel(tx: Transaction): string {
+    if (!this.isIncome(tx)) {
+      return 'Pagar';
+    }
+    if (this.isCard(tx)) {
+      return 'Receber';
+    }
+    return this.isFuture(tx) ? 'Antecipar recebimento' : 'Receber';
+  }
+
+  /** Receita liquidada pela data: só a receita fora de cartão. Em cartão (legado) vale a regra de despesa. */
+  protected settlesByDate(tx: Transaction): boolean {
+    return this.isIncome(tx) && !this.isCard(tx);
+  }
+
+  /** Despesa (e receita legada em cartão) só se edita pendente; receita fora de cartão se edita também depois de recebida. */
+  protected canEdit(tx: Transaction): boolean {
+    return this.settlesByDate(tx) || tx.status === 'PENDING';
+  }
+
+  /** Receita já na conta (data de hoje ou anterior) não volta a pendente: só a antecipada (data futura) desfaz. */
+  protected canUndo(tx: Transaction): boolean {
+    return tx.status === 'PAID' && (!this.settlesByDate(tx) || this.isFuture(tx));
+  }
+
   protected installmentLabel(tx: Transaction): string {
     if (tx.recurrenceType === 'INSTALLMENT') {
       return `${tx.installmentNumber}/${tx.totalInstallments}`;
@@ -430,13 +497,14 @@ export class TransactionsPage implements OnInit {
 
   /** Selo de status conforme o manual de identidade visual (pendente, pago, vencido). */
   protected badge(tx: Transaction): { label: string; css: string; icon: string } {
+    const income = this.isIncome(tx);
     if (tx.status === 'PAID') {
-      return { label: 'Pago', icon: 'check', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
+      return { label: income ? 'Recebido' : 'Pago', icon: 'check', css: 'border-gefinc-primary/25 bg-gefinc-primary/10 text-gefinc-primary' };
     }
-    if (tx.overdue) {
+    if (tx.overdue && !income) {
       return { label: 'Vencido', icon: 'alert', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
     }
-    return { label: 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+    return { label: income ? 'A receber' : 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
   }
 
   /** Valor com sinal: receita com "+" e despesa com "−", para não depender só da cor. */
@@ -462,17 +530,21 @@ export class TransactionsPage implements OnInit {
 
   protected openDelete(tx: Transaction): void {
     this.api.groupImpact(tx.groupId).subscribe({
-      next: (impact) => this.panel.set({ kind: 'delete', tx, impact }),
+      next: (impact) => {
+        this.confirmError.set(null);
+        this.confirming.set({ kind: 'delete', tx, impact });
+      },
       error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
     });
   }
 
   protected confirmPay(tx: Transaction): void {
-    this.run(this.api.pay(tx.id, this.paymentDate), 'Pagamento registrado.', () => this.unpay(tx, false));
+    const income = this.isIncome(tx);
+    this.run(this.api.pay(tx.id, this.paymentDate), income ? 'Recebimento registrado.' : 'Pagamento registrado.', () => this.unpay(tx, false));
   }
 
   protected unpay(tx: Transaction, announce = true): void {
-    this.run(this.api.unpay(tx.id), announce ? 'Pagamento desfeito.' : undefined);
+    this.run(this.api.unpay(tx.id), announce ? (this.isIncome(tx) ? 'Recebimento desfeito.' : 'Pagamento desfeito.') : undefined);
   }
 
   protected confirmEdit(tx: Transaction): void {
@@ -497,12 +569,51 @@ export class TransactionsPage implements OnInit {
     }
   }
 
-  protected endHere(tx: Transaction): void {
-    this.run(this.api.endGroup(tx.groupId, tx.dueDate.slice(0, 7)), 'Lançamento encerrado.');
+  protected askEnd(tx: Transaction): void {
+    this.confirmError.set(null);
+    this.confirming.set({ kind: 'end', tx });
   }
 
-  protected confirmDelete(tx: Transaction): void {
-    this.run(this.api.deleteGroup(tx.groupId), 'Lançamento excluído.');
+  protected endMonthLabel(tx: Transaction): string {
+    const [year, month] = tx.dueDate.slice(0, 7).split('-');
+    return `${month}/${year}`;
+  }
+
+  protected confirmLabel(): string {
+    const c = this.confirming();
+    if (!c) {
+      return 'Excluir';
+    }
+    return c.kind === 'end' ? 'Encerrar lançamento' : `Excluir "${c.tx.description}"`;
+  }
+
+  protected closeConfirm(): void {
+    if (!this.acting()) {
+      this.confirming.set(null);
+      this.confirmError.set(null);
+    }
+  }
+
+  protected confirmAction(): void {
+    const c = this.confirming();
+    if (!c || this.acting()) {
+      return;
+    }
+    this.acting.set(true);
+    this.confirmError.set(null);
+    const request: Observable<unknown> = c.kind === 'end' ? this.api.endGroup(c.tx.groupId, c.tx.dueDate.slice(0, 7)) : this.api.deleteGroup(c.tx.groupId);
+    request.subscribe({
+      next: () => {
+        this.acting.set(false);
+        this.confirming.set(null);
+        this.load();
+        this.notices.toast(c.kind === 'end' ? 'Lançamento encerrado.' : 'Lançamento excluído.');
+      },
+      error: (e: unknown) => {
+        this.acting.set(false);
+        this.confirmError.set(messageFor(toProblem(e)));
+      },
+    });
   }
 
   private run(

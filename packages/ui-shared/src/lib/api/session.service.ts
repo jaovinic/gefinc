@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import type { Credentials, TokenResponse } from '@gefinc/core-models';
 import { Observable, catchError, finalize, firstValueFrom, map, of, shareReplay, tap } from 'rxjs';
 import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED, SessionEndReason } from './api.tokens';
+import { CurrentUser } from './current-user';
 import { DraftService } from './draft.service';
 import { TokenStore } from './token-store';
 
@@ -13,6 +14,7 @@ export class SessionService {
   private readonly kind = inject(CLIENT_KIND);
   private readonly store = inject(TokenStore);
   private readonly drafts = inject(DraftService);
+  private readonly currentUser = inject(CurrentUser);
   private readonly redirect = inject(LOGIN_REDIRECT, { optional: true });
   private readonly sessionEnded = inject(SESSION_ENDED, { optional: true });
 
@@ -40,7 +42,13 @@ export class SessionService {
   login(credentials: Credentials): Observable<TokenResponse> {
     return this.http
       .post<TokenResponse>(`${this.base}/auth/login`, credentials, { headers: this.clientHeaders() })
-      .pipe(tap((tokens) => this.accept(tokens)));
+      .pipe(
+        tap((tokens) => {
+          // Quem entra pode não ser quem estava antes: o perfil do atalho é buscado de novo.
+          this.currentUser.clear();
+          this.accept(tokens);
+        }),
+      );
   }
 
   /** Renova a sessão; várias chamadas simultâneas compartilham uma única renovação. */
@@ -85,6 +93,11 @@ export class SessionService {
     return this.kind === 'web' ? new HttpHeaders({ 'X-Client': 'web' }) : new HttpHeaders();
   }
 
+  /** Passa a usar a sessão nova devolvida por uma troca de senha (a anterior deixou de valer). */
+  adopt(tokens: TokenResponse): void {
+    this.accept(tokens);
+  }
+
   private accept(tokens: TokenResponse): void {
     void this.store.save({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
     this.authenticated.set(true);
@@ -97,6 +110,7 @@ export class SessionService {
     } catch {
       // Falha ao limpar dados locais não pode impedir de sair.
     }
+    this.currentUser.clear();
     void this.store.clear();
     this.authenticated.set(false);
   }

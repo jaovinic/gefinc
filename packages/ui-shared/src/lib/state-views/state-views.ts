@@ -1,21 +1,45 @@
 import { Component, input, output } from '@angular/core';
 import { Icon } from '../icons/icon';
 
-/** Estado de carregamento (anunciado a leitores de tela). */
+/**
+ * Estado de carregamento (anunciado a leitores de tela). `spinner` é o padrão; `cards` e `list` mostram
+ * a forma do conteúdo que vem a seguir (esqueleto), o que reduz o salto de layout quando os dados chegam.
+ */
 @Component({
   selector: 'gef-loading',
   template: `
-    <div class="flex items-center justify-center gap-3 p-6 text-gefinc-muted" role="status" aria-live="polite">
-      <span
-        class="h-5 w-5 animate-spin rounded-full border-2 border-gefinc-border border-t-gefinc-primary"
-        aria-hidden="true"
-      ></span>
-      <span class="text-body-base">{{ message() }}</span>
+    <div role="status" aria-live="polite" [attr.aria-busy]="true">
+      @switch (variant()) {
+        @case ('cards') {
+          <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4" aria-hidden="true">
+            <div class="gef-skeleton col-span-2 h-[4.5rem] lg:col-span-1"></div>
+            <div class="gef-skeleton h-[4.5rem]"></div>
+            <div class="gef-skeleton h-[4.5rem]"></div>
+            <div class="gef-skeleton col-span-2 h-[4.5rem] lg:col-span-1"></div>
+          </div>
+          <div class="gef-skeleton mt-6 h-44" aria-hidden="true"></div>
+        }
+        @case ('list') {
+          <div class="space-y-3" aria-hidden="true">
+            @for (row of rows; track row) {
+              <div class="gef-skeleton h-24"></div>
+            }
+          </div>
+        }
+        @default {
+          <div class="flex items-center justify-center gap-3 p-6 text-gefinc-muted" aria-hidden="true">
+            <span class="h-5 w-5 animate-spin rounded-full border-2 border-gefinc-border border-t-gefinc-primary"></span>
+          </div>
+        }
+      }
+      <span [class]="variant() === 'spinner' ? 'block pb-6 text-center text-body-base text-gefinc-muted' : 'sr-only'">{{ message() }}</span>
     </div>
   `,
 })
 export class LoadingView {
   readonly message = input('Carregando…');
+  readonly variant = input<'spinner' | 'cards' | 'list'>('spinner');
+  protected readonly rows = [1, 2, 3];
 }
 
 /** Estado vazio com orientação e, opcionalmente, uma ação (conteúdo projetado). */

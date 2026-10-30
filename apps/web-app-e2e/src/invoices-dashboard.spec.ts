@@ -46,6 +46,12 @@ test('fatura do cartão com pagamento parcial e conferência dos totais do paine
   await page.getByRole('link', { name: 'Painel', exact: true }).click();
   await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 340,00');
   await expect(page.locator('[data-indicator="paid"]')).toContainText('R$ 120,00');
+  await expect(page.locator('[data-indicator="to-due"]')).toContainText('A pagar');
+  await expect(page.locator('[data-indicator="to-receive"]')).toContainText('R$ 0,00'); // sem receitas no mês
+  await expect(page.locator('[data-indicator="overdue"]')).toContainText('R$ 0,00');
+  // saldo das contas: o Cinema (90) e o pagamento parcial da fatura (30), ligada ao Itaú, saem da conta
+  await expect(page.locator('[data-indicator="balance-total"]')).toContainText('-R$ 120,00');
+  await expect(page.getByTestId('account-balance').filter({ hasText: 'Itaú' })).toContainText('-R$ 120,00');
   await expect(page.locator('canvas[role="img"]')).toHaveCount(1); // rosca por categoria
   await expect(page.getByTestId('card-share-row')).toHaveCount(1); // barras por cartão (HTML)
   await expect(page.getByLabel('Legenda do gráfico por cartão')).toContainText('Nubank');

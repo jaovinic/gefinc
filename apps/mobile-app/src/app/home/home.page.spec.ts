@@ -16,23 +16,21 @@ describe('HomePage', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  it('mostra "Nova despesa" e "Nova receita" lado a lado, com o mesmo destaque', () => {
+  it('mostra um único botão destacado "Novo lançamento"', () => {
     const el = render();
     const actions = Array.from(el.querySelectorAll<HTMLAnchorElement>('[data-testid="quick-actions"] a'));
-    expect(actions.map((a) => a.textContent?.trim())).toEqual(['Nova despesa', 'Nova receita']);
-    expect(actions[0].className).toBe(actions[1].className);
+    expect(actions.map((a) => a.textContent?.trim())).toEqual(['Novo lançamento']);
   });
 
-  it('cada ação abre o lançamento rápido da sua natureza', () => {
+  it('o botão abre a tela de novo lançamento, onde se escolhe a natureza', () => {
     const el = render();
-    expect(el.querySelector('a[href="/quick-expense"]')?.textContent).toContain('Nova despesa');
-    expect(el.querySelector('a[href="/quick-income"]')?.textContent).toContain('Nova receita');
+    expect(el.querySelector('a[href="/novo"]')?.textContent).toContain('Novo lançamento');
+    expect(el.querySelector('a[href="/quick-expense"]')).toBeNull();
+    expect(el.querySelector('a[href="/quick-income"]')).toBeNull();
   });
 
-  it('as ações têm ícone e sinal de natureza além da cor', () => {
+  it('o botão tem ícone de adicionar além do texto', () => {
     const el = render();
-    for (const link of Array.from(el.querySelectorAll('[data-testid="quick-actions"] a'))) {
-      expect(link.querySelector('svg')).not.toBeNull();
-    }
+    expect(el.querySelector('[data-testid="quick-actions"] a svg')).not.toBeNull();
   });
 });

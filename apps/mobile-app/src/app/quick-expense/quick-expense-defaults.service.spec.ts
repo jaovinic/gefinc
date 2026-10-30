@@ -70,6 +70,15 @@ describe('QuickExpenseDefaults', () => {
       expect(defaults.resolve(accounts, categories, 'income')).toEqual({ accountId: 1, categoryId: 20 });
     });
 
+    it('nunca escolhe cartão para receita, nem o último usado nem o primeiro da lista', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      await defaults.remember(2, 20, 'income'); // cartão lembrado (legado)
+      expect(defaults.resolve(accounts, categories, 'income').accountId).toBe(1);
+      expect(defaults.resolve([accounts[1]], categories, 'income').accountId).toBe(0);
+      expect(defaults.resolve([accounts[1]], categories, 'expense').accountId).toBe(2);
+    });
+
     it('os padrões de receita e de despesa são independentes', async () => {
       const defaults = TestBed.inject(QuickExpenseDefaults);
       await defaults.load('expense');

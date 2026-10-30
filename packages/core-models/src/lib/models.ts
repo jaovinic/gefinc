@@ -15,6 +15,7 @@ export type TransactionStatus = Schemas['TransactionStatus'];
 export type Problem = Schemas['Problem'];
 export type ValidationProblem = Schemas['ValidationProblem'];
 export type DeletionPendingProblem = Schemas['DeletionPendingProblem'];
+export type InUseProblem = Schemas['InUseProblem'];
 
 export type RegisterRequest = Schemas['RegisterRequest'];
 export type Credentials = Schemas['Credentials'];
@@ -25,7 +26,9 @@ export type UserProfile = Schemas['UserProfile'];
 export type Account = Schemas['Account'];
 export type AccountInput = Schemas['AccountInput'];
 export type AccountUpdate = Schemas['AccountUpdate'];
+export type AccountUsage = Schemas['AccountUsage'];
 export type Category = Schemas['Category'];
+export type CategoryUsage = Schemas['CategoryUsage'];
 export type CategoryInput = Schemas['CategoryInput'];
 
 export type TransactionGroupInput = Schemas['TransactionGroupInput'];
@@ -41,6 +44,8 @@ export type InvoicePayment = Schemas['InvoicePayment'];
 export type InvoicePaymentInput = Schemas['InvoicePaymentInput'];
 export type InvoiceProjection = Schemas['InvoiceProjection'];
 export type Dashboard = Schemas['Dashboard'];
+export type AccountBalance = Schemas['AccountBalance'];
+export type Balances = Schemas['Balances'];
 export type CashflowMonth = Schemas['CashflowMonth'];
 export type DueSummary = Schemas['DueSummary'];
 

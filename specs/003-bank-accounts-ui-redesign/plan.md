@@ -9,7 +9,7 @@ Cinco entregas ligadas (ver [research.md](./research.md)):
 
 1. **Contas PF/PJ e ícones**: três colunas novas em `accounts` (`holder_type`, `icon`, `bank_account_id`, migração V7), contrato OpenAPI aditivo, filtro PF/PJ no cliente.
 2. **Cartão vinculado a conta bancária**: chave estrangeira composta (mesmo usuário), obrigatório para cartões novos no serviço, cartões antigos continuam válidos com aviso; ícone e nome do cartão aparecem em toda tela que mostra conta ou cartão, por um `gef-account-badge` e um `gef-account-picker` (lista com ícone no lugar do `<select>`).
-3. **Receita no app**: "Nova despesa" e "Nova receita" lado a lado na tela inicial, registro rápido por natureza, natureza como primeiro campo do cadastro completo.
+3. **Receita no app**: um único botão "Novo lançamento" na tela inicial que abre a tela onde se escolhe despesa ou receita, registro rápido por natureza, natureza como primeiro campo do cadastro completo; receita só entra em conta (nunca em cartão) e o saldo é por conta, com saldo geral no painel (`GET /balances`).
 4. **Menu lateral do web**: barra lateral esquerda com logo e ícones, recolhível (preferência lembrada), gaveta em tela estreita, operável por teclado.
 5. **Identidade Aurora FinTech e UX**: logo e conjunto de ícones próprios (SVG), favicons e ícones de Android e iOS gerados por script a partir de um SVG-fonte, tokens e fonte do manual aplicados de ponta a ponta, estados com ícone, toasts com Desfazer, movimento reduzido, não depender só de cor.
 
@@ -79,8 +79,9 @@ apps/web-app/
 ├── src/app/layout/shell.ts            # barra lateral esquerda, recolher, gaveta, rodapé
 ├── src/index.html + public/           # favicons, apple-touch-icon, manifesto
 apps/mobile-app/
-├── src/app/home/                      # Nova despesa + Nova receita
-├── src/app/quick-expense/             # registro rápido por natureza (kind)
+├── src/app/home/                      # botão único "Novo lançamento"
+├── src/app/new-entry/                 # novo lançamento rápido (natureza escolhida na tela)
+├── src/app/quick-expense/             # padrões por natureza (QuickExpenseDefaults)
 ├── android/app/src/main/res/          # mipmap, adaptive icon (foreground e monocromático), ícone de notificação
 └── ios/App/App/Assets.xcassets/       # AppIcon 1024 (sem build: sem Mac)
 

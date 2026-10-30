@@ -155,6 +155,66 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Dados do próprio usuário
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Auth]
+      summary: Altera o nome de exibição (vazio remove o nome)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: [string, 'null'], maxLength: 80 }
+      responses:
+        '200':
+          description: Perfil atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /auth/password:
+    post:
+      tags: [Auth]
+      summary: Troca a senha estando conectado
+      description: |
+        Exige a senha atual e aplica a política de senha. Todas as sessões anteriores deixam de valer
+        e a resposta traz uma sessão nova (mesmo formato do login), para quem trocou seguir conectado.
+        Senha atual incorreta ou nova igual à atual respondem `422` com o campo em `errors`.
+      parameters:
+        - $ref: '#/components/parameters/ClientHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, format: password }
+                newPassword: { type: string, format: password }
+      responses:
+        '200':
+          description: Senha trocada; nova sessão
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
   /auth/account-deletion:
     post:
       tags: [Auth]
@@ -273,15 +333,35 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Accounts]
-      summary: Exclui conta sem lançamentos (FR-013)
+      summary: Exclui conta sem nenhum dado relacionado (FR-013)
+      description: |
+        A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, cartões
+        vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
+        (`ACCOUNT_IN_USE`) com as contagens; o cliente deve oferecer inativar a conta. A checagem é
+        refeita no servidor a cada exclusão. Conta de outro usuário responde `404`.
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Conta com lançamentos (`ACCOUNT_IN_USE`); inative em vez de excluir
+          description: Conta com dados relacionados (`ACCOUNT_IN_USE`); inative em vez de excluir
           content:
             application/problem+json:
-              schema: { $ref: '#/components/schemas/Problem' }
+              schema: { $ref: '#/components/schemas/InUseProblem' }
+
+  /accounts/{accountId}/usage:
+    parameters:
+      - $ref: '#/components/parameters/AccountId'
+    get:
+      tags: [Accounts]
+      summary: Prévia da exclusão da conta
+      description: Informa o que impede a exclusão da conta. Não altera nada.
+      responses:
+        '200':
+          description: Uso da conta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountUsage' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ---------------------------------------------------------- Categories
   /categories:
@@ -341,20 +421,37 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Categories]
-      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-016)
-      parameters:
-        - name: reassignTo
-          in: query
-          description: Categoria que receberá os lançamentos da excluída (mesmo tipo)
-          schema: { type: integer, format: int64 }
+      summary: Exclui categoria sem uso (FR-016)
+      description: |
+        A categoria só é excluída se nenhum lançamento nem grupo a usa. Em uso responde `409`
+        (`CATEGORY_IN_USE`) com as contagens; os lançamentos não são movidos para outra categoria.
+        Categoria de outro usuário responde `404`.
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Categoria em uso sem `reassignTo` (`CATEGORY_IN_USE`)
+          description: Categoria em uso (`CATEGORY_IN_USE`)
           content:
             application/problem+json:
-              schema: { $ref: '#/components/schemas/Problem' }
+              schema: { $ref: '#/components/schemas/InUseProblem' }
+
+  /categories/{categoryId}/usage:
+    parameters:
+      - name: categoryId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      tags: [Categories]
+      summary: Prévia da exclusão da categoria
+      description: Informa quantos lançamentos e grupos usam a categoria. Não altera nada.
+      responses:
+        '200':
+          description: Uso da categoria
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CategoryUsage' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # --------------------------------------------------- Transaction groups
   /transaction-groups:
@@ -483,6 +580,7 @@ paths:
     post:
       tags: [Transaction Groups]
       summary: Encerra um lançamento fixo (FR-020)
+      description: "Destrutivo: as ocorrências pendentes depois de `endMonth` são removidas. O cliente deve pedir confirmação."
       requestBody:
         required: true
         content:
@@ -557,7 +655,12 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Transactions]
-      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-025)
+      summary: Edita valor ou vencimento de uma ocorrência (FR-025)
+      description: |
+        Despesa: só ocorrências pendentes (paga responde `409`). Receita (fora do cartão): também
+        a já recebida. O status só é reavaliado quando o `dueDate` muda: novo `dueDate` hoje ou
+        anterior fica `PAID` (com `paymentDate` = novo `dueDate`) e `dueDate` futuro fica `PENDING`.
+        Editar só o valor não altera `status` nem `paymentDate`.
       requestBody:
         required: true
         content:
@@ -579,6 +682,9 @@ paths:
     post:
       tags: [Transactions]
       summary: Marca o lançamento como pago (FR-019)
+      description: |
+        Em receita, só vale para receita futura (antecipação do recebimento). Receita com vencimento
+        hoje ou anterior já entra paga automaticamente. Lançamento já pago responde `409`.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -609,6 +715,9 @@ paths:
     post:
       tags: [Transactions]
       summary: Reverte o pagamento do lançamento (FR-019)
+      description: |
+        Em receita, só vale para receita futura antecipada (volta a `PENDING`). Receita com
+        vencimento hoje ou anterior responde `409`: para corrigir, edite ou exclua o lançamento.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       responses:
@@ -699,7 +808,7 @@ paths:
     delete:
       tags: [Invoices]
       summary: Desfaz um pagamento de fatura (FR-037)
-      description: Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos.
+      description: "Destrutivo (o cliente deve pedir confirmação, exceto no desfazer imediato após o pagamento). Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos."
       responses:
         '200':
           description: Fatura atualizada
@@ -747,6 +856,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Dashboard' }
+
+  /balances:
+    get:
+      tags: [Dashboard]
+      summary: Saldo por conta e total, acumulado até hoje
+      description: |
+        Para cada conta `CHECKING` ou `CASH` (ativas e inativas): saldo inicial + receitas recebidas
+        (`PAID` com pagamento até hoje) − despesas pagas da própria conta − saídas dos cartões vinculados
+        (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje).
+        Saídas de cartão sem conta vinculada não debitam nenhuma conta e somam em `unlinkedCardPayments`.
+        Itens de cartão quitados por pagamento de fatura não são contados de novo.
+      responses:
+        '200':
+          description: Saldos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Balances' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /cashflow:
     get:
@@ -959,6 +1086,18 @@ components:
                 properties:
                   field: { type: string }
                   message: { type: string }
+    InUseProblem:
+      description: "`409` de exclusão bloqueada (`ACCOUNT_IN_USE`, `CATEGORY_IN_USE`) com o que está em uso."
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          additionalProperties: true
+          properties:
+            transactionCount: { type: integer, format: int64, description: "Lançamentos que usam a conta ou a categoria." }
+            groupCount: { type: integer, format: int64, description: "Grupos de lançamento que usam a categoria." }
+            invoicePaymentCount: { type: integer, format: int64, description: "Pagamentos de fatura da conta." }
+            linkedCardCount: { type: integer, format: int64, description: "Cartões vinculados à conta bancária." }
+            hasOpeningBalance: { type: boolean, description: "A conta tem saldo inicial diferente de zero." }
     DeletionPendingProblem:
       allOf:
         - $ref: '#/components/schemas/Problem'
@@ -1000,11 +1139,12 @@ components:
       properties:
         id: { type: integer, format: int64 }
         email: { type: string, format: email }
+        name: { type: [string, 'null'], description: Nome de exibição; nulo até o usuário informar }
         createdAt: { type: string, format: date-time }
 
     Account:
       type: object
-      required: [id, name, type, active, version]
+      required: [id, name, type, active, version, openingBalance]
       properties:
         id: { type: integer, format: int64 }
         name: { type: string }
@@ -1019,6 +1159,10 @@ components:
           description: "Sempre presente: o escolhido ou o padrão do tipo."
         bankAccountId: { type: integer, format: int64, description: "Somente em cartão vinculado." }
         bankAccountName: { type: string, description: "Nome da conta bancária do cartão." }
+        openingBalance:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: "Saldo inicial da conta (parte do saldo de `GET /balances`). Sempre devolvido; `0.00` quando nunca informado e sempre `0.00` em cartão de crédito."
         active: { type: boolean }
         version: { type: integer, format: int64 }
     AccountInput:
@@ -1032,6 +1176,10 @@ components:
         holderType: { $ref: '#/components/schemas/HolderType' }
         icon: { $ref: '#/components/schemas/AccountIcon' }
         bankAccountId: { type: integer, format: int64 }
+        openingBalance:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: "Saldo inicial da conta, pode ser negativo. Opcional: ausente vale `0.00`. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`."
       description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. `holderType` é obrigatório em CHECKING e proibido nos demais. `bankAccountId` (conta bancária ativa do mesmo usuário) é obrigatório em CREDIT_CARD e proibido nos demais; conta de outro usuário responde 404 e conta inativa, 422 ACCOUNT_INACTIVE. `icon` ausente usa o padrão do tipo."
     AccountUpdate:
       type: object
@@ -1044,10 +1192,30 @@ components:
         holderType: { $ref: '#/components/schemas/HolderType' }
         icon: { $ref: '#/components/schemas/AccountIcon' }
         bankAccountId: { type: integer, format: int64 }
+        openingBalance:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: "Saldo inicial da conta. Opcional: ausente mantém o valor atual. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`."
         active: { type: boolean }
         version: { type: integer, format: int64 }
       description: "O tipo não pode ser alterado depois do cadastro; os demais campos seguem as regras de AccountInput. Cartão anterior ao vínculo (sem `bankAccountId`) precisa informá-lo ao ser editado, exceto quando só `active` muda."
-
+    AccountUsage:
+      type: object
+      required: [canDelete, transactionCount, invoicePaymentCount, linkedCards, openingBalance]
+      description: "Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial."
+      properties:
+        canDelete: { type: boolean }
+        transactionCount: { type: integer, format: int64 }
+        invoicePaymentCount: { type: integer, format: int64 }
+        linkedCards:
+          type: array
+          items:
+            type: object
+            required: [id, name]
+            properties:
+              id: { type: integer, format: int64 }
+              name: { type: string }
+        openingBalance: { $ref: '#/components/schemas/Money' }
 
     Category:
       type: object
@@ -1057,6 +1225,13 @@ components:
         name: { type: string }
         type: { $ref: '#/components/schemas/CategoryType' }
         colorHex: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+    CategoryUsage:
+      type: object
+      required: [canDelete, transactionCount, groupCount]
+      properties:
+        canDelete: { type: boolean }
+        transactionCount: { type: integer, format: int64 }
+        groupCount: { type: integer, format: int64 }
     CategoryInput:
       type: object
       required: [name, type, colorHex]
@@ -1080,13 +1255,22 @@ components:
           minimum: 1
           maximum: 120
           description: Obrigatório para INSTALLMENT (1 vira um avulso; até 120); nos demais tipos é 1 e pode ser omitido
-        accountId: { type: integer, format: int64 }
+        accountId:
+          type: integer
+          format: int64
+          description: >-
+            Receita (categoria `INCOME`) só pode entrar em conta `CHECKING` ou `CASH`: em conta do tipo
+            `CREDIT_CARD` responde `422` com erro no campo `accountId`
+            ("Receitas só podem entrar em conta bancária ou dinheiro, não em cartão de crédito.").
         categoryId: { type: integer, format: int64 }
         purchaseDate: { type: string, format: date }
         firstDueDate:
           type: string
           format: date
-          description: Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor)
+          description: >-
+            Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor). Para receita,
+            é a data em que o dinheiro entra na conta: data de hoje ou anterior entra automaticamente
+            (`PAID`); data futura fica `PENDING` até a data chegar.
     TransactionGroupUpdate:
       type: object
       required: [description, categoryId, version]
@@ -1135,13 +1319,19 @@ components:
         amount: { $ref: '#/components/schemas/Money' }
         dueDate: { type: string, format: date }
         paymentDate: { type: string, format: date }
-        status: { $ref: '#/components/schemas/TransactionStatus' }
+        status:
+          allOf:
+            - $ref: '#/components/schemas/TransactionStatus'
+          description: >-
+            Em receita, `PAID` automático quando `dueDate` é hoje ou anterior (o servidor liquida na
+            consulta, com `paymentDate` igual a `dueDate`); receita futura fica `PENDING` até a data
+            chegar, a menos que seja antecipada pela ação `pay`.
         settledByInvoicePayment:
           type: boolean
           description: Verdadeiro se foi marcado como pago pela quitação da fatura
         overdue:
           type: boolean
-          description: Pendente com vencimento anterior a hoje
+          description: Despesa pendente com vencimento anterior a hoje. Em receita é sempre `false` (receita nunca fica atrasada).
         version: { type: integer, format: int64 }
     TransactionPatch:
       type: object
@@ -1228,7 +1418,7 @@ components:
 
     Dashboard:
       type: object
-      required: [month, totalMonth, totalToDue, totalPaid, overdueTotal, byCategory, byCard]
+      required: [month, totalMonth, totalToDue, totalPaid, overdueTotal, totalIncome, totalReceived, byCategory, byCard]
       properties:
         month: { $ref: '#/components/schemas/Month' }
         totalMonth:
@@ -1247,6 +1437,14 @@ components:
             mais os pagamentos de fatura cuja fatura vence no mês. Itens quitados por pagamento de fatura
             não são somados de novo.
         overdueTotal: { $ref: '#/components/schemas/Money' }
+        totalIncome:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Receitas com vencimento no mês (recebidas ou não)
+        totalReceived:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Parte das receitas do mês que já entrou na conta (receita com vencimento até hoje ou antecipada)
         byCategory:
           type: array
           items:
@@ -1266,6 +1464,37 @@ components:
               accountId: { type: integer, format: int64 }
               name: { type: string }
               amount: { $ref: '#/components/schemas/Money' }
+    AccountBalance:
+      type: object
+      required: [accountId, name, type, active, balance, openingBalance]
+      properties:
+        accountId: { type: integer, format: int64 }
+        name: { type: string }
+        type:
+          type: string
+          enum: [CHECKING, CASH]
+        active: { type: boolean }
+        balance:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Saldo acumulado até hoje (pode ser negativo)
+        openingBalance: { $ref: '#/components/schemas/Money' }
+    Balances:
+      type: object
+      required: [asOf, total, accounts, unlinkedCardPayments]
+      properties:
+        asOf: { type: string, format: date, description: Data de referência do saldo (hoje, no fuso do servidor) }
+        total:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Soma dos saldos de todas as contas (inclusive inativas com saldo diferente de zero)
+        accounts:
+          type: array
+          items: { $ref: '#/components/schemas/AccountBalance' }
+        unlinkedCardPayments:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: Saídas de cartões sem conta vinculada, que não debitam nenhuma conta
     CashflowMonth:
       type: object
       required: [month, expectedIncome, expectedExpense, residual]

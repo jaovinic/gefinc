@@ -42,8 +42,15 @@ test.describe('receitas e despesas', () => {
     await expect(page.getByRole('row', { name: /Mercado/ })).toContainText('Pend');
 
     await page.getByRole('row', { name: /Mercado/ }).getByRole('button', { name: 'Excluir' }).click();
-    await expect(page.getByRole('dialog')).toContainText('1 lançamento(s)');
-    await page.getByRole('dialog').getByRole('button', { name: 'Excluir' }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm).toContainText('1 lançamento(s)');
+    await expect(confirm.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(confirm).toHaveCount(0);
+    await expect(page.getByRole('row', { name: /Mercado/ })).toHaveCount(1);
+
+    await page.getByRole('row', { name: /Mercado/ }).getByRole('button', { name: 'Excluir' }).click();
+    await confirm.getByRole('button', { name: 'Excluir "Mercado"' }).click();
     await expect(page.getByText('Nenhum lançamento neste mês')).toBeVisible();
   });
 
@@ -61,6 +68,8 @@ test.describe('receitas e despesas', () => {
     // encerra no mês corrente: o mês seguinte fica sem a ocorrência
     await page.getByRole('button', { name: 'Mês anterior' }).click();
     await page.getByRole('row', { name: /Internet/ }).getByRole('button', { name: 'Encerrar aqui' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('As ocorrências pendentes depois deste mês serão removidas');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Encerrar lançamento' }).click();
     await page.getByRole('button', { name: 'Próximo mês' }).click();
     await expect(page.getByText('Nenhum lançamento neste mês')).toBeVisible();
   });
@@ -103,5 +112,28 @@ test.describe('receitas e despesas', () => {
     await page.getByRole('button', { name: 'Próximo mês' }).click();
     await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('3/3');
     await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,34');
+  });
+
+  test('parcelado no cartão pelo valor da parcela: 10 × R$ 100,00 mostra as faturas e envia o total', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await createAccount(page, 'Nubank', 'CREDIT_CARD', { closing: 10, due: 17 });
+    await page.getByRole('link', { name: 'Lançamentos' }).click();
+
+    await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
+    const form = page.locator('gef-group-form');
+    await form.getByLabel('Tipo').selectOption('INSTALLMENT');
+    await form.getByLabel('Descrição ou loja').fill('Geladeira');
+    await chooseAccount(page, form, 'Nubank');
+    await form.getByLabel('Categoria').selectOption({ label: 'Compras' });
+    await form.getByRole('button', { name: 'Valor da parcela' }).click();
+    await form.getByLabel('Valor da parcela').fill('10000'); // R$ 100,00 por parcela
+    await form.getByLabel('Quantidade de parcelas').fill('10');
+    await form.getByLabel('Data da compra').fill('2026-11-05');
+    await expect(form.getByTestId('installment-summary')).toHaveText('10 × R$ 100,00 = R$ 1.000,00');
+    const preview = form.getByLabel('Prévia das parcelas');
+    await expect(preview).toContainText('nov/2026 · vence 17/11');
+    await expect(preview).toContainText('ago/2027 · vence 17/08');
+    await form.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByRole('dialog', { name: 'Novo lançamento' })).toHaveCount(0);
   });
 });

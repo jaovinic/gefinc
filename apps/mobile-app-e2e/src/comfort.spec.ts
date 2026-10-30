@@ -17,8 +17,11 @@ const ROUTES: { path: string; ready: string | RegExp }[] = [
   { path: '/categorias', ready: 'Categorias' },
   { path: '/fluxo-de-caixa', ready: 'Fluxo de caixa' },
   { path: '/minha-conta', ready: 'Minha conta' },
-  { path: '/quick-expense', ready: 'Nova despesa' },
-  { path: '/quick-income', ready: 'Nova receita' },
+  { path: '/novo', ready: 'Novo lançamento' },
+  { path: '/novo?tipo=receita', ready: 'Novo lançamento' },
+  // endereços antigos redirecionam para o novo lançamento
+  { path: '/quick-expense', ready: 'Novo lançamento' },
+  { path: '/quick-income', ready: 'Novo lançamento' },
 ];
 
 async function seed(request: Parameters<typeof newUser>[0]) {
@@ -136,9 +139,9 @@ test('formulário de conta com ícones, seletor de conta e avisos cabem em 360 p
   await audit('seletor de conta bancária');
   await page.keyboard.press('Escape');
 
-  await page.goto('/quick-income');
-  await page.getByLabel('Conta ou cartão').click();
-  await expect(page.getByRole('dialog', { name: 'Conta ou cartão' })).toBeVisible();
-  await audit('seletor de conta no lançamento rápido');
+  await page.goto('/novo?tipo=receita');
+  await page.locator('gef-account-picker button[aria-haspopup]').click();
+  await expect(page.getByRole('dialog', { name: 'Conta' })).toBeVisible();
+  await audit('seletor de conta no novo lançamento');
   expect(problems).toEqual([]);
 });

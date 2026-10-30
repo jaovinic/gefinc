@@ -189,3 +189,80 @@ describe('Sheet aninhado (painel dentro de painel)', () => {
     expect(document.activeElement).toBe(close);
   });
 });
+
+@Component({
+  imports: [Sheet],
+  template: `
+    <gef-sheet heading="Confirmar" [open]="open()" [role]="role()" [initialFocus]="initialFocus()" [dismissible]="dismissible()" [describedBy]="'desc'" (closed)="closed()">
+      <p id="desc">Descrição</p>
+      <button id="primary" type="button">Excluir</button>
+      <button id="cancel" type="button">Cancelar</button>
+    </gef-sheet>
+  `,
+})
+class OptionsHost {
+  readonly open = signal(true);
+  readonly role = signal<'dialog' | 'alertdialog'>('alertdialog');
+  readonly initialFocus = signal<string | null>('#cancel');
+  readonly dismissible = signal(true);
+  readonly closed = jest.fn();
+}
+
+describe('Sheet (opções de confirmação)', () => {
+  async function setup() {
+    const fixture = TestBed.createComponent(OptionsHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return { fixture, host: fixture.componentInstance, el };
+  }
+
+  it('usa o papel alertdialog e liga a descrição por aria-describedby', async () => {
+    const { el } = await setup();
+    const dialog = el.querySelector('.gef-sheet') as HTMLElement;
+    expect(dialog.getAttribute('role')).toBe('alertdialog');
+    expect(dialog.getAttribute('aria-describedby')).toBe('desc');
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('leva o foco ao elemento do seletor initialFocus', async () => {
+    const { el } = await setup();
+    expect(document.activeElement).toBe(el.querySelector('#cancel'));
+  });
+
+  it('sem correspondência do seletor, foca o primeiro focável', async () => {
+    const fixture = TestBed.createComponent(OptionsHost);
+    fixture.componentInstance.initialFocus.set('#nao-existe');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe((fixture.nativeElement as HTMLElement).querySelector('button[aria-label="Fechar"]'));
+  });
+
+  it('Tab continua preso dentro de um alertdialog', async () => {
+    const { el } = await setup();
+    const cancel = el.querySelector('#cancel') as HTMLElement;
+    const close = el.querySelector('button[aria-label="Fechar"]') as HTMLElement;
+    cancel.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    cancel.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(close);
+  });
+
+  it('com dismissible falso, Escape, fundo e Fechar são ignorados', async () => {
+    const { fixture, host, el } = await setup();
+    host.dismissible.set(false);
+    fixture.detectChanges();
+    (el.querySelector('.gef-sheet') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
+    (el.querySelector('button[aria-label="Fechar"]') as HTMLButtonElement).click();
+    expect(host.closed).not.toHaveBeenCalled();
+
+    host.dismissible.set(true);
+    fixture.detectChanges();
+    (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
+    expect(host.closed).toHaveBeenCalledTimes(1);
+  });
+});

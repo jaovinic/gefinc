@@ -40,9 +40,9 @@ Decisões técnicas (D1–D15) que resolvem as incógnitas do plano.
 
 ## D7. Receita no aplicativo
 
-- **Decisão**: a tela inicial mostra duas ações lado a lado, "Nova despesa" e "Nova receita", que abrem o mesmo registro rápido com o parâmetro `kind` (`expense`/`income`): título, categorias (só as da natureza) e cor mudam; padrões (últimas conta e categoria) passam a ser **por natureza**. No cadastro completo (`GroupForm`), a natureza deixa de ser um `<select>` escondido e vira um **seletor segmentado "Receita | Despesa" no topo**, o primeiro campo. O limite de 3 toques vale para as duas ações.
+- **Decisão (atualizada em round 3)**: a tela inicial tem um **único botão "Novo lançamento"** (`/novo`), que abre o registro rápido em que a natureza (Despesa | Receita) é escolhida na própria tela, com `?tipo=despesa|receita` para abrir já na natureza desejada (as rotas antigas `/quick-expense` e `/quick-income` redirecionam). _A decisão original era de dois botões lado a lado, "Nova despesa" e "Nova receita", que abriam o mesmo registro com o parâmetro `kind`._ Título, categorias (só as da natureza) e cor mudam com a natureza; padrões (últimas conta e categoria) são **por natureza**. Trocar a natureza por toque devolve o foco ao valor (o teclado numérico segue aberto); pelo teclado ou leitor de tela o foco não é movido. No cadastro completo (`GroupForm`), a natureza deixa de ser um `<select>` escondido e vira um **seletor segmentado "Receita | Despesa" no topo**, o primeiro campo. O limite de 3 toques vale para a receita (abrir, escolher Receita, salvar) e 2 para a despesa.
 - **Racional**: o problema relatado é de descoberta; reaproveitar a página evita duplicar offline, rascunho e padrões.
-- **Alternativas rejeitadas**: tela separada de receita (duplicação); botão flutuante único com menu (esconde a ação, que é o problema).
+- **Alternativas rejeitadas**: tela separada de receita (duplicação); botão flutuante com menu (esconde a ação, que é o problema). Dois botões lado a lado foram adotados primeiro e trocados em round 3 por um botão único "Novo lançamento", mais enxuto na tela inicial.
 
 ## D8. Identidade visual: tokens, fonte e logo
 

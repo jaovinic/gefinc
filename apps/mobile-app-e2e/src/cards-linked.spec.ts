@@ -23,7 +23,7 @@ test.describe('cartões vinculados a uma conta bancária no celular', () => {
 
     // lançamento rápido: a escolha mostra ícone, nome, conta e selo
     await page.goto('/');
-    await page.getByRole('link', { name: 'Nova despesa' }).click();
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
     await page.getByLabel('Conta ou cartão').click();
     const option = page.locator('[role="option"]').filter({ hasText: 'Nubank Roxinho' });
     await expect(option).toContainText('Inter empresa');

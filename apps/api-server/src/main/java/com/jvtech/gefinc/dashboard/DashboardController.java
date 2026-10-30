@@ -12,10 +12,18 @@ public class DashboardController {
 
   private final DashboardService service;
   private final DueSummaryService dueSummary;
+  private final BalanceService balances;
 
-  public DashboardController(DashboardService service, DueSummaryService dueSummary) {
+  public DashboardController(
+      DashboardService service, DueSummaryService dueSummary, BalanceService balances) {
     this.service = service;
     this.dueSummary = dueSummary;
+    this.balances = balances;
+  }
+
+  @GetMapping("/balances")
+  public BalanceService.Balances balances() {
+    return balances.balances(CurrentUser.id());
   }
 
   @GetMapping("/dashboard")

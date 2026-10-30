@@ -31,19 +31,13 @@
     @apply flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 pb-3;
     padding-top: calc(env(safe-area-inset-top) + 0.75rem);
   }
-  /* Ações rápidas da tela inicial: despesa e receita lado a lado, com o mesmo destaque. */
+  /* Ação rápida da tela inicial: um único botão destacado para o novo lançamento. */
   .gef-quick-actions {
-    @apply fixed left-4 right-4 z-10 flex gap-3;
+    @apply fixed left-4 right-4 z-10 flex;
     bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1rem);
   }
   .gef-quick-action {
-    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border-2 bg-gefinc-surface px-4 text-body-base font-bold text-gefinc-text shadow-lg;
-  }
-  .gef-quick-action[data-kind='expense'] {
-    @apply border-gefinc-danger;
-  }
-  .gef-quick-action[data-kind='income'] {
-    @apply border-gefinc-primary;
+    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-gefinc-primary px-4 text-body-base font-bold text-gefinc-bg shadow-lg transition-transform active:scale-[0.97];
   }
 }
 
@@ -56,6 +50,7 @@
   background: var(--color-gefinc-bg);
 }
 .gef-shell-main {
+  -webkit-overflow-scrolling: touch;
   min-height: 0;
   flex: 1;
   overflow-y: auto;
@@ -67,7 +62,7 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .gef-tab {
-    @apply flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-caption text-gefinc-muted;
+    @apply flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-caption text-gefinc-muted transition-colors active:bg-gefinc-bg;
   }
   .gef-tab-active {
     @apply font-semibold text-gefinc-primary;
@@ -78,7 +73,7 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 6rem);
   }
   .gef-menu-item {
-    @apply flex min-h-12 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text;
+    @apply flex min-h-14 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text transition-colors active:bg-gefinc-bg;
   }
 }
 

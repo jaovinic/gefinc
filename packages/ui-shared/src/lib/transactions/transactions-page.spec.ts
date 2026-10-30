@@ -16,6 +16,11 @@ const pending = {
 const late = { ...pending, id: 2, groupId: 101, description: 'Luz', amount: '90.50', dueDate: '2026-11-05', overdue: true };
 const paid = { ...pending, id: 3, groupId: 102, description: 'Cinema', categoryId: 11, status: 'PAID', paymentDate: '2026-11-08', dueDate: '2026-11-08' };
 const fixedIncome = { ...pending, id: 4, groupId: 103, description: 'Salário', categoryId: 20, recurrenceType: 'FIXED', amount: '5000.00', dueDate: '2026-11-05' };
+/** Data relativa a hoje: a regra de receita depende de a data já ter chegado ou não. */
+const dayIso = (offset: number) => todayIso(new Date(Date.now() + offset * 86_400_000));
+const futureIncome = { ...pending, id: 5, groupId: 104, description: 'Freela', categoryId: 20, amount: '800.00', dueDate: dayIso(10) };
+const receivedIncome = { ...futureIncome, id: 6, groupId: 105, description: 'Bônus', status: 'PAID', dueDate: dayIso(-2), paymentDate: dayIso(-2) };
+const anticipatedIncome = { ...futureIncome, id: 7, groupId: 106, description: 'Adiantamento', status: 'PAID', paymentDate: dayIso(0) };
 
 function page(content: unknown[]) {
   return { content, page: 0, size: 25, totalElements: content.length };
@@ -59,6 +64,26 @@ describe('TransactionsPage', () => {
     expect(badges[0].textContent).toContain('Itaú');
     expect(badges[1].textContent).toContain('Nubank');
     expect(badges.every((b) => b.querySelector('svg') !== null)).toBe(true);
+    http.verify();
+  });
+
+  it('despesa aparece em vermelho e receita em verde', async () => {
+    const { el, http } = await setup();
+    expect(el.querySelector('tbody td[data-kind="expense"]')?.className).toContain('text-gefinc-danger');
+    expect(el.querySelector('tbody td[data-kind="income"]')?.className).toContain('text-gefinc-primary');
+    http.verify();
+  });
+
+  it('receita usa Receber e A receber, e despesa continua com Pagar e Pend', async () => {
+    const { el, http } = await setup([pending, late, paid, { ...fixedIncome, dueDate: dayIso(5) }]);
+    const rowOf = (text: string) => Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes(text)) as HTMLElement;
+    const salary = rowOf('Salário');
+    expect(salary.textContent).toContain('A receber');
+    expect(Array.from(salary.querySelectorAll('button')).map((b) => b.textContent?.trim())).toContain('Antecipar recebimento');
+    expect(Array.from(salary.querySelectorAll('button')).map((b) => b.textContent?.trim())).not.toContain('Pagar');
+    const market = rowOf('Mercado');
+    expect(market.textContent).toContain('Pend');
+    expect(Array.from(market.querySelectorAll('button')).map((b) => b.textContent?.trim())).toContain('Pagar');
     http.verify();
   });
 
@@ -161,6 +186,30 @@ describe('TransactionsPage', () => {
     request.flush(page([paid]));
   });
 
+  it('o filtro de status diz A receber e Recebidas só quando o tipo é Receita', async () => {
+    const { http, el, fixture } = await setup();
+    const statusLabels = () => Array.from(el.querySelectorAll('select[aria-label="Status"] option')).map((o) => o.textContent?.trim());
+    expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
+
+    select(el, 'select[aria-label="Natureza"]', 'INCOME');
+    fixture.detectChanges();
+    listRequest(http).flush(page([]));
+    fixture.detectChanges();
+    expect(statusLabels()).toEqual(['Todos os status', 'A receber', 'Recebidas']);
+
+    select(el, 'select[aria-label="Natureza"]', 'EXPENSE');
+    fixture.detectChanges();
+    listRequest(http).flush(page([]));
+    fixture.detectChanges();
+    expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
+
+    select(el, 'select[aria-label="Natureza"]', '');
+    fixture.detectChanges();
+    listRequest(http).flush(page([]));
+    fixture.detectChanges();
+    expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
+  });
+
   it('excluir mostra o impacto e só então confirma a exclusão do grupo', async () => {
     const { http, el, fixture } = await setup();
     const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
@@ -170,20 +219,152 @@ describe('TransactionsPage', () => {
       .flush({ paidCount: 2, pendingCount: 3, paidAmount: '20.00', pendingAmount: '30.00' });
     fixture.detectChanges();
 
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('3 lançamento(s)');
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('2 já pago(s) serão preservados');
-    clickButton(el, 'Excluir');
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('3 lançamento(s)');
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('2 já pago(s) serão preservados');
+    http.expectNone((r) => r.method === 'DELETE');
+    clickButton(el, 'Excluir "Mercado"');
     const del = http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/100`);
     expect(del.request.params.get('confirm')).toBe('true');
     del.flush(null, { status: 204, statusText: 'No Content' });
     listRequest(http).flush(page([]));
   });
 
-  it('lançamento fixo oferece alterar o valor a partir do mês e encerrar', async () => {
-    const { http, el } = await setup();
+  it('Cancelar e Escape no diálogo de exclusão não excluem nada', async () => {
+    const { http, el, fixture } = await setup();
+    const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
+    (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Excluir') as HTMLButtonElement).click();
+    http
+      .expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` })
+      .flush({ paidCount: 2, pendingCount: 3, paidAmount: '20.00', pendingAmount: '30.00' });
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(el.querySelector('[data-testid="confirm-cancel"]'));
+    (el.querySelector('[role="alertdialog"]') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    http.expectNone((r) => r.method === 'DELETE');
+  });
+
+  it('erro ao excluir fica dentro do diálogo, que continua aberto', async () => {
+    const { http, el, fixture } = await setup();
+    const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
+    (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Excluir') as HTMLButtonElement).click();
+    http
+      .expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` })
+      .flush({ paidCount: 2, pendingCount: 3, paidAmount: '20.00', pendingAmount: '30.00' });
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE').flush({}, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="confirm-error"]')?.textContent).toContain('erro inesperado');
+    expect(el.querySelector('[role="alertdialog"]')).not.toBeNull();
+  });
+
+  const rowOf = (el: HTMLElement, text: string) =>
+    Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes(text)) as HTMLElement;
+  const labels = (row: HTMLElement) => Array.from(row.querySelectorAll('button')).map((b) => b.textContent?.trim());
+
+  it('receita recebida de data passada mostra Recebido e só Editar e Excluir', async () => {
+    const { el, http } = await setup([receivedIncome]);
+    const row = rowOf(el, 'Bônus');
+    expect(row.textContent).toContain('Recebido');
+    expect(labels(row)).toEqual(['Editar', 'Excluir']);
+    http.verify();
+  });
+
+  it('receita futura pendente mostra A receber, Antecipar recebimento, Editar e Excluir, e nunca Atrasado', async () => {
+    const { el, http } = await setup([{ ...futureIncome, overdue: true }]);
+    const row = rowOf(el, 'Freela');
+    expect(row.textContent).toContain('A receber');
+    expect(row.textContent).not.toContain('Atrasado');
+    expect(row.textContent).not.toContain('Vencido');
+    expect(labels(row)).toEqual(['Antecipar recebimento', 'Editar', 'Excluir']);
+    http.verify();
+  });
+
+  it('receita antecipada (recebida com data futura) oferece Desfazer', async () => {
+    const { el, http } = await setup([anticipatedIncome]);
+    const row = rowOf(el, 'Adiantamento');
+    expect(row.textContent).toContain('Recebido');
+    expect(labels(row)).toEqual(['Editar', 'Desfazer', 'Excluir']);
+    http.verify();
+  });
+
+  it('receita legada em cartão segue a regra de despesa: pendente tem Receber, Editar e Excluir, mesmo com data futura', async () => {
+    const { el, http } = await setup([{ ...futureIncome, accountId: 2 }]);
+    expect(labels(rowOf(el, 'Freela'))).toEqual(['Receber', 'Editar', 'Excluir']);
+    http.verify();
+  });
+
+  it('receita legada em cartão já recebida não é editável e oferece Desfazer, como despesa', async () => {
+    const { el, http } = await setup([{ ...receivedIncome, accountId: 2 }]);
+    expect(labels(rowOf(el, 'Bônus'))).toEqual(['Desfazer', 'Excluir']);
+    http.verify();
+  });
+
+  it('despesa paga continua só com Desfazer e Excluir', async () => {
+    const { el, http } = await setup([paid]);
+    expect(labels(rowOf(el, 'Cinema'))).toEqual(['Desfazer', 'Excluir']);
+    http.verify();
+  });
+
+  it('antecipar o recebimento explica o efeito e registra o pagamento da receita futura', async () => {
+    const { http, el, fixture } = await setup([futureIncome]);
+    (Array.from(rowOf(el, 'Freela').querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Antecipar recebimento') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Antecipar o recebimento de');
+
+    clickButton(el, 'Confirmar');
+    const pay = http.expectOne({ method: 'POST', url: `${API}/transactions/5/pay` });
+    expect(pay.request.body).toEqual({ paymentDate: todayIso() });
+    pay.flush({ ...futureIncome, status: 'PAID' });
+    listRequest(http).flush(page([]));
+  });
+
+  it('editar receita já recebida envia a nova data do recebimento com a versão', async () => {
+    const { http, el, fixture } = await setup([receivedIncome]);
+    (Array.from(rowOf(el, 'Bônus').querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Editar') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('label[for="editDue"]')?.textContent).toContain('Data do recebimento');
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Entra na conta na data informada');
+
+    const future = dayIso(20);
+    const input = el.querySelector('#editDue') as HTMLInputElement;
+    input.value = future;
+    input.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Fica a receber até');
+
+    clickButton(el, 'Salvar');
+    const patch = http.expectOne({ method: 'PATCH', url: `${API}/transactions/6` });
+    expect(patch.request.body).toMatchObject({ dueDate: future, version: 0 });
+    patch.flush({ ...receivedIncome, dueDate: future, status: 'PENDING' });
+    listRequest(http).flush(page([]));
+  });
+
+  it('excluir receita avulsa recebida avisa que o valor sai do saldo', async () => {
+    const { http, el, fixture } = await setup([receivedIncome]);
+    (Array.from(rowOf(el, 'Bônus').querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Excluir') as HTMLButtonElement).click();
+    http
+      .expectOne({ method: 'GET', url: `${API}/transaction-groups/105/impact` })
+      .flush({ paidCount: 1, pendingCount: 0, paidAmount: '800.00', pendingAmount: '0.00' });
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('sai do saldo da conta');
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('R$ 800,00');
+    clickButton(el, 'Excluir "Bônus"');
+    http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/105`).flush(null, { status: 204, statusText: 'No Content' });
+    listRequest(http).flush(page([]));
+  });
+
+  it('lançamento fixo oferece alterar o valor a partir do mês e encerrar (com confirmação)', async () => {
+    const { http, el, fixture } = await setup();
     const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Salário')) as HTMLElement;
     expect(row.textContent).toContain('Alterar valor daqui');
     (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Encerrar aqui') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups/103/end` });
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('Encerrar Salário em 11/2026?');
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('as já pagas e as anteriores permanecem');
+    clickButton(el, 'Encerrar lançamento');
     const end = http.expectOne({ method: 'POST', url: `${API}/transaction-groups/103/end` });
     expect(end.request.body).toEqual({ endMonth: '2026-11' });
     end.flush({});

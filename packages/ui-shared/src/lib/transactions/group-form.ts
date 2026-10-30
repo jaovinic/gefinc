@@ -2,15 +2,24 @@ import { Component, OnInit, computed, effect, inject, input, output, signal, unt
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefinc/core-models';
 import { ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
+import { accountsFor, reconcileAccount } from '../accounts/account-rules';
 import { AccountPicker } from '../accounts/account-picker';
-import { Icon } from '../icons/icon';
 import { MoneyInput } from '../money-input/money-input';
-import { formatBRL, invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+import { incomeDateHint } from './income-hint';
+import { KindSwitch } from './kind-switch';
+import { formatBRL, invoiceDueDate, isoToBR, monthLabelBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+import { type AmountMode, belowMinimumPerInstallment, effectiveTotal, installmentSummary } from './installment-amount';
 
 /** O valor precisa ser maior que zero (sem nenhum dígito diferente de zero, é zero). */
 function positiveAmount(control: AbstractControl): ValidationErrors | null {
   const value = control.value as string | null;
   return value && !/[1-9]/.test(value) ? { positive: true } : null;
+}
+
+/** A quantidade de parcelas é um inteiro de 1 a 120 (vazio, zero, fracionário ou acima de 120 é inválido). */
+function installmentCount(control: AbstractControl): ValidationErrors | null {
+  const value = Number(control.value);
+  return Number.isInteger(value) && value >= 1 && value <= 120 ? null : { installmentCount: true };
 }
 
 const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
@@ -22,7 +31,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
 /** Cadastro de lançamento avulso, fixo mensal ou parcelado (FR-017 a FR-024). */
 @Component({
   selector: 'gef-group-form',
-  imports: [AccountPicker, Icon, ReactiveFormsModule, MoneyInput],
+  imports: [AccountPicker, KindSwitch, ReactiveFormsModule, MoneyInput],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" novalidate>
       <h2 class="text-title-md font-semibold">Novo lançamento</h2>
@@ -31,17 +40,43 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
       }
       <fieldset>
         <legend class="gef-label">Natureza</legend>
-        <div class="flex gap-2" data-field="kind">
-          <label class="gef-segment">
-            <input type="radio" id="kind-EXPENSE" formControlName="kind" value="EXPENSE" />
-            <gef-icon name="arrow-down" [size]="16" /><span>Despesa</span>
-          </label>
-          <label class="gef-segment">
-            <input type="radio" id="kind-INCOME" formControlName="kind" value="INCOME" />
-            <gef-icon name="arrow-up" [size]="16" /><span>Receita</span>
-          </label>
-        </div>
+        <gef-kind-switch formControlName="kind" />
       </fieldset>
+      <div>
+        <gef-money-input
+          size="hero"
+          [tone]="kind() === 'INCOME' ? 'income' : 'expense'"
+          [label]="amountLabel()"
+          formControlName="totalAmount"
+        />
+        @if (form.controls.totalAmount.touched && form.controls.totalAmount.invalid) {
+          <p class="gef-field-error">Informe um valor maior que zero.</p>
+        }
+        @if (serverErrors()['totalAmount']; as message) {
+          <p class="gef-field-error">{{ message }}</p>
+        }
+        @if (amountError(); as message) {
+          <p class="gef-field-error" role="alert">{{ message }}</p>
+        }
+        @if (recurrence() === 'INSTALLMENT') {
+          <div class="mt-2 flex gap-2" role="group" aria-label="Forma de informar">
+            <button
+              type="button"
+              class="gef-btn-sm flex-1"
+              [class.gef-btn-sm-primary]="amountMode() === 'TOTAL'"
+              [attr.aria-pressed]="amountMode() === 'TOTAL'"
+              (click)="amountMode.set('TOTAL')"
+            >Valor total</button>
+            <button
+              type="button"
+              class="gef-btn-sm flex-1"
+              [class.gef-btn-sm-primary]="amountMode() === 'INSTALLMENT'"
+              [attr.aria-pressed]="amountMode() === 'INSTALLMENT'"
+              (click)="amountMode.set('INSTALLMENT')"
+            >Valor da parcela</button>
+          </div>
+        }
+      </div>
       <div class="grid gap-4 sm:grid-cols-3">
         <div>
           <label class="gef-label" for="recurrenceType">Tipo</label>
@@ -63,12 +98,16 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
             label="Conta ou cartão"
             placeholder="Selecione…"
             formControlName="accountId"
-            [accounts]="reference.accounts()"
-            emptyMessage="Cadastre uma conta ou cartão para lançar."
+            [accounts]="pickerAccounts()"
+            [emptyMessage]="kind() === 'INCOME' ? 'Cadastre uma conta para receber.' : 'Cadastre uma conta ou cartão para lançar.'"
           />
           @if (form.controls.accountId.touched && form.controls.accountId.value === 0) {
             <p class="gef-field-error">Escolha a conta.</p>
           }
+          @if (serverErrors()['accountId']; as message) {
+            <p class="gef-field-error">{{ message }}</p>
+          }
+          <p class="mt-1 text-caption text-gefinc-warning" aria-live="polite" data-testid="account-notice">{{ accountNotice() }}</p>
         </div>
         <div>
           <label class="gef-label" for="categoryId">Categoria</label>
@@ -82,52 +121,77 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
             <p class="gef-field-error">Escolha a categoria.</p>
           }
         </div>
-        <div>
-          <gef-money-input [label]="recurrence() === 'INSTALLMENT' ? 'Valor total' : 'Valor'" formControlName="totalAmount" />
-          @if (form.controls.totalAmount.touched && form.controls.totalAmount.invalid) {
-            <p class="gef-field-error">Informe um valor maior que zero.</p>
-          }
-        </div>
         @if (recurrence() === 'INSTALLMENT') {
           <div>
             <label class="gef-label" for="totalInstallments">Quantidade de parcelas</label>
-            <input id="totalInstallments" class="gef-input" type="number" min="1" max="120" formControlName="totalInstallments" />
+            <input
+              id="totalInstallments"
+              class="gef-input"
+              type="number"
+              min="1"
+              max="120"
+              formControlName="totalInstallments"
+              [attr.aria-invalid]="installmentsInvalid() ? 'true' : null"
+              [attr.aria-describedby]="installmentsInvalid() ? 'totalInstallments-error' : null"
+            />
+            @if (installmentsInvalid()) {
+              <p id="totalInstallments-error" class="gef-field-error" role="alert">Informe de 1 a 120 parcelas.</p>
+            }
             @if (serverErrors()['totalInstallments']; as message) {
               <p class="gef-field-error">{{ message }}</p>
             }
           </div>
         }
-        <div>
-          <label class="gef-label" for="purchaseDate">Data da compra</label>
-          <input id="purchaseDate" class="gef-input" type="date" formControlName="purchaseDate" />
-        </div>
-        @if (selectedAccount()?.type === 'CREDIT_CARD') {
-          <div class="sm:col-span-2">
-            <p class="gef-label">Vencimento</p>
-            <p class="text-body-base text-gefinc-muted" aria-live="polite">
-              {{ dueDatePreview() ? 'Vence em ' + dueDatePreview() + ' (definido pela fatura do cartão).' : '—' }}
-            </p>
+        @if (kind() === 'INCOME') {
+          <div>
+            <label class="gef-label" for="purchaseDate">{{ recurrence() === 'VARIABLE' ? 'Data do recebimento' : 'Primeiro recebimento' }}</label>
+            <input id="purchaseDate" class="gef-input" type="date" formControlName="purchaseDate" />
+            <p class="mt-1 text-caption text-gefinc-muted" aria-live="polite" data-testid="income-hint">{{ incomeHint() }}</p>
           </div>
         } @else {
           <div>
-            <label class="gef-label" for="firstDueDate">{{ form.controls.recurrenceType.value === 'FIXED' ? 'Primeiro vencimento' : 'Vencimento' }}</label>
-            <input id="firstDueDate" class="gef-input" type="date" formControlName="firstDueDate" />
-            @if (serverErrors()['firstDueDate']; as message) {
-              <p class="gef-field-error">{{ message }}</p>
-            }
+            <label class="gef-label" for="purchaseDate">Data da compra</label>
+            <input id="purchaseDate" class="gef-input" type="date" formControlName="purchaseDate" />
           </div>
+          @if (selectedAccount()?.type === 'CREDIT_CARD') {
+            <div class="sm:col-span-2">
+              <p class="gef-label">Vencimento</p>
+              <p class="text-body-base text-gefinc-muted" aria-live="polite">
+                {{ dueDatePreview() ? 'Vence em ' + dueDatePreview() + ' (definido pela fatura do cartão).' : '—' }}
+              </p>
+            </div>
+          } @else {
+            <div>
+              <label class="gef-label" for="firstDueDate">{{ form.controls.recurrenceType.value === 'FIXED' ? 'Primeiro vencimento' : 'Vencimento' }}</label>
+              <input id="firstDueDate" class="gef-input" type="date" formControlName="firstDueDate" />
+              @if (serverErrors()['firstDueDate']; as message) {
+                <p class="gef-field-error">{{ message }}</p>
+              }
+            </div>
+          }
         }
       </div>
       @if (recurrence() === 'INSTALLMENT' && installmentPreview().length > 0) {
+        <p class="financial-value text-body-base font-semibold" aria-live="polite" data-testid="installment-summary">{{ summary() }}</p>
         <div class="overflow-x-auto rounded-lg border border-gefinc-border" aria-label="Prévia das parcelas">
           <table class="w-full text-left text-body-base">
             <thead class="text-caption uppercase text-gefinc-muted">
-              <tr><th class="px-3 py-2">Parcela</th><th class="px-3 py-2">Vencimento</th><th class="px-3 py-2 text-right">Valor</th></tr>
+              <tr>
+                <th class="px-3 py-2">Parcela</th>
+                @if (cardSelected()) {
+                  <th class="px-3 py-2">Fatura</th>
+                }
+                <th class="px-3 py-2">Vencimento</th>
+                <th class="px-3 py-2 text-right">Valor</th>
+              </tr>
             </thead>
             <tbody>
               @for (item of installmentPreview(); track item.number) {
                 <tr class="border-t border-gefinc-border">
                   <td class="px-3 py-1.5">{{ item.number }}/{{ installmentPreview().length }}</td>
+                  @if (cardSelected()) {
+                    <td class="px-3 py-1.5">{{ item.invoice }} · vence {{ item.dueShort }}</td>
+                  }
                   <td class="px-3 py-1.5">{{ item.due }}</td>
                   <td class="financial-value px-3 py-1.5 text-right">{{ item.amount }}</td>
                 </tr>
@@ -164,20 +228,55 @@ export class GroupForm implements OnInit {
     accountId: [0],
     categoryId: [0],
     totalAmount: this.fb.control<string | null>(null, [Validators.required, positiveAmount]),
-    totalInstallments: [2, [Validators.min(1), Validators.max(120)]],
+    // Só vale no tipo Parcelado: nos demais o controle fica desabilitado (oculto) e não bloqueia o envio.
+    totalInstallments: [{ value: 2, disabled: true }, [installmentCount]],
     purchaseDate: [todayIso(), Validators.required],
     firstDueDate: [todayIso()],
   });
 
   private readonly accountId = signal(0);
-  private readonly kind = signal<CategoryType>('EXPENSE');
+  protected readonly kind = signal<CategoryType>('EXPENSE');
   private readonly purchaseDate = signal(todayIso());
   protected readonly recurrence = signal<RecurrenceType>('VARIABLE');
   private readonly amount = signal<string | null>(null);
   private readonly count = signal(2);
+  /** O valor digitado é o total da compra (padrão) ou o valor de cada parcela. */
+  protected readonly amountMode = signal<AmountMode>('TOTAL');
+  protected readonly amountLabel = computed(() => {
+    if (this.recurrence() !== 'INSTALLMENT') {
+      return 'Valor';
+    }
+    return this.amountMode() === 'INSTALLMENT' ? 'Valor da parcela' : 'Valor total';
+  });
+  /** Total que vai ao servidor: no modo parcela, valor × quantidade (centavos em bigint). */
+  private readonly installmentTotal = computed(() => effectiveTotal(this.amount(), this.count(), this.amountMode()));
+  protected readonly cardSelected = computed(() => this.selectedAccount()?.type === 'CREDIT_CARD');
+  /** Aviso no campo de valor quando o total não cobre um centavo por parcela. */
+  protected readonly amountError = computed(() => {
+    const total = this.installmentTotal();
+    if (this.recurrence() !== 'INSTALLMENT' || !total || !/[1-9]/.test(total) || !Number.isInteger(this.count()) || this.count() < 1) {
+      return '';
+    }
+    return belowMinimumPerInstallment(total, this.count()) ? 'O valor deve ter pelo menos R$ 0,01 por parcela.' : '';
+  });
+  protected readonly summary = computed(() => {
+    const total = this.installmentTotal();
+    return total ? installmentSummary(total, this.count()) : '';
+  });
   private readonly firstDueDate = signal(todayIso());
 
-  protected readonly activeAccounts = computed(() => this.reference.accounts().filter((a) => a.active));
+  /** Contas que a natureza aceita (receita nunca lista cartão); a inativa só fica se já estiver escolhida. */
+  protected readonly pickerAccounts = computed(() =>
+    accountsFor(
+      this.kind(),
+      this.reference.accounts().filter((a) => a.active || a.id === this.accountId()),
+    ),
+  );
+  protected readonly accountNotice = signal('');
+  /** Dica sob a data da receita: já entra na conta ou fica a receber até a data. */
+  protected readonly incomeHint = computed(() => {
+    return incomeDateHint(this.purchaseDate(), todayIso());
+  });
   protected readonly selectedAccount = computed(() => this.reference.accounts().find((a) => a.id === this.accountId()));
   protected readonly categoryOptions = computed(() => this.reference.categories().filter((c) => c.type === this.kind()));
   protected readonly dueDatePreview = computed(() => {
@@ -196,8 +295,8 @@ export class GroupForm implements OnInit {
   /** Prévia das parcelas pela mesma regra do servidor (`packages/utils`). */
   protected readonly installmentPreview = computed(() => {
     const account = this.selectedAccount();
-    const amount = this.amount();
-    if (this.recurrence() !== 'INSTALLMENT' || !account || !amount) {
+    const total = this.installmentTotal();
+    if (this.recurrence() !== 'INSTALLMENT' || !account || !total) {
       return [];
     }
     try {
@@ -207,9 +306,15 @@ export class GroupForm implements OnInit {
         dueDay: card ? account.dueDay : undefined,
         purchaseDate: this.purchaseDate(),
         firstDueDate: card ? undefined : this.firstDueDate(),
-        total: amount,
+        total,
         count: this.count(),
-      }).map((item) => ({ number: item.number, due: isoToBR(item.dueDate), amount: formatBRL(item.amount) }));
+      }).map((item) => ({
+        number: item.number,
+        due: isoToBR(item.dueDate),
+        invoice: monthLabelBR(item.dueDate),
+        dueShort: isoToBR(item.dueDate).slice(0, 5),
+        amount: formatBRL(item.amount),
+      }));
     } catch {
       return [];
     }
@@ -228,8 +333,12 @@ export class GroupForm implements OnInit {
       untracked(() => {
         this.initialApplied = true;
         const category = this.reference.category(initial.categoryId);
+        const kind = category?.type ?? 'EXPENSE';
+        // Receita tem uma só data (a do recebimento); operações antigas podem trazer duas.
+        const date = kind === 'INCOME' ? (initial.firstDueDate ?? initial.purchaseDate) : initial.purchaseDate;
         // Trocar a natureza zera a categoria: por isso a categoria vem depois.
-        this.form.controls.kind.setValue(category?.type ?? 'EXPENSE');
+        this.form.controls.kind.setValue(kind);
+        this.amountMode.set('TOTAL');
         this.form.patchValue({
           recurrenceType: initial.recurrenceType,
           description: initial.description,
@@ -237,25 +346,68 @@ export class GroupForm implements OnInit {
           categoryId: initial.categoryId,
           totalAmount: initial.totalAmount,
           totalInstallments: initial.totalInstallments ?? 2,
-          purchaseDate: initial.purchaseDate,
-          firstDueDate: initial.firstDueDate ?? initial.purchaseDate,
+          purchaseDate: date,
+          firstDueDate: kind === 'INCOME' ? date : (initial.firstDueDate ?? initial.purchaseDate),
         });
+        this.reconcile(kind);
       });
     });
   }
 
   ngOnInit(): void {
     this.reference.refresh();
-    this.form.controls.accountId.valueChanges.subscribe((v) => this.accountId.set(Number(v)));
+    this.form.controls.accountId.valueChanges.subscribe((v) => {
+      this.accountId.set(Number(v));
+      this.accountNotice.set('');
+    });
     this.form.controls.kind.valueChanges.subscribe((v) => {
       this.kind.set(v);
       this.form.controls.categoryId.setValue(0);
+      if (v === 'INCOME') {
+        this.form.controls.firstDueDate.setValue(this.form.controls.purchaseDate.value);
+      }
+      this.reconcile(v);
     });
-    this.form.controls.purchaseDate.valueChanges.subscribe((v) => this.purchaseDate.set(v));
-    this.form.controls.recurrenceType.valueChanges.subscribe((v) => this.recurrence.set(v));
+    this.form.controls.purchaseDate.valueChanges.subscribe((v) => {
+      this.purchaseDate.set(v);
+      // Receita tem uma só data: o recebimento vale como data do lançamento e como vencimento.
+      if (this.kind() === 'INCOME') {
+        this.form.controls.firstDueDate.setValue(v);
+      }
+    });
+    this.form.controls.recurrenceType.valueChanges.subscribe((v) => {
+      this.recurrence.set(v);
+      const installments = this.form.controls.totalInstallments;
+      if (v === 'INSTALLMENT') {
+        installments.enable();
+      } else {
+        installments.disable();
+      }
+    });
     this.form.controls.totalAmount.valueChanges.subscribe((v) => this.amount.set(v));
     this.form.controls.totalInstallments.valueChanges.subscribe((v) => this.count.set(Number(v)));
     this.form.controls.firstDueDate.valueChanges.subscribe((v) => this.firstDueDate.set(v));
+  }
+
+  /** Troca a conta quando ela não vale para a natureza (cartão em receita) e explica a troca. */
+  private reconcile(kind: CategoryType): void {
+    const current = Number(this.form.controls.accountId.value);
+    if (current === 0) {
+      return;
+    }
+    const next = reconcileAccount(kind, this.reference.accounts(), current);
+    if (next === current) {
+      return;
+    }
+    this.form.controls.accountId.setValue(next);
+    const name = this.reference.account(next)?.name;
+    this.accountNotice.set(name ? `Cartão não recebe receita; conta trocada para ${name}.` : 'Cartão não recebe receita; escolha uma conta.');
+  }
+
+  /** Quantidade de parcelas inválida e já tocada (ou após tentar enviar). */
+  protected installmentsInvalid(): boolean {
+    const control = this.form.controls.totalInstallments;
+    return control.touched && control.invalid;
   }
 
   protected submit(): void {
@@ -263,20 +415,23 @@ export class GroupForm implements OnInit {
       return;
     }
     const value = this.form.getRawValue();
+    const income = value.kind === 'INCOME';
     const card = this.selectedAccount()?.type === 'CREDIT_CARD';
-    if (this.form.invalid || Number(value.accountId) === 0 || Number(value.categoryId) === 0 || !value.totalAmount) {
+    const installment = value.recurrenceType === 'INSTALLMENT';
+    const totalAmount = installment ? this.installmentTotal() : value.totalAmount;
+    if (this.form.invalid || Number(value.accountId) === 0 || Number(value.categoryId) === 0 || !totalAmount || this.amountError()) {
       this.form.markAllAsTouched();
       return;
     }
     const input: TransactionGroupInput = {
       description: value.description.trim(),
       recurrenceType: value.recurrenceType,
-      totalAmount: value.totalAmount,
-      ...(value.recurrenceType === 'INSTALLMENT' ? { totalInstallments: Number(value.totalInstallments) } : {}),
+      totalAmount,
+      ...(installment ? { totalInstallments: Number(value.totalInstallments) } : {}),
       accountId: Number(value.accountId),
       categoryId: Number(value.categoryId),
       purchaseDate: value.purchaseDate,
-      ...(card ? {} : { firstDueDate: value.firstDueDate }),
+      ...(card ? {} : { firstDueDate: income ? value.purchaseDate : value.firstDueDate }),
     };
     this.error.set(null);
     this.serverErrors.set({});

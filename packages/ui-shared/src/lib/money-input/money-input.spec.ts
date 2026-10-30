@@ -96,3 +96,39 @@ describe('MoneyInput autofocus', () => {
     fixture.nativeElement.remove();
   });
 });
+
+@Component({
+  imports: [MoneyInput, ReactiveFormsModule],
+  template: `<gef-money-input label="Valor" size="hero" tone="income" [formControl]="control" />`,
+})
+class HeroHost {
+  control = new FormControl<string | null>(null);
+}
+
+describe('MoneyInput hero e tom', () => {
+  it('no tamanho hero o valor é grande, centralizado e colorido só no texto', async () => {
+    const fixture = TestBed.createComponent(HeroHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const field = el.querySelector('.gef-money-field') as HTMLElement;
+    const input = el.querySelector('input') as HTMLInputElement;
+
+    expect(field.getAttribute('data-size')).toBe('hero');
+    expect(input.className).toContain('text-display-1');
+    expect(input.className).toContain('text-center');
+    expect(input.className).toContain('text-gefinc-primary');
+    expect(field.className).not.toContain('text-gefinc');
+  });
+
+  it('o campo comum usa a classe de foco neutro e nunca o foco verde', async () => {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.gef-money-field')).not.toBeNull();
+    expect(el.innerHTML).not.toContain('focus-within:border-gefinc-primary');
+    expect((el.querySelector('input') as HTMLInputElement).className).toContain('text-right');
+  });
+});

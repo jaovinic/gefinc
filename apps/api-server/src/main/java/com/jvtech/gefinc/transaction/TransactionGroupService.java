@@ -4,6 +4,7 @@ import com.jvtech.gefinc.account.Account;
 import com.jvtech.gefinc.account.AccountRepository;
 import com.jvtech.gefinc.category.Category;
 import com.jvtech.gefinc.category.CategoryRepository;
+import com.jvtech.gefinc.category.CategoryType;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.invoice.InvoiceBalanceGuard;
@@ -33,6 +34,7 @@ public class TransactionGroupService {
   private final CategoryRepository categories;
   private final Clock clock;
   private final InvoiceBalanceGuard guard;
+  private final IncomeSettlement incomeSettlement;
 
   public TransactionGroupService(
       TransactionGroupRepository groups,
@@ -40,13 +42,15 @@ public class TransactionGroupService {
       AccountRepository accounts,
       CategoryRepository categories,
       Clock clock,
-      InvoiceBalanceGuard guard) {
+      InvoiceBalanceGuard guard,
+      IncomeSettlement incomeSettlement) {
     this.groups = groups;
     this.transactions = transactions;
     this.accounts = accounts;
     this.categories = categories;
     this.clock = clock;
     this.guard = guard;
+    this.incomeSettlement = incomeSettlement;
   }
 
   /** Grupo com as suas ocorrências. */
@@ -55,20 +59,32 @@ public class TransactionGroupService {
   @Transactional
   public GroupView create(long userId, GroupInput input) {
     Account account = activeAccount(userId, input.accountId());
-    categories
-        .findByIdAndUserId(input.categoryId(), userId)
-        .orElseThrow(() -> ApiException.notFound("Categoria não encontrada."));
+    Category category =
+        categories
+            .findByIdAndUserId(input.categoryId(), userId)
+            .orElseThrow(() -> ApiException.notFound("Categoria não encontrada."));
+    if (category.getType() == CategoryType.INCOME && account.isCreditCard()) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError(
+              "accountId",
+              "Receitas só podem entrar em conta bancária ou dinheiro, não em cartão de crédito.");
+    }
     int installments = input.totalInstallments() == null ? 1 : input.totalInstallments();
     if (input.recurrenceType() != RecurrenceType.INSTALLMENT && installments != 1) {
       throw ApiException.validation("Há campos inválidos.")
           .withFieldError(
               "totalInstallments", "Somente lançamentos parcelados têm mais de uma parcela.");
     }
-    return switch (input.recurrenceType()) {
-      case VARIABLE -> createVariable(userId, account, input);
-      case FIXED -> createFixed(userId, account, input);
-      case INSTALLMENT -> createInstallments(userId, account, input, installments);
-    };
+    GroupView created =
+        switch (input.recurrenceType()) {
+          case VARIABLE -> createVariable(userId, account, input);
+          case FIXED -> createFixed(userId, account, input);
+          case INSTALLMENT -> createInstallments(userId, account, input, installments);
+        };
+    // Receita com vencimento até hoje já entra na conta; a liquidação limpa o contexto de
+    // persistência, então o grupo é lido de novo.
+    incomeSettlement.settleDue(userId);
+    return view(userId, created.group().getId());
   }
 
   private GroupView createVariable(long userId, Account account, GroupInput input) {
@@ -218,8 +234,13 @@ public class TransactionGroupService {
     return created;
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public GroupView get(long userId, long groupId) {
+    incomeSettlement.settleDue(userId);
+    return view(userId, groupId);
+  }
+
+  private GroupView view(long userId, long groupId) {
     TransactionGroup group = load(userId, groupId);
     return new GroupView(
         group, transactions.findByGroupIdAndUserIdOrderByInstallmentNumber(groupId, userId));
@@ -227,6 +248,7 @@ public class TransactionGroupService {
 
   @Transactional
   public GroupView update(long userId, long groupId, GroupUpdate input) {
+    incomeSettlement.settleDue(userId);
     TransactionGroup group = load(userId, groupId);
     if (group.getVersion() != input.version()) {
       throw new ApiException(
@@ -252,6 +274,7 @@ public class TransactionGroupService {
   /** Altera o valor mensal de um lançamento fixo a partir de um mês (ocorrências pendentes). */
   @Transactional
   public GroupView changeAmount(long userId, long groupId, AmountChange change) {
+    incomeSettlement.settleDue(userId);
     TransactionGroup group = load(userId, groupId);
     requireFixed(group, "Somente lançamentos fixos têm valor mensal alterável.");
     boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
@@ -284,6 +307,7 @@ public class TransactionGroupService {
   /** Encerra um lançamento fixo: remove as ocorrências pendentes depois do mês informado. */
   @Transactional
   public GroupView end(long userId, long groupId, YearMonth endMonth) {
+    incomeSettlement.settleDue(userId);
     TransactionGroup group = load(userId, groupId);
     requireFixed(group, "Somente lançamentos fixos podem ser encerrados.");
     boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
@@ -303,8 +327,9 @@ public class TransactionGroupService {
     return get(userId, groupId);
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public GroupImpact impact(long userId, long groupId) {
+    incomeSettlement.settleDue(userId);
     load(userId, groupId);
     return new GroupImpact(
         transactions.countByStatus(groupId, userId, TransactionStatus.PAID),
@@ -316,16 +341,29 @@ public class TransactionGroupService {
   /**
    * Exclui as ocorrências pendentes; as já pagas são preservadas. Se não restar nenhuma, o grupo
    * também é excluído; se restarem pagas num lançamento fixo, ele é encerrado no último mês pago
-   * para que a rotina não volte a gerar ocorrências.
+   * para que a rotina não volte a gerar ocorrências. Receita avulsa é a exceção: some por inteiro,
+   * inclusive a já recebida (a receita recebida deixa de compor o saldo da conta).
    */
   @Transactional
   public void delete(long userId, long groupId, boolean confirm) {
+    incomeSettlement.settleDue(userId);
     TransactionGroup group = load(userId, groupId);
     if (!confirm) {
       throw ApiException.validation("Confirme a exclusão.")
           .withFieldError("confirm", "A exclusão precisa ser confirmada.");
     }
     boolean card = guard.lockIfCard(userId, group.getAccountId()).isPresent();
+    if (!card
+        && group.getRecurrenceType() == RecurrenceType.VARIABLE
+        && categories
+            .findByIdAndUserId(group.getCategoryId(), userId)
+            .filter(c -> c.getType() == CategoryType.INCOME)
+            .isPresent()) {
+      transactions.deleteAllOfGroup(groupId, userId);
+      groups.delete(group);
+      groups.flush();
+      return;
+    }
     List<LocalDate> removedMonths =
         transactions.findByGroupIdAndUserIdOrderByInstallmentNumber(groupId, userId).stream()
             .filter(t -> !t.isPaid())

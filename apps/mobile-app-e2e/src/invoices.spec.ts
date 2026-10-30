@@ -55,6 +55,8 @@ test.describe('faturas no celular', () => {
 
     // desfaz o pagamento de quitação: volta para R$ 70,00 e itens pendentes
     await page.getByRole('button', { name: /^Desfazer pagamento de/ }).last().click();
+    await expect(page.getByRole('alertdialog')).toContainText('Os itens que ele quitou voltam a pendentes');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Desfazer pagamento' }).click();
     await expect(summary(page, 'Restante')).toHaveText('R$ 70,00');
     await expect(page.getByTestId('invoice-item').first()).toContainText('Pend');
 

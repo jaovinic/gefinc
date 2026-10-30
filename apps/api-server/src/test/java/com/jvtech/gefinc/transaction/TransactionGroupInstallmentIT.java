@@ -170,4 +170,75 @@ class TransactionGroupInstallmentIT extends IntegrationTestBase {
     assertThat(group.get("transactions")).hasSize(120);
     assertThat(group.get("transactions").get(119).get("dueDate").asText()).isEqualTo("2036-10-17");
   }
+
+  private static final List<String> TEN_MONTHS_FROM_DECEMBER =
+      List.of(
+          "2026-12-15",
+          "2027-01-15",
+          "2027-02-15",
+          "2027-03-15",
+          "2027-04-15",
+          "2027-05-15",
+          "2027-06-15",
+          "2027-07-15",
+          "2027-08-15",
+          "2027-09-15");
+
+  @Test
+  void cartaoFecha5Vence15PrimeiraParcelaDependeDoDiaDaCompra() throws Exception {
+    long closing5 = api.card(ana, "Inter", 5, 15);
+
+    JsonNode day4 = api.createGroup(ana, installments(closing5, "300.00", 3, "2026-11-04", null));
+    JsonNode day5 = api.createGroup(ana, installments(closing5, "300.00", 3, "2026-11-05", null));
+    JsonNode day6 = api.createGroup(ana, installments(closing5, "300.00", 3, "2026-11-06", null));
+
+    assertThat(field(day4, "dueDate")).containsExactly("2026-11-15", "2026-12-15", "2027-01-15");
+    assertThat(field(day5, "dueDate")).containsExactly("2026-11-15", "2026-12-15", "2027-01-15");
+    assertThat(field(day6, "dueDate")).containsExactly("2026-12-15", "2027-01-15", "2027-02-15");
+  }
+
+  @Test
+  void dezParcelasDeCemReaisAtravessamAViradaDeAnoCadaUmaNoSeuMes() throws Exception {
+    long closing5 = api.card(ana, "Inter", 5, 15);
+
+    JsonNode group =
+        api.json(
+            api.call(
+                    ana,
+                    HttpMethod.POST,
+                    "/transaction-groups",
+                    installments(closing5, "1000.00", 10, "2026-11-06", null))
+                .andExpect(status().isCreated())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.recurrenceType").value("INSTALLMENT"))
+                .andExpect(jsonPath("$.totalInstallments").value(10))
+                .andExpect(jsonPath("$.totalAmount").value("1000.00"))
+                .andExpect(jsonPath("$.transactions.length()").value(10)));
+
+    assertThat(field(group, "dueDate")).containsExactlyElementsOf(TEN_MONTHS_FROM_DECEMBER);
+    assertThat(field(group, "amount")).hasSize(10).containsOnly("100.00");
+    assertThat(field(group, "installmentNumber"))
+        .containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
+    assertThat(field(group, "totalInstallments")).hasSize(10).containsOnly("10");
+  }
+
+  @Test
+  void dezParcelasDe3333SomamTotalExatoSemResto() throws Exception {
+    long closing5 = api.card(ana, "Inter", 5, 15);
+
+    JsonNode group = api.createGroup(ana, installments(closing5, "333.30", 10, "2026-11-05", null));
+
+    assertThat(field(group, "amount")).hasSize(10).containsOnly("33.33");
+    assertThat(group.get("transactions").get(0).get("dueDate").asText()).isEqualTo("2026-11-15");
+    assertThat(group.get("transactions").get(9).get("dueDate").asText()).isEqualTo("2027-08-15");
+  }
+
+  @Test
+  void fechamento31EmFevereiroUsaUltimoDiaEPrimeiraFaturaVence10DeMarco() throws Exception {
+    long closing31 = api.card(ana, "Fecha 31", 31, 10);
+
+    JsonNode group = api.createGroup(ana, installments(closing31, "300.00", 3, "2026-02-28", null));
+
+    assertThat(field(group, "dueDate")).containsExactly("2026-03-10", "2026-04-10", "2026-05-10");
+  }
 }

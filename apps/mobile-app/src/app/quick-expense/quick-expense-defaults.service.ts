@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import type { Account, Category } from '@gefinc/core-models';
+import { isAccountAllowed } from '@gefinc/ui-shared';
 
 /** Natureza do lançamento rápido. */
 export type QuickKind = 'expense' | 'income';
@@ -14,7 +15,7 @@ const CATEGORY_TYPE = { expense: 'EXPENSE', income: 'INCOME' } as const;
 
 /**
  * Conta e categoria padrão do lançamento rápido, separados por natureza: a última usada ou, sem
- * histórico, a primeira conta ativa e a categoria "Outras despesas" (despesa) ou "Salário" (receita).
+ * histórico, a primeira conta ativa (em receita, nunca um cartão) e a categoria "Outras despesas" (despesa) ou "Salário" (receita).
  * Isso evita toques extras no formulário (RNF03).
  */
 @Injectable({ providedIn: 'root' })
@@ -36,7 +37,8 @@ export class QuickExpenseDefaults {
 
   /** Escolhe os padrões entre as contas e categorias que ainda valem; zero quando não há opção. */
   resolve(accounts: Account[], categories: Category[], kind: QuickKind = 'expense'): { accountId: number; categoryId: number } {
-    const usableAccounts = accounts.filter((a) => a.active);
+    // Receita só entra em conta (nunca em cartão); a última conta usada vale se ainda for aceita.
+    const usableAccounts = accounts.filter((a) => a.active && isAccountAllowed(CATEGORY_TYPE[kind], a));
     const ofKind = categories.filter((c) => c.type === CATEGORY_TYPE[kind]);
     const account = usableAccounts.find((a) => a.id === this.lastAccount[kind]()) ?? usableAccounts[0];
     const category =

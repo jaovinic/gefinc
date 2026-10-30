@@ -145,11 +145,36 @@ describe('InvoicesPage', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('saldo restante da fatura');
   });
 
-  it('desfazer um pagamento chama a API e recarrega', async () => {
-    const { http, el } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+  it('desfazer um pagamento pede confirmação e só então chama a API e recarrega', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
     clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    http.expectNone({ method: 'DELETE', url: `${API}/invoice-payments/5` });
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain(`Desfazer o pagamento de 10/${month.slice(5)}/${month.slice(0, 4)} (R$ 300,00)? Os itens que ele quitou voltam a pendentes.`);
+    clickButton(el, 'Desfazer pagamento');
     http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush(invoice());
     reload(http);
+  });
+
+  it('cancelar a confirmação de desfazer não chama a API', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+    clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    http.expectNone({ method: 'DELETE', url: `${API}/invoice-payments/5` });
+  });
+
+  it('erro ao desfazer fica dentro do diálogo', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+    clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    clickButton(el, 'Desfazer pagamento');
+    http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush({}, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="confirm-error"]')?.textContent).toContain('erro inesperado');
   });
 
   describe('no celular (layout compacto)', () => {

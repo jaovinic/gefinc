@@ -1,10 +1,18 @@
 import { APIRequestContext, Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, newUser, openTab, signIn, type TestUser } from './support';
+import { apiGet, apiPost, categoryId, chooseAccount, newUser, openTab, signIn, todayIso, type TestUser } from './support';
 
 async function prepare(request: APIRequestContext) {
   const user = await newUser(request);
-  await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  const bank = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, bankAccountId: bank.id });
   return user;
+}
+
+/** Dia futuro em ISO (a receita futura só entra na conta quando a data chega). */
+function futureIso(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /** Conta os toques (cliques de verdade do usuário) a partir deste ponto. */
@@ -17,57 +25,108 @@ async function startCountingTaps(page: Page) {
 }
 const taps = (page: Page) => page.evaluate(() => (window as unknown as { __taps: number }).__taps);
 
-test.describe('receita no celular', () => {
-  test('"Nova receita" fica ao lado de "Nova despesa" e a receita é lançada em até 3 toques', async ({ page, request }) => {
+test.describe('receita no celular (novo lançamento unificado)', () => {
+  test('um único "Novo lançamento" na tela inicial; a receita é lançada em até 3 toques', async ({ page, request }) => {
     const user: TestUser = await prepare(request);
     await signIn(page, user.email);
 
-    const expense = page.getByRole('link', { name: 'Nova despesa' });
-    const income = page.getByRole('link', { name: 'Nova receita' });
-    await expect(expense).toBeVisible();
-    await expect(income).toBeVisible();
-    const [a, b] = [await expense.boundingBox(), await income.boundingBox()];
-    expect(Math.abs(a!.y - b!.y)).toBeLessThan(4); // lado a lado
-    expect(Math.abs(a!.height - b!.height)).toBeLessThan(4); // mesmo destaque
+    await expect(page.getByRole('link', { name: 'Novo lançamento' })).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'Nova despesa' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Nova receita' })).toHaveCount(0);
 
     await startCountingTaps(page);
-    await income.click(); // toque 1
-    await expect(page.getByRole('heading', { name: 'Nova receita' })).toBeVisible();
-    await expect(page.getByLabel('Valor')).toBeFocused();
+    await page.getByRole('link', { name: 'Novo lançamento' }).click(); // toque 1
+    await expect(page.getByRole('heading', { name: 'Novo lançamento' })).toBeVisible();
+    await page.getByLabel('Receita').check(); // toque 2: escolher a natureza
+    await expect(page.getByLabel('Valor')).toBeFocused(); // o valor volta a ter o foco: o teclado segue aberto
     await page.keyboard.type('500000');
-    // só categorias de receita
+    // só categorias de receita, e a conta nunca lista cartão
     const options = await page.getByLabel('Categoria').locator('option').allTextContents();
     expect(options).toContain('Salário');
     expect(options).not.toContain('Alimentação');
-    await page.getByRole('button', { name: 'Salvar' }).click(); // toque 2
+    await page.getByRole('button', { name: 'Salvar' }).click(); // toque 3
 
     await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
     expect(await taps(page)).toBeLessThanOrEqual(3);
 
-    const groups = (await apiGet(request, user, '/transactions')) as { content: { description: string; amount: string; categoryId: number }[] };
-    expect(groups.content.some((t) => t.amount === '5000.00')).toBe(true);
+    const list = (await apiGet(request, user, '/transactions')) as { content: { amount: string; status: string }[] };
+    // receita de hoje já entra na conta: sem "marcar como recebida"
+    expect(list.content.find((t) => t.amount === '5000.00')?.status).toBe('PAID');
 
-    // aparece como receita na lista de lançamentos
     await openTab(page, 'Lançamentos');
-    await expect(page.getByTestId('transaction-card').filter({ hasText: 'R$ 5.000,00' })).toBeVisible();
+    const card = page.getByTestId('transaction-card').filter({ hasText: 'R$ 5.000,00' });
+    await expect(card).toContainText('Recebido');
+    await expect(card.getByRole('button', { name: /Receber|Antecipar/ })).toHaveCount(0);
   });
 
-  test('o cadastro completo pede receita ou despesa logo no início', async ({ page, request }) => {
+  test('o endereço antigo de nova receita abre o novo lançamento já em Receita', async ({ page, request }) => {
+    const user = await prepare(request);
+    await signIn(page, user.email);
+    await page.goto('/quick-income');
+    await expect(page).toHaveURL(/\/novo\?tipo=receita/);
+    await expect(page.getByLabel('Receita')).toBeChecked();
+  });
+
+  test('receita não aceita cartão: a lista de contas só mostra contas e trocar a natureza troca o cartão escolhido', async ({ page, request }) => {
+    const user = await prepare(request);
+    await signIn(page, user.email);
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await chooseAccount(page, page, 'Nubank');
+    await expect(page.locator('gef-account-picker button[aria-haspopup]')).toContainText('Nubank');
+
+    await page.getByLabel('Receita').check();
+    await expect(page.locator('gef-account-picker button[aria-haspopup]')).toContainText('Itaú');
+    await expect(page.getByTestId('account-notice')).toContainText('Cartão não recebe receita');
+
+    await page.locator('gef-account-picker button[aria-haspopup]').click();
+    await expect(page.locator('[role="option"]').filter({ hasText: 'Nubank' })).toHaveCount(0);
+    await expect(page.locator('[role="option"]').filter({ hasText: 'Itaú' })).toHaveCount(1);
+  });
+
+  test('receita de data futura fica "A receber" e pode ser antecipada em Lançamentos', async ({ page, request }) => {
+    const user = await prepare(request);
+    const future = futureIso(3);
+    const accounts = (await apiGet(request, user, '/accounts')) as { id: number; type: string }[];
+    await apiPost(request, user, '/transaction-groups', {
+      description: 'Freela futuro', recurrenceType: 'VARIABLE', totalAmount: '800.00', accountId: accounts.find((a) => a.type === 'CHECKING')!.id,
+      categoryId: await categoryId(request, user, 'Salário'), purchaseDate: future, firstDueDate: future,
+    });
+    await signIn(page, user.email);
+    await openTab(page, 'Lançamentos');
+    // a data futura pode cair no mês seguinte no fim do mês
+    if (future.slice(0, 7) !== todayIso().slice(0, 7)) {
+      await page.getByRole('button', { name: 'Próximo mês' }).click();
+    }
+    const card = page.getByTestId('transaction-card').filter({ hasText: 'Freela futuro' });
+    await expect(card).toContainText('A receber');
+
+    await card.getByRole('button', { name: /Antecipar recebimento/ }).click();
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    await expect(page.getByTestId('transaction-card').filter({ hasText: 'Freela futuro' })).toContainText('Recebido');
+    // antecipada, ainda de data futura: pode voltar a "A receber"
+    await expect(page.getByTestId('transaction-card').filter({ hasText: 'Freela futuro' }).getByRole('button', { name: /Desfazer/ })).toBeVisible();
+  });
+
+  test('o cadastro completo pede receita ou despesa logo no início e a receita tem uma só data', async ({ page, request }) => {
     const user = await prepare(request);
     await signIn(page, user.email);
     await openTab(page, 'Lançamentos');
     await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
     const form = page.locator('gef-group-form');
-    const firstLabel = form.locator('legend, label').first();
-    await expect(firstLabel).toContainText('Natureza');
+    await expect(form.locator('legend, label').first()).toContainText('Natureza');
     await form.getByLabel('Receita').check();
     await expect(form.getByLabel('Categoria').locator('option', { hasText: 'Salário' })).toHaveCount(1);
+    await expect(form.getByLabel('Data do recebimento')).toBeVisible();
+    await expect(form.getByLabel('Data da compra')).toHaveCount(0);
+    await expect(form.getByLabel(/vencimento/i)).toHaveCount(0);
+    await expect(form.getByText('Entra na conta hoje')).toBeVisible();
   });
 
   test('receita sem conexão é guardada e enviada uma única vez', async ({ page, request }) => {
     const user = await prepare(request);
     await signIn(page, user.email);
-    await page.getByRole('link', { name: 'Nova receita' }).click();
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await page.getByLabel('Receita').check();
     await page.keyboard.type('120000');
     await page.getByLabel('Descrição (opcional)').fill('Freela');
     await page.route('**/transaction-groups', (route) => route.abort('internetdisconnected'));

@@ -13,7 +13,8 @@ import { LogoutAction } from '../core/logout';
       @for (item of items; track item.key) {
         <a class="gef-menu-item gap-3" [routerLink]="item.app">
           <span class="gef-account-tile text-gefinc-primary"><gef-icon [name]="item.icon" [size]="18" /></span>
-          {{ item.label }}
+          <span class="flex-1">{{ item.label }}</span>
+          <gef-icon name="chevron-right" class="text-gefinc-muted" [size]="18" />
         </a>
       }
       <button type="button" class="gef-btn-secondary flex w-full items-center justify-center gap-2" (click)="logout.run()">

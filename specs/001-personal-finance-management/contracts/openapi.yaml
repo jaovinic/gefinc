@@ -273,12 +273,16 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Accounts]
-      summary: Exclui conta sem lançamentos (FR-013)
+      summary: Exclui conta sem nenhum dado relacionado (FR-013)
+      description: |
+        Só exclui conta sem lançamentos, pagamentos de fatura, cartões vinculados nem saldo inicial
+        diferente de zero; senão `409` (`ACCOUNT_IN_USE`) com as contagens. A prévia está em
+        `GET /accounts/{accountId}/usage` (contrato completo em `packages/core-models`).
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Conta com lançamentos (`ACCOUNT_IN_USE`); inative em vez de excluir
+          description: Conta com dados relacionados (`ACCOUNT_IN_USE`); inative em vez de excluir
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -341,17 +345,16 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Categories]
-      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-016)
-      parameters:
-        - name: reassignTo
-          in: query
-          description: Categoria que receberá os lançamentos da excluída (mesmo tipo)
-          schema: { type: integer, format: int64 }
+      summary: Exclui categoria sem uso (FR-016)
+      description: |
+        Só exclui categoria sem lançamentos nem grupos; em uso, `409` (`CATEGORY_IN_USE`). Não há
+        mais reatribuição (`reassignTo` removido). Prévia em `GET /categories/{categoryId}/usage`
+        (contrato completo em `packages/core-models`).
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Categoria em uso sem `reassignTo` (`CATEGORY_IN_USE`)
+          description: Categoria em uso (`CATEGORY_IN_USE`)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -557,7 +560,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Transactions]
-      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-025)
+      summary: Edita valor ou vencimento de uma ocorrência pendente, ou de receita já recebida fora de cartão (FR-025)
+      description: "Despesa (e qualquer lançamento em cartão) só se edita enquanto pendente; receita fora de cartão também se edita depois de recebida. O status só é reavaliado quando o `dueDate` muda (nova data até hoje: `PAID` com `paymentDate = dueDate`; futura: `PENDING`); editar só o valor não altera status nem `paymentDate`."
       requestBody:
         required: true
         content:

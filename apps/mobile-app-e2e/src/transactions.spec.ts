@@ -41,9 +41,15 @@ test.describe('lançamentos completos no celular', () => {
     await expect(card(page, 'Mercado')).toContainText('Pend');
 
     await page.getByRole('button', { name: 'Excluir Mercado' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Ação no lançamento' });
+    const dialog = page.getByRole('alertdialog');
     await expect(dialog).toContainText('1 lançamento(s)');
-    await dialog.getByRole('button', { name: 'Excluir' }).click();
+    await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(card(page, 'Mercado')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Excluir Mercado' }).click();
+    await dialog.getByRole('button', { name: 'Excluir "Mercado"' }).click();
     await expect(page.getByText('Nenhum lançamento neste mês')).toBeVisible();
   });
 
@@ -77,6 +83,8 @@ test.describe('lançamentos completos no celular', () => {
 
     // encerra no mês corrente: o seguinte fica sem a ocorrência
     await page.getByRole('button', { name: 'Encerrar Internet' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('As ocorrências pendentes depois deste mês serão removidas');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Encerrar lançamento' }).click();
     await page.getByRole('button', { name: 'Próximo mês' }).click();
     await expect(page.getByText('Nenhum lançamento neste mês')).toBeVisible();
   });

@@ -1,6 +1,6 @@
 import { Route } from '@angular/router';
 import {
-  DeleteAccount,
+  ProfilePage,
   ForgotPassword,
   Login,
   Register,
@@ -62,7 +62,7 @@ export const appRoutes: Route[] = [
       },
       {
         path: 'settings',
-        component: DeleteAccount,
+        component: ProfilePage,
       },
     ],
   },

@@ -121,6 +121,14 @@ describe('offlineInterceptor', () => {
       expect(result).toMatchObject({ status: 202 });
     });
 
+    it('lançamento parcelado entra na fila com o sufixo das parcelas no rótulo', async () => {
+      online.set(false);
+      http.post(`${API}/transaction-groups`, { description: 'Geladeira', recurrenceType: 'INSTALLMENT', totalAmount: '1000.00', totalInstallments: 10 }).subscribe();
+      await new Promise((r) => setTimeout(r, 0));
+
+      expect(queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: 'CREATE_GROUP', label: 'Geladeira · 10x' }));
+    });
+
     it('pagar e desfazer sem conexão entram na fila com o corpo certo', async () => {
       online.set(false);
       http.post(`${API}/transactions/9/pay`, { paymentDate: '2026-11-10' }).subscribe();

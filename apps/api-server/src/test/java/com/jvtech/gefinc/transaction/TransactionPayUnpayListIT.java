@@ -146,7 +146,8 @@ class TransactionPayUnpayListIT extends IntegrationTestBase {
         .isEqualTo(2);
     assertThat(api.get(ana, "/transactions?recurrenceType=FIXED").get("totalElements").asInt())
         .isEqualTo(12);
-    assertThat(api.get(ana, "/transactions?status=PAID").get("totalElements").asInt()).isEqualTo(1);
+    // Cinema pago à mão e o Salário de 05/11, que já entrou na conta sozinho.
+    assertThat(api.get(ana, "/transactions?status=PAID").get("totalElements").asInt()).isEqualTo(2);
     assertThat(
             api.get(ana, "/transactions?status=PENDING&month=2026-11&kind=EXPENSE")
                 .get("totalElements")

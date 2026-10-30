@@ -7,7 +7,7 @@ const MAX_DIGITS = 15;
 /**
  * Campo de valor em reais: o usuário digita só algarismos e o campo preenche os centavos
  * (digitar 1234 vira "12,34"). O valor do formulário é a string decimal do contrato ("12.34"),
- * ou `null` enquanto estiver vazio.
+ * ou `null` enquanto estiver vazio. Aceita só valores não negativos (sem sinal).
  */
 @Component({
   selector: 'gef-money-input',
@@ -19,19 +19,24 @@ const MAX_DIGITS = 15;
       @if (label()) {
         <span class="mb-1 block text-caption text-gefinc-muted">{{ label() }}</span>
       }
-      <span
-        class="flex min-h-11 items-stretch rounded-lg border border-gefinc-border bg-gefinc-surface px-3 focus-within:border-gefinc-primary md:min-h-0"
-      >
-        <span class="flex items-center text-body-base text-gefinc-muted" aria-hidden="true">R$</span>
+      <span class="gef-money-field" [attr.data-size]="size()">
+        <span
+          class="flex items-center text-gefinc-muted"
+          [class]="hero() ? 'text-title-lg font-bold' : 'text-body-base'"
+          aria-hidden="true"
+          >R$</span
+        >
         <input
           #field
-          class="financial-value w-full bg-transparent px-2 py-2 text-right text-body-base text-gefinc-text outline-none"
+          class="financial-value w-full bg-transparent py-2 outline-none"
+          [class]="inputClass()"
           type="text"
           inputmode="numeric"
           autocomplete="off"
           [value]="display()"
           [disabled]="disabled()"
           [attr.aria-label]="label() || 'Valor em reais'"
+          [attr.data-tone]="tone()"
           (input)="onInput(field)"
           (blur)="touched()"
         />
@@ -43,6 +48,18 @@ export class MoneyInput implements ControlValueAccessor {
   readonly label = input('');
   /** Foca o campo ao abrir a tela, para o teclado numérico aparecer sem um toque extra. */
   readonly autofocus = input(false);
+  /** `hero`: valor em destaque (tela de lançamento rápido); `default`: campo de formulário comum. */
+  readonly size = input<'default' | 'hero'>('default');
+  /** Cor só do texto do valor (receita verde, despesa vermelha); o foco é sempre neutro. */
+  readonly tone = input<'neutral' | 'income' | 'expense'>('neutral');
+
+  protected readonly hero = computed(() => this.size() === 'hero');
+  protected readonly inputClass = computed(() => {
+    const color = { neutral: 'text-gefinc-text', income: 'text-gefinc-primary', expense: 'text-gefinc-danger' }[this.tone()];
+    return this.hero()
+      ? `px-2 text-center text-display-1 font-extrabold ${color}`
+      : `px-2 text-right text-body-base ${color}`;
+  });
 
   private readonly field = viewChild<ElementRef<HTMLInputElement>>('field');
 
@@ -52,6 +69,11 @@ export class MoneyInput implements ControlValueAccessor {
     const cents = this.cents();
     return cents === null ? '' : formatBRL(fromCents(cents)).replace('R$ ', '');
   });
+
+  /** Foca o campo (ex.: depois de trocar a natureza do lançamento, para o teclado numérico continuar aberto). */
+  focus(): void {
+    this.field()?.nativeElement.focus();
+  }
 
   constructor() {
     afterNextRender(() => {

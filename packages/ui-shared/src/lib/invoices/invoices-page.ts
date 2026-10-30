@@ -1,11 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import type { Invoice, InvoiceProjection, Transaction } from '@gefinc/core-models';
+import type { Invoice, InvoicePayment, InvoiceProjection, Transaction } from '@gefinc/core-models';
 import { InvoicesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { AccountPicker } from '../accounts/account-picker';
 import { Icon } from '../icons/icon';
+import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
 import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
@@ -16,7 +17,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 /** Faturas de cartão: itens, pagamento parcial ou total, desfazer e projeção dos próximos meses (FR-027, FR-034 a FR-039). */
 @Component({
   selector: 'gef-invoices-page',
-  imports: [AccountBadge, AccountPicker, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, AccountPicker, ConfirmDialog, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
@@ -40,22 +41,22 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (invoice(); as inv) {
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-          <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
             <p class="text-caption text-gefinc-muted">Total da fatura</p>
             <p class="financial-value text-title-lg font-bold">{{ money(inv.total) }}</p>
           </div>
-          <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
             <p class="text-caption text-gefinc-muted">Pago</p>
             <p class="financial-value text-title-lg font-bold text-gefinc-primary">{{ money(paid(inv)) }}</p>
           </div>
-          <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
             <p class="text-caption text-gefinc-muted">Restante</p>
             <p class="financial-value text-title-lg font-bold" [class.text-gefinc-warning]="inv.remaining !== '0.00'">{{ money(inv.remaining) }}</p>
           </div>
-          <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
             <p class="text-caption text-gefinc-muted">Vencimento</p>
-            <p class="text-title-lg font-bold">{{ br(inv.dueDate) }}</p>
+            <p class="financial-value text-title-lg font-bold">{{ br(inv.dueDate) }}</p>
           </div>
         </div>
 
@@ -150,7 +151,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
               @for (payment of inv.payments; track payment.id) {
                 <li class="flex items-center justify-between px-4 py-3">
                   <span>{{ br(payment.paidAt) }} · <span class="financial-value">{{ money(payment.amount) }}</span></span>
-                  <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer pagamento de ' + br(payment.paidAt)" (click)="undo(payment.id)">Desfazer</button>
+                  <button type="button" class="gef-btn-sm" [attr.aria-label]="'Desfazer pagamento de ' + br(payment.paidAt)" (click)="undo(payment)">Desfazer</button>
                 </li>
               }
             </ul>
@@ -217,6 +218,20 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
         </div>
       }
     </section>
+    <gef-confirm-dialog
+      [open]="!!confirmingUndo()"
+      heading="Desfazer pagamento da fatura"
+      confirmLabel="Desfazer pagamento"
+      busyLabel="Desfazendo…"
+      [busy]="acting()"
+      [error]="undoError()"
+      (confirmed)="confirmUndo()"
+      (cancelled)="closeUndo()"
+    >
+      @if (confirmingUndo(); as payment) {
+        <p>Desfazer o pagamento de {{ br(payment.paidAt) }} ({{ money(payment.amount) }})? Os itens que ele quitou voltam a pendentes.</p>
+      }
+    </gef-confirm-dialog>
   `,
 })
 export class InvoicesPage implements OnInit {
@@ -234,7 +249,10 @@ export class InvoicesPage implements OnInit {
   protected readonly message = signal<string | null>(null);
   protected readonly paymentMode = signal<'partial' | 'settle' | null>(null);
   /** Pagamento em andamento: toques repetidos não registram de novo. */
-  private readonly acting = signal(false);
+  protected readonly acting = signal(false);
+  /** Pagamento cujo desfazer aguarda confirmação (o desfazer imediato do aviso não pede). */
+  protected readonly confirmingUndo = signal<InvoicePayment | null>(null);
+  protected readonly undoError = signal<string | null>(null);
   protected readonly paymentAmount = signal<string | null>(null);
   protected paidAt = todayIso();
 
@@ -360,7 +378,7 @@ export class InvoicesPage implements OnInit {
         // O último pagamento da fatura é o que acabou de ser registrado; "Desfazer" o remove.
         const latest = [...(updated.payments ?? [])].sort((a, b) => b.id - a.id)[0];
         this.notices.toast(mode === 'settle' ? 'Fatura quitada.' : 'Pagamento da fatura registrado.', {
-          undo: latest ? () => this.undo(latest.id, false) : undefined,
+          undo: latest ? () => this.doUndo(latest.id, false) : undefined,
         });
       },
       error: (e: unknown) => {
@@ -370,7 +388,42 @@ export class InvoicesPage implements OnInit {
     });
   }
 
-  protected undo(paymentId: number, announce = true): void {
+  /** Pede confirmação antes de desfazer um pagamento já registrado. */
+  protected undo(payment: InvoicePayment): void {
+    this.undoError.set(null);
+    this.confirmingUndo.set(payment);
+  }
+
+  protected closeUndo(): void {
+    if (!this.acting()) {
+      this.confirmingUndo.set(null);
+      this.undoError.set(null);
+    }
+  }
+
+  protected confirmUndo(): void {
+    const payment = this.confirmingUndo();
+    if (!payment || this.acting()) {
+      return;
+    }
+    this.acting.set(true);
+    this.undoError.set(null);
+    this.api.undoPayment(payment.id).subscribe({
+      next: () => {
+        this.acting.set(false);
+        this.confirmingUndo.set(null);
+        this.load();
+        this.notices.toast('Pagamento desfeito.');
+      },
+      error: (e: unknown) => {
+        this.acting.set(false);
+        this.undoError.set(messageFor(toProblem(e)));
+      },
+    });
+  }
+
+  /** Desfazer sem diálogo: só para o "Desfazer" do aviso logo após registrar o pagamento. */
+  protected doUndo(paymentId: number, announce = true): void {
     this.message.set(null);
     this.api.undoPayment(paymentId).subscribe({
       next: () => {
