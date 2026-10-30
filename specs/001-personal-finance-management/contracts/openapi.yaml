@@ -273,12 +273,16 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Accounts]
-      summary: Exclui conta sem lançamentos (FR-013)
+      summary: Exclui conta sem nenhum dado relacionado (FR-013)
+      description: |
+        Só exclui conta sem lançamentos, pagamentos de fatura, cartões vinculados nem saldo inicial
+        diferente de zero; senão `409` (`ACCOUNT_IN_USE`) com as contagens. A prévia está em
+        `GET /accounts/{accountId}/usage` (contrato completo em `packages/core-models`).
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Conta com lançamentos (`ACCOUNT_IN_USE`); inative em vez de excluir
+          description: Conta com dados relacionados (`ACCOUNT_IN_USE`); inative em vez de excluir
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -341,17 +345,16 @@ paths:
         '422': { $ref: '#/components/responses/ValidationError' }
     delete:
       tags: [Categories]
-      summary: Exclui categoria, opcionalmente reatribuindo lançamentos (FR-016)
-      parameters:
-        - name: reassignTo
-          in: query
-          description: Categoria que receberá os lançamentos da excluída (mesmo tipo)
-          schema: { type: integer, format: int64 }
+      summary: Exclui categoria sem uso (FR-016)
+      description: |
+        Só exclui categoria sem lançamentos nem grupos; em uso, `409` (`CATEGORY_IN_USE`). Não há
+        mais reatribuição (`reassignTo` removido). Prévia em `GET /categories/{categoryId}/usage`
+        (contrato completo em `packages/core-models`).
       responses:
         '204': { description: Excluída }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Categoria em uso sem `reassignTo` (`CATEGORY_IN_USE`)
+          description: Categoria em uso (`CATEGORY_IN_USE`)
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -557,7 +560,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
       tags: [Transactions]
-      summary: Edita valor ou vencimento de uma ocorrência pendente (FR-025)
+      summary: Edita valor ou vencimento de uma ocorrência pendente, ou de receita já recebida fora de cartão (FR-025)
+      description: "Despesa (e qualquer lançamento em cartão) só se edita enquanto pendente; receita fora de cartão também se edita depois de recebida. O status só é reavaliado quando o `dueDate` muda (nova data até hoje: `PAID` com `paymentDate = dueDate`; futura: `PENDING`); editar só o valor não altera status nem `paymentDate`."
       requestBody:
         required: true
         content:
@@ -891,6 +895,13 @@ components:
     AccountType:
       type: string
       enum: [CHECKING, CASH, CREDIT_CARD]
+    HolderType:
+      type: string
+      enum: [PF, PJ]
+      description: "Titularidade da conta bancária: pessoa física ou jurídica (classificação, sem separar dados)."
+    AccountIcon:
+      type: string
+      enum: [bank, building, briefcase, landmark, wallet, cash, piggy, card, card-gold, card-platinum, card-black, shield, rocket, star, globe, shopping-bag]
     CategoryType:
       type: string
       enum: [INCOME, EXPENSE]
@@ -1004,6 +1015,14 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        holderType:
+          $ref: '#/components/schemas/HolderType'
+          description: "Em conta bancária, o titular; em cartão, o titular herdado da conta vinculada (ausente se o cartão não tem vínculo)."
+        icon:
+          $ref: '#/components/schemas/AccountIcon'
+          description: "Sempre presente: o escolhido ou o padrão do tipo."
+        bankAccountId: { type: integer, format: int64, description: "Somente em cartão vinculado." }
+        bankAccountName: { type: string, description: "Nome da conta bancária do cartão." }
         active: { type: boolean }
         version: { type: integer, format: int64 }
     AccountInput:
@@ -1014,7 +1033,10 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
-      description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos."
+        holderType: { $ref: '#/components/schemas/HolderType' }
+        icon: { $ref: '#/components/schemas/AccountIcon' }
+        bankAccountId: { type: integer, format: int64 }
+      description: "`closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. `holderType` é obrigatório em CHECKING e proibido nos demais. `bankAccountId` (conta bancária ativa do mesmo usuário) é obrigatório em CREDIT_CARD e proibido nos demais; conta de outro usuário responde 404 e conta inativa, 422 ACCOUNT_INACTIVE. `icon` ausente usa o padrão do tipo."
     AccountUpdate:
       type: object
       required: [name, type, active, version]
@@ -1023,9 +1045,12 @@ components:
         type: { $ref: '#/components/schemas/AccountType' }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        holderType: { $ref: '#/components/schemas/HolderType' }
+        icon: { $ref: '#/components/schemas/AccountIcon' }
+        bankAccountId: { type: integer, format: int64 }
         active: { type: boolean }
         version: { type: integer, format: int64 }
-      description: "O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput."
+      description: "O tipo não pode ser alterado depois do cadastro; os demais campos seguem as regras de AccountInput. Cartão anterior ao vínculo (sem `bankAccountId`) precisa informá-lo ao ser editado, exceto quando só `active` muda."
 
 
     Category:

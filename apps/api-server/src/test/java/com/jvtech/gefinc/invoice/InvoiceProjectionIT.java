@@ -101,25 +101,7 @@ class InvoiceProjectionIT extends IntegrationTestBase {
   @Test
   void faturaComVencimentosDistintosNoMesExibeOMaisRecente() throws Exception {
     api.decemberPurchase(ana, card, shopping, "Tênis", "400.00"); // vence 17/12
-    JsonNode account = api.get(ana, "/accounts/" + card);
-    api.call(
-            ana,
-            HttpMethod.PUT,
-            "/accounts/" + card,
-            Map.of(
-                "name",
-                "Nubank",
-                "type",
-                "CREDIT_CARD",
-                "closingDay",
-                10,
-                "dueDay",
-                25,
-                "active",
-                true,
-                "version",
-                account.get("version").asLong()))
-        .andExpect(status().isOk());
+    api.updateAccount(ana, card, Map.of("dueDay", 25)).andExpect(status().isOk());
     api.decemberPurchase(ana, card, shopping, "Camisa", "100.00"); // vence 25/12
 
     api.call(ana, HttpMethod.GET, "/accounts/" + card + "/invoices/2026-12", null)

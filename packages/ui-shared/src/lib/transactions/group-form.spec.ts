@@ -1,6 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { API, configureHttpTesting, select, type } from '../../testing/testbed';
+import { todayIso } from '@gefinc/utils';
+import { API, chooseAccount, configureHttpTesting, select, type } from '../../testing/testbed';
 import { GroupForm } from './group-form';
 
 describe('GroupForm', () => {
@@ -17,8 +18,7 @@ describe('GroupForm', () => {
 
   function fill(el: HTMLElement, fixture: { detectChanges(): void }, account: string) {
     type(el, '#description', 'Mercado');
-    select(el, '#accountId', account);
-    fixture.detectChanges();
+    chooseAccount(fixture, el, account);
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '15000');
     fixture.detectChanges();
@@ -31,10 +31,30 @@ describe('GroupForm', () => {
     expect(el.querySelector('#categoryId')?.textContent).toContain('Alimentação');
     expect(el.querySelector('#categoryId')?.textContent).not.toContain('Salário');
 
-    select(el, '#kind', 'INCOME');
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
     fixture.detectChanges();
     expect(el.querySelector('#categoryId')?.textContent).toContain('Salário');
     expect(el.querySelector('#categoryId')?.textContent).not.toContain('Alimentação');
+  });
+
+  it('a natureza (receita ou despesa) é o primeiro campo e é um seletor visível', async () => {
+    const { el } = await setup();
+    const firstField = el.querySelector('form')!.querySelector('fieldset, label, input, select');
+    expect(firstField?.tagName).toBe('FIELDSET');
+    expect(firstField?.textContent).toContain('Natureza');
+    const options = Array.from(el.querySelectorAll('[data-field="kind"] label')).map((l) => l.textContent?.trim());
+    expect(options).toEqual(['Despesa', 'Receita']);
+    expect((el.querySelector('#kind-EXPENSE') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('trocar a natureza zera a categoria escolhida', async () => {
+    const { el, fixture } = await setup();
+    select(el, '#categoryId', '10');
+    fixture.detectChanges();
+    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('0');
   });
 
   it('fora do cartão pede o vencimento e o envia', async () => {
@@ -87,7 +107,7 @@ describe('GroupForm', () => {
   it('valor zerado não é enviado e mostra o aviso, mantendo o que foi digitado', async () => {
     const { http, el, fixture } = await setup();
     type(el, '#description', 'Padaria');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '0');
@@ -122,7 +142,7 @@ describe('GroupForm parcelado', () => {
 
   it('mostra a quantidade de parcelas e a prévia com vencimentos pela fatura do cartão', async () => {
     const { el, fixture } = await setupInstallment();
-    select(el, '#accountId', '2'); // Nubank: fecha dia 10, vence dia 17
+    chooseAccount(fixture, el, '2'); // Nubank: fecha dia 10, vence dia 17
     type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
     type(el, 'gef-money-input input', '10000'); // R$ 100,00
     type(el, '#totalInstallments', '3');
@@ -140,7 +160,7 @@ describe('GroupForm parcelado', () => {
   it('fora do cartão usa o primeiro vencimento informado e envia a quantidade de parcelas', async () => {
     const { http, el, fixture } = await setupInstallment();
     type(el, '#description', 'Carnê');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '30000');
@@ -162,6 +182,288 @@ describe('GroupForm parcelado', () => {
   });
 });
 
+describe('GroupForm parcelado - valor da parcela ou total', () => {
+  async function setupInstallment() {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    select(el, '#recurrenceType', 'INSTALLMENT');
+    fixture.detectChanges();
+    return { ...ctx, fixture, el };
+  }
+  const submitForm = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+  const modeButton = (el: HTMLElement, label: string) =>
+    Array.from(el.querySelectorAll('[aria-label="Forma de informar"] button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+  const fillCard = (el: HTMLElement, fixture: { detectChanges(): void }) => {
+    type(el, '#description', 'Geladeira');
+    chooseAccount(fixture, el, '2'); // Nubank: fecha dia 10, vence dia 17
+    select(el, '#categoryId', '10');
+    type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
+    fixture.detectChanges();
+  };
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('só mostra o par de botões de modo quando o tipo é Parcelado, com o total como padrão', async () => {
+    const { el, fixture } = await setupInstallment();
+    expect(modeButton(el, 'Valor total').getAttribute('aria-pressed')).toBe('true');
+    expect(modeButton(el, 'Valor da parcela').getAttribute('aria-pressed')).toBe('false');
+    expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor total');
+
+    select(el, '#recurrenceType', 'VARIABLE');
+    fixture.detectChanges();
+    expect(el.querySelector('[aria-label="Forma de informar"]')).toBeNull();
+    expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor');
+    expect(el.querySelector('gef-money-input')?.textContent).not.toContain('Valor total');
+  });
+
+  it('no modo parcela, 10 × R$ 100,00 envia o total de R$ 1.000,00 e mostra resumo e faturas', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    modeButton(el, 'Valor da parcela').click();
+    fixture.detectChanges();
+    type(el, 'gef-money-input input', '10000'); // R$ 100,00 por parcela
+    type(el, '#totalInstallments', '10');
+    fixture.detectChanges();
+
+    expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor da parcela');
+    expect(modeButton(el, 'Valor da parcela').getAttribute('aria-pressed')).toBe('true');
+    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('10 × R$ 100,00 = R$ 1.000,00');
+    const preview = el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement;
+    expect(preview.textContent).toContain('Fatura');
+    expect(preview.textContent).toContain('dez/2026 · vence 17/12');
+    expect(preview.textContent).toContain('set/2027 · vence 17/09');
+    expect(preview.textContent).toContain('10/10');
+
+    submitForm(el);
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).toEqual({
+      description: 'Geladeira',
+      recurrenceType: 'INSTALLMENT',
+      totalAmount: '1000.00',
+      totalInstallments: 10,
+      accountId: 2,
+      categoryId: 10,
+      purchaseDate: '2026-11-12',
+    });
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('no modo total com resto o resumo separa a última parcela e o total é o digitado', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    type(el, 'gef-money-input input', '10000'); // total R$ 100,00
+    type(el, '#totalInstallments', '3');
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('2 × R$ 33,33 + 1 × R$ 33,34');
+
+    submitForm(el);
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).toMatchObject({ totalAmount: '100.00', totalInstallments: 3 });
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('alternar o modo não converte o número digitado', async () => {
+    const { el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    type(el, 'gef-money-input input', '10000');
+    type(el, '#totalInstallments', '4');
+    modeButton(el, 'Valor da parcela').click();
+    fixture.detectChanges();
+    expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('100,00');
+    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('4 × R$ 100,00 = R$ 400,00');
+  });
+
+  it('fora do cartão o modo parcela também vale e a prévia não tem coluna Fatura', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    type(el, '#description', 'Carnê');
+    chooseAccount(fixture, el, '1');
+    select(el, '#categoryId', '10');
+    modeButton(el, 'Valor da parcela').click();
+    type(el, 'gef-money-input input', '10000');
+    type(el, '#totalInstallments', '3');
+    type(el, '#purchaseDate', '2026-11-01');
+    type(el, '#firstDueDate', '2026-11-10');
+    fixture.detectChanges();
+
+    const preview = el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement;
+    expect(preview.textContent).not.toContain('Fatura');
+    expect(preview.textContent).toContain('10/12/2026');
+
+    submitForm(el);
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).toMatchObject({ totalAmount: '300.00', totalInstallments: 3, firstDueDate: '2026-11-10' });
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('total menor que um centavo por parcela não é enviado e não tem prévia', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    type(el, 'gef-money-input input', '5'); // R$ 0,05 de total
+    type(el, '#totalInstallments', '10');
+    fixture.detectChanges();
+
+    expect(el.querySelector('[aria-label="Prévia das parcelas"]')).toBeNull();
+    expect(el.textContent).toContain('O valor deve ter pelo menos R$ 0,01 por parcela.');
+    submitForm(el);
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+  });
+
+  it.each([['', 'vazio'], ['0', 'zero'], ['121', 'acima de 120'], ['2.5', 'fracionário']])(
+    'quantidade de parcelas %j (%s) não é enviada e mostra o aviso sob o campo, com aria',
+    async (value) => {
+      const { http, el, fixture } = await setupInstallment();
+      fillCard(el, fixture);
+      type(el, 'gef-money-input input', '10000');
+      type(el, '#totalInstallments', value);
+      fixture.detectChanges();
+      expect(el.querySelector('#totalInstallments-error')).toBeNull();
+
+      submitForm(el);
+      fixture.detectChanges();
+
+      http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+      const input = el.querySelector('#totalInstallments') as HTMLInputElement;
+      const error = el.querySelector('#totalInstallments-error') as HTMLElement;
+      expect(error.textContent).toContain('Informe de 1 a 120 parcelas.');
+      expect(error.getAttribute('role')).toBe('alert');
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      expect(input.getAttribute('aria-describedby')).toBe('totalInstallments-error');
+    },
+  );
+
+  it('corrigir a quantidade de parcelas tira o aviso', async () => {
+    const { el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    type(el, 'gef-money-input input', '10000');
+    type(el, '#totalInstallments', '0');
+    submitForm(el);
+    fixture.detectChanges();
+    expect(el.querySelector('#totalInstallments-error')).not.toBeNull();
+
+    type(el, '#totalInstallments', '12');
+    fixture.detectChanges();
+    expect(el.querySelector('#totalInstallments-error')).toBeNull();
+    expect(el.querySelector('#totalInstallments')?.getAttribute('aria-invalid')).toBeNull();
+  });
+
+  it('mostra o erro 422 de valor e de parcelas no próprio campo, mantendo o digitado', async () => {
+    const { http, el, fixture } = await setupInstallment();
+    fillCard(el, fixture);
+    type(el, 'gef-money-input input', '10000');
+    type(el, '#totalInstallments', '3');
+    fixture.detectChanges();
+    submitForm(el);
+
+    http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush(
+      {
+        status: 422,
+        errors: [
+          { field: 'totalAmount', message: 'Valor fora do limite permitido.' },
+          { field: 'totalInstallments', message: 'Informe de 1 a 120 parcelas.' },
+        ],
+      },
+      { status: 422, statusText: 'Unprocessable' },
+    );
+    fixture.detectChanges();
+
+    expect(el.querySelector('gef-money-input')?.parentElement?.textContent).toContain('Valor fora do limite permitido.');
+    expect(el.querySelector('#totalInstallments')?.parentElement?.textContent).toContain('Informe de 1 a 120 parcelas.');
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Geladeira');
+    expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('100,00');
+  });
+
+  it('corrigir uma operação recusada abre em modo total, com o valor como foi enviado', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.componentRef.setInput('initial', {
+      description: 'Geladeira', recurrenceType: 'INSTALLMENT', totalAmount: '1000.00', totalInstallments: 10, accountId: 2,
+      categoryId: 10, purchaseDate: '2026-11-12',
+    });
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(modeButton(el, 'Valor total').getAttribute('aria-pressed')).toBe('true');
+    expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('1.000,00');
+    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('10 × R$ 100,00 = R$ 1.000,00');
+  });
+
+  describe('quantidade inválida e troca de tipo', () => {
+    const fillOther = (el: HTMLElement, fixture: { detectChanges(): void }) => {
+      type(el, '#description', 'Carnê');
+      chooseAccount(fixture, el, '1');
+      select(el, '#categoryId', '10');
+      type(el, 'gef-money-input input', '30000');
+      fixture.detectChanges();
+    };
+
+    it.each([
+      ['', 'FIXED'], ['0', 'FIXED'], ['121', 'FIXED'],
+      ['', 'VARIABLE'], ['0', 'VARIABLE'], ['121', 'VARIABLE'],
+    ])('parcelado com quantidade %j trocado para %s envia sem totalInstallments', async (value, target) => {
+      const { http, el, fixture } = await setupInstallment();
+      type(el, '#totalInstallments', value);
+      select(el, '#recurrenceType', target);
+      fixture.detectChanges();
+      expect(el.querySelector('#totalInstallments')).toBeNull();
+      fillOther(el, fixture);
+
+      submitForm(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.recurrenceType).toBe(target);
+      expect(post.request.body).not.toHaveProperty('totalInstallments');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('abrir com dados de outro tipo e quantidade inválida não bloqueia o envio', async () => {
+      const ctx = configureHttpTesting();
+      const fixture = TestBed.createComponent(GroupForm);
+      fixture.componentRef.setInput('initial', {
+        description: 'Aluguel', recurrenceType: 'FIXED', totalAmount: '500.00', totalInstallments: 0, accountId: 1,
+        categoryId: 10, purchaseDate: '2026-11-01', firstDueDate: '2026-11-05',
+      });
+      fixture.detectChanges();
+      ctx.flushReference();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+
+      submitForm(el);
+      const post = ctx.http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.recurrenceType).toBe('FIXED');
+      expect(post.request.body).not.toHaveProperty('totalInstallments');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('voltar para Parcelado com a quantidade inválida volta a bloquear e mostrar o erro', async () => {
+      const { http, el, fixture } = await setupInstallment();
+      type(el, '#totalInstallments', '0');
+      select(el, '#recurrenceType', 'VARIABLE');
+      fixture.detectChanges();
+      fillOther(el, fixture);
+      select(el, '#recurrenceType', 'INSTALLMENT');
+      fixture.detectChanges();
+
+      submitForm(el);
+      fixture.detectChanges();
+      http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+      const error = el.querySelector('#totalInstallments-error') as HTMLElement;
+      expect(error.textContent).toContain('Informe de 1 a 120 parcelas.');
+      expect(el.querySelector('#totalInstallments')?.getAttribute('aria-invalid')).toBe('true');
+    });
+  });
+});
+
 describe('GroupForm - falha de conexão e toque duplo', () => {
   async function setup() {
     const ctx = configureHttpTesting();
@@ -173,7 +475,7 @@ describe('GroupForm - falha de conexão e toque duplo', () => {
     fixture.detectChanges();
     const el = fixture.nativeElement as HTMLElement;
     type(el, '#description', 'Mercado');
-    select(el, '#accountId', '1');
+    chooseAccount(fixture, el, '1');
     fixture.detectChanges();
     select(el, '#categoryId', '10');
     type(el, 'gef-money-input input', '15000');
@@ -226,9 +528,185 @@ describe('GroupForm - preenchimento inicial (corrigir uma operação recusada)',
     const el = fixture.nativeElement as HTMLElement;
 
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
-    expect((el.querySelector('#accountId') as HTMLSelectElement).value).toBe('1');
+    expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
     expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('150,00');
     expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');
+  });
+});
+
+describe('GroupForm - receita entra na conta', () => {
+  async function setup(initial?: object) {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    if (initial) {
+      fixture.componentRef.setInput('initial', initial);
+    }
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return { ...ctx, fixture, el };
+  }
+  const income = (el: HTMLElement, fixture: { detectChanges(): void }) => {
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+    fixture.detectChanges();
+  };
+  const submitForm = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+  const optionIds = (fixture: { detectChanges(): void }, el: HTMLElement) => {
+    (el.querySelector('gef-account-picker button[aria-haspopup]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const ids = Array.from(document.querySelectorAll('[role="option"]')).map((o) => o.getAttribute('data-account-id'));
+    (document.querySelector('gef-sheet button[aria-label="Fechar"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    return ids;
+  };
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+  it('o seletor de conta da receita não lista cartões; o da despesa lista', async () => {
+    const { el, fixture } = await setup();
+    expect(optionIds(fixture, el)).toEqual(['1', '2']);
+    income(el, fixture);
+    expect(optionIds(fixture, el)).toEqual(['1']);
+  });
+
+  it('trocar para receita com um cartão escolhido troca a conta e avisa', async () => {
+    const { el, fixture } = await setup();
+    chooseAccount(fixture, el, '2');
+
+    income(el, fixture);
+
+    expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
+    const notice = el.querySelector('[data-testid="account-notice"]') as HTMLElement;
+    expect(notice.textContent).toContain('Cartão não recebe receita; conta trocada para Itaú');
+    expect(notice.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('trocar para receita sem conta escolhida não escolhe nada nem avisa', async () => {
+    const { el, fixture } = await setup();
+    income(el, fixture);
+    expect(el.querySelector('[data-testid="account-notice"]')?.textContent?.trim()).toBe('');
+    expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Selecione');
+  });
+
+  it('em receita há uma única data e nenhum campo de data da compra, vencimento ou "já recebi"', async () => {
+    const { el, fixture } = await setup();
+    income(el, fixture);
+
+    expect(el.querySelector('label[for="purchaseDate"]')?.textContent).toContain('Data do recebimento');
+    expect(el.querySelector('#firstDueDate')).toBeNull();
+    expect(el.textContent).not.toContain('Data da compra');
+    expect(el.textContent).not.toContain('Vencimento');
+    expect(el.textContent).not.toContain('Já recebi');
+    expect(el.querySelector('.gef-switch')).toBeNull();
+  });
+
+  it('o recebimento fixo chama a data de "Primeiro recebimento"', async () => {
+    const { el, fixture } = await setup();
+    income(el, fixture);
+    select(el, '#recurrenceType', 'FIXED');
+    fixture.detectChanges();
+    expect(el.querySelector('label[for="purchaseDate"]')?.textContent).toContain('Primeiro recebimento');
+  });
+
+  it('a dica diz que a receita de hoje entra na conta hoje, a passada na data informada e a futura fica a receber até a data', async () => {
+    const { el, fixture } = await setup();
+    income(el, fixture);
+    const hint = () => el.querySelector('[data-testid="income-hint"]')?.textContent?.trim();
+    expect(hint()).toBe('Entra na conta hoje');
+
+    type(el, '#purchaseDate', '2999-12-25');
+    fixture.detectChanges();
+    expect(hint()).toBe('Fica a receber até 25/12/2999');
+
+    type(el, '#purchaseDate', '2020-01-02');
+    fixture.detectChanges();
+    expect(hint()).toBe('Entra na conta na data informada');
+
+    type(el, '#purchaseDate', todayIso());
+    fixture.detectChanges();
+    expect(hint()).toBe('Entra na conta hoje');
+  });
+
+  it('envia a data do recebimento como data do lançamento e vencimento, sem settled', async () => {
+    const { http, el, fixture } = await setup();
+    income(el, fixture);
+    type(el, '#description', 'Salário');
+    chooseAccount(fixture, el, '1');
+    select(el, '#categoryId', '20');
+    type(el, 'gef-money-input input', '500000');
+    type(el, '#purchaseDate', '2026-11-05');
+    fixture.detectChanges();
+
+    submitForm(el);
+
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).toEqual({
+      description: 'Salário',
+      recurrenceType: 'VARIABLE',
+      totalAmount: '5000.00',
+      accountId: 1,
+      categoryId: 20,
+      purchaseDate: '2026-11-05',
+      firstDueDate: '2026-11-05',
+    });
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('despesa nunca envia settled', async () => {
+    const { http, el, fixture } = await setup();
+    type(el, '#description', 'Mercado');
+    chooseAccount(fixture, el, '1');
+    select(el, '#categoryId', '10');
+    type(el, 'gef-money-input input', '1000');
+    fixture.detectChanges();
+    submitForm(el);
+    const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(post.request.body).not.toHaveProperty('settled');
+    post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  it('mostra o erro do servidor no campo da conta e mantém o digitado', async () => {
+    const { http, el, fixture } = await setup();
+    income(el, fixture);
+    type(el, '#description', 'Salário');
+    chooseAccount(fixture, el, '1');
+    select(el, '#categoryId', '20');
+    type(el, 'gef-money-input input', '500000');
+    fixture.detectChanges();
+    submitForm(el);
+
+    http
+      .expectOne({ method: 'POST', url: `${API}/transaction-groups` })
+      .flush(
+        { status: 422, errors: [{ field: 'accountId', message: 'Receita só pode entrar em conta.' }] },
+        { status: 422, statusText: 'Unprocessable' },
+      );
+    fixture.detectChanges();
+
+    expect(el.querySelector('gef-account-picker')?.parentElement?.textContent).toContain('Receita só pode entrar em conta.');
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Salário');
+  });
+
+  it('o valor em destaque é colorido pela natureza', async () => {
+    const { el, fixture } = await setup();
+    const field = () => el.querySelector('gef-money-input input') as HTMLInputElement;
+    expect(field().className).toContain('text-gefinc-danger');
+    income(el, fixture);
+    expect(field().className).toContain('text-gefinc-primary');
+  });
+
+  it('corrigir uma receita recusada em cartão troca a conta, avisa e junta as datas', async () => {
+    const { el } = await setup({
+      description: 'Salário', recurrenceType: 'VARIABLE', totalAmount: '5000.00', accountId: 2, categoryId: 20,
+      purchaseDate: '2026-11-01', firstDueDate: '2026-11-05',
+    });
+
+    expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
+    expect(el.querySelector('[data-testid="account-notice"]')?.textContent).toContain('conta trocada para Itaú');
+    expect((el.querySelector('#purchaseDate') as HTMLInputElement).value).toBe('2026-11-05');
   });
 });

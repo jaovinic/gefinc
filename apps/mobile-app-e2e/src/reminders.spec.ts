@@ -24,7 +24,7 @@ const toggle = (page: Page, label: string) => page.getByRole('switch', { name: l
 
 async function seed(request: Parameters<typeof newUser>[0]) {
   const user = await newUser(request);
-  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
+  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
   const food = await categoryId(request, user, 'Alimentação');
   const create = (description: string, amount: string, due: string) =>
     apiPost(request, user, '/transaction-groups', {

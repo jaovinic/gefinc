@@ -61,15 +61,21 @@ public class CategoryController {
         service.create(CurrentUser.id(), body.name(), body.type(), body.colorHex()));
   }
 
+  @GetMapping("/{id}/usage")
+  public CategoryService.CategoryUsage usage(@PathVariable("id") long id) {
+    return service.usage(CurrentUser.id(), id);
+  }
+
   @PutMapping("/{id}")
-  public CategoryResponse update(@PathVariable long id, @Valid @RequestBody CategoryInput body) {
+  public CategoryResponse update(
+      @PathVariable("id") long id, @Valid @RequestBody CategoryInput body) {
     return CategoryResponse.of(
         service.update(CurrentUser.id(), id, body.name(), body.type(), body.colorHex()));
   }
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void delete(@PathVariable long id, @RequestParam(required = false) Long reassignTo) {
-    service.delete(CurrentUser.id(), id, reassignTo);
+  public void delete(@PathVariable("id") long id) {
+    service.delete(CurrentUser.id(), id);
   }
 }

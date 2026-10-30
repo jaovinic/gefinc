@@ -1,12 +1,12 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso } from './support';
+import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 const banner = (page: Page) => page.getByTestId('offline-banner');
 
 async function seed(request: Parameters<typeof newUser>[0]) {
   const user = await newUser(request);
-  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
+  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
   const food = await categoryId(request, user, 'Alimentação');
   for (const [description, amount] of [['Mercado', '150.00'], ['Luz', '90.50']]) {
     await apiPost(request, user, '/transaction-groups', {
@@ -21,7 +21,7 @@ async function newExpense(page: Page, description: string, cents: string) {
   await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
   const form = page.getByRole('dialog', { name: 'Novo lançamento' }).locator('gef-group-form');
   await form.getByLabel('Descrição ou loja').fill(description);
-  await form.getByLabel('Conta ou cartão').selectOption({ label: 'Itaú' });
+  await chooseAccount(page, form, 'Itaú');
   await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
   await form.getByLabel('Valor').fill(cents);
   await form.getByLabel(/vencimento/i).fill(todayIso());
@@ -83,6 +83,33 @@ test.describe('uso sem internet', () => {
     expect(mercado?.status).toBe('PAID');
   });
 
+  test('receita lançada sem conexão já aparece como recebida (data de hoje) e chega uma única vez', async ({ page, request, context }) => {
+    const user = await seed(request);
+    await signIn(page, user.email);
+    await openTab(page, 'Lançamentos');
+    await expect(card(page, 'Mercado')).toBeVisible();
+    await openTab(page, 'Painel');
+    await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
+
+    await context.setOffline(true);
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await page.getByLabel('Receita').check();
+    await page.keyboard.type('25000');
+    await page.getByLabel('Descrição (opcional)').fill('Bônus');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(banner(page)).toContainText('1 operação pendente de envio');
+
+    await openTab(page, 'Lançamentos');
+    await expect(card(page, 'Bônus')).toContainText('Pendente de envio');
+    await expect(card(page, 'Bônus')).toContainText('Recebido');
+
+    await context.setOffline(false);
+    await expect(banner(page)).toHaveCount(0, { timeout: 20_000 });
+    await expect(card(page, 'Bônus')).not.toContainText('Pendente de envio');
+    await expect(card(page, 'Bônus')).toContainText('Recebido');
+    expect(await countOf(request, user, 'Bônus')).toBe(1);
+  });
+
   test('envio interrompido com resposta perdida e reenviado não duplica o lançamento', async ({ page, request }) => {
     const user = await seed(request);
     await signIn(page, user.email);
@@ -142,7 +169,7 @@ test.describe('uso sem internet', () => {
     const accounts = (await apiGet(request, user, '/accounts')) as { id: number; name: string; type: string; version: number }[];
     const itau = accounts.find((a) => a.name === 'Itaú')!;
     const put = await request.put(`http://localhost:8080/api/v1/accounts/${itau.id}`, {
-      headers: user.headers, data: { name: 'Itaú', type: 'CHECKING', active: false, version: itau.version },
+      headers: user.headers, data: { name: 'Itaú', type: 'CHECKING', holderType: 'PF', active: false, version: itau.version },
     });
     expect(put.ok()).toBeTruthy();
 
@@ -156,6 +183,8 @@ test.describe('uso sem internet', () => {
     await expect(rejected).toContainText(/inativ/i);
 
     await page.getByRole('button', { name: 'Descartar Farmácia' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('O lançamento ainda não enviado será perdido');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Descartar lançamento' }).click();
     await expect(page.getByText('Nenhuma pendência')).toBeVisible();
     expect(await countOf(request, user, 'Farmácia')).toBe(0);
   });

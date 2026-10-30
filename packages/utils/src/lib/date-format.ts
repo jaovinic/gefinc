@@ -15,3 +15,12 @@ export function todayIso(now: Date = new Date()): string {
 export function currentMonth(now: Date = new Date()): string {
   return todayIso(now).slice(0, 7);
 }
+
+const MONTH_ABBREVIATIONS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** "2026-11-17" ou "2026-11" → "nov/2026" (abreviações fixas em pt-BR); entradas fora do padrão voltam como vieram. */
+export function monthLabelBR(iso: string): string {
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(iso);
+  const month = match ? Number(match[2]) : 0;
+  return match && month >= 1 && month <= 12 ? `${MONTH_ABBREVIATIONS[month - 1]}/${match[1]}` : iso;
+}

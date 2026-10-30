@@ -295,6 +295,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dados do próprio usuário */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Perfil */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserProfile"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Altera o nome de exibição (vazio remove o nome) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Perfil atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserProfile"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        trace?: never;
+    };
+    "/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Troca a senha estando conectado
+         * @description Exige a senha atual e aplica a política de senha. Todas as sessões anteriores deixam de valer
+         *     e a resposta traz uma sessão nova (mesmo formato do login), para quem trocou seguir conectado.
+         *     Senha atual incorreta ou nova igual à atual respondem `422` com o campo em `errors`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /** @description `web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo */
+                    "X-Client"?: components["parameters"]["ClientHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: password */
+                        currentPassword: string;
+                        /** Format: password */
+                        newPassword: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Senha trocada; nova sessão */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TokenResponse"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/account-deletion": {
         parameters: {
             query?: never;
@@ -527,7 +647,13 @@ export interface paths {
             };
         };
         post?: never;
-        /** Exclui conta sem lançamentos (FR-013) */
+        /**
+         * Exclui conta sem nenhum dado relacionado (FR-013)
+         * @description A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, cartões
+         *     vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
+         *     (`ACCOUNT_IN_USE`) com as contagens; o cliente deve oferecer inativar a conta. A checagem é
+         *     refeita no servidor a cada exclusão. Conta de outro usuário responde `404`.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -547,17 +673,61 @@ export interface paths {
                     content?: never;
                 };
                 404: components["responses"]["NotFound"];
-                /** @description Conta com lançamentos (`ACCOUNT_IN_USE`); inative em vez de excluir */
+                /** @description Conta com dados relacionados (`ACCOUNT_IN_USE`); inative em vez de excluir */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["Problem"];
+                        "application/problem+json": components["schemas"]["InUseProblem"];
                     };
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{accountId}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                accountId: components["parameters"]["AccountId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Prévia da exclusão da conta
+         * @description Informa o que impede a exclusão da conta. Não altera nada.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: components["parameters"]["AccountId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uso da conta */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountUsage"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -667,13 +837,15 @@ export interface paths {
             };
         };
         post?: never;
-        /** Exclui categoria, opcionalmente reatribuindo lançamentos (FR-016) */
+        /**
+         * Exclui categoria sem uso (FR-016)
+         * @description A categoria só é excluída se nenhum lançamento nem grupo a usa. Em uso responde `409`
+         *     (`CATEGORY_IN_USE`) com as contagens; os lançamentos não são movidos para outra categoria.
+         *     Categoria de outro usuário responde `404`.
+         */
         delete: {
             parameters: {
-                query?: {
-                    /** @description Categoria que receberá os lançamentos da excluída (mesmo tipo) */
-                    reassignTo?: number;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     categoryId: number;
@@ -690,17 +862,61 @@ export interface paths {
                     content?: never;
                 };
                 404: components["responses"]["NotFound"];
-                /** @description Categoria em uso sem `reassignTo` (`CATEGORY_IN_USE`) */
+                /** @description Categoria em uso (`CATEGORY_IN_USE`) */
                 409: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["Problem"];
+                        "application/problem+json": components["schemas"]["InUseProblem"];
                     };
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/categories/{categoryId}/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                categoryId: number;
+            };
+            cookie?: never;
+        };
+        /**
+         * Prévia da exclusão da categoria
+         * @description Informa quantos lançamentos e grupos usam a categoria. Não altera nada.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    categoryId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Uso da categoria */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CategoryUsage"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -970,7 +1186,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Encerra um lançamento fixo (FR-020) */
+        /**
+         * Encerra um lançamento fixo (FR-020)
+         * @description Destrutivo: as ocorrências pendentes depois de `endMonth` são removidas. O cliente deve pedir confirmação.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1092,7 +1311,13 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edita valor ou vencimento de uma ocorrência pendente (FR-025) */
+        /**
+         * Edita valor ou vencimento de uma ocorrência (FR-025)
+         * @description Despesa: só ocorrências pendentes (paga responde `409`). Receita (fora do cartão): também
+         *     a já recebida. O status só é reavaliado quando o `dueDate` muda: novo `dueDate` hoje ou
+         *     anterior fica `PAID` (com `paymentDate` = novo `dueDate`) e `dueDate` futuro fica `PENDING`.
+         *     Editar só o valor não altera `status` nem `paymentDate`.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -1135,7 +1360,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Marca o lançamento como pago (FR-019) */
+        /**
+         * Marca o lançamento como pago (FR-019)
+         * @description Em receita, só vale para receita futura (antecipação do recebimento). Receita com vencimento
+         *     hoje ou anterior já entra paga automaticamente. Lançamento já pago responde `409`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1195,7 +1424,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reverte o pagamento do lançamento (FR-019) */
+        /**
+         * Reverte o pagamento do lançamento (FR-019)
+         * @description Em receita, só vale para receita futura antecipada (volta a `PENDING`). Receita com
+         *     vencimento hoje ou anterior responde `409`: para corrigir, edite ou exclua o lançamento.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1404,7 +1637,7 @@ export interface paths {
         post?: never;
         /**
          * Desfaz um pagamento de fatura (FR-037)
-         * @description Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos.
+         * @description Destrutivo (o cliente deve pedir confirmação, exceto no desfazer imediato após o pagamento). Itens quitados automaticamente voltam a pendentes; itens pagos individualmente permanecem pagos.
          */
         delete: {
             parameters: {
@@ -1513,6 +1746,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saldo por conta e total, acumulado até hoje
+         * @description Para cada conta `CHECKING` ou `CASH` (ativas e inativas): saldo inicial + receitas recebidas
+         *     (`PAID` com pagamento até hoje) − despesas pagas da própria conta − saídas dos cartões vinculados
+         *     (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje).
+         *     Saídas de cartão sem conta vinculada não debitam nenhuma conta e somam em `unlinkedCardPayments`.
+         *     Itens de cartão quitados por pagamento de fatura não são contados de novo.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saldos */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Balances"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cashflow": {
         parameters: {
             query?: never;
@@ -1607,6 +1884,13 @@ export interface components {
         Month: string;
         /** @enum {string} */
         AccountType: "CHECKING" | "CASH" | "CREDIT_CARD";
+        /**
+         * @description Titularidade da conta bancária: pessoa física ou jurídica (classificação, sem separar dados).
+         * @enum {string}
+         */
+        HolderType: "PF" | "PJ";
+        /** @enum {string} */
+        AccountIcon: "bank" | "building" | "briefcase" | "landmark" | "wallet" | "cash" | "piggy" | "card" | "card-gold" | "card-platinum" | "card-black" | "shield" | "rocket" | "star" | "globe" | "shopping-bag";
         /** @enum {string} */
         CategoryType: "INCOME" | "EXPENSE";
         /** @enum {string} */
@@ -1649,6 +1933,33 @@ export interface components {
         } & {
             [key: string]: unknown;
         });
+        /** @description `409` de exclusão bloqueada (`ACCOUNT_IN_USE`, `CATEGORY_IN_USE`) com o que está em uso. */
+        InUseProblem: components["schemas"]["Problem"] & ({
+            /**
+             * Format: int64
+             * @description Lançamentos que usam a conta ou a categoria.
+             */
+            transactionCount?: number;
+            /**
+             * Format: int64
+             * @description Grupos de lançamento que usam a categoria.
+             */
+            groupCount?: number;
+            /**
+             * Format: int64
+             * @description Pagamentos de fatura da conta.
+             */
+            invoicePaymentCount?: number;
+            /**
+             * Format: int64
+             * @description Cartões vinculados à conta bancária.
+             */
+            linkedCardCount?: number;
+            /** @description A conta tem saldo inicial diferente de zero. */
+            hasOpeningBalance?: boolean;
+        } & {
+            [key: string]: unknown;
+        });
         DeletionPendingProblem: components["schemas"]["Problem"] & ({
             /** Format: date */
             deletionDate: string;
@@ -1685,6 +1996,8 @@ export interface components {
             id: number;
             /** Format: email */
             email: string;
+            /** @description Nome de exibição; nulo até o usuário informar */
+            name?: string | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -1695,26 +2008,65 @@ export interface components {
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            /** @description Em conta bancária, o titular; em cartão, o titular herdado da conta vinculada (ausente se o cartão não tem vínculo). */
+            holderType?: components["schemas"]["HolderType"];
+            /** @description Sempre presente: o escolhido ou o padrão do tipo. */
+            icon?: components["schemas"]["AccountIcon"];
+            /**
+             * Format: int64
+             * @description Somente em cartão vinculado.
+             */
+            bankAccountId?: number;
+            /** @description Nome da conta bancária do cartão. */
+            bankAccountName?: string;
+            /** @description Saldo inicial da conta (parte do saldo de `GET /balances`). Sempre devolvido; `0.00` quando nunca informado e sempre `0.00` em cartão de crédito. */
+            openingBalance: components["schemas"]["Money"];
             active: boolean;
             /** Format: int64 */
             version: number;
         };
-        /** @description `closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. */
+        /** @description `closingDay` e `dueDay` são obrigatórios para CREDIT_CARD e proibidos nos demais tipos. `holderType` é obrigatório em CHECKING e proibido nos demais. `bankAccountId` (conta bancária ativa do mesmo usuário) é obrigatório em CREDIT_CARD e proibido nos demais; conta de outro usuário responde 404 e conta inativa, 422 ACCOUNT_INACTIVE. `icon` ausente usa o padrão do tipo. */
         AccountInput: {
             name: string;
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            holderType?: components["schemas"]["HolderType"];
+            icon?: components["schemas"]["AccountIcon"];
+            /** Format: int64 */
+            bankAccountId?: number;
+            /** @description Saldo inicial da conta, pode ser negativo. Opcional: ausente vale `0.00`. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`. */
+            openingBalance?: components["schemas"]["Money"];
         };
-        /** @description O tipo não pode ser alterado depois do cadastro; `closingDay` e `dueDay` seguem as regras de AccountInput. */
+        /** @description O tipo não pode ser alterado depois do cadastro; os demais campos seguem as regras de AccountInput. Cartão anterior ao vínculo (sem `bankAccountId`) precisa informá-lo ao ser editado, exceto quando só `active` muda. */
         AccountUpdate: {
             name: string;
             type: components["schemas"]["AccountType"];
             closingDay?: number;
             dueDay?: number;
+            holderType?: components["schemas"]["HolderType"];
+            icon?: components["schemas"]["AccountIcon"];
+            /** Format: int64 */
+            bankAccountId?: number;
+            /** @description Saldo inicial da conta. Opcional: ausente mantém o valor atual. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`. */
+            openingBalance?: components["schemas"]["Money"];
             active: boolean;
             /** Format: int64 */
             version: number;
+        };
+        /** @description Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial. */
+        AccountUsage: {
+            canDelete: boolean;
+            /** Format: int64 */
+            transactionCount: number;
+            /** Format: int64 */
+            invoicePaymentCount: number;
+            linkedCards: {
+                /** Format: int64 */
+                id: number;
+                name: string;
+            }[];
+            openingBalance: components["schemas"]["Money"];
         };
         Category: {
             /** Format: int64 */
@@ -1722,6 +2074,13 @@ export interface components {
             name: string;
             type: components["schemas"]["CategoryType"];
             colorHex: string;
+        };
+        CategoryUsage: {
+            canDelete: boolean;
+            /** Format: int64 */
+            transactionCount: number;
+            /** Format: int64 */
+            groupCount: number;
         };
         CategoryInput: {
             name: string;
@@ -1735,7 +2094,10 @@ export interface components {
             totalAmount: components["schemas"]["Money"];
             /** @description Obrigatório para INSTALLMENT (1 vira um avulso; até 120); nos demais tipos é 1 e pode ser omitido */
             totalInstallments?: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Receita (categoria `INCOME`) só pode entrar em conta `CHECKING` ou `CASH`: em conta do tipo `CREDIT_CARD` responde `422` com erro no campo `accountId` ("Receitas só podem entrar em conta bancária ou dinheiro, não em cartão de crédito.").
+             */
             accountId: number;
             /** Format: int64 */
             categoryId: number;
@@ -1743,7 +2105,7 @@ export interface components {
             purchaseDate: string;
             /**
              * Format: date
-             * @description Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor)
+             * @description Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor). Para receita, é a data em que o dinheiro entra na conta: data de hoje ou anterior entra automaticamente (`PAID`); data futura fica `PENDING` até a data chegar.
              */
             firstDueDate?: string;
         };
@@ -1796,10 +2158,11 @@ export interface components {
             dueDate: string;
             /** Format: date */
             paymentDate?: string;
+            /** @description Em receita, `PAID` automático quando `dueDate` é hoje ou anterior (o servidor liquida na consulta, com `paymentDate` igual a `dueDate`); receita futura fica `PENDING` até a data chegar, a menos que seja antecipada pela ação `pay`. */
             status: components["schemas"]["TransactionStatus"];
             /** @description Verdadeiro se foi marcado como pago pela quitação da fatura */
             settledByInvoicePayment?: boolean;
-            /** @description Pendente com vencimento anterior a hoje */
+            /** @description Despesa pendente com vencimento anterior a hoje. Em receita é sempre `false` (receita nunca fica atrasada). */
             overdue: boolean;
             /** Format: int64 */
             version: number;
@@ -1871,6 +2234,10 @@ export interface components {
             /** @description Soma de itens com vencimento no mês marcados como pagos individualmente (sem `settledByInvoicePayment`) mais os pagamentos de fatura cuja fatura vence no mês. Itens quitados por pagamento de fatura não são somados de novo. */
             totalPaid: components["schemas"]["Money"];
             overdueTotal: components["schemas"]["Money"];
+            /** @description Receitas com vencimento no mês (recebidas ou não) */
+            totalIncome: components["schemas"]["Money"];
+            /** @description Parte das receitas do mês que já entrou na conta (receita com vencimento até hoje ou antecipada) */
+            totalReceived: components["schemas"]["Money"];
             byCategory: {
                 /** Format: int64 */
                 categoryId: number;
@@ -1884,6 +2251,29 @@ export interface components {
                 name: string;
                 amount: components["schemas"]["Money"];
             }[];
+        };
+        AccountBalance: {
+            /** Format: int64 */
+            accountId: number;
+            name: string;
+            /** @enum {string} */
+            type: "CHECKING" | "CASH";
+            active: boolean;
+            /** @description Saldo acumulado até hoje (pode ser negativo) */
+            balance: components["schemas"]["Money"];
+            openingBalance: components["schemas"]["Money"];
+        };
+        Balances: {
+            /**
+             * Format: date
+             * @description Data de referência do saldo (hoje
+             */
+            asOf: string;
+            /** @description Soma dos saldos de todas as contas (inclusive inativas com saldo diferente de zero) */
+            total: components["schemas"]["Money"];
+            accounts: components["schemas"]["AccountBalance"][];
+            /** @description Saídas de cartões sem conta vinculada, que não debitam nenhuma conta */
+            unlinkedCardPayments: components["schemas"]["Money"];
         };
         CashflowMonth: {
             month: components["schemas"]["Month"];

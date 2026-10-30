@@ -91,7 +91,7 @@ public class InvoiceService {
         amounts.paidIndividually(),
         amounts.paidByInvoicePayments(),
         amounts.remaining(),
-        items.stream().map(t -> mapper.toResponse(t, groupsById.get(t.getGroupId()))).toList(),
+        mapper.toResponses(items, t -> groupsById.get(t.getGroupId())),
         payments
             .findByUserIdAndAccountIdAndInvoiceMonthOrderByIdAsc(userId, card.getId(), first)
             .stream()

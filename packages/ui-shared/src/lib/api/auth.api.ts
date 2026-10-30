@@ -1,6 +1,6 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Credentials, RegisterRequest, UserProfile } from '@gefinc/core-models';
+import type { Credentials, RegisterRequest, TokenResponse, UserProfile } from '@gefinc/core-models';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api.tokens';
 
@@ -12,6 +12,20 @@ export class AuthApi {
 
   register(body: RegisterRequest): Observable<UserProfile> {
     return this.http.post<UserProfile>(`${this.base}/auth/register`, body);
+  }
+
+  me(): Observable<UserProfile> {
+    return this.http.get<UserProfile>(`${this.base}/auth/me`);
+  }
+
+  /** Nome de exibição; vazio remove o nome. */
+  updateName(name: string): Observable<UserProfile> {
+    return this.http.patch<UserProfile>(`${this.base}/auth/me`, { name });
+  }
+
+  /** Troca a senha; as sessões antigas caem e a resposta traz a nova (use `SessionService.adopt`). */
+  changePassword(currentPassword: string, newPassword: string, headers?: HttpHeaders): Observable<TokenResponse> {
+    return this.http.post<TokenResponse>(`${this.base}/auth/password`, { currentPassword, newPassword }, { headers });
   }
 
   requestPasswordReset(email: string): Observable<void> {

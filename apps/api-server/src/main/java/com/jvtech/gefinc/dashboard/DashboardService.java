@@ -2,11 +2,13 @@ package com.jvtech.gefinc.dashboard;
 
 import com.jvtech.gefinc.account.Account;
 import com.jvtech.gefinc.account.AccountRepository;
+import com.jvtech.gefinc.account.AccountType;
 import com.jvtech.gefinc.category.Category;
 import com.jvtech.gefinc.category.CategoryRepository;
 import com.jvtech.gefinc.category.CategoryType;
 import com.jvtech.gefinc.invoice.InvoiceBalanceGuard;
 import com.jvtech.gefinc.invoice.InvoicePaymentRepository;
+import com.jvtech.gefinc.transaction.IncomeSettlement;
 import com.jvtech.gefinc.transaction.TransactionRepository;
 import com.jvtech.gefinc.transaction.TransactionStatus;
 import jakarta.persistence.EntityManager;
@@ -26,7 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Painel do mês, sempre por mês de vencimento (FR-029 e FR-030). Considera só despesas.
+ * Painel do mês, sempre por mês de vencimento (FR-029 e FR-030). Os totais de despesa e os gráficos
+ * consideram só despesas; as receitas entram à parte, em {@code totalIncome} e {@code
+ * totalReceived}.
  *
  * <ul>
  *   <li><b>Total do Mês</b>: despesas com vencimento no mês.
@@ -34,6 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
  *       mês; itens quitados por pagamento de fatura não entram de novo.
  *   <li><b>Total a Vencer</b>: restante das faturas de cartão e despesas pendentes de outras contas
  *       com vencimento de hoje em diante; <b>Atrasado</b>: o mesmo com vencimento anterior a hoje.
+ *   <li><b>Receitas</b>: total com vencimento no mês e quanto já entrou na conta (receita com
+ *       vencimento até hoje entra automaticamente). O saldo das contas fica em {@code GET
+ *       /balances}.
  * </ul>
  */
 @Service
@@ -61,6 +68,8 @@ public class DashboardService {
       BigDecimal totalToDue,
       BigDecimal totalPaid,
       BigDecimal overdueTotal,
+      BigDecimal totalIncome,
+      BigDecimal totalReceived,
       List<CategoryAmount> byCategory,
       List<CardAmount> byCard) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
@@ -78,6 +87,7 @@ public class DashboardService {
   private final InvoicePaymentRepository payments;
   private final InvoiceBalanceGuard guard;
   private final Clock clock;
+  private final IncomeSettlement incomeSettlement;
 
   DashboardService(
       AccountRepository accounts,
@@ -85,17 +95,20 @@ public class DashboardService {
       TransactionRepository transactions,
       InvoicePaymentRepository payments,
       InvoiceBalanceGuard guard,
-      Clock clock) {
+      Clock clock,
+      IncomeSettlement incomeSettlement) {
     this.accounts = accounts;
     this.categories = categories;
     this.transactions = transactions;
     this.payments = payments;
     this.guard = guard;
     this.clock = clock;
+    this.incomeSettlement = incomeSettlement;
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public Dashboard dashboard(long userId, YearMonth month) {
+    incomeSettlement.settleDue(userId);
     LocalDate first = month.atDay(1);
     LocalDate today = LocalDate.now(clock);
     Map<Long, Account> accountsById =
@@ -161,6 +174,14 @@ public class DashboardService {
       }
     }
 
+    // Mesma regra de /balances: só receita em conta (não cartão); recebida = paga até hoje.
+    BigDecimal totalIncome = BigDecimal.ZERO;
+    BigDecimal totalReceived = BigDecimal.ZERO;
+    for (Object[] row : incomeRows(userId, first, today)) {
+      totalIncome = totalIncome.add((BigDecimal) row[0]);
+      totalReceived = totalReceived.add((BigDecimal) row[1]);
+    }
+
     List<CategoryAmount> categoryList =
         byCategory.entrySet().stream()
             .map(
@@ -189,6 +210,8 @@ public class DashboardService {
         scale(toDue),
         scale(totalPaid),
         scale(overdue),
+        scale(totalIncome),
+        scale(totalReceived),
         categoryList,
         cardList);
   }
@@ -207,6 +230,30 @@ public class DashboardService {
                 + " case when t.settledByPaymentId is null then false else true end",
             Object[].class)
         .setParameter("expense", CategoryType.EXPENSE)
+        .setParameter("userId", userId)
+        .setParameter("month", month)
+        .getResultList();
+  }
+
+  /**
+   * Receitas do mês em contas que não são cartão: linha {@code [total, recebidoAteHoje]}. Receita
+   * legada em cartão é ignorada.
+   */
+  private List<Object[]> incomeRows(long userId, LocalDate month, LocalDate today) {
+    return em.createQuery(
+            "select coalesce(sum(t.amount), 0),"
+                + " coalesce(sum(case when t.status = :paid and t.paymentDate <= :today"
+                + " then t.amount else 0 end), 0)"
+                + " from Transaction t, Category c, Account a"
+                + " where c.id = t.categoryId and c.userId = t.userId"
+                + " and a.id = t.accountId and a.userId = t.userId"
+                + " and a.type <> :card"
+                + " and c.type = :income and t.userId = :userId and t.referenceMonth = :month",
+            Object[].class)
+        .setParameter("paid", TransactionStatus.PAID)
+        .setParameter("today", today)
+        .setParameter("card", AccountType.CREDIT_CARD)
+        .setParameter("income", CategoryType.INCOME)
         .setParameter("userId", userId)
         .setParameter("month", month)
         .getResultList();

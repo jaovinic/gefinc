@@ -1,77 +1,67 @@
-import { Component, ElementRef, OnDestroy, computed, effect, input, viewChild } from '@angular/core';
-import { BarController, BarElement, CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js';
+import { Component, computed, input } from '@angular/core';
 import { formatBRL } from '@gefinc/utils';
+import { Icon } from '../icons/icon';
 import { ChartSlice } from './chart-slice';
 
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Tooltip);
-
-/** Barras horizontais da distribuição dos gastos por cartão, com legenda acessível dos valores. */
+/**
+ * Distribuição dos gastos por cartão: uma linha por cartão (ícone, nome, valor) com uma barra de
+ * participação e o percentual do total. Feita em HTML, sem canvas, para ler bem com um ou vários cartões
+ * e em qualquer largura de tela.
+ */
 @Component({
   selector: 'gef-card-bars',
+  imports: [Icon],
   template: `
-    <div class="space-y-4">
-      <div class="relative" [style.height.px]="height()">
-        <canvas #canvas role="img" [attr.aria-label]="summary()"></canvas>
-      </div>
-      <ul class="space-y-1 text-body-base" aria-label="Legenda do gráfico por cartão">
-        @for (slice of slices(); track slice.label) {
-          <li class="flex items-center justify-between gap-3">
-            <span>{{ slice.label }}</span>
-            <span class="financial-value">{{ money(slice.value) }}</span>
-          </li>
-        }
-      </ul>
-    </div>
+    <ul class="space-y-4" aria-label="Legenda do gráfico por cartão" data-testid="card-share">
+      @for (row of rows(); track row.label) {
+        <li data-testid="card-share-row">
+          <div class="mb-1.5 flex items-center justify-between gap-3">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="gef-account-tile text-gefinc-accent"><gef-icon [name]="row.icon" [size]="18" /></span>
+              <span class="truncate font-medium" [attr.title]="row.label">{{ row.label }}</span>
+            </span>
+            <span class="financial-value shrink-0 font-semibold">{{ row.money }}</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div
+              class="h-2.5 flex-1 overflow-hidden rounded-full bg-gefinc-bg"
+              role="img"
+              [attr.aria-label]="row.label + ': ' + row.percent + '% do total em cartões'"
+            >
+              <div class="h-full rounded-full" [style.width.%]="row.width" [style.background]="row.color"></div>
+            </div>
+            <span class="w-10 shrink-0 text-right text-caption text-gefinc-muted">{{ row.percent }}%</span>
+          </div>
+        </li>
+      }
+    </ul>
+    @if (rows().length > 1) {
+      <p class="mt-4 flex items-center justify-between border-t border-gefinc-border pt-3 text-body-base text-gefinc-muted">
+        <span>Total nos cartões</span>
+        <span class="financial-value font-semibold text-gefinc-text">{{ total() }}</span>
+      </p>
+    }
   `,
 })
-export class CardBars implements OnDestroy {
+export class CardBars {
   readonly slices = input.required<ChartSlice[]>();
 
-  private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
-  private chart: Chart | null = null;
+  private readonly sum = computed(() => this.slices().reduce((acc, s) => acc + Number(s.value), 0));
 
-  protected readonly height = computed(() => Math.max(80, this.slices().length * 44));
-  protected readonly summary = computed(
-    () => 'Gastos por cartão: ' + this.slices().map((s) => `${s.label} ${formatBRL(s.value)}`).join('; '),
-  );
-
-  constructor() {
-    effect(() => {
-      const slices = this.slices();
-      const data = {
-        labels: slices.map((s) => s.label),
-        datasets: [
-          {
-            data: slices.map((s) => Number(s.value)),
-            backgroundColor: slices.map((s) => s.color),
-            borderRadius: 6,
-          },
-        ],
+  protected readonly total = computed(() => formatBRL(this.sum().toFixed(2)));
+  protected readonly rows = computed(() => {
+    const sum = this.sum();
+    return this.slices().map((s) => {
+      const share = sum > 0 ? (Number(s.value) / sum) * 100 : 0;
+      return {
+        label: s.label,
+        icon: s.icon ?? 'card',
+        color: s.color,
+        money: formatBRL(s.value),
+        percent: Math.round(share),
+        // barras muito pequenas continuam visíveis
+        width: Math.max(share, share > 0 ? 3 : 0),
       };
-      if (this.chart) {
-        this.chart.data = data;
-        this.chart.update();
-        return;
-      }
-      this.chart = new Chart(this.canvas().nativeElement, {
-        type: 'bar',
-        data,
-        options: {
-          indexAxis: 'y',
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { x: { display: false }, y: { ticks: { color: '#94a3b8' }, grid: { display: false } } },
-        },
-      });
     });
-  }
-
-  ngOnDestroy(): void {
-    this.chart?.destroy();
-    this.chart = null;
-  }
-
-  protected money(value: string): string {
-    return formatBRL(value);
-  }
+  });
 }

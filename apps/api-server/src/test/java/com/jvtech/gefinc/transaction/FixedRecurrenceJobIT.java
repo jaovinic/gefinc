@@ -107,21 +107,7 @@ class FixedRecurrenceJobIT extends IntegrationTestBase {
                 api.fixedBody("Parado", "10.00", inactiveAccount, food, "2026-11-05", "2026-11-05"))
             .get("id")
             .asLong();
-    JsonNode account = api.get(ana, "/accounts/" + inactiveAccount);
-    api.call(
-            ana,
-            HttpMethod.PUT,
-            "/accounts/" + inactiveAccount,
-            Map.of(
-                "name",
-                "Conta velha",
-                "type",
-                "CHECKING",
-                "active",
-                false,
-                "version",
-                account.get("version").asLong()))
-        .andReturn();
+    api.updateAccount(ana, inactiveAccount, Map.of("active", false)).andReturn();
     int endedBefore = count(ended);
     int inactiveBefore = count(onInactive);
 

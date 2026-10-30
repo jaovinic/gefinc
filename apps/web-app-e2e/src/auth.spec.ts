@@ -55,7 +55,7 @@ test.describe('acesso seguro', () => {
     const email = uniqueEmail();
     await register(page, email);
 
-    await page.getByRole('link', { name: 'Minha conta' }).click();
+    await page.getByTestId('sidenav').getByRole('link', { name: 'Minha conta', exact: true }).click();
     await page.getByLabel('Confirme com a sua senha').fill(PASSWORD);
     await page.getByRole('button', { name: 'Excluir minha conta' }).click();
     await expect(page.getByRole('status')).toContainText('Exclusão agendada para');

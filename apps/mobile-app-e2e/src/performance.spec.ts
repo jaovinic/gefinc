@@ -14,8 +14,8 @@ async function timed(page: Page, action: () => Promise<void>, ready: () => Promi
 test('painel, lançamentos e faturas abrem em até 2 s com 6.000 lançamentos, com e sem conexão', async ({ page, request, context }) => {
   test.setTimeout(180_000);
   const user = await newUser(request);
-  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
-  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17 });
+  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, bankAccountId: itau.id });
   const food = await categoryId(request, user, 'Alimentação');
   // 120 compras de 50 parcelas = 6.000 lançamentos, metade no cartão, espalhados por mais de 4 anos
   for (let i = 0; i < 120; i++) {

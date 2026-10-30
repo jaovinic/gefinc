@@ -21,7 +21,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(appRoutes, withComponentInputBinding()),
     provideHttpClient(withInterceptors([authInterceptor, offlineInterceptor])),
     { provide: LOCALE_ID, useValue: 'pt-BR' },
-    { provide: APP_PATHS, useValue: { transactions: '/lancamentos' } },
+    { provide: APP_PATHS, useValue: { transactions: '/lancamentos', accounts: '/contas' } },
     provideSession(),
     provideOffline(),
     provideLock(),

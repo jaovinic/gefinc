@@ -36,10 +36,31 @@ class AccountApiIT extends IntegrationTestBase {
     ana = new TestUsers(mockMvc, objectMapper).registerAndLogin("ana@example.com");
   }
 
-  private Map<String, Object> body(String name, String type, Integer closing, Integer due) {
+  private Long bankId;
+
+  /** Conta bancária base para vincular os cartões, criada na primeira necessidade. */
+  private long bankId() throws Exception {
+    if (bankId == null) {
+      Map<String, Object> bank = new LinkedHashMap<>();
+      bank.put("name", "Banco base");
+      bank.put("type", "CHECKING");
+      bank.put("holderType", "PF");
+      bankId = createOk(bank).get("id").asLong();
+    }
+    return bankId;
+  }
+
+  private Map<String, Object> body(String name, String type, Integer closing, Integer due)
+      throws Exception {
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("name", name);
     body.put("type", type);
+    if ("CHECKING".equals(type)) {
+      body.put("holderType", "PF");
+    }
+    if ("CREDIT_CARD".equals(type)) {
+      body.put("bankAccountId", bankId());
+    }
     if (closing != null) {
       body.put("closingDay", closing);
     }
@@ -79,6 +100,12 @@ class AccountApiIT extends IntegrationTestBase {
       body.put("closingDay", account.get("closingDay").asInt());
       body.put("dueDay", account.get("dueDay").asInt());
     }
+    if (account.has("holderType") && "CHECKING".equals(account.get("type").asText())) {
+      body.put("holderType", account.get("holderType").asText());
+    }
+    if (account.has("bankAccountId")) {
+      body.put("bankAccountId", account.get("bankAccountId").asLong());
+    }
     body.put("active", account.get("active").asBoolean());
     body.put("version", account.get("version").asLong());
     body.putAll(overrides);
@@ -104,6 +131,93 @@ class AccountApiIT extends IntegrationTestBase {
         .andExpect(matchesContract())
         .andExpect(jsonPath("$.closingDay").value(10))
         .andExpect(jsonPath("$.dueDay").value(17));
+  }
+
+  @Test
+  void saldoInicialAusenteVale0EEPersistidoQuandoInformado() throws Exception {
+    create(body("Sem saldo", "CHECKING", null, null))
+        .andExpect(status().isCreated())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("0.00"));
+
+    Map<String, Object> withBalance = body("Com saldo", "CHECKING", null, null);
+    withBalance.put("openingBalance", "1234.56");
+    JsonNode created =
+        objectMapper.readTree(
+            create(withBalance)
+                .andExpect(status().isCreated())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.openingBalance").value("1234.56"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    mockMvc
+        .perform(
+            get("/accounts/" + created.get("id").asLong())
+                .header(HttpHeaders.AUTHORIZATION, ana.bearer()))
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("1234.56"));
+
+    Map<String, Object> negative = body("No vermelho", "CASH", null, null);
+    negative.put("openingBalance", "-50.00");
+    create(negative)
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.openingBalance").value("-50.00"));
+  }
+
+  @Test
+  void editaOSaldoInicialEAusenciaMantemOValorAtual() throws Exception {
+    Map<String, Object> input = body("Itaú", "CHECKING", null, null);
+    input.put("openingBalance", "100.00");
+    JsonNode account = createOk(input);
+
+    // Sem o campo: não zera o saldo inicial.
+    JsonNode renamed =
+        objectMapper.readTree(
+            update(account.get("id").asLong(), updateBody(account, Map.of("name", "Itaú PF")))
+                .andExpect(status().isOk())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.openingBalance").value("100.00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    update(account.get("id").asLong(), updateBody(renamed, Map.of("openingBalance", "250.75")))
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.openingBalance").value("250.75"));
+  }
+
+  @Test
+  void cartaoComSaldoInicialDiferenteDeZeroERecusado() throws Exception {
+    Map<String, Object> card = body("Nubank", "CREDIT_CARD", 10, 17);
+    card.put("openingBalance", "10.00");
+    create(card)
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.errors[?(@.field=='openingBalance')]").exists());
+
+    card.put("openingBalance", "0.00");
+    JsonNode created =
+        objectMapper.readTree(
+            create(card)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.openingBalance").value("0.00"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    update(created.get("id").asLong(), updateBody(created, Map.of("openingBalance", "5.00")))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.errors[?(@.field=='openingBalance')]").exists());
+  }
+
+  @Test
+  void saldoInicialForaDoFormatoDeDinheiroERecusado() throws Exception {
+    Map<String, Object> input = body("Itaú", "CHECKING", null, null);
+    input.put("openingBalance", "10");
+    create(input).andExpect(status().isUnprocessableEntity());
   }
 
   @Test
@@ -148,16 +262,17 @@ class AccountApiIT extends IntegrationTestBase {
         .perform(get("/accounts").header(HttpHeaders.AUTHORIZATION, ana.bearer()))
         .andExpect(status().isOk())
         .andExpect(matchesContract())
-        .andExpect(jsonPath("$.length()").value(2))
-        .andExpect(jsonPath("$[0].name").value("Nubank"))
-        .andExpect(jsonPath("$[1].name").value("Wise"));
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].name").value("Banco base"))
+        .andExpect(jsonPath("$[1].name").value("Nubank"))
+        .andExpect(jsonPath("$[2].name").value("Wise"));
     mockMvc
         .perform(
             get("/accounts")
                 .param("includeInactive", "true")
                 .header(HttpHeaders.AUTHORIZATION, ana.bearer()))
-        .andExpect(jsonPath("$.length()").value(3))
-        .andExpect(jsonPath("$[0].name").value("Carteira"));
+        .andExpect(jsonPath("$.length()").value(4))
+        .andExpect(jsonPath("$[1].name").value("Carteira"));
   }
 
   @Test

@@ -3,7 +3,6 @@ package com.jvtech.gefinc.transaction;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -28,13 +27,10 @@ public interface TransactionGroupRepository extends JpaRepository<TransactionGro
   List<TransactionGroup> findFixedOfActiveAccounts();
 
   @Query(
-      "select count(g) > 0 from TransactionGroup g where g.userId = :userId and g.categoryId = :categoryId")
-  boolean existsByCategory(@Param("userId") long userId, @Param("categoryId") long categoryId);
+      "select count(g) from TransactionGroup g where g.userId = :userId and g.categoryId = :categoryId")
+  long countByCategory(@Param("userId") long userId, @Param("categoryId") long categoryId);
 
-  @Modifying(clearAutomatically = true, flushAutomatically = true)
   @Query(
-      "update TransactionGroup g set g.categoryId = :to"
-          + " where g.userId = :userId and g.categoryId = :from")
-  int reassignCategory(
-      @Param("userId") long userId, @Param("from") long from, @Param("to") long to);
+      "select count(g) from TransactionGroup g where g.userId = :userId and g.accountId = :accountId")
+  long countByAccount(@Param("userId") long userId, @Param("accountId") long accountId);
 }

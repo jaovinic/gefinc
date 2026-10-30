@@ -1,5 +1,6 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import type { Provider } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authInterceptor } from '@gefinc/ui-shared';
@@ -7,8 +8,11 @@ import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authIntercepto
 export const API = 'http://api.test/api/v1';
 
 export const ACCOUNTS = [
-  { id: 1, name: 'Itaú', type: 'CHECKING', active: true, version: 0 },
-  { id: 2, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, active: true, version: 0 },
+  { id: 1, name: 'Itaú', type: 'CHECKING', holderType: 'PF', icon: 'bank', active: true, version: 0 },
+  {
+    id: 2, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, holderType: 'PF', icon: 'card',
+    bankAccountId: 1, bankAccountName: 'Itaú', active: true, version: 0,
+  },
 ];
 export const CATEGORIES = [
   { id: 10, name: 'Alimentação', type: 'EXPENSE', colorHex: '#F97316' },
@@ -16,7 +20,7 @@ export const CATEGORIES = [
   { id: 20, name: 'Salário', type: 'INCOME', colorHex: '#00E599' },
 ];
 
-export function configureMobileTesting() {
+export function configureMobileTesting(extra: Provider[] = []) {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -25,6 +29,7 @@ export function configureMobileTesting() {
       { provide: API_BASE_URL, useValue: API },
       { provide: CLIENT_KIND, useValue: 'mobile' },
       { provide: TokenStore, useClass: MemoryTokenStore },
+      ...extra,
     ],
   });
   const http = TestBed.inject(HttpTestingController);
@@ -47,4 +52,12 @@ export function select(root: HTMLElement, selector: string, value: string) {
   const el = root.querySelector(selector) as HTMLSelectElement;
   el.value = value;
   el.dispatchEvent(new Event('change'));
+}
+
+/** Escolhe uma conta ou cartão no seletor com ícones. */
+export function chooseAccount(fixture: { detectChanges(): void }, root: HTMLElement, accountId: number | string) {
+  (root.querySelector('gef-account-picker button[aria-haspopup]') as HTMLButtonElement).click();
+  fixture.detectChanges();
+  (document.querySelector(`[role="option"][data-account-id="${accountId}"]`) as HTMLElement).click();
+  fixture.detectChanges();
 }

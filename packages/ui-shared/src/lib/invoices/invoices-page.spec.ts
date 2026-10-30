@@ -3,6 +3,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { currentMonth, todayIso } from '@gefinc/utils';
 import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
+import { NoticeService } from '../api';
 import { Viewport } from '../viewport/viewport';
 import { InvoicesPage } from './invoices-page';
 
@@ -59,6 +60,14 @@ describe('InvoicesPage', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Nenhum cartão cadastrado');
   });
 
+  it('escolhe o cartão pelo seletor com ícone e nome, e a projeção mostra o selo do cartão', async () => {
+    const { el } = await setup();
+    const trigger = el.querySelector('gef-account-picker button[aria-haspopup]') as HTMLButtonElement;
+    expect(trigger.textContent).toContain('Nubank');
+    expect(trigger.querySelector('svg')).not.toBeNull();
+    expect(el.querySelector('table[aria-label="Projeção de faturas"] gef-account-badge')?.textContent).toContain('Nubank');
+  });
+
   it('mostra total, pago, restante, vencimento, itens e projeção', async () => {
     const { el } = await setup();
     expect(el.textContent).toContain('R$ 1.000,00');
@@ -82,6 +91,32 @@ describe('InvoicesPage', () => {
     fixture.detectChanges();
     expect(el.textContent).toContain('R$ 700,00');
     expect(el.textContent).toContain('Pagamentos da fatura');
+  });
+
+  it('pagar parte confirma com um aviso que oferece Desfazer o pagamento', async () => {
+    const { http, el, fixture } = await setup();
+    const notices = TestBed.inject(NoticeService);
+    clickButton(el, 'Pagar parte');
+    fixture.detectChanges();
+    type(el, '[role="dialog"] gef-money-input input', '30000');
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    const paidInvoice = invoice({ remaining: '700.00', payments: [{ id: 4, amount: '100.00', paidAt: `${month}-01` }, { id: 5, amount: '300.00', paidAt: todayIso() }] });
+    http.expectOne({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments` }).flush(paidInvoice);
+    reload(http, paidInvoice);
+
+    const [toast] = notices.toasts();
+    expect(toast.message).toBe('Pagamento da fatura registrado.');
+    notices.runUndo(toast.id);
+    http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush(invoice());
+    reload(http);
+  });
+
+  it('o status dos itens tem ícone além do texto e da cor', async () => {
+    const { el } = await setup(invoice({ items: [item({ status: 'PAID' }), item({ id: 2, overdue: true }), item({ id: 3 })] }));
+    const badges = Array.from(el.querySelectorAll('tbody span.rounded-full'));
+    expect(badges.length).toBeGreaterThanOrEqual(3);
+    expect(badges.every((b) => b.querySelector('svg') !== null)).toBe(true);
   });
 
   it('quitar fatura usa o restante total', async () => {
@@ -110,11 +145,36 @@ describe('InvoicesPage', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('saldo restante da fatura');
   });
 
-  it('desfazer um pagamento chama a API e recarrega', async () => {
-    const { http, el } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+  it('desfazer um pagamento pede confirmação e só então chama a API e recarrega', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
     clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    http.expectNone({ method: 'DELETE', url: `${API}/invoice-payments/5` });
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain(`Desfazer o pagamento de 10/${month.slice(5)}/${month.slice(0, 4)} (R$ 300,00)? Os itens que ele quitou voltam a pendentes.`);
+    clickButton(el, 'Desfazer pagamento');
     http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush(invoice());
     reload(http);
+  });
+
+  it('cancelar a confirmação de desfazer não chama a API', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+    clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    http.expectNone({ method: 'DELETE', url: `${API}/invoice-payments/5` });
+  });
+
+  it('erro ao desfazer fica dentro do diálogo', async () => {
+    const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
+    clickButton(el, 'Desfazer');
+    fixture.detectChanges();
+    clickButton(el, 'Desfazer pagamento');
+    http.expectOne({ method: 'DELETE', url: `${API}/invoice-payments/5` }).flush({}, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="confirm-error"]')?.textContent).toContain('erro inesperado');
   });
 
   describe('no celular (layout compacto)', () => {
@@ -159,7 +219,7 @@ describe('InvoicesPage', () => {
       expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${month}"]`)).not.toBeNull();
       const undo = el.querySelector('button[aria-label^="Desfazer pagamento"]') as HTMLButtonElement;
       expect(undo).not.toBeNull();
-      expect(undo.className).toContain('gef-action');
+      expect(undo.className).toContain('gef-btn-sm');
     });
   });
 });

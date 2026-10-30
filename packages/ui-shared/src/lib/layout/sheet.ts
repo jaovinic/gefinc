@@ -1,32 +1,59 @@
-import { Component, Injector, afterNextRender, effect, inject, input, output, untracked } from '@angular/core';
+import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, untracked, viewChild } from '@angular/core';
+import { Icon } from '../icons/icon';
+
+/** Painéis abertos, do mais antigo ao mais novo: só o de cima reage ao Escape (há painéis dentro de painéis). */
+const OPEN_SHEETS: object[] = [];
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Painel que sobe da base da tela (celular) ou aparece centralizado (desktop), para filtros e
+ * Painel (modal) centralizado na tela, para filtros e
  * formulários curtos. Diálogo modal acessível: rótulo, foco preso, Escape e toque no fundo fecham,
  * e o foco volta para quem o abriu.
  */
 @Component({
   selector: 'gef-sheet',
+  imports: [Icon],
   template: `
     @if (open()) {
-      <div class="gef-sheet-backdrop" role="presentation" (click)="onBackdrop($event)" (keydown)="onKeydown($event)">
-        <div class="gef-sheet" role="dialog" aria-modal="true" [attr.aria-label]="heading()">
+      <div class="gef-sheet-backdrop" [class.gef-sheet-backdrop-left]="side() === 'left'" role="presentation" (click)="onBackdrop($event)" (keydown)="onKeydown($event)">
+        <div #dialog class="gef-sheet" [class.gef-sheet-left]="side() === 'left'" [attr.role]="role()" aria-modal="true" [attr.aria-label]="heading()" [attr.aria-describedby]="describedBy()">
           <header class="mb-3 flex items-center justify-between gap-3">
             <h2 class="text-title-md font-bold">{{ heading() }}</h2>
-            <button type="button" class="gef-btn-secondary" aria-label="Fechar" (click)="closed.emit()">✕</button>
+            <button type="button" class="gef-icon-btn border border-gefinc-border" aria-label="Fechar" (click)="requestClose()">
+              <gef-icon name="close" [size]="18" />
+            </button>
           </header>
           <ng-content />
         </div>
       </div>
     }
   `,
+  host: { '(document:keydown.escape)': 'onDocumentEscape()' },
 })
 export class Sheet {
+  private readonly dialog = viewChild<ElementRef<HTMLElement>>('dialog');
+
+  /** Escape fecha o painel mesmo quando o foco ficou fora dele, mas só o painel de cima (se houver mais de um). */
+  protected onDocumentEscape(): void {
+    if (this.open() && OPEN_SHEETS[OPEN_SHEETS.length - 1] === this) {
+      this.requestClose();
+    }
+  }
+
   readonly heading = input.required<string>();
   readonly open = input.required<boolean>();
+  /** `bottom` (padrão) sobe da base da tela; `left` abre como gaveta lateral do menu. */
+  readonly side = input<'bottom' | 'left'>('bottom');
+  /** `alertdialog` para confirmações que exigem uma resposta (ex.: exclusão); o padrão é `dialog`. */
+  readonly role = input<'dialog' | 'alertdialog'>('dialog');
+  /** Seletor CSS do elemento que recebe o foco ao abrir; sem ele (ou sem correspondência), o primeiro focável. */
+  readonly initialFocus = input<string | null>(null);
+  /** Com `false` (ex.: operação em andamento), Escape, toque no fundo e "Fechar" são ignorados. */
+  readonly dismissible = input<boolean>(true);
+  /** Id do elemento que descreve o painel (`aria-describedby`). */
+  readonly describedBy = input<string | null>(null);
   readonly closed = output<void>();
 
   private readonly injector = inject(Injector);
@@ -36,9 +63,15 @@ export class Sheet {
     effect(() => {
       const open = this.open();
       untracked(() => {
+        const index = OPEN_SHEETS.indexOf(this);
+        if (open && index === -1) {
+          OPEN_SHEETS.push(this);
+        } else if (!open && index !== -1) {
+          OPEN_SHEETS.splice(index, 1);
+        }
         if (open) {
           this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-          afterNextRender(() => this.focusables()[0]?.focus(), { injector: this.injector });
+          afterNextRender(() => this.focusInitial(), { injector: this.injector });
         } else if (this.opener) {
           this.opener.focus();
           this.opener = null;
@@ -50,14 +83,27 @@ export class Sheet {
   /** Só o toque no fundo fecha; toques dentro do painel sobem até aqui e são ignorados. */
   protected onBackdrop(event: MouseEvent): void {
     if (event.target === event.currentTarget) {
+      this.requestClose();
+    }
+  }
+
+  protected requestClose(): void {
+    if (this.dismissible()) {
       this.closed.emit();
     }
+  }
+
+  private focusInitial(): void {
+    const selector = this.initialFocus();
+    const dialog = this.dialog()?.nativeElement;
+    const preferred = selector && dialog ? dialog.querySelector<HTMLElement>(selector) : null;
+    (preferred ?? this.focusables()[0])?.focus();
   }
 
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.stopPropagation();
-      this.closed.emit();
+      this.requestClose();
       return;
     }
     if (event.key !== 'Tab') {
@@ -67,6 +113,7 @@ export class Sheet {
     if (items.length === 0) {
       return;
     }
+    event.stopPropagation(); // um painel dentro de outro não pode ser tratado também pelo de fora
     const first = items[0];
     const last = items[items.length - 1];
     if (event.shiftKey && document.activeElement === first) {
@@ -79,7 +126,11 @@ export class Sheet {
   }
 
   private focusables(): HTMLElement[] {
-    const dialog = document.querySelector('[role="dialog"].gef-sheet');
-    return dialog ? Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)) : [];
+    const dialog = this.dialog()?.nativeElement;
+    if (!dialog) {
+      return [];
+    }
+    // ignora os campos de um painel aninhado: eles pertencem ao outro painel
+    return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.closest('[role="dialog"], [role="alertdialog"]') === dialog);
   }
 }

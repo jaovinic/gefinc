@@ -1,22 +1,21 @@
 import { Component, inject, signal } from '@angular/core';
-import { DeleteAccount } from '@gefinc/ui-shared';
+import { Icon, ProfilePage } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
 import { AppLockService } from '../lock/app-lock.service';
 import { DevicePreferences } from '../lock/device-preferences';
 import { ReminderKindKey, RemindersService } from '../reminders/reminders.service';
 
 /**
- * Minha conta: bloqueio por biometria, lembretes de vencimento, sair e excluir a conta.
+ * Minha conta: perfil e senha (compartilhados com o web), bloqueio por biometria, lembretes de vencimento,
+ * sair e excluir a conta.
  */
 @Component({
   selector: 'gef-settings-page',
-  imports: [DeleteAccount],
+  imports: [Icon, ProfilePage],
   template: `
-    <section class="space-y-6">
-      <h1 class="text-title-lg font-bold">Minha conta</h1>
-
+    <gef-profile-page>
       <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="lock-title">
-        <h2 id="lock-title" class="text-title-md font-bold">Bloqueio por biometria</h2>
+        <h2 id="lock-title" class="flex items-center gap-2 text-title-md font-bold"><gef-icon name="shield" [size]="18" />Bloqueio por biometria</h2>
         <p class="text-body-base text-gefinc-muted">
           Peça a digital ou o rosto para abrir o aplicativo e proteger seus dados financeiros se outra pessoa usar o aparelho.
         </p>
@@ -78,9 +77,10 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
         }
       </section>
 
-      <button type="button" class="gef-btn-secondary w-full" (click)="logout.run()">Sair</button>
-      <gef-delete-account [embedded]="true" />
-    </section>
+      <button type="button" class="gef-btn-secondary flex w-full items-center justify-center gap-2" (click)="logout.run()">
+        <gef-icon name="logout" [size]="18" />Sair
+      </button>
+    </gef-profile-page>
   `,
 })
 export class SettingsPage {

@@ -4,6 +4,7 @@ import {
   formatBRL,
   fromCents,
   isValidMoney,
+  multiplyMoney,
   splitMoney,
   subMoney,
   sumMoney,
@@ -72,6 +73,31 @@ describe('Money', () => {
       expect(() => splitMoney('100.00', 1.5)).toThrow();
       expect(() => splitMoney('0.00', 2)).toThrow();
       expect(() => splitMoney('0.01', 2)).toThrow();
+    });
+  });
+
+  describe('multiplyMoney', () => {
+    it('multiplica o valor da parcela pela quantidade', () => {
+      expect(multiplyMoney('100.00', 10)).toBe('1000.00');
+      expect(multiplyMoney('33.33', 10)).toBe('333.30');
+      expect(multiplyMoney('0.01', 3)).toBe('0.03');
+      expect(multiplyMoney('59.90', 1)).toBe('59.90');
+    });
+
+    it('mantém a precisão em valores grandes', () => {
+      expect(multiplyMoney('90071992547409.93', 120)).toBe('10808639105689191.60');
+      expect(multiplyMoney('9999999999999.99', 120)).toBe('1199999999999998.80');
+    });
+
+    it('rejeita fator não inteiro ou menor que 1', () => {
+      expect(() => multiplyMoney('100.00', 0)).toThrow();
+      expect(() => multiplyMoney('100.00', -2)).toThrow();
+      expect(() => multiplyMoney('100.00', 1.5)).toThrow();
+      expect(() => multiplyMoney('100.00', Number.NaN)).toThrow();
+    });
+
+    it('rejeita valor monetário inválido', () => {
+      expect(() => multiplyMoney('100', 2)).toThrow();
     });
   });
 

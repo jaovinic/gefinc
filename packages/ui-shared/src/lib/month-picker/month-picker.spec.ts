@@ -24,6 +24,15 @@ describe('MonthPicker', () => {
     return { fixture, el, click };
   }
 
+  it('no celular ocupa a largura toda (o elemento é de bloco) e a partir de sm volta ao tamanho do conteúdo', async () => {
+    const { el } = await setup();
+    const host = el.querySelector('gef-month-picker') as HTMLElement;
+    expect(host.className).toContain('block');
+    expect(host.className).toContain('w-full');
+    expect(host.className).toContain('sm:w-auto');
+    expect(host.firstElementChild?.className).toContain('w-full');
+  });
+
   it('mostra o mês por extenso em português', async () => {
     const { el } = await setup();
     expect(el.textContent).toContain('dezembro de 2026');

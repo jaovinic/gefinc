@@ -1,4 +1,4 @@
-import { APIRequestContext, Page, expect } from '@playwright/test';
+import { APIRequestContext, Locator, Page, expect } from '@playwright/test';
 
 export const API = 'http://localhost:8080/api/v1';
 export const PASSWORD = 'senha-forte-123';
@@ -62,4 +62,15 @@ export function todayIso(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Escolhe uma conta ou cartão no seletor com ícones (abre a lista e clica na opção pelo nome exato).
+ * O rótulo do seletor muda por natureza ("Conta" na receita, "Conta ou cartão" na despesa), por isso
+ * ele é achado pelo componente.
+ */
+export async function chooseAccount(page: Page, scope: Page | Locator, name: string) {
+  await scope.locator('gef-account-picker button[aria-haspopup]').click();
+  const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  await page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: exact }) }).click();
 }

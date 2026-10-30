@@ -18,8 +18,10 @@ function queueable(req: HttpRequest<unknown>, base: string): NewPendingOp | null
   }
   const path = req.url.slice(base.length).split('?')[0];
   if (path === '/transaction-groups') {
-    const body = (req.body ?? {}) as { description?: string };
-    return { kind: 'CREATE_GROUP', path, body: req.body, label: body.description ?? 'Lançamento' };
+    const body = (req.body ?? {}) as { description?: string; totalInstallments?: number };
+    const label = body.description ?? 'Lançamento';
+    const installments = body.totalInstallments ?? 1;
+    return { kind: 'CREATE_GROUP', path, body: req.body, label: installments > 1 ? `${label} · ${installments}x` : label };
   }
   const match = /^\/transactions\/(\d+)\/(pay|unpay)$/.exec(path);
   if (match) {

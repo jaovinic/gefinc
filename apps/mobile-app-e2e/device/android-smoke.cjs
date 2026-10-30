@@ -43,7 +43,7 @@ const iso = (offset) => {
   const password = 'senha-forte-123';
   await post('/auth/register', null, { email, password });
   const { accessToken } = await post('/auth/login', null, { email, password });
-  const itau = await post('/accounts', accessToken, { name: 'Itaú', type: 'CHECKING' });
+  const itau = await post('/accounts', accessToken, { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
   const categories = await (await fetch(`${API}/categories`, { headers: { Authorization: `Bearer ${accessToken}` } })).json();
   const food = categories.find((c) => c.name === 'Alimentação').id;
   for (const [description, due] of [['Aluguel', iso(1)], ['Internet', iso(1)]]) {

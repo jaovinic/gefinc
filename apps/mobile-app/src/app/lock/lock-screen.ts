@@ -1,20 +1,23 @@
 import { Component, effect, inject, untracked } from '@angular/core';
+import { Logo } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
 import { AppLockService } from './app-lock.service';
 
 /** Tela que cobre todo o app enquanto ele está bloqueado; não mostra nenhum dado financeiro. */
 @Component({
   selector: 'gef-lock-screen',
+  imports: [Logo],
   template: `
     @if (lock.locked()) {
       <div
         data-testid="lock-screen"
-        class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gefinc-bg p-6 text-center"
+        class="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 overflow-y-auto bg-gefinc-bg p-6 text-center"
+        style="padding-top: max(1.5rem, env(safe-area-inset-top)); padding-bottom: max(1.5rem, env(safe-area-inset-bottom))"
         role="dialog"
         aria-modal="true"
         aria-label="Aplicativo bloqueado"
       >
-        <span class="text-title-lg font-extrabold tracking-wide text-gefinc-primary">GEFINC</span>
+        <gef-logo variant="full" [size]="56" />
         <p class="text-body-base text-gefinc-muted">Aplicativo bloqueado</p>
         @if (lock.message(); as message) {
           <p class="gef-alert-error max-w-sm" role="alert">{{ message }}</p>

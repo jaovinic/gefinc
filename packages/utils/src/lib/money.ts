@@ -46,6 +46,17 @@ export function compareMoney(a: string, b: string): -1 | 0 | 1 {
 }
 
 /**
+ * Multiplica um valor por um fator inteiro (ex.: valor da parcela × número de parcelas), em centavos
+ * com `bigint`, sem perda de precisão.
+ */
+export function multiplyMoney(value: string, factor: number): string {
+  if (!Number.isInteger(factor) || factor < 1) {
+    throw new Error(`Fator de multiplicação inválido: ${factor}`);
+  }
+  return fromCents(toCents(value) * BigInt(factor));
+}
+
+/**
  * Divide o total em `count` parcelas de valor inteiro em centavos. O resto da divisão vai para a
  * última parcela, de modo que a soma é sempre exatamente igual ao total (FR-023).
  */

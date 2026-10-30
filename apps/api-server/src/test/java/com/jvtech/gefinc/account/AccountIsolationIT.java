@@ -36,7 +36,7 @@ class AccountIsolationIT extends IntegrationTestBase {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(
                         objectMapper.writeValueAsString(
-                            Map.of("name", "Itaú", "type", "CHECKING"))))
+                            Map.of("name", "Itaú", "type", "CHECKING", "holderType", "PF"))))
             .andReturn()
             .getResponse()
             .getContentAsString();
@@ -64,7 +64,16 @@ class AccountIsolationIT extends IntegrationTestBase {
                 .content(
                     objectMapper.writeValueAsString(
                         Map.of(
-                            "name", "Invadida", "type", "CHECKING", "active", true, "version", 0))))
+                            "name",
+                            "Invadida",
+                            "type",
+                            "CHECKING",
+                            "holderType",
+                            "PF",
+                            "active",
+                            true,
+                            "version",
+                            0))))
         .andExpect(status().isNotFound());
     mockMvc
         .perform(
@@ -85,7 +94,8 @@ class AccountIsolationIT extends IntegrationTestBase {
                 .header(HttpHeaders.AUTHORIZATION, bia.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(Map.of("name", "Itaú", "type", "CHECKING"))))
+                    objectMapper.writeValueAsString(
+                        Map.of("name", "Itaú", "type", "CHECKING", "holderType", "PF"))))
         .andExpect(status().isCreated());
   }
 }

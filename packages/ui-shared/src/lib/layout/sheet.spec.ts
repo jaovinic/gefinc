@@ -6,7 +6,7 @@ import { Sheet } from './sheet';
   imports: [Sheet],
   template: `
     <button id="outside" type="button">fora</button>
-    <gef-sheet heading="Filtros" [open]="open()" (closed)="closed()">
+    <gef-sheet heading="Filtros" [side]="side()" [open]="open()" (closed)="closed()">
       <input id="first" />
       <button id="last" type="button">Aplicar</button>
     </gef-sheet>
@@ -14,6 +14,7 @@ import { Sheet } from './sheet';
 })
 class Host {
   readonly open = signal(false);
+  readonly side = signal<'bottom' | 'left'>('bottom');
   readonly closed = jest.fn(() => this.open.set(false));
 }
 
@@ -100,5 +101,168 @@ describe('Sheet (painel inferior)', () => {
     await fixture.whenStable();
 
     expect(document.activeElement).toBe(outside);
+  });
+
+  it('Escape fecha mesmo com o foco fora do painel', async () => {
+    const { fixture, host, el } = setup();
+    await open(fixture);
+    (el.querySelector('#outside') as HTMLElement).focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.closed).toHaveBeenCalledTimes(1);
+  });
+
+  it('Escape sem painel aberto não faz nada', () => {
+    const { host } = setup();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.closed).not.toHaveBeenCalled();
+  });
+
+  it('como gaveta lateral abre colada à esquerda e continua sendo um diálogo modal', async () => {
+    const { fixture, host, el } = setup();
+    host.side.set('left');
+    await open(fixture);
+    const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+    expect(dialog.classList.contains('gef-sheet-left')).toBe(true);
+    expect(el.querySelector('.gef-sheet-backdrop')?.classList.contains('gef-sheet-backdrop-left')).toBe(true);
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
+  it('o painel padrão continua subindo da base', async () => {
+    const { fixture, el } = setup();
+    await open(fixture);
+    expect((el.querySelector('[role="dialog"]') as HTMLElement).classList.contains('gef-sheet-left')).toBe(false);
+  });
+});
+
+@Component({
+  imports: [Sheet],
+  template: `
+    <gef-sheet heading="Fora" [open]="outer()" (closed)="outerClosed()">
+      <input id="outer-field" />
+      <gef-sheet heading="Dentro" [open]="inner()" (closed)="innerClosed()">
+        <input id="inner-field" />
+      </gef-sheet>
+    </gef-sheet>
+  `,
+})
+class NestedHost {
+  readonly outer = signal(true);
+  readonly inner = signal(true);
+  readonly outerClosed = jest.fn();
+  readonly innerClosed = jest.fn();
+}
+
+describe('Sheet aninhado (painel dentro de painel)', () => {
+  async function setup() {
+    const fixture = TestBed.createComponent(NestedHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, host: fixture.componentInstance };
+  }
+
+  it('Escape fecha só o painel de cima', async () => {
+    const { host } = await setup();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.innerClosed).toHaveBeenCalledTimes(1);
+    expect(host.outerClosed).not.toHaveBeenCalled();
+  });
+
+  it('depois que o de dentro fecha, Escape fecha o de fora', async () => {
+    const { fixture, host } = await setup();
+    host.inner.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(host.outerClosed).toHaveBeenCalledTimes(1);
+  });
+
+  it('o foco abre no painel de dentro e Tab fica nele', async () => {
+    const { fixture } = await setup();
+    const inner = fixture.nativeElement.querySelector('#inner-field') as HTMLElement;
+    const close = Array.from(fixture.nativeElement.querySelectorAll('button[aria-label="Fechar"]')).pop() as HTMLElement;
+    expect(document.activeElement).toBe(close);
+    inner.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    inner.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(close);
+  });
+});
+
+@Component({
+  imports: [Sheet],
+  template: `
+    <gef-sheet heading="Confirmar" [open]="open()" [role]="role()" [initialFocus]="initialFocus()" [dismissible]="dismissible()" [describedBy]="'desc'" (closed)="closed()">
+      <p id="desc">Descrição</p>
+      <button id="primary" type="button">Excluir</button>
+      <button id="cancel" type="button">Cancelar</button>
+    </gef-sheet>
+  `,
+})
+class OptionsHost {
+  readonly open = signal(true);
+  readonly role = signal<'dialog' | 'alertdialog'>('alertdialog');
+  readonly initialFocus = signal<string | null>('#cancel');
+  readonly dismissible = signal(true);
+  readonly closed = jest.fn();
+}
+
+describe('Sheet (opções de confirmação)', () => {
+  async function setup() {
+    const fixture = TestBed.createComponent(OptionsHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    return { fixture, host: fixture.componentInstance, el };
+  }
+
+  it('usa o papel alertdialog e liga a descrição por aria-describedby', async () => {
+    const { el } = await setup();
+    const dialog = el.querySelector('.gef-sheet') as HTMLElement;
+    expect(dialog.getAttribute('role')).toBe('alertdialog');
+    expect(dialog.getAttribute('aria-describedby')).toBe('desc');
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('leva o foco ao elemento do seletor initialFocus', async () => {
+    const { el } = await setup();
+    expect(document.activeElement).toBe(el.querySelector('#cancel'));
+  });
+
+  it('sem correspondência do seletor, foca o primeiro focável', async () => {
+    const fixture = TestBed.createComponent(OptionsHost);
+    fixture.componentInstance.initialFocus.set('#nao-existe');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe((fixture.nativeElement as HTMLElement).querySelector('button[aria-label="Fechar"]'));
+  });
+
+  it('Tab continua preso dentro de um alertdialog', async () => {
+    const { el } = await setup();
+    const cancel = el.querySelector('#cancel') as HTMLElement;
+    const close = el.querySelector('button[aria-label="Fechar"]') as HTMLElement;
+    cancel.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    cancel.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(close);
+  });
+
+  it('com dismissible falso, Escape, fundo e Fechar são ignorados', async () => {
+    const { fixture, host, el } = await setup();
+    host.dismissible.set(false);
+    fixture.detectChanges();
+    (el.querySelector('.gef-sheet') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
+    (el.querySelector('button[aria-label="Fechar"]') as HTMLButtonElement).click();
+    expect(host.closed).not.toHaveBeenCalled();
+
+    host.dismissible.set(true);
+    fixture.detectChanges();
+    (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
+    expect(host.closed).toHaveBeenCalledTimes(1);
   });
 });

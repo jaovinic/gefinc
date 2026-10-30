@@ -1,17 +1,21 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { DashboardPage } from '@gefinc/ui-shared';
+import { DashboardPage, Icon } from '@gefinc/ui-shared';
 
 /**
- * Tela inicial do app: o painel do mês e o botão "+ Nova despesa", ponto de partida do lançamento
- * rápido (FR-014), que continua a um toque do painel.
+ * Tela inicial do app: o painel do mês e um único botão destacado, "Novo lançamento", que abre a tela
+ * onde se escolhe receita ou despesa. Continua a um toque do painel (RNF03).
  */
 @Component({
   selector: 'gef-home-page',
-  imports: [DashboardPage, RouterLink],
+  imports: [DashboardPage, Icon, RouterLink],
   template: `
-    <gef-dashboard-page />
-    <a routerLink="/quick-expense" class="gef-fab">+ Nova despesa</a>
+    <div class="pb-24"><gef-dashboard-page /></div>
+    <div class="gef-quick-actions" data-testid="quick-actions">
+      <a routerLink="/novo" class="gef-quick-action">
+        <gef-icon name="plus" [size]="20" />Novo lançamento
+      </a>
+    </div>
   `,
 })
 export class HomePage {}

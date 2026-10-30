@@ -3,6 +3,7 @@ package com.jvtech.gefinc.account;
 import com.jvtech.gefinc.account.AccountDtos.AccountInput;
 import com.jvtech.gefinc.account.AccountDtos.AccountResponse;
 import com.jvtech.gefinc.account.AccountDtos.AccountUpdate;
+import com.jvtech.gefinc.account.AccountDtos.AccountUsage;
 import com.jvtech.gefinc.common.security.CurrentUser;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -30,30 +31,38 @@ public class AccountController {
 
   @GetMapping
   public List<AccountResponse> list(@RequestParam(defaultValue = "false") boolean includeInactive) {
-    return service.list(CurrentUser.id(), includeInactive).stream()
-        .map(AccountResponse::of)
-        .toList();
+    long userId = CurrentUser.id();
+    return service.responses(userId, service.list(userId, includeInactive));
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public AccountResponse create(@Valid @RequestBody AccountInput body) {
-    return AccountResponse.of(service.create(CurrentUser.id(), body));
+    long userId = CurrentUser.id();
+    return service.response(userId, service.create(userId, body));
   }
 
   @GetMapping("/{id}")
-  public AccountResponse get(@PathVariable long id) {
-    return AccountResponse.of(service.get(CurrentUser.id(), id));
+  public AccountResponse get(@PathVariable("id") long id) {
+    long userId = CurrentUser.id();
+    return service.response(userId, service.get(userId, id));
+  }
+
+  @GetMapping("/{id}/usage")
+  public AccountUsage usage(@PathVariable("id") long id) {
+    return service.usage(CurrentUser.id(), id);
   }
 
   @PutMapping("/{id}")
-  public AccountResponse update(@PathVariable long id, @Valid @RequestBody AccountUpdate body) {
-    return AccountResponse.of(service.update(CurrentUser.id(), id, body));
+  public AccountResponse update(
+      @PathVariable("id") long id, @Valid @RequestBody AccountUpdate body) {
+    long userId = CurrentUser.id();
+    return service.response(userId, service.update(userId, id, body));
   }
 
   @DeleteMapping("/{id}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void delete(@PathVariable long id) {
+  public void delete(@PathVariable("id") long id) {
     service.delete(CurrentUser.id(), id);
   }
 }

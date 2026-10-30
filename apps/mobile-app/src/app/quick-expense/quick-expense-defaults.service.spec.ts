@@ -62,4 +62,38 @@ describe('QuickExpenseDefaults', () => {
     await defaults.load();
     expect(defaults.resolve([], [])).toEqual({ accountId: 0, categoryId: 0 });
   });
+
+  describe('receita', () => {
+    it('sem histórico usa a primeira conta ativa e a categoria "Salário"', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      expect(defaults.resolve(accounts, categories, 'income')).toEqual({ accountId: 1, categoryId: 20 });
+    });
+
+    it('nunca escolhe cartão para receita, nem o último usado nem o primeiro da lista', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      await defaults.remember(2, 20, 'income'); // cartão lembrado (legado)
+      expect(defaults.resolve(accounts, categories, 'income').accountId).toBe(1);
+      expect(defaults.resolve([accounts[1]], categories, 'income').accountId).toBe(0);
+      expect(defaults.resolve([accounts[1]], categories, 'expense').accountId).toBe(2);
+    });
+
+    it('os padrões de receita e de despesa são independentes', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('expense');
+      await defaults.load('income');
+      await defaults.remember(2, 10, 'expense');
+      await defaults.remember(1, 20, 'income');
+      expect(defaults.resolve(accounts, categories, 'expense')).toEqual({ accountId: 2, categoryId: 10 });
+      expect(defaults.resolve(accounts, categories, 'income')).toEqual({ accountId: 1, categoryId: 20 });
+    });
+
+    it('ignora categoria de despesa lembrada para receita', async () => {
+      const defaults = TestBed.inject(QuickExpenseDefaults);
+      await defaults.load('income');
+      await defaults.remember(1, 10, 'income');
+      expect(defaults.resolve(accounts, categories, 'income').categoryId).toBe(20);
+    });
+  });
 });

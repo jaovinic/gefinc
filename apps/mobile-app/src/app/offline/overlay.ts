@@ -78,7 +78,8 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     } else {
       item.status = 'PENDING';
       delete item.paymentDate;
-      item.overdue = item.dueDate < ctx.today;
+      // Receita nunca fica atrasada: só deixa de entrar no caixa até a data.
+      item.overdue = !isIncome(item.categoryId, ctx) && item.dueDate < ctx.today;
     }
   }
 
@@ -97,7 +98,14 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     }
     const body = op.body as GroupBody;
     sequence++;
+    const income = isIncome(body.categoryId, ctx);
+    // Receita em cartão o servidor recusa: não se fabrica o efeito dela na lista.
+    if (income && ctx.accounts.find((a) => a.id === body.accountId)?.type === 'CREDIT_CARD') {
+      continue;
+    }
     for (const row of rowsFor(body, ctx)) {
+      // Receita com data de hoje ou anterior já entra na conta; a futura fica a receber até a data.
+      const settled = income && row.dueDate <= ctx.today;
       const tx = {
         id: -(sequence * 1000 + row.number),
         groupId: -sequence,
@@ -109,8 +117,9 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
         totalInstallments: row.total,
         amount: row.amount,
         dueDate: row.dueDate,
-        status: 'PENDING',
-        overdue: row.dueDate < ctx.today,
+        status: settled ? 'PAID' : 'PENDING',
+        ...(settled ? { paymentDate: row.dueDate } : {}),
+        overdue: !income && row.dueDate < ctx.today,
         version: -1,
       } as Transaction;
       if (matches(tx, query, ctx)) {
@@ -124,6 +133,10 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     items.splice(at === -1 ? items.length : at, 0, tx);
   }
   return { ...page, content: items, totalElements: page.totalElements - dropped + created.length };
+}
+
+function isIncome(categoryId: number, ctx: OverlayContext): boolean {
+  return ctx.categories.find((c) => c.id === categoryId)?.type === 'INCOME';
 }
 
 function matches(tx: Transaction, query: OverlayQuery, ctx: OverlayContext): boolean {
@@ -155,14 +168,20 @@ function rowsFor(body: GroupBody, ctx: OverlayContext): Row[] {
   const dueDay = card ? account.dueDay : undefined;
 
   if (body.recurrenceType === 'INSTALLMENT') {
-    return scheduleInstallments({
-      closingDay,
-      dueDay,
-      purchaseDate: body.purchaseDate,
-      firstDueDate: body.firstDueDate,
-      total: body.totalAmount,
-      count: body.totalInstallments ?? 1,
-    }).map((p) => ({ number: p.number, total: body.totalInstallments ?? 1, amount: p.amount, dueDate: p.dueDate }));
+    const count = body.totalInstallments ?? 1;
+    // Total menor que um centavo por parcela: o servidor recusa e nenhuma linha local é fabricada.
+    try {
+      return scheduleInstallments({
+        closingDay,
+        dueDay,
+        purchaseDate: body.purchaseDate,
+        firstDueDate: body.firstDueDate,
+        total: body.totalAmount,
+        count,
+      }).map((p) => ({ number: p.number, total: count, amount: p.amount, dueDate: p.dueDate }));
+    } catch {
+      return [];
+    }
   }
   if (body.recurrenceType === 'FIXED') {
     const rows: Row[] = [];

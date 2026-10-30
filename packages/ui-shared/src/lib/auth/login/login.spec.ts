@@ -18,6 +18,12 @@ describe('Login', () => {
   }
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
+  it('mostra o logo do GEFINC no cartão de acesso', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('gef-auth-card gef-logo svg[aria-label="GEFINC"]')).not.toBeNull();
+    expect(el.querySelector('gef-logo')?.textContent).toContain('GEFINC');
+  });
+
   it('não chama a API com o formulário inválido', async () => {
     const { el, http, fixture } = await setup();
     submit(el);

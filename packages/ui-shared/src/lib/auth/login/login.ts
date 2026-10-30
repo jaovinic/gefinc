@@ -40,9 +40,7 @@ import { AuthCard } from '../auth-card';
         </div>
         <button type="submit" class="gef-btn-primary" [disabled]="busy()">Entrar</button>
       </form>
-      <p class="mt-2 text-center text-body-base">
-        <a class="gef-link inline-block px-2 py-2.5" routerLink="/forgot-password">Esqueci a senha</a>
-      </p>
+      <a class="gef-btn-secondary mt-3 block w-full text-center" routerLink="/forgot-password">Esqueci a senha</a>
       <div class="mt-3 space-y-3 border-t border-gefinc-border pt-5 text-center">
         <p class="text-caption text-gefinc-muted">Ainda não tem conta?</p>
         <a class="gef-btn-secondary block w-full text-center" routerLink="/register">Criar conta</a>

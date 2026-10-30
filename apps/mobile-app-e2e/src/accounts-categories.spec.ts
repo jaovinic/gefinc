@@ -13,6 +13,7 @@ test.describe('contas, cartões e categorias no celular', () => {
     // conta bancária
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Itaú');
+    await page.locator('gef-account-form').getByLabel('Pessoa física').check();
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toContainText('Conta bancária');
 
@@ -20,6 +21,8 @@ test.describe('contas, cartões e categorias no celular', () => {
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Nubank');
     await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await page.getByLabel('Conta bancária').click();
+    await page.locator('[role="option"]').filter({ hasText: 'Itaú' }).click();
     await page.getByLabel('Dia de fechamento da fatura').fill('32');
     await page.getByLabel('Dia de vencimento da fatura').fill('17');
     await page.getByRole('button', { name: 'Salvar' }).click();
@@ -39,10 +42,14 @@ test.describe('contas, cartões e categorias no celular', () => {
     await expect(page.getByTestId('account-card').filter({ hasText: 'Nubank Roxinho' })).toBeVisible();
 
     // inativar tira da lista; "Mostrar inativas" traz de volta
+    // (o Itaú tem o cartão vinculado: o app avisa antes de inativar)
+    const itau = page.getByTestId('account-card').filter({ has: page.locator('[data-name]', { hasText: /^Itaú$/ }) });
     await page.getByRole('button', { name: 'Inativar Itaú' }).click();
-    await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toHaveCount(0);
+    await expect(page.getByRole('dialog')).toContainText('Nubank Roxinho');
+    await page.getByRole('button', { name: 'Inativar mesmo assim' }).click();
+    await expect(itau).toHaveCount(0);
     await page.getByLabel('Mostrar inativas').check();
-    await expect(page.getByTestId('account-card').filter({ hasText: 'Itaú' })).toContainText('Inativa');
+    await expect(itau).toContainText('Inativa');
 
     // o que foi criado no app aparece igual na API (mesmos dados do web)
     const accounts = (await apiGet(request, user, '/accounts?includeInactive=true')) as { name: string; type: string; closingDay?: number }[];
@@ -50,7 +57,7 @@ test.describe('contas, cartões e categorias no celular', () => {
     expect(accounts.find((a) => a.name === 'Nubank Roxinho')).toMatchObject({ type: 'CREDIT_CARD', closingDay: 10 });
   });
 
-  test('conta com lançamentos não pode ser excluída: o app orienta a inativar', async ({ page, request }) => {
+  test('conta com lançamentos não pode ser excluída: o diálogo bloqueia e oferece inativar', async ({ page, request }) => {
     const user = await newUser(request);
     const account = await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' });
     await apiPost(request, user, '/transaction-groups', {
@@ -67,10 +74,16 @@ test.describe('contas, cartões e categorias no celular', () => {
     await openTab(page, 'Contas');
     await page.getByRole('button', { name: 'Excluir Carteira' }).click();
 
-    await expect(page.getByRole('alert')).toContainText('Inative a conta');
+    const blocked = page.getByRole('alertdialog');
+    await expect(blocked).toContainText('não pode ser excluída');
+    await expect(blocked).toContainText('1 lançamento');
+    await expect(blocked.getByRole('button', { name: 'Excluir conta "Carteira"' })).toHaveCount(0);
+    await blocked.getByRole('button', { name: 'Inativar conta' }).click();
+    await expect(blocked).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Excluir Carteira' })).toHaveCount(0);
   });
 
-  test('cria, renomeia e exclui categoria; categoria em uso pede a reatribuição', async ({ page, request }) => {
+  test('cria, renomeia e exclui categoria com confirmação; categoria em uso é bloqueada', async ({ page, request }) => {
     const user = await newUser(request);
     const account = await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' });
     const food = await categoryId(request, user, 'Alimentação');
@@ -99,11 +112,17 @@ test.describe('contas, cartões e categorias no celular', () => {
     await expect(page.getByText('Pets e bichos')).toBeVisible();
 
     await page.getByRole('button', { name: 'Excluir Pets e bichos' }).click();
+    await expect(page.getByRole('alertdialog')).toContainText('será excluída definitivamente');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir categoria "Pets e bichos"' }).click();
     await expect(page.getByText('Pets e bichos')).toHaveCount(0);
 
-    // categoria em uso: pede para onde mover os lançamentos
+    // categoria em uso: bloqueada, sem opção de mover os lançamentos
     await page.getByRole('button', { name: 'Excluir Alimentação' }).click();
-    await expect(page.getByRole('alert')).toContainText('possui lançamentos');
-    await expect(page.getByRole('button', { name: 'Mover e excluir' })).toBeDisabled();
+    const blocked = page.getByRole('alertdialog');
+    await expect(blocked).toContainText('está em uso em 1 lançamento');
+    await expect(blocked.getByRole('button', { name: 'Excluir categoria "Alimentação"' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mover e excluir' })).toHaveCount(0);
+    await blocked.getByTestId('confirm-cancel').click();
+    await expect(blocked).toHaveCount(0);
   });
 });

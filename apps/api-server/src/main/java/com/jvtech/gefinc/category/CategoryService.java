@@ -12,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CategoryService {
 
+  /** Prévia da exclusão de uma categoria. */
+  public record CategoryUsage(boolean canDelete, long transactionCount, long groupCount) {}
+
   private final CategoryRepository categories;
   private final TransactionRepository transactions;
   private final TransactionGroupRepository groups;
@@ -60,35 +63,46 @@ public class CategoryService {
     }
   }
 
+  /** Prévia da exclusão: quantos lançamentos e grupos usam a categoria. */
+  @Transactional(readOnly = true)
+  public CategoryUsage usage(long userId, long id) {
+    get(userId, id);
+    return usageOf(userId, id);
+  }
+
   /**
-   * Exclui a categoria. Em uso, exige {@code reassignTo} (outra categoria do mesmo tipo e do mesmo
-   * usuário) e move os lançamentos antes de excluir (FR-016).
+   * Exclui a categoria somente se nenhum lançamento nem grupo a usa. Em uso, a resposta é {@code
+   * 409}: o usuário precisa alterar a categoria desses lançamentos antes (FR-016).
    */
   @Transactional
-  public void delete(long userId, long id, Long reassignTo) {
+  public void delete(long userId, long id) {
     Category category = get(userId, id);
-    boolean inUse =
-        transactions.existsByCategory(userId, id) || groups.existsByCategory(userId, id);
-    if (inUse) {
-      if (reassignTo == null) {
-        throw new ApiException(
-            ErrorCode.CATEGORY_IN_USE,
-            "Esta categoria possui lançamentos. Escolha outra categoria para recebê-los.");
-      }
-      if (reassignTo == id) {
-        throw ApiException.validation("Escolha uma categoria diferente da que será excluída.")
-            .withFieldError("reassignTo", "Escolha uma categoria diferente.");
-      }
-      Category target = get(userId, reassignTo);
-      if (target.getType() != category.getType()) {
-        throw ApiException.validation("A categoria de destino deve ser do mesmo tipo.")
-            .withFieldError("reassignTo", "A categoria de destino deve ser do mesmo tipo.");
-      }
-      transactions.reassignCategory(userId, id, reassignTo);
-      groups.reassignCategory(userId, id, reassignTo);
+    CategoryUsage usage = usageOf(userId, id);
+    if (!usage.canDelete()) {
+      long shown = Math.max(usage.transactionCount(), usage.groupCount());
+      throw new ApiException(
+              ErrorCode.CATEGORY_IN_USE,
+              "Esta categoria não pode ser excluída: está em uso em "
+                  + shown
+                  + (shown == 1 ? " lançamento" : " lançamentos")
+                  + ". Altere a categoria desses lançamentos e tente novamente.")
+          .with("transactionCount", usage.transactionCount())
+          .with("groupCount", usage.groupCount());
     }
-    categories.delete(category);
-    categories.flush();
+    try {
+      categories.delete(category);
+      categories.flush();
+    } catch (DataIntegrityViolationException e) {
+      throw new ApiException(
+          ErrorCode.CATEGORY_IN_USE,
+          "Esta categoria passou a ter lançamentos. Altere a categoria deles e tente novamente.");
+    }
+  }
+
+  private CategoryUsage usageOf(long userId, long id) {
+    long transactionCount = transactions.countByCategory(userId, id);
+    long groupCount = groups.countByCategory(userId, id);
+    return new CategoryUsage(transactionCount + groupCount == 0, transactionCount, groupCount);
   }
 
   private Category get(long userId, long id) {

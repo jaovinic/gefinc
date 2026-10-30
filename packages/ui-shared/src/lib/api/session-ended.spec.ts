@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED } from './api.tokens';
+import { CurrentUser } from './current-user';
 import { SessionService } from './session.service';
 import { MemoryTokenStore, TokenStore } from './token-store';
 
@@ -65,5 +66,46 @@ describe('SessionService - aviso de sessão encerrada', () => {
     session.endLocalSession();
 
     expect(session.authenticated()).toBe(false);
+  });
+
+  describe('perfil do atalho Minha conta', () => {
+    const profile = { id: 1, email: 'ana@example.com', name: 'Ana', createdAt: '2026-01-01T00:00:00Z' };
+    let currentUser: CurrentUser;
+
+    beforeEach(() => {
+      currentUser = TestBed.inject(CurrentUser);
+      currentUser.apply(profile);
+    });
+
+    it('sair esquece o perfil', () => {
+      session.logout().subscribe();
+      http.expectOne('/api/v1/auth/logout').flush(null);
+
+      expect(currentUser.profile()).toBeNull();
+    });
+
+    it('sessão perdida esquece o perfil e cancela a busca pendente', () => {
+      currentUser.clear();
+      currentUser.load();
+      const pending = http.expectOne('/api/v1/auth/me');
+
+      session.expire();
+
+      expect(pending.cancelled).toBe(true);
+      expect(currentUser.profile()).toBeNull();
+    });
+
+    it('encerrar só a sessão local (exclusão da conta) esquece o perfil', () => {
+      session.endLocalSession();
+
+      expect(currentUser.profile()).toBeNull();
+    });
+
+    it('entrar esquece o perfil do usuário anterior', () => {
+      session.login({ email: 'bruno@example.com', password: 'senha-forte-123' }).subscribe();
+      http.expectOne('/api/v1/auth/login').flush({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
+
+      expect(currentUser.profile()).toBeNull();
+    });
   });
 });

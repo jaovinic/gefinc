@@ -52,12 +52,12 @@ class Host {
 describe('gráficos', () => {
   beforeEach(() => (created.length = 0));
 
-  it('rosca e barras usam os valores e as cores recebidos', async () => {
+  it('a rosca usa os valores e as cores recebidos', async () => {
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(created.map((c) => c.type)).toEqual(['doughnut', 'bar']);
+    expect(created.map((c) => c.type)).toEqual(['doughnut']);
     expect(created[0].data.labels).toEqual(['Alimentação', 'Lazer']);
     expect(created[0].data.datasets[0].data).toEqual([240.5, 40]);
     expect(created[0].data.datasets[0].backgroundColor).toEqual(['#F97316', '#EC4899']);
@@ -82,11 +82,49 @@ describe('gráficos', () => {
     fixture.detectChanges();
     await fixture.whenStable();
 
-    expect(created).toHaveLength(2); // não recria
+    expect(created).toHaveLength(1); // não recria
     expect(created[0].updated).toBe(1);
     expect(created[0].data.datasets[0].data).toEqual([100]);
 
     fixture.destroy();
     expect(created.every((c) => c.destroyed)).toBe(true);
+  });
+});
+
+describe('distribuição por cartão (barras em HTML)', () => {
+  function render(data: ChartSlice[]) {
+    const fixture = TestBed.createComponent(Host);
+    fixture.componentInstance.data.set(data);
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('com um só cartão mostra 100% e nenhuma linha de total', () => {
+    const el = render([{ label: 'Nubank', value: '320.50', color: '#7c3aed', icon: 'card-gold' }]);
+    const rows = el.querySelectorAll('[data-testid="card-share-row"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain('Nubank');
+    expect(rows[0].textContent).toContain('R$ 320,50');
+    expect(rows[0].textContent).toContain('100%');
+    expect(el.textContent).not.toContain('Total nos cartões');
+  });
+
+  it('com vários cartões mostra a participação de cada um e o total', () => {
+    const el = render([
+      { label: 'Nubank', value: '300.00', color: '#7c3aed' },
+      { label: 'Inter', value: '100.00', color: '#00b4d8' },
+    ]);
+    const text = Array.from(el.querySelectorAll('[data-testid="card-share-row"]')).map((r) => r.textContent);
+    expect(text[0]).toContain('75%');
+    expect(text[1]).toContain('25%');
+    expect(el.textContent).toContain('Total nos cartões');
+    expect(el.textContent).toContain('R$ 400,00');
+    const bars = el.querySelectorAll<HTMLElement>('li [role="img"] > div');
+    expect(bars[0].style.width).toBe('75%');
+  });
+
+  it('cada barra tem descrição para leitores de tela', () => {
+    const el = render([{ label: 'Nubank', value: '10.00', color: '#7c3aed' }]);
+    expect(el.querySelector('li [role="img"]')?.getAttribute('aria-label')).toBe('Nubank: 100% do total em cartões');
   });
 });

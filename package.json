@@ -7,7 +7,9 @@
     "dev": "docker compose up -d --wait && nx run-many -t serve -p api-server web-app mobile-app --parallel=3",
     "test": "nx run-many -t test",
     "build": "nx run-many -t build",
-    "lint": "nx run-many -t lint"
+    "lint": "nx run-many -t lint",
+    "brand:generate": "node tools/brand/generate-assets.mjs",
+    "brand:test": "node --test tools/brand/ico.test.mjs"
   },
   "devDependencies": {
     "@angular-devkit/core": "~22.2.0",

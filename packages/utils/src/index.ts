@@ -4,3 +4,4 @@ export * from './lib/date-format';
 export * from './lib/due-date';
 export * from './lib/installments';
 export * from './lib/reminders';
+export * from './lib/account-icons';

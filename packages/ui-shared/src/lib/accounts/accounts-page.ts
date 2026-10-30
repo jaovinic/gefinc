@@ -1,22 +1,27 @@
-import { Component, OnInit, effect, inject, signal, untracked } from '@angular/core';
-import type { Account } from '@gefinc/core-models';
-import { AccountsApi, NoticeService, messageFor, toProblem } from '../api';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ERROR_CODES, type Account, type AccountUsage, type HolderType } from '@gefinc/core-models';
+import { AccountsApi, BalancesApi, NoticeService, messageFor, toProblem } from '../api';
+import { BalanceValue } from '../balances/balance-value';
+import { ConfirmDialog } from '../layout/confirm-dialog';
+import { Sheet } from '../layout/sheet';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
-import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
+import { AccountBadge } from './account-badge';
+import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form';
+import { blockedAccountMessage } from './account-usage';
 
 /** Cadastro de contas bancárias, dinheiro e cartões de crédito (FR-011 a FR-013). */
 @Component({
   selector: 'gef-accounts-page',
-  imports: [AccountForm, EmptyView, ErrorView, LoadingView],
+  imports: [AccountBadge, AccountForm, BalanceValue, ConfirmDialog, EmptyView, ErrorView, LoadingView, Sheet],
   template: `
     <section class="space-y-4">
-      <header class="flex flex-wrap items-center justify-between gap-3">
+      <header class="space-y-3">
         <h1 class="text-title-lg font-bold">Contas e cartões</h1>
-        <div class="flex items-center gap-4">
-          <label class="flex min-h-11 items-center gap-2 text-body-base text-gefinc-muted md:min-h-0">
-            <input type="checkbox" class="h-5 w-5" [checked]="showInactive()" (change)="toggleInactive($event)" />
-            Mostrar inativas
+        <div class="flex items-center justify-between gap-3">
+          <label class="gef-switch-row">
+            <input type="checkbox" class="gef-switch" [checked]="showInactive()" (change)="toggleInactive($event)" />
+            <span>Mostrar inativas</span>
           </label>
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </div>
@@ -25,27 +30,40 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
       @if (message(); as text) {
         <p class="gef-alert-error" role="alert">{{ text }}</p>
       }
+      @if (balancesError(); as text) {
+        <div class="gef-alert-error flex flex-wrap items-center justify-between gap-3" role="alert" data-testid="balances-error">
+          <span>{{ text }}</span>
+          <button type="button" class="gef-btn-secondary" (click)="loadBalances()">Tentar novamente</button>
+        </div>
+      }
 
-      @if (formOpen()) {
-        <gef-account-form [account]="editing()" (saved)="onSaved()" (cancelled)="closeForm()" />
+      @if (showHolderFilter()) {
+        <div class="flex gap-2" role="radiogroup" aria-label="Filtrar por titular" data-field="holderFilter">
+          @for (option of holderFilters; track option.value) {
+            <label class="gef-segment px-2 text-center text-caption leading-tight sm:text-body-base">
+              <input type="radio" name="holderFilter" [checked]="holderFilter() === option.value" (change)="holderFilter.set(option.value)" />
+              <span>{{ option.label }}</span>
+            </label>
+          }
+        </div>
       }
 
       @if (loading()) {
-        <gef-loading message="Carregando contas…" />
+        <gef-loading variant="list" message="Carregando contas…" />
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (accounts().length === 0) {
-        <gef-empty title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
+        <gef-empty icon="accounts" title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </gef-empty>
       } @else if (viewport.compact()) {
         <ul class="space-y-3">
-          @for (account of accounts(); track account.id) {
+          @for (account of visible(); track account.id) {
             <li data-testid="account-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
               <div class="flex items-start justify-between gap-3">
-                <div>
-                  <p class="font-semibold">{{ account.name }}</p>
-                  <p class="text-caption text-gefinc-muted">
+                <div class="min-w-0">
+                  <gef-account-badge [account]="account" [showBank]="true" />
+                  <p class="mt-1 text-caption text-gefinc-muted">
                     {{ labels[account.type] }}
                     @if (account.closingDay) {
                       · Fecha dia {{ account.closingDay }} · vence dia {{ account.dueDay }}
@@ -56,12 +74,22 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
                   {{ account.active ? 'Ativa' : 'Inativa' }}
                 </span>
               </div>
-              <div class="mt-2 flex flex-wrap gap-1 border-t border-gefinc-border pt-2">
-                <button type="button" class="gef-link gef-action" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
-                <button type="button" class="gef-link gef-action" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
+              @if (account.type !== 'CREDIT_CARD') {
+                <p class="mt-2 flex items-center justify-between gap-3 border-t border-gefinc-border pt-2" data-testid="account-balance">
+                  <span class="text-caption text-gefinc-muted">Saldo atual</span>
+                  @if (balanceOf(account); as value) {
+                    <gef-balance-value [value]="value" />
+                  } @else {
+                    <span class="text-gefinc-muted" data-testid="balance-pending">{{ balancesLoading() ? 'Carregando…' : '—' }}</span>
+                  }
+                </p>
+              }
+              <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
+                <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
+                <button type="button" class="gef-btn-sm" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
                   {{ account.active ? 'Inativar' : 'Reativar' }}
                 </button>
-                <button type="button" class="gef-action text-gefinc-danger" [attr.aria-label]="'Excluir ' + account.name" (click)="remove(account)">Excluir</button>
+                <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + account.name" (click)="askDelete(account)">Excluir</button>
               </div>
             </li>
           }
@@ -73,6 +101,7 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
               <tr>
                 <th class="px-4 py-3">Nome</th>
                 <th class="px-4 py-3">Tipo</th>
+                <th class="px-4 py-3 text-right">Saldo atual</th>
                 <th class="px-4 py-3">Fechamento</th>
                 <th class="px-4 py-3">Vencimento</th>
                 <th class="px-4 py-3">Situação</th>
@@ -80,10 +109,19 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
               </tr>
             </thead>
             <tbody>
-              @for (account of accounts(); track account.id) {
+              @for (account of visible(); track account.id) {
                 <tr class="border-t border-gefinc-border">
-                  <td class="px-4 py-3 font-medium">{{ account.name }}</td>
+                  <td class="max-w-72 px-4 py-3"><gef-account-badge [account]="account" [showBank]="true" /></td>
                   <td class="px-4 py-3">{{ labels[account.type] }}</td>
+                  <td class="px-4 py-3 text-right" data-testid="account-balance">
+                    @if (account.type === 'CREDIT_CARD') {
+                      <span class="text-gefinc-muted">—</span>
+                    } @else if (balanceOf(account); as value) {
+                      <gef-balance-value [value]="value" />
+                    } @else {
+                      <span class="text-gefinc-muted" data-testid="balance-pending">{{ balancesLoading() ? 'Carregando…' : '—' }}</span>
+                    }
+                  </td>
                   <td class="px-4 py-3">{{ account.closingDay ? 'dia ' + account.closingDay : '—' }}</td>
                   <td class="px-4 py-3">{{ account.dueDay ? 'dia ' + account.dueDay : '—' }}</td>
                   <td class="px-4 py-3">
@@ -93,13 +131,13 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
                       <span class="text-gefinc-muted">Inativa</span>
                     }
                   </td>
-                  <td class="space-x-2 px-4 py-3 text-right">
-                    <button type="button" class="gef-link" (click)="startEdit(account)">Editar</button>
-                    <button type="button" class="gef-link" (click)="toggleActive(account)">
+                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
+                    <button type="button" class="gef-btn-sm" (click)="startEdit(account)">Editar</button>
+                    <button type="button" class="gef-btn-sm" (click)="toggleActive(account)">
                       {{ account.active ? 'Inativar' : 'Reativar' }}
                     </button>
-                    <button type="button" class="text-gefinc-danger hover:underline" (click)="remove(account)">Excluir</button>
-                  </td>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" (click)="askDelete(account)">Excluir</button>
+                  </div></td>
                 </tr>
               }
             </tbody>
@@ -107,10 +145,55 @@ import { ACCOUNT_TYPE_LABELS, AccountForm } from './account-form';
         </div>
       }
     </section>
+    <gef-sheet [heading]="editing() ? 'Editar conta' : 'Nova conta'" [open]="formOpen()" (closed)="closeForm()">
+      @if (formOpen()) {
+        <gef-account-form
+          [account]="editing()"
+          [banks]="banks()"
+          [resetToken]="formKey()"
+          (saved)="onSaved()"
+          (cancelled)="closeForm()"
+          (newBankRequested)="newBank()"
+        />
+      }
+    </gef-sheet>
+    <gef-confirm-dialog
+      [open]="!!deleting()"
+      [heading]="deleteBlocked() ? 'Conta não pode ser excluída' : 'Excluir conta'"
+      [confirmLabel]="deleteLabel()"
+      [busy]="deleteBusy()"
+      [error]="deleteError()"
+      [blocked]="deleteBlocked()"
+      (confirmed)="confirmDelete()"
+      (cancelled)="closeDelete()"
+    >
+      @if (deleting(); as pending) {
+        <p>A conta "{{ pending.account.name }}" será excluída definitivamente. Esta ação não pode ser desfeita.</p>
+      }
+      @if (deleteBlocked() && deleting()?.account?.active) {
+        <button type="button" gefConfirmExtra class="gef-btn-secondary min-h-11 whitespace-normal text-center md:min-h-11" data-testid="confirm-inactivate" (click)="inactivateInstead(deleting()!.account)">Inativar conta</button>
+      }
+    </gef-confirm-dialog>
+    <gef-sheet heading="Inativar conta com cartões" [open]="!!confirming()" (closed)="confirming.set(null)">
+      @if (confirming(); as bank) {
+        <p class="mb-2 text-body-base">
+          {{ bank.name }} tem {{ cardsOf(bank).length === 1 ? 'um cartão vinculado' : cardsOf(bank).length + ' cartões vinculados' }}:
+          <strong>{{ cardNames(bank) }}</strong>.
+        </p>
+        <p class="mb-4 text-body-base text-gefinc-muted">
+          Os cartões continuam funcionando e o histórico é preservado, mas esta conta deixa de ser oferecida para novos cartões.
+        </p>
+        <div class="flex flex-col gap-3">
+          <button type="button" class="gef-btn-secondary" (click)="confirming.set(null)">Voltar</button>
+          <button type="button" class="gef-btn-danger" (click)="confirmInactivate()">Inativar mesmo assim</button>
+        </div>
+      }
+    </gef-sheet>
   `,
 })
 export class AccountsPage implements OnInit {
   private readonly api = inject(AccountsApi);
+  private readonly balancesApi = inject(BalancesApi);
   private readonly notices = inject(NoticeService);
   protected readonly viewport = inject(Viewport);
 
@@ -119,9 +202,45 @@ export class AccountsPage implements OnInit {
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
+  /** Saldo atual por conta (id -> valor): carga e erro próprios, para não bloquear a lista de contas. */
+  protected readonly balances = signal<Map<number, string> | null>(null);
+  protected readonly balancesLoading = signal(true);
+  protected readonly balancesError = signal<string | null>(null);
   protected readonly showInactive = signal(false);
   protected readonly formOpen = signal(false);
   protected readonly editing = signal<Account | null>(null);
+  protected readonly formKey = signal(0);
+  protected readonly confirming = signal<Account | null>(null);
+  /** Exclusão em confirmação: a conta e a prévia do que a impede (GET usage). */
+  protected readonly deleting = signal<{ account: Account; usage: AccountUsage } | null>(null);
+  protected readonly deleteBusy = signal(false);
+  protected readonly deleteError = signal<string | null>(null);
+  private readonly usageLoading = signal(false);
+  protected readonly deleteBlocked = computed(() => {
+    const pending = this.deleting();
+    return pending && !pending.usage.canDelete ? blockedAccountMessage(pending.account.name, pending.usage) : null;
+  });
+  protected readonly deleteLabel = computed(() => `Excluir conta "${this.deleting()?.account.name ?? ''}"`);
+  protected readonly holderFilter = signal<HolderType | 'ALL'>('ALL');
+  protected readonly holderFilters: { value: HolderType | 'ALL'; label: string }[] = [
+    { value: 'ALL', label: 'Todas' },
+    { value: 'PF', label: HOLDER_LABELS.PF },
+    { value: 'PJ', label: HOLDER_LABELS.PJ },
+  ];
+
+  /** Contas bancárias que um cartão pode usar. */
+  protected readonly banks = computed(() => this.accounts().filter((a) => a.type === 'CHECKING'));
+  /** O filtro PF/PJ só aparece quando há os dois tipos de titular (FR-004). */
+  protected readonly showHolderFilter = computed(() => {
+    const holders = new Set(this.accounts().map((a) => a.holderType).filter(Boolean));
+    return holders.size > 1;
+  });
+  protected readonly visible = computed(() => {
+    const filter = this.holderFilter();
+    return filter === 'ALL' || !this.showHolderFilter()
+      ? this.accounts()
+      : this.accounts().filter((a) => a.holderType === filter);
+  });
 
   constructor() {
     // Conflito de edição entre dispositivos: recarrega a lista com a versão mais recente.
@@ -136,7 +255,35 @@ export class AccountsPage implements OnInit {
     this.load();
   }
 
+  /**
+   * Saldo da conta bancária ou de dinheiro; `null` enquanto não carregou ou se falhou. Conta inativa
+   * com saldo zero não vem em `/balances` e vale `0.00`. Cartão não tem saldo.
+   */
+  protected balanceOf(account: Account): string | null {
+    const map = this.balances();
+    if (account.type === 'CREDIT_CARD' || map === null) {
+      return null;
+    }
+    return map.get(account.id) ?? '0.00';
+  }
+
+  protected loadBalances(): void {
+    this.balancesLoading.set(true);
+    this.balancesError.set(null);
+    this.balancesApi.get().subscribe({
+      next: (data) => {
+        this.balances.set(new Map(data.accounts.map((a) => [a.accountId, a.balance])));
+        this.balancesLoading.set(false);
+      },
+      error: () => {
+        this.balancesError.set('Não foi possível carregar os saldos das contas.');
+        this.balancesLoading.set(false);
+      },
+    });
+  }
+
   protected load(): void {
+    this.loadBalances();
     this.loading.set(true);
     this.loadError.set(null);
     this.api.list(this.showInactive()).subscribe({
@@ -158,7 +305,13 @@ export class AccountsPage implements OnInit {
 
   protected startCreate(): void {
     this.editing.set(null);
+    this.formKey.update((k) => k + 1);
     this.formOpen.set(true);
+  }
+
+  /** Atalho do formulário de cartão sem conta bancária: recomeça o formulário como conta bancária. */
+  protected newBank(): void {
+    this.startCreate();
   }
 
   protected startEdit(account: Account): void {
@@ -172,32 +325,137 @@ export class AccountsPage implements OnInit {
   }
 
   protected onSaved(): void {
+    const created = !this.editing();
     this.closeForm();
     this.load();
+    this.notices.toast(created ? 'Conta cadastrada.' : 'Conta atualizada.');
+  }
+
+  protected cardsOf(bank: Account): Account[] {
+    return this.accounts().filter((a) => a.bankAccountId === bank.id);
+  }
+
+  protected cardNames(bank: Account): string {
+    return this.cardsOf(bank)
+      .map((c) => c.name)
+      .join(', ');
   }
 
   protected toggleActive(account: Account): void {
     this.message.set(null);
+    if (account.active && this.cardsOf(account).length > 0) {
+      this.confirming.set(account);
+      return;
+    }
+    this.sendActive(account);
+  }
+
+  protected confirmInactivate(): void {
+    const bank = this.confirming();
+    this.confirming.set(null);
+    if (bank) {
+      this.sendActive(bank);
+    }
+  }
+
+  private sendActive(account: Account): void {
     this.api
       .update(account.id, {
         name: account.name,
         type: account.type,
         closingDay: account.closingDay,
         dueDay: account.dueDay,
+        ...(account.type === 'CHECKING' && account.holderType ? { holderType: account.holderType } : {}),
+        ...(account.icon ? { icon: account.icon } : {}),
+        ...(account.type === 'CREDIT_CARD' && account.bankAccountId ? { bankAccountId: account.bankAccountId } : {}),
         active: !account.active,
         version: account.version,
       })
       .subscribe({
-        next: () => this.load(),
+        next: (updated) => {
+          this.load();
+          this.notices.toast(account.active ? 'Conta inativada.' : 'Conta reativada.', {
+            undo: () => this.sendActive({ ...account, active: !account.active, version: updated.version }),
+          });
+        },
         error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
       });
   }
 
-  protected remove(account: Account): void {
+  /** Consulta o uso da conta e abre a confirmação: nada é excluído sem o usuário confirmar. */
+  protected askDelete(account: Account): void {
+    if (this.usageLoading()) {
+      return;
+    }
     this.message.set(null);
-    this.api.remove(account.id).subscribe({
-      next: () => this.load(),
-      error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
+    this.usageLoading.set(true);
+    this.api.usage(account.id).subscribe({
+      next: (usage) => {
+        this.usageLoading.set(false);
+        this.deleteError.set(null);
+        this.deleting.set({ account, usage });
+      },
+      error: (e: unknown) => {
+        this.usageLoading.set(false);
+        const problem = toProblem(e);
+        if (problem.status === 404) {
+          this.load();
+        }
+        this.message.set(messageFor(problem));
+      },
+    });
+  }
+
+  protected closeDelete(): void {
+    if (!this.deleteBusy()) {
+      this.deleting.set(null);
+      this.deleteError.set(null);
+    }
+  }
+
+  protected inactivateInstead(account: Account): void {
+    this.closeDelete();
+    this.toggleActive(account);
+  }
+
+  protected confirmDelete(): void {
+    const pending = this.deleting();
+    if (!pending || this.deleteBusy() || this.deleteBlocked()) {
+      return;
+    }
+    this.deleteBusy.set(true);
+    this.deleteError.set(null);
+    this.api.remove(pending.account.id).subscribe({
+      next: () => {
+        this.deleteBusy.set(false);
+        this.deleting.set(null);
+        this.load();
+        this.notices.toast('Conta excluída.');
+      },
+      error: (e: unknown) => {
+        this.deleteBusy.set(false);
+        const problem = toProblem(e);
+        if (problem.status === 404) {
+          this.deleting.set(null);
+          this.load();
+          this.notices.toast('A conta já havia sido excluída.');
+        } else if (problem.code === ERROR_CODES.accountInUse) {
+          this.refreshUsage(pending.account, messageFor(problem));
+        } else {
+          this.deleteError.set(messageFor(problem));
+        }
+      },
+    });
+  }
+
+  /** O servidor recusou: atualiza a prévia (mostra o bloqueio atual) e mantém o diálogo aberto. */
+  private refreshUsage(account: Account, detail: string): void {
+    this.api.usage(account.id).subscribe({
+      next: (usage) => {
+        this.deleting.set({ account, usage });
+        this.deleteError.set(usage.canDelete ? detail : null);
+      },
+      error: () => this.deleteError.set(detail),
     });
   }
 }

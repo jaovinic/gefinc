@@ -4,3 +4,6 @@ export * from './forgot-password/forgot-password';
 export * from './login/login';
 export * from './register/register';
 export * from './reset-password/reset-password';
+export * from './profile/profile-page';
+export * from './avatar/avatar';
+export * from './account-chip/account-chip';

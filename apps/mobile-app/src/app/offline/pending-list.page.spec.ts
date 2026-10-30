@@ -56,12 +56,46 @@ describe('PendingListPage (pendências de envio)', () => {
     expect(recused.textContent).toContain('Este lançamento já está pago.');
   });
 
-  it('descartar remove a operação', () => {
-    const { el } = render();
+  it('descartar pede confirmação e só então remove a operação', async () => {
+    const { fixture, el } = render();
 
     (el.querySelector('button[aria-label="Descartar Pagamento do lançamento 9"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(queue.remove).not.toHaveBeenCalled();
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain('Descartar "Pagamento do lançamento 9"? A operação ainda não enviada será perdida.');
+    (el.querySelector('[data-testid="confirm-confirm"]') as HTMLButtonElement).click();
+    await fixture.whenStable();
 
     expect(queue.remove).toHaveBeenCalledWith('b');
+  });
+
+  it('descartar um lançamento recusado confirma com o botão Descartar lançamento', async () => {
+    const created: PendingOp = { ...pending, id: 'c', state: 'REJECTED', label: 'Farmácia', error: 'Conta inativa.' };
+    ops.set([created]);
+    const { fixture, el } = render();
+
+    (el.querySelector('button[aria-label="Descartar Farmácia"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('Descartar "Farmácia"? O lançamento ainda não enviado será perdido.');
+    const confirm = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Descartar lançamento') as HTMLButtonElement;
+    confirm.click();
+    await fixture.whenStable();
+
+    expect(queue.remove).toHaveBeenCalledWith('c');
+  });
+
+  it('cancelar o descarte mantém a operação', () => {
+    const { fixture, el } = render();
+
+    (el.querySelector('button[aria-label="Descartar Pagamento do lançamento 9"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(queue.remove).not.toHaveBeenCalled();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
   it('tentar de novo volta a operação para a fila e envia', async () => {

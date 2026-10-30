@@ -17,8 +17,8 @@ const indicator = (page: Page, id: string) => page.locator(`[data-indicator="${i
 
 async function seed(request: Parameters<typeof newUser>[0]) {
   const user = await newUser(request);
-  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING' });
-  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28 });
+  const itau = await apiPost(request, user, '/accounts', { name: 'Itaú', type: 'CHECKING', holderType: 'PF' });
+  const nubank = await apiPost(request, user, '/accounts', { name: 'Nubank', type: 'CREDIT_CARD', closingDay: 1, dueDay: 28, bankAccountId: itau.id });
   const food = await categoryId(request, user, 'Alimentação');
   const leisure = await categoryId(request, user, 'Lazer');
   const month = currentMonth();
@@ -50,7 +50,7 @@ test.describe('painel e fluxo de caixa no celular', () => {
       await expect(cards).toContainText(c.name);
       await expect(cards).toContainText(brl(c.amount));
     }
-    await expect(page.getByRole('link', { name: '+ Nova despesa' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Novo lançamento' })).toBeVisible();
   });
 
   test('trocar de mês atualiza tudo; mês vazio mostra o atalho para criar o primeiro lançamento', async ({ page, request }) => {
