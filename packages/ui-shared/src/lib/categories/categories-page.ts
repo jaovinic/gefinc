@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CATEGORY_TYPES, ERROR_CODES, type Category, type CategoryType, type CategoryUsage } from '@gefinc/core-models';
 import { CategoriesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
 import { ConfirmDialog } from '../layout/confirm-dialog';
+import { Sheet } from '../layout/sheet';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 
 const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME: 'Receitas' };
@@ -10,7 +11,7 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
 /** Categorias de receita e de despesa; só se exclui categoria sem lançamentos (com confirmação), sem mover lançamentos. */
 @Component({
   selector: 'gef-categories-page',
-  imports: [ReactiveFormsModule, ConfirmDialog, EmptyView, ErrorView, LoadingView],
+  imports: [ReactiveFormsModule, ConfirmDialog, EmptyView, ErrorView, LoadingView, Sheet],
   template: `
     <section class="space-y-6">
       <header class="flex items-center justify-between">
@@ -20,34 +21,6 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
 
       @if (message(); as text) {
         <p class="gef-alert-error" role="alert">{{ text }}</p>
-      }
-
-      @if (formOpen()) {
-        <form [formGroup]="form" (ngSubmit)="save()" class="grid gap-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4 sm:grid-cols-4" novalidate>
-          <div class="sm:col-span-2">
-            <label class="gef-label" for="name">Nome</label>
-            <input id="name" class="gef-input" formControlName="name" maxlength="60" />
-            @if (form.controls.name.touched && form.controls.name.invalid) {
-              <p class="gef-field-error">Informe o nome.</p>
-            }
-          </div>
-          <div>
-            <label class="gef-label" for="type">Tipo</label>
-            <select id="type" class="gef-input" formControlName="type">
-              @for (type of types; track type) {
-                <option [value]="type">{{ labels[type] }}</option>
-              }
-            </select>
-          </div>
-          <div>
-            <label class="gef-label" for="colorHex">Cor</label>
-            <input id="colorHex" class="gef-input h-10 p-1" type="color" formControlName="colorHex" />
-          </div>
-          <div class="flex gap-3 sm:col-span-4">
-            <button type="submit" class="gef-btn-primary max-w-40" [disabled]="busy()">Salvar</button>
-            <button type="button" class="gef-btn-secondary" (click)="closeForm()">Cancelar</button>
-          </div>
-        </form>
       }
 
       @if (loading()) {
@@ -78,6 +51,41 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
         }
       }
     </section>
+    <gef-sheet [heading]="editing() ? 'Editar categoria' : 'Nova categoria'" [open]="formOpen()" (closed)="closeForm()">
+      @if (formOpen()) {
+        <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4" novalidate>
+          @if (formError(); as text) {
+            <p class="gef-alert-error" role="alert">{{ text }}</p>
+          }
+          <div>
+            <label class="gef-label" for="name">Nome</label>
+            <input id="name" class="gef-input" formControlName="name" maxlength="60" />
+            @if (form.controls.name.touched && form.controls.name.invalid) {
+              <p class="gef-field-error">Informe o nome.</p>
+            }
+          </div>
+          <div>
+            <label class="gef-label" for="type">Tipo</label>
+            <select id="type" class="gef-input" formControlName="type">
+              @for (type of types; track type) {
+                <option [value]="type">{{ labels[type] }}</option>
+              }
+            </select>
+            @if (editing()) {
+              <p class="mt-1 text-caption text-gefinc-muted">O tipo não pode ser alterado após a criação.</p>
+            }
+          </div>
+          <div>
+            <label class="gef-label" for="colorHex">Cor</label>
+            <input id="colorHex" class="gef-input h-10 p-1" type="color" formControlName="colorHex" />
+          </div>
+          <div class="flex gap-3">
+            <button type="submit" class="gef-btn-primary max-w-40" [disabled]="busy()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
+            <button type="button" class="gef-btn-secondary" (click)="closeForm()">Cancelar</button>
+          </div>
+        </form>
+      }
+    </gef-sheet>
     <gef-confirm-dialog
       [open]="!!deleting()"
       [heading]="deleteBlocked() ? 'Categoria não pode ser excluída' : 'Excluir categoria'"
@@ -106,6 +114,7 @@ export class CategoriesPage implements OnInit {
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly message = signal<string | null>(null);
+  protected readonly formError = signal<string | null>(null);
   protected readonly formOpen = signal(false);
   protected readonly busy = signal(false);
   protected readonly editing = signal<Category | null>(null);
@@ -156,6 +165,7 @@ export class CategoriesPage implements OnInit {
 
   protected startCreate(): void {
     this.editing.set(null);
+    this.formError.set(null);
     this.form.reset({ name: '', type: 'EXPENSE', colorHex: '#94a3b8' });
     this.form.controls.type.enable();
     this.formOpen.set(true);
@@ -163,6 +173,7 @@ export class CategoriesPage implements OnInit {
 
   protected startEdit(category: Category): void {
     this.editing.set(category);
+    this.formError.set(null);
     this.form.reset({ name: category.name, type: category.type, colorHex: category.colorHex });
     this.form.controls.type.disable();
     this.formOpen.set(true);
@@ -171,6 +182,7 @@ export class CategoriesPage implements OnInit {
   protected closeForm(): void {
     this.formOpen.set(false);
     this.editing.set(null);
+    this.formError.set(null);
   }
 
   protected save(): void {
@@ -183,7 +195,9 @@ export class CategoriesPage implements OnInit {
     }
     const value = this.form.getRawValue();
     const editing = this.editing();
+    const wasEditing = !!editing;
     this.message.set(null);
+    this.formError.set(null);
     this.busy.set(true);
     const request = editing ? this.api.update(editing.id, value) : this.api.create(value);
     request.subscribe({
@@ -191,10 +205,11 @@ export class CategoriesPage implements OnInit {
         this.busy.set(false);
         this.closeForm();
         this.load();
+        this.notices.toast(wasEditing ? 'Categoria atualizada.' : 'Categoria criada.');
       },
       error: (e: unknown) => {
         this.busy.set(false);
-        this.message.set(messageFor(toProblem(e)));
+        this.formError.set(messageFor(toProblem(e)));
       },
     });
   }

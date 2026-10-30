@@ -29,8 +29,10 @@ describe('CategoriesPage', () => {
 
   it('cria uma categoria', async () => {
     const { http, el, fixture } = await setup();
+    const notices = TestBed.inject(NoticeService);
     clickButton(el, 'Nova categoria');
     fixture.detectChanges();
+    expect(el.querySelector('gef-sheet [role="dialog"][aria-label="Nova categoria"]')).not.toBeNull();
     type(el, '#name', 'Pets');
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
 
@@ -40,6 +42,43 @@ describe('CategoriesPage', () => {
     http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
     http.expectOne((r) => r.url === `${API}/accounts`).flush([]);
     http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+    fixture.detectChanges();
+    expect(el.querySelector('gef-sheet [role="dialog"]')).toBeNull();
+    expect(notices.toasts().some((t) => t.message === 'Categoria criada.')).toBe(true);
+  });
+
+  it('editar abre o modal com o título Editar categoria, pré-carrega os dados, desabilita tipo com aviso, atualiza e avisa', async () => {
+    const { http, el, fixture } = await setup();
+    const notices = TestBed.inject(NoticeService);
+
+    (el.querySelector('button[aria-label="Editar Alimentação"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const sheet = el.querySelector('gef-sheet [role="dialog"][aria-label="Editar categoria"]');
+    expect(sheet).not.toBeNull();
+    expect(sheet?.textContent).toContain('O tipo não pode ser alterado após a criação.');
+
+    const nameInput = el.querySelector('#name') as HTMLInputElement;
+    expect(nameInput.value).toBe('Alimentação');
+
+    const typeSelect = el.querySelector('#type') as HTMLSelectElement;
+    expect(typeSelect.value).toBe('EXPENSE');
+    expect(typeSelect.disabled).toBe(true);
+
+    type(el, '#name', 'Supermercado');
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+
+    const put = http.expectOne({ method: 'PUT', url: `${API}/categories/10` });
+    expect(put.request.body).toMatchObject({ name: 'Supermercado', type: 'EXPENSE' });
+    put.flush({ id: 10, name: 'Supermercado', type: 'EXPENSE', colorHex: '#94a3b8' });
+
+    http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+    http.expectOne((r) => r.url === `${API}/accounts`).flush([]);
+    http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+
+    fixture.detectChanges();
+    expect(el.querySelector('gef-sheet [role="dialog"]')).toBeNull();
+    expect(notices.toasts().some((t) => t.message === 'Categoria atualizada.')).toBe(true);
   });
 
   describe('excluir categoria (confirmação e guarda de integridade)', () => {
