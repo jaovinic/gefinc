@@ -31,6 +31,8 @@ export async function apiGet(request: APIRequestContext, user: TestUser, path: s
 
 export async function signIn(page: Page, email: string) {
   await page.goto('/login');
+  // espera o formulário ser ligado ao Angular (ng-pristine): preencher antes disso é perdido pela primeira detecção
+  await expect(page.locator('input#email')).toHaveClass(/ng-pristine/);
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -42,10 +44,25 @@ export async function openTab(page: Page, label: string) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: label }).click();
 }
 
+/** Espera as animações de entrada (painéis sobem e aparecem) terminarem, para medir tamanhos e contraste no estado final. */
+export async function settle(page: Page) {
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+}
+
+/** Abre o menu Mais (painel aberto pelo atalho Minha conta do cabeçalho) e devolve o diálogo. */
+export async function openMore(page: Page): Promise<Locator> {
+  await page.getByTestId('account-chip').click();
+  const dialog = page.getByRole('dialog', { name: 'Mais', exact: true });
+  await expect(dialog).toBeVisible();
+  await settle(page);
+  return dialog;
+}
+
 /** Abre uma área do menu Mais. */
 export async function openFromMore(page: Page, label: string) {
-  await openTab(page, 'Mais');
-  await page.getByRole('main').getByRole('link', { name: label }).click();
+  const dialog = await openMore(page);
+  await dialog.getByRole('link', { name: label }).click();
+  await expect(dialog).toHaveCount(0);
 }
 
 /** Id da categoria inicial pelo nome. */

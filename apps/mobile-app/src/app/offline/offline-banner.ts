@@ -15,7 +15,7 @@ import { SyncEngine } from './sync-engine';
   imports: [DatePipe, RouterLink],
   template: `
     @if (visible()) {
-      <div data-testid="offline-banner" class="space-y-1 border-b border-gefinc-border bg-gefinc-surface px-4 py-2 text-caption" role="status">
+      <div data-testid="offline-banner" class="space-y-1 border-b border-gefinc-border bg-(--glass-bg) px-4 py-2 text-caption" role="status">
         @if (!network.online()) {
           <p class="font-semibold text-gefinc-warning">
             Sem conexão.

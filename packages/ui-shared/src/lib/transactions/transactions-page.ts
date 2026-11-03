@@ -169,7 +169,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
             <div class="space-y-3"><ng-container *ngTemplateOutlet="panelTpl; context: { $implicit: p }" /></div>
           </gef-sheet>
         } @else {
-          <div class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" role="dialog" aria-label="Ação no lançamento">
+          <div class="space-y-3 gef-card p-4" role="dialog" aria-label="Ação no lançamento">
             <ng-container *ngTemplateOutlet="panelTpl; context: { $implicit: p }" />
           </div>
         }
@@ -219,7 +219,7 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
       } @else if (viewport.compact()) {
         <ul class="space-y-3">
           @for (tx of items(); track tx.id) {
-            <li data-testid="transaction-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+            <li data-testid="transaction-card" class="gef-card p-4">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="font-semibold">{{ tx.description }}</p>

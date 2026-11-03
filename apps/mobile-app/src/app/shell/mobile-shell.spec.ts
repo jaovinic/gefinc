@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { CurrentUser } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
@@ -8,7 +8,7 @@ import { NetworkStatus } from '../offline/network-status';
 import { PendingQueue } from '../offline/pending-queue';
 import { SyncEngine } from '../offline/sync-engine';
 import { MobileShell } from './mobile-shell';
-import { MorePage } from './more.page';
+import { appRoutes } from '../app.routes';
 
 @Component({ template: '<p>conteúdo</p>' })
 class Dummy {}
@@ -44,7 +44,8 @@ describe('shell do app móvel', () => {
               { path: 'lancamentos', component: Dummy },
               { path: 'faturas', component: Dummy },
               { path: 'contas', component: Dummy },
-              { path: 'mais', component: MorePage },
+              { path: 'fluxo-de-caixa', component: Dummy },
+              { path: 'categorias', component: Dummy },
               { path: 'minha-conta', component: Dummy },
             ],
           },
@@ -62,7 +63,7 @@ describe('shell do app móvel', () => {
     confirming.set(false);
   });
 
-  it('mostra a barra de abas com Painel, Lançamentos, Faturas, Contas e Mais', async () => {
+  it('mostra a ilha de navegação só com Painel, Lançamentos, Faturas e Contas', async () => {
     const { el } = await open('/');
     const nav = el.querySelector('nav.gef-tabbar') as HTMLElement;
     const tabs = [...nav.querySelectorAll('a')].map((a) => [a.textContent?.trim(), a.getAttribute('href')]);
@@ -73,8 +74,19 @@ describe('shell do app móvel', () => {
       ['Lançamentos', '/lancamentos'],
       ['Faturas', '/faturas'],
       ['Contas', '/contas'],
-      ['Mais', '/mais'],
     ]);
+  });
+
+  it('a aba da página atual tem aria-current="page"', async () => {
+    const { el } = await open('/faturas');
+    const current = [...el.querySelectorAll('nav.gef-tabbar a[aria-current="page"]')].map((a) => a.textContent?.trim());
+    expect(current).toEqual(['Faturas']);
+  });
+
+  it('o endereço antigo /mais redireciona ao painel', () => {
+    const shell = appRoutes.find((r) => r.children);
+    const mais = shell?.children?.find((r) => r.path === 'mais');
+    expect(mais?.redirectTo).toBe('');
   });
 
   it('marca a aba ativa e atualiza ao navegar', async () => {
@@ -98,40 +110,90 @@ describe('shell do app móvel', () => {
     expect(header.textContent).toContain('GEFINC');
   });
 
-  it('o cabeçalho traz o atalho Minha conta com nome e inicial, à direita da marca', async () => {
+  const chipOf = (el: HTMLElement) => el.querySelector('header [data-testid="account-chip"]') as HTMLButtonElement;
+  const more = (el: HTMLElement) => el.querySelector('[role="dialog"][aria-label="Mais"]') as HTMLElement | null;
+
+  it('o cabeçalho traz o atalho Minha conta (botão que abre o menu) com nome e inicial, à direita da marca', async () => {
     const { el } = await open('/');
     const header = el.querySelector('header.gef-app-header') as HTMLElement;
-    const link = header.querySelector('a[data-testid="account-chip"]') as HTMLAnchorElement;
+    const chip = chipOf(el);
 
     expect(header.querySelector('gef-logo')).not.toBeNull();
-    expect(link.getAttribute('href')).toBe('/minha-conta');
-    expect(link.getAttribute('aria-label')).toBe('Minha conta — Ana Souza');
-    expect(link.textContent).toContain('Ana Souza');
-    expect(link.querySelector('gef-avatar')?.textContent?.trim()).toBe('A');
+    expect(chip.tagName).toBe('BUTTON');
+    expect(chip.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+    expect(chip.getAttribute('aria-label')).toBe('Mais opções — Ana Souza');
+    expect(chip.textContent).toContain('Ana Souza');
+    expect(chip.querySelector('gef-avatar')?.textContent?.trim()).toBe('A');
     expect(header.querySelector('gef-account-chip')?.classList.contains('ml-auto')).toBe(true);
     expect(load).toHaveBeenCalled();
   });
 
-  it('o atalho marca a página atual em Minha conta', async () => {
+  it('tocar no atalho abre o menu Mais e fechar devolve o foco ao atalho', async () => {
     const { harness, el } = await open('/');
-    const link = () => el.querySelector('header a[data-testid="account-chip"]') as HTMLAnchorElement;
-    expect(link().getAttribute('aria-current')).toBeNull();
+    expect(more(el)).toBeNull();
 
-    await harness.navigateByUrl('/minha-conta');
-    expect(link().getAttribute('aria-current')).toBe('page');
+    chipOf(el).focus();
+    chipOf(el).click();
+    harness.detectChanges();
+    expect(more(el)).not.toBeNull();
+    expect(chipOf(el).getAttribute('aria-expanded')).toBe('true');
+    expect(chipOf(el).classList.contains('gef-account-chip-active')).toBe(true);
+
+    (more(el)!.querySelector('button[aria-label="Fechar"]') as HTMLButtonElement).click();
+    harness.detectChanges();
+    expect(more(el)).toBeNull();
+    expect(chipOf(el).getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(chipOf(el));
   });
 
-  it('o menu Mais dá acesso a Fluxo de caixa, Categorias e Minha conta e permite sair', async () => {
-    const { el } = await open('/mais');
-    const links = [...el.querySelectorAll('main a')].map((a) => [a.textContent?.trim(), a.getAttribute('href')]);
+  it('o atalho fica destacado na página Minha conta, mesmo com o menu fechado', async () => {
+    const { harness, el } = await open('/');
+    expect(chipOf(el).classList.contains('gef-account-chip-active')).toBe(false);
+
+    await harness.navigateByUrl('/minha-conta');
+    harness.detectChanges();
+    expect(chipOf(el).classList.contains('gef-account-chip-active')).toBe(true);
+    expect(chipOf(el).getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('o menu Mais dá acesso a Fluxo de caixa, Categorias, Minha conta, Aparência e Sair', async () => {
+    const { harness, el } = await open('/');
+    chipOf(el).click();
+    harness.detectChanges();
+    const menu = more(el)!;
+
+    const links = [...menu.querySelectorAll('a')].map((a) => [a.textContent?.trim(), a.getAttribute('href')]);
     expect(links).toEqual([
       ['Fluxo de caixa', '/fluxo-de-caixa'],
       ['Categorias', '/categorias'],
       ['Minha conta', '/minha-conta'],
     ]);
+    expect(menu.querySelector('[role="radiogroup"][aria-label="Aparência"]')).not.toBeNull();
 
-    (el.querySelector('main button') as HTMLButtonElement).click();
+    const leave = [...menu.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sair') as HTMLButtonElement;
+    leave.click();
+    harness.detectChanges();
     expect(logout.run).toHaveBeenCalledTimes(1);
+    expect(more(el)).toBeNull();
+  });
+
+  it('escolher um destino do menu navega e fecha o painel', async () => {
+    const { harness, el } = await open('/');
+    chipOf(el).click();
+    harness.detectChanges();
+
+    (more(el)!.querySelector('a[href="/categorias"]') as HTMLAnchorElement).click();
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+    expect(TestBed.inject(Router).url).toBe('/categorias');
+    expect(more(el)).toBeNull();
+  });
+
+  it('a ilha não tem mais a aba Mais', async () => {
+    const { el } = await open('/');
+    expect(el.querySelector('nav.gef-tabbar a[href="/mais"]')).toBeNull();
+    expect(el.querySelectorAll('nav.gef-tabbar a').length).toBe(4);
   });
 
   it('com operações não enviadas, sair pede confirmação e só descarta se o usuário aceitar', async () => {

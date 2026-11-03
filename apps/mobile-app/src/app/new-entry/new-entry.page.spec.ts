@@ -581,4 +581,65 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     expect(el.querySelector('[data-testid="installment-preview"]')?.className).toContain('border-gefinc-border');
     expect(el.innerHTML).not.toContain('safe-area-inset-bottom');
   });
+
+  it('ordem dos campos: natureza, valor, descrição, categoria, conta, parcelamento, data, resumo e salvar', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    const form = el.querySelector('form') as HTMLFormElement;
+    const order = ['gef-kind-switch', 'gef-money-input', '#description', '#categoryId', 'gef-account-picker', '[data-testid="installment-group"]', '#date', 'gef-installment-summary-card', 'button[type="submit"]'];
+    const nodes = order.map((selector) => form.querySelector(selector) as HTMLElement);
+    nodes.forEach((node, i) => {
+      expect(node).not.toBeNull();
+      if (i > 0) {
+        expect(nodes[i - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      }
+    });
+  });
+
+  it('o seletor "Valor da parcela / Valor total" fica no grupo Parcelamento, fora do campo de valor, com legenda', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    const mode = el.querySelector('gef-amount-mode-switch') as HTMLElement;
+    expect(mode.closest('gef-money-input')).toBeNull();
+    expect(mode.closest('[data-testid="installment-group"]')?.querySelector('legend')?.textContent).toContain('Parcelamento');
+    expect(mode.textContent).toContain('O valor digitado é');
+    expect(mode.contains(el.querySelector('gef-money-input'))).toBe(false);
+  });
+
+  it('o card de resumo só aparece com 2 ou mais parcelas e valor', async () => {
+    const { fixture, el } = await setup();
+    chooseAccount(fixture, el, 2);
+    type(el, 'gef-money-input input', '10000');
+    fixture.detectChanges();
+    expect(el.querySelector('gef-installment-summary-card section')).toBeNull();
+    expect(el.querySelector('gef-amount-mode-switch')).toBeNull();
+
+    select(el, '#installments', '3');
+    fixture.detectChanges();
+    expect(el.querySelector('gef-installment-summary-card section')).not.toBeNull();
+    expect(el.querySelector('gef-installment-summary-card h3')?.textContent).toContain('Resumo do parcelamento');
+  });
+
+  it('o erro de mínimo por parcela aparece no card enquanto se digita, sem esperar o envio', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '5');
+    modeButton(el, 'Valor total').click();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="installment-error"]')?.textContent).toContain('O valor deve ter pelo menos R$ 0,01 por parcela.');
+    expect(el.querySelector('form > p[role="alert"]')).toBeNull(); // o alerta global só vem no envio
+  });
+
+  it('a data fica em largura total, com os atalhos abaixo e a dica ligada ao campo', async () => {
+    const { el } = await setup();
+    const date = el.querySelector('#date') as HTMLInputElement;
+    const hoje = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Hoje') as HTMLButtonElement;
+
+    expect(date.className).not.toContain('flex-1');
+    expect(date.compareDocumentPosition(hoje) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(date.getAttribute('aria-describedby')).toBe('date-hint');
+    expect(el.querySelector('#date-hint')?.getAttribute('data-testid')).toBe('date-hint');
+  });
 });

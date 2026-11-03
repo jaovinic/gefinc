@@ -6,7 +6,6 @@ import { HomePage } from './home/home.page';
 import { MobileShell } from './shell/mobile-shell';
 import { PendingListPage } from './offline/pending-list.page';
 import { SettingsPage } from './settings/settings.page';
-import { MorePage } from './shell/more.page';
 import { NewEntryPage } from './new-entry/new-entry.page';
 
 /**
@@ -27,7 +26,8 @@ export const appRoutes: Route[] = [
     canActivate: [authGuard],
     children: [
       { path: '', component: HomePage, pathMatch: 'full' },
-      { path: 'mais', component: MorePage },
+      // O antigo menu Mais virou um painel aberto pelo atalho Minha conta: o endereço volta ao painel.
+      { path: 'mais', redirectTo: '', pathMatch: 'full' },
       { path: 'lancamentos', component: TransactionsPage },
       { path: 'faturas', component: InvoicesPage },
       { path: 'fluxo-de-caixa', component: CashflowPage },

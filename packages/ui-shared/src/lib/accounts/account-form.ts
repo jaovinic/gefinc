@@ -99,7 +99,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
                 </label>
               }
             </div>
-            @if (form.touched && form.errors?.['holderType']) {
+            @if (submitted() && form.errors?.['holderType']) {
               <p class="gef-field-error">Escolha pessoa física ou jurídica.</p>
             }
             @if (serverErrors()['holderType']; as message) {
@@ -119,7 +119,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
                 <p class="mt-1 text-caption text-gefinc-warning">Este cartão ainda não tem conta: vincule a uma conta bancária.</p>
               }
             }
-            @if (form.touched && form.errors?.['bankAccountId'] && banks().length > 0) {
+            @if (submitted() && form.errors?.['bankAccountId'] && banks().length > 0) {
               <p class="gef-field-error">Escolha a conta bancária do cartão.</p>
             }
             @if (serverErrors()['bankAccountId']; as message) {
@@ -129,14 +129,14 @@ function openingToField(opening: string | undefined): { amount: string | null; s
           <div>
             <label class="gef-label" for="closingDay">Dia de fechamento da fatura</label>
             <input id="closingDay" class="gef-input" type="number" min="1" max="31" formControlName="closingDay" />
-            @if (form.touched && form.errors?.['closingDay']) {
+            @if (submitted() && form.errors?.['closingDay']) {
               <p class="gef-field-error">Informe um dia entre 1 e 31.</p>
             }
           </div>
           <div>
             <label class="gef-label" for="dueDay">Dia de vencimento da fatura</label>
             <input id="dueDay" class="gef-input" type="number" min="1" max="31" formControlName="dueDay" />
-            @if (form.touched && form.errors?.['dueDay']) {
+            @if (submitted() && form.errors?.['dueDay']) {
               <p class="gef-field-error">Informe um dia entre 1 e 31.</p>
             }
           </div>
@@ -231,6 +231,12 @@ export class AccountForm {
   protected readonly error = signal<string | null>(null);
   protected readonly serverErrors = signal<Record<string, string>>({});
   protected readonly busy = signal(false);
+  /**
+   * As regras por tipo (titular, conta do cartão, dias) só mostram erro depois de uma tentativa de salvar:
+   * avisar assim que qualquer campo perde o foco faz o painel (centralizado) crescer no meio do clique e
+   * o clique no seletor de conta se perde.
+   */
+  protected readonly submitted = signal(false);
 
   protected negative(): boolean {
     return this.form.controls.openingSign.value === 'NEGATIVE';
@@ -241,6 +247,7 @@ export class AccountForm {
       const account = this.account();
       this.resetToken();
       const opening = openingToField(account?.openingBalance);
+      this.submitted.set(false);
       this.form.reset({
         name: account?.name ?? '',
         type: account?.type ?? 'CHECKING',
@@ -295,6 +302,7 @@ export class AccountForm {
       return;
     }
     if (this.form.invalid) {
+      this.submitted.set(true);
       this.form.markAllAsTouched();
       return;
     }

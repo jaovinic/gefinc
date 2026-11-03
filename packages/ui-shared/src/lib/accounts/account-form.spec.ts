@@ -128,6 +128,19 @@ describe('AccountForm', () => {
     expect(el.textContent).toContain('Escolha a conta bancária do cartão.');
   });
 
+  it('cartão não avisa dos campos ainda vazios só porque o nome perdeu o foco (o painel não pode crescer sob o clique)', () => {
+    const { fixture, el, type, selectType, submit } = setup();
+    selectType('CREDIT_CARD');
+    type('#name', 'Nubank');
+    (el.querySelector('#name') as HTMLInputElement).dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Escolha a conta bancária do cartão.');
+    expect(el.textContent).not.toContain('Informe um dia entre 1 e 31.');
+    submit();
+    expect(el.textContent).toContain('Escolha a conta bancária do cartão.');
+    expect(el.textContent).toContain('Informe um dia entre 1 e 31.');
+  });
+
   it('cartão vinculado envia a conta, os dias e o ícone, e sugere o nome a partir do banco', () => {
     const { http, el, selectType, type, submit, pickBank, pickIcon } = setup();
     selectType('CREDIT_CARD');

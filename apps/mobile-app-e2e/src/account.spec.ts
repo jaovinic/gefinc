@@ -1,5 +1,5 @@
 import { APIRequestContext, expect, test } from '@playwright/test';
-import { API, PASSWORD, newUser, openFromMore, signIn } from './support';
+import { API, PASSWORD, newUser, openFromMore, openMore, signIn } from './support';
 
 const MAILPIT = 'http://localhost:8025/api/v1';
 
@@ -51,6 +51,8 @@ test.describe('conta e acesso no celular', () => {
 
     // entrar dentro da carência oferece cancelar a exclusão
     await page.getByRole('button', { name: 'Ir para o login' }).click();
+    // espera o formulário ser ligado ao Angular (classe ng-pristine): preencher antes disso é perdido pela primeira detecção
+    await expect(page.locator('gef-login #email')).toHaveClass(/ng-pristine/);
     await page.getByLabel('E-mail').fill(user.email);
     await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -63,8 +65,8 @@ test.describe('conta e acesso no celular', () => {
     const user = await newUser(request);
     await signIn(page, user.email);
 
-    await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Mais' }).click();
-    await page.getByRole('main').getByRole('button', { name: 'Sair' }).click();
+    const more = await openMore(page);
+    await more.getByRole('button', { name: 'Sair' }).click();
 
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
   });

@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { AuthApi, CurrentUser, NoticeService, SessionService, messageFor, passwordPolicyValidator, toProblem, userInitial } from '../../api';
 import { Icon } from '../../icons/icon';
+import { ThemeToggle } from '../../theme/theme-toggle';
 import { Avatar } from '../avatar/avatar';
 import { DeleteAccount } from '../delete-account/delete-account';
 
@@ -15,12 +16,12 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'gef-profile-page',
-  imports: [Avatar, DeleteAccount, Icon, ReactiveFormsModule],
+  imports: [Avatar, DeleteAccount, Icon, ReactiveFormsModule, ThemeToggle],
   template: `
     <section class="mx-auto max-w-2xl space-y-6">
       <h1 class="text-title-lg font-bold">Minha conta</h1>
 
-      <div class="flex items-center gap-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" data-testid="profile-header">
+      <div class="flex items-center gap-4 gef-card p-4" data-testid="profile-header">
         <gef-avatar [initial]="initial()" size="lg" />
         <div class="min-w-0">
           <p class="truncate text-title-md font-bold" data-testid="profile-name">{{ savedName() || 'Sem nome' }}</p>
@@ -28,7 +29,13 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
         </div>
       </div>
 
-      <section class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="name-title">
+      <section class="space-y-3 gef-card p-4" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" class="text-title-md font-bold">Aparência</h2>
+        <p class="text-body-base text-gefinc-muted">Escolha o tema claro, o escuro ou siga o do seu aparelho.</p>
+        <gef-theme-toggle />
+      </section>
+
+      <section class="space-y-4 gef-card p-4" aria-labelledby="name-title">
         <h2 id="name-title" class="flex items-center gap-2 text-title-md font-bold"><gef-icon name="user" [size]="18" />Dados pessoais</h2>
         <form [formGroup]="nameForm" (ngSubmit)="saveName()" class="space-y-4" novalidate>
           @if (nameError(); as message) {
@@ -58,7 +65,7 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
         </form>
       </section>
 
-      <section class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="password-title">
+      <section class="space-y-4 gef-card p-4" aria-labelledby="password-title">
         <h2 id="password-title" class="text-title-md font-bold">Alterar senha</h2>
         <p class="text-body-base text-gefinc-muted">
           Ao trocar, os outros aparelhos conectados saem da conta. Este continua conectado.

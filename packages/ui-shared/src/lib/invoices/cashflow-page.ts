@@ -23,7 +23,7 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
       } @else if (viewport.compact()) {
         <ul class="space-y-3" aria-label="Saldo residual por mês">
           @for (row of rows(); track row.month) {
-            <li data-testid="cashflow-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+            <li data-testid="cashflow-card" class="gef-card p-4">
               <p class="font-semibold">{{ row.month }}</p>
               <dl class="mt-2 space-y-1 text-body-base">
                 <div class="flex justify-between gap-3">

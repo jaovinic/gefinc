@@ -12,6 +12,8 @@ test.describe('contas e cartões', () => {
     await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
     await expect(page.getByText('Cadastre uma conta bancária antes de criar um cartão.')).toBeVisible();
     await page.getByRole('button', { name: 'Cadastrar conta bancária' }).click();
+    // o app é zoneless: o formulário só recomeça (como conta bancária) no próximo quadro; preencher antes disso se perde
+    await expect(page.getByLabel('Tipo')).toHaveValue('CHECKING');
     await page.getByLabel('Nome').fill('Itaú');
     await page.getByRole('button', { name: 'Salvar' }).click();
     // titular é obrigatório na conta bancária

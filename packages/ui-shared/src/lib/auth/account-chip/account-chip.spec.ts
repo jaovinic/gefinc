@@ -151,4 +151,63 @@ describe('AccountChip (atalho Minha conta)', () => {
     const labels = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('a')).map((a) => a.getAttribute('aria-label'));
     expect(labels).toEqual(['Minha conta — Ana Souza', 'Minha conta — Ana Souza']);
   });
+
+  describe('modo ação (abre um menu em vez de navegar)', () => {
+    async function setupAction(expanded = false, active = false) {
+      const fixture = TestBed.createComponent(AccountChip);
+      fixture.componentRef.setInput('mode', 'action');
+      fixture.componentRef.setInput('expanded', expanded);
+      fixture.componentRef.setInput('active', active);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const button = () => el.querySelector('button[data-testid="account-chip"]') as HTMLButtonElement;
+      return { fixture, el, button };
+    }
+
+    it('é um botão com aria-haspopup="dialog", sem link, e avisa ao ser acionado', async () => {
+      const { fixture, el, button } = await setupAction();
+      http.expectOne(ME).flush(profile('Ana Souza'));
+      fixture.detectChanges();
+      const spy = jest.fn();
+      fixture.componentInstance.activated.subscribe(spy);
+
+      expect(el.querySelector('a')).toBeNull();
+      expect(button().type).toBe('button');
+      expect(button().getAttribute('aria-haspopup')).toBe('dialog');
+      expect(button().getAttribute('aria-expanded')).toBe('false');
+      expect(button().getAttribute('aria-label')).toBe('Mais opções — Ana Souza');
+      expect(button().textContent).toContain('Ana Souza');
+
+      button().click();
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it('aria-expanded e o destaque acompanham o menu aberto ou a página atual', async () => {
+      const { fixture, button } = await setupAction(true);
+      http.expectOne(ME).flush(profile('Ana Souza'));
+      fixture.detectChanges();
+      expect(button().getAttribute('aria-expanded')).toBe('true');
+      expect(button().classList.contains('gef-account-chip-active')).toBe(true);
+
+      fixture.componentRef.setInput('expanded', false);
+      fixture.detectChanges();
+      expect(button().classList.contains('gef-account-chip-active')).toBe(false);
+
+      fixture.componentRef.setInput('active', true);
+      fixture.detectChanges();
+      expect(button().classList.contains('gef-account-chip-active')).toBe(true);
+    });
+
+    it('carregando mostra o esqueleto e o rótulo genérico; se falhar, o rótulo contém o texto visível', async () => {
+      const { fixture, el, button } = await setupAction();
+      expect(button().getAttribute('aria-label')).toBe('Mais opções');
+      expect(button().getAttribute('aria-busy')).toBe('true');
+      expect(el.querySelectorAll('.gef-skeleton').length).toBe(2);
+
+      http.expectOne(ME).flush({ code: 'ERRO' }, { status: 0, statusText: 'Unknown Error' });
+      fixture.detectChanges();
+      expect(button().getAttribute('aria-label')).toBe('Mais opções — Minha conta');
+      expect(button().textContent).toContain('Minha conta');
+    });
+  });
 });

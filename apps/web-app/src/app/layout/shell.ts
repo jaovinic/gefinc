@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { AccountChip, Icon, Logo, NAV_ITEMS, NoticeService, SessionService, Sheet, type NavItem } from '@gefinc/ui-shared';
+import { AccountChip, Icon, Logo, NAV_ITEMS, NoticeService, SessionService, Sheet, ThemeToggle, type NavItem } from '@gefinc/ui-shared';
 
 const COLLAPSED_KEY = 'gefinc.ui.sidebar-collapsed';
 
@@ -33,7 +33,7 @@ function writeCollapsed(collapsed: boolean): void {
  */
 @Component({
   selector: 'gef-shell',
-  imports: [AccountChip, Icon, Logo, NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet, Sheet],
+  imports: [AccountChip, Icon, Logo, NgTemplateOutlet, RouterLink, RouterLinkActive, RouterOutlet, Sheet, ThemeToggle],
   template: `
     <ng-template #links let-items>
       @for (item of items; track item.key) {
@@ -91,7 +91,10 @@ function writeCollapsed(collapsed: boolean): void {
             <gef-icon name="menu" [size]="22" />
           </button>
           <gef-logo class="shrink-0 lg:hidden" variant="full" [size]="28" />
-          <gef-account-chip class="ml-auto min-w-0" [link]="profileLink" />
+          <div class="ml-auto flex min-w-0 items-center gap-2">
+            <gef-theme-toggle variant="icon" />
+            <gef-account-chip class="min-w-0" [link]="profileLink" />
+          </div>
         </header>
 
         @if (notices.message(); as message) {

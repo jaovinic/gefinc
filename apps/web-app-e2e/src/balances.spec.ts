@@ -99,6 +99,7 @@ test.describe('saldo por conta', () => {
   test('o formulário de conta aceita um saldo inicial opcional e o painel o mostra', async ({ page, request }) => {
     const user = await newUser(request);
     await login(page, user.email, PASSWORD);
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible(); // a sessão precisa terminar antes de abrir outra página
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Inter');
@@ -121,6 +122,7 @@ test.describe('saldo por conta', () => {
   test('conta que já começa devendo: saldo inicial negativo aparece na tela de Contas e no painel', async ({ page, request }) => {
     const user = await newUser(request);
     await login(page, user.email, PASSWORD);
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible(); // a sessão precisa terminar antes de abrir outra página
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Conta devedora');

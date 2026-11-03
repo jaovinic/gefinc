@@ -1,16 +1,39 @@
 <!DOCTYPE html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <title>GEFINC</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#090d16" />
+    <meta name="theme-color" content="#090d16" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3f6fb" media="(prefers-color-scheme: light)" />
     <link rel="icon" href="favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <script>
+      /* Tema antes da primeira pintura (evita o flash). Mesma regra do ThemeService; só lê e aplica, sem dados externos. */
+      (function () {
+        var theme = 'dark';
+        try {
+          var saved = null;
+          try {
+            saved = localStorage.getItem('gefinc.ui.theme');
+          } catch (e) {}
+          var systemDark = true;
+          try {
+            systemDark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+          } catch (e) {}
+          theme = saved === 'light' || saved === 'dark' ? saved : systemDark ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < metas.length; i++) {
+            metas[i].setAttribute('content', theme === 'light' ? '#f3f6fb' : '#090d16');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <gef-root></gef-root>

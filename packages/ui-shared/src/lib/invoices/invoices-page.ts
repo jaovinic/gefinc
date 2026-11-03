@@ -42,19 +42,19 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
         <gef-error [message]="loadError()!" (retry)="load()" />
       } @else if (invoice(); as inv) {
         <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi gef-card p-4">
             <p class="text-caption text-gefinc-muted">Total da fatura</p>
             <p class="financial-value text-title-lg font-bold">{{ money(inv.total) }}</p>
           </div>
-          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi gef-card p-4">
             <p class="text-caption text-gefinc-muted">Pago</p>
             <p class="financial-value text-title-lg font-bold text-gefinc-primary">{{ money(paid(inv)) }}</p>
           </div>
-          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi gef-card p-4">
             <p class="text-caption text-gefinc-muted">Restante</p>
             <p class="financial-value text-title-lg font-bold" [class.text-gefinc-warning]="inv.remaining !== '0.00'">{{ money(inv.remaining) }}</p>
           </div>
-          <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+          <div class="gef-kpi gef-card p-4">
             <p class="text-caption text-gefinc-muted">Vencimento</p>
             <p class="financial-value text-title-lg font-bold">{{ br(inv.dueDate) }}</p>
           </div>
@@ -87,7 +87,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
               <div class="space-y-3"><ng-container *ngTemplateOutlet="paymentTpl; context: { $implicit: mode, inv: inv }" /></div>
             </gef-sheet>
           } @else {
-            <div class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" role="dialog" aria-label="Pagamento da fatura">
+            <div class="space-y-3 gef-card p-4" role="dialog" aria-label="Pagamento da fatura">
               <ng-container *ngTemplateOutlet="paymentTpl; context: { $implicit: mode, inv: inv }" />
             </div>
           }
@@ -98,7 +98,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
         } @else if (viewport.compact()) {
           <ul class="space-y-3">
             @for (item of inv.items; track item.id) {
-              <li data-testid="invoice-item" class="flex items-start justify-between gap-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+              <li data-testid="invoice-item" class="flex items-start justify-between gap-3 gef-card p-4">
                 <div class="min-w-0">
                   <p class="font-semibold">{{ item.description }}</p>
                   <p class="text-caption text-gefinc-muted">
@@ -165,7 +165,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
           @if (viewport.compact()) {
             <ul class="space-y-3" aria-label="Projeção de faturas">
               @for (card of proj.cards; track card.accountId) {
-                <li data-testid="projection-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+                <li data-testid="projection-card" class="gef-card p-4">
                   <div class="flex items-center justify-between gap-3">
                     <gef-account-badge [account]="cardOf(card.accountId, card.name)" [showHolder]="false" />
                     <p class="text-caption text-gefinc-muted">

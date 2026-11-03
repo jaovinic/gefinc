@@ -4,7 +4,7 @@ import { register, uniqueEmail } from './support';
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 
 test.describe('identidade visual Aurora FinTech (web)', () => {
-  test('telas de acesso mostram o logo, o fundo escuro, a superfície e a fonte da marca', async ({ page }) => {
+  test('telas de acesso mostram o logo, o fundo escuro, a superfície de vidro e a fonte da marca', async ({ page }) => {
     await page.goto('/login');
     await expect(page.locator('gef-auth-card gef-logo svg[aria-label="GEFINC"]')).toBeVisible();
     await expect(page.locator('gef-auth-card gef-logo')).toContainText('GEFINC');
@@ -14,12 +14,14 @@ test.describe('identidade visual Aurora FinTech (web)', () => {
       return {
         body: getComputedStyle(document.body).backgroundColor,
         card: getComputedStyle(card).backgroundColor,
+        surface: getComputedStyle(document.documentElement).getPropertyValue('--color-gefinc-surface').trim().toLowerCase(),
         font: getComputedStyle(document.body).fontFamily,
         fontLoaded: document.fonts.check('16px "Plus Jakarta Sans Variable"'),
       };
     });
     expect(style.body).toBe(rgb(9, 13, 22)); // Obsidian Deep #090D16
-    expect(style.card).toBe(rgb(19, 27, 46)); // Surface Slate #131B2E
+    expect(style.surface).toBe('#131b2e'); // Surface Slate #131B2E (o token; o cartão é vidro translúcido da mesma cor)
+    expect(style.card).toMatch(/^rgba\(19, 27, 46, 0\.\d+\)$/);
     expect(style.font).toContain('Plus Jakarta Sans');
     expect(style.fontLoaded).toBe(true);
   });

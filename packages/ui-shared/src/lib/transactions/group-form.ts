@@ -4,6 +4,7 @@ import type { CategoryType, RecurrenceType, TransactionGroupInput } from '@gefin
 import { ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
 import { accountsFor, reconcileAccount } from '../accounts/account-rules';
 import { AccountPicker } from '../accounts/account-picker';
+import { AmountModeSwitch } from './amount-mode-switch';
 import { MoneyInput } from '../money-input/money-input';
 import { incomeDateHint } from './income-hint';
 import { KindSwitch } from './kind-switch';
@@ -31,9 +32,9 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
 /** Cadastro de lançamento avulso, fixo mensal ou parcelado (FR-017 a FR-024). */
 @Component({
   selector: 'gef-group-form',
-  imports: [AccountPicker, KindSwitch, ReactiveFormsModule, MoneyInput],
+  imports: [AccountPicker, AmountModeSwitch, KindSwitch, ReactiveFormsModule, MoneyInput],
   template: `
-    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" novalidate>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 gef-card p-4" novalidate>
       <h2 class="text-title-md font-semibold">Novo lançamento</h2>
       @if (error(); as message) {
         <p class="gef-alert-error" role="alert">{{ message }}</p>
@@ -59,22 +60,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           <p class="gef-field-error" role="alert">{{ message }}</p>
         }
         @if (recurrence() === 'INSTALLMENT') {
-          <div class="mt-2 flex gap-2" role="group" aria-label="Forma de informar">
-            <button
-              type="button"
-              class="gef-btn-sm flex-1"
-              [class.gef-btn-sm-primary]="amountMode() === 'TOTAL'"
-              [attr.aria-pressed]="amountMode() === 'TOTAL'"
-              (click)="amountMode.set('TOTAL')"
-            >Valor total</button>
-            <button
-              type="button"
-              class="gef-btn-sm flex-1"
-              [class.gef-btn-sm-primary]="amountMode() === 'INSTALLMENT'"
-              [attr.aria-pressed]="amountMode() === 'INSTALLMENT'"
-              (click)="amountMode.set('INSTALLMENT')"
-            >Valor da parcela</button>
-          </div>
+          <gef-amount-mode-switch class="mt-3 block" order="total-first" [value]="amountMode()" [count]="count()" (changed)="amountMode.set($event.mode)" />
         }
       </div>
       <div class="grid gap-4 sm:grid-cols-3">
@@ -172,32 +158,34 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
         }
       </div>
       @if (recurrence() === 'INSTALLMENT' && installmentPreview().length > 0) {
-        <p class="financial-value text-body-base font-semibold" aria-live="polite" data-testid="installment-summary">{{ summary() }}</p>
-        <div class="overflow-x-auto rounded-lg border border-gefinc-border" aria-label="Prévia das parcelas">
-          <table class="w-full text-left text-body-base">
-            <thead class="text-caption uppercase text-gefinc-muted">
-              <tr>
-                <th class="px-3 py-2">Parcela</th>
-                @if (cardSelected()) {
-                  <th class="px-3 py-2">Fatura</th>
-                }
-                <th class="px-3 py-2">Vencimento</th>
-                <th class="px-3 py-2 text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of installmentPreview(); track item.number) {
-                <tr class="border-t border-gefinc-border">
-                  <td class="px-3 py-1.5">{{ item.number }}/{{ installmentPreview().length }}</td>
+        <div class="gef-card space-y-3 p-3">
+          <p class="financial-value text-body-base font-semibold" aria-live="polite" data-testid="installment-summary">{{ summary() }}</p>
+          <div class="overflow-x-auto rounded-lg border border-gefinc-border" aria-label="Prévia das parcelas">
+            <table class="w-full text-left text-body-base">
+              <thead class="text-caption uppercase text-gefinc-muted">
+                <tr>
+                  <th class="px-3 py-2">Parcela</th>
                   @if (cardSelected()) {
-                    <td class="px-3 py-1.5">{{ item.invoice }} · vence {{ item.dueShort }}</td>
+                    <th class="px-3 py-2">Fatura</th>
                   }
-                  <td class="px-3 py-1.5">{{ item.due }}</td>
-                  <td class="financial-value px-3 py-1.5 text-right">{{ item.amount }}</td>
+                  <th class="px-3 py-2">Vencimento</th>
+                  <th class="px-3 py-2 text-right">Valor</th>
                 </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (item of installmentPreview(); track item.number) {
+                  <tr class="border-t border-gefinc-border">
+                    <td class="px-3 py-1.5">{{ item.number }}/{{ installmentPreview().length }}</td>
+                    @if (cardSelected()) {
+                      <td class="px-3 py-1.5">{{ item.invoice }} · vence {{ item.dueShort }}</td>
+                    }
+                    <td class="px-3 py-1.5">{{ item.due }}</td>
+                    <td class="financial-value px-3 py-1.5 text-right">{{ item.amount }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
         </div>
       }
       <div class="flex gap-3">
@@ -239,7 +227,7 @@ export class GroupForm implements OnInit {
   private readonly purchaseDate = signal(todayIso());
   protected readonly recurrence = signal<RecurrenceType>('VARIABLE');
   private readonly amount = signal<string | null>(null);
-  private readonly count = signal(2);
+  protected readonly count = signal(2);
   /** O valor digitado é o total da compra (padrão) ou o valor de cada parcela. */
   protected readonly amountMode = signal<AmountMode>('TOTAL');
   protected readonly amountLabel = computed(() => {

@@ -14,7 +14,7 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
   imports: [Icon, ProfilePage],
   template: `
     <gef-profile-page>
-      <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="lock-title">
+      <section class="space-y-3 gef-card p-4" aria-labelledby="lock-title">
         <h2 id="lock-title" class="flex items-center gap-2 text-title-md font-bold"><gef-icon name="shield" [size]="18" />Bloqueio por biometria</h2>
         <p class="text-body-base text-gefinc-muted">
           Peça a digital ou o rosto para abrir o aplicativo e proteger seus dados financeiros se outra pessoa usar o aparelho.
@@ -46,7 +46,7 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
         </p>
       </section>
 
-      <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="reminders-title">
+      <section class="space-y-3 gef-card p-4" aria-labelledby="reminders-title">
         <h2 id="reminders-title" class="text-title-md font-bold">Lembretes de vencimento</h2>
         <p class="text-body-base text-gefinc-muted">
           Avisos no aparelho antes das contas vencerem. O texto mostra só quantidade e tipo, sem valores nem nomes.

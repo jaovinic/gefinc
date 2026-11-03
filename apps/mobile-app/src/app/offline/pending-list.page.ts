@@ -22,7 +22,7 @@ import { SyncEngine } from './sync-engine';
           <h2 class="text-title-md font-semibold">Aguardando envio</h2>
           <ul class="space-y-2">
             @for (op of waiting(); track op.id) {
-              <li class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3">
+              <li class="gef-card p-3">
                 <p class="font-medium">{{ op.label }}</p>
                 <p class="text-caption text-gefinc-muted">Será enviado quando houver conexão.</p>
               </li>
@@ -35,7 +35,7 @@ import { SyncEngine } from './sync-engine';
           <h2 class="text-title-md font-semibold text-gefinc-danger">Recusadas pelo servidor</h2>
           <ul class="space-y-2">
             @for (op of rejected(); track op.id) {
-              <li class="rounded-xl border border-gefinc-danger/40 bg-gefinc-surface p-3">
+              <li class="gef-card border-gefinc-danger/40 p-3">
                 <p class="font-medium">{{ op.label }}</p>
                 <p class="text-caption text-gefinc-danger">{{ op.error }}</p>
                 <div class="mt-2 flex flex-wrap gap-1">

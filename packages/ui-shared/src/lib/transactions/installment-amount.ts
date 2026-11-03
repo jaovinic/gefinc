@@ -43,3 +43,26 @@ export function installmentSummary(total: string, count: number): string {
     return '';
   }
 }
+
+/** Panorama do parcelamento para o resumo: valor da primeira e da última parcela (o resto fica na última). */
+export interface InstallmentOverview {
+  count: number;
+  /** Valor das parcelas 1 a count-1 (e da última, quando não há resto). */
+  first: string;
+  last: string;
+  /** Verdadeiro quando a última parcela difere das demais (o total não divide exatamente). */
+  hasRemainder: boolean;
+  total: string;
+}
+
+/** Valores do parcelamento sem aritmética de ponto flutuante; `null` se o total não puder ser dividido. */
+export function installmentOverview(total: string, count: number): InstallmentOverview | null {
+  try {
+    const parts = splitMoney(total, count);
+    const first = parts[0];
+    const last = parts[parts.length - 1];
+    return { count, first, last, hasRemainder: first !== last, total };
+  } catch {
+    return null;
+  }
+}

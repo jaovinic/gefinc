@@ -7,8 +7,14 @@ export function uniqueEmail(): string {
   return `ana.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
 }
 
+/** Espera o formulário de acesso ser ligado ao Angular (classe ng-pristine): preencher antes disso é perdido pela primeira detecção. */
+async function formReady(page: Page) {
+  await expect(page.locator('input#email')).toHaveClass(/ng-pristine/);
+}
+
 export async function register(page: Page, email: string, password = PASSWORD) {
   await page.goto('/register');
+  await formReady(page);
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(password);
   await page.getByLabel('Confirme a senha').fill(password);
@@ -18,6 +24,7 @@ export async function register(page: Page, email: string, password = PASSWORD) {
 
 export async function login(page: Page, email: string, password: string) {
   await page.goto('/login');
+  await formReady(page);
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -51,6 +58,16 @@ export function todayIso(): string {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+/**
+ * Abre a tela de contas e espera a lista carregar (tabela, cartões ou estado vazio). Sem isso, contar as
+ * linhas logo após o `goto` vê zero contas mesmo havendo bancárias, e o fluxo cria uma conta extra que
+ * vira a primeira opção do seletor de cartão.
+ */
+async function openAccounts(page: Page) {
+  await page.goto('/accounts');
+  await expect(page.locator('table, [data-testid="account-card"], gef-empty').first()).toBeVisible();
+}
+
 /** Cadastra uma conta pela tela de contas (bancária PF, dinheiro ou cartão vinculado a uma conta bancária). */
 export async function createAccount(
   page: Page,
@@ -59,10 +76,10 @@ export async function createAccount(
   days?: { closing: number; due: number },
   options: { holder?: 'PF' | 'PJ'; bank?: string } = {},
 ) {
-  await page.goto('/accounts');
+  await openAccounts(page);
   if (type === 'CREDIT_CARD' && !options.bank && (await page.getByRole('row', { name: /Conta bancária/ }).count()) === 0) {
     await createAccount(page, 'Banco base', 'CHECKING');
-    await page.goto('/accounts');
+    await openAccounts(page);
   }
   await page.getByRole('button', { name: 'Nova conta' }).first().click();
   await page.getByLabel('Tipo').selectOption(type);
@@ -75,7 +92,9 @@ export async function createAccount(
     const option = options.bank
       ? page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: new RegExp(`^${options.bank}$`) }) })
       : page.locator('[role="option"]').first();
+    await expect(option).toBeVisible();
     await option.click();
+    await expect(page.locator('[role="option"]')).toHaveCount(0); // lista fechada: a escolha foi aplicada
     await page.getByLabel('Nome').fill(name);
   }
   if (days) {
@@ -90,5 +109,8 @@ export async function createAccount(
 export async function chooseAccount(page: Page, scope: Page | Locator, name: string) {
   await scope.getByLabel('Conta ou cartão').click();
   const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  await page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: exact }) }).click();
+  const option = page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: exact }) });
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(page.locator('[role="option"]')).toHaveCount(0); // lista fechada: a escolha foi aplicada
 }

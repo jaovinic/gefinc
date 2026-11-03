@@ -67,7 +67,7 @@ test.describe('receitas e despesas', () => {
 
     // encerra no mês corrente: o mês seguinte fica sem a ocorrência
     await page.getByRole('button', { name: 'Mês anterior' }).click();
-    await page.getByRole('row', { name: /Internet/ }).getByRole('button', { name: 'Encerrar aqui' }).click();
+    await page.getByRole('row', { name: /Internet/ }).getByRole('button', { name: 'Encerrar Internet' }).click();
     await expect(page.getByRole('alertdialog')).toContainText('As ocorrências pendentes depois deste mês serão removidas');
     await page.getByRole('alertdialog').getByRole('button', { name: 'Encerrar lançamento' }).click();
     await page.getByRole('button', { name: 'Próximo mês' }).click();

@@ -9,45 +9,54 @@
 @import '@ionic/angular/css/structure.css' layer(base);
 @import '@ionic/angular/css/typography.css' layer(base);
 
-/* Tokens do Ionic mapeados para a identidade visual do GEFINC (dark-first) */
+/* Tokens do Ionic apontando para as variáveis do tema (claro/escuro): trocar o tema troca o Ionic junto. */
 :root {
   --ion-font-family: var(--font-sans);
-  --ion-background-color: #090d16;
-  --ion-text-color: #f8fafc;
-  --ion-color-primary: #00e599;
-  --ion-color-primary-contrast: #090d16;
-  --ion-color-secondary: #00b4d8;
-  --ion-color-danger: #f43f5e;
-  --ion-color-warning: #f59e0b;
-  --ion-item-background: #131b2e;
-  --ion-card-background: #131b2e;
-  --ion-toolbar-background: #131b2e;
-  --ion-border-color: #1e293b;
+  --ion-background-color: var(--color-gefinc-bg);
+  --ion-text-color: var(--color-gefinc-text);
+  --ion-color-primary: var(--color-gefinc-primary);
+  --ion-color-primary-contrast: var(--color-gefinc-on-accent);
+  --ion-color-secondary: var(--color-gefinc-secondary);
+  --ion-color-danger: var(--color-gefinc-danger);
+  --ion-color-warning: var(--color-gefinc-warning);
+  --ion-item-background: var(--color-gefinc-surface);
+  --ion-card-background: var(--color-gefinc-surface);
+  --ion-toolbar-background: var(--color-gefinc-surface);
+  --ion-border-color: var(--color-gefinc-border);
+  /* Altura total reservada pela ilha de navegação (altura + folga): botão flutuante e avisos ficam acima dela. */
+  --gef-tabbar-h: 5rem;
 }
 
 /* Android 15+ desenha o app sob a barra de status e a de gestos: respeitar as áreas seguras. */
 @layer components {
   .gef-app-header {
-    @apply flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 pb-3;
+    @apply flex items-center justify-between border-b px-4 pb-3;
+    border-color: var(--glass-border);
     padding-top: calc(env(safe-area-inset-top) + 0.75rem);
   }
-  /* Ação rápida da tela inicial: um único botão destacado para o novo lançamento. */
+  /* Ação rápida da tela inicial: um único botão destacado para o novo lançamento, em vidro com tinta de marca,
+     acima da ilha de navegação. */
   .gef-quick-actions {
     @apply fixed left-4 right-4 z-10 flex;
-    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1rem);
+    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 0.75rem);
   }
   .gef-quick-action {
-    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-gefinc-primary px-4 text-body-base font-bold text-gefinc-bg shadow-lg transition-transform active:scale-[0.97];
+    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full px-4 text-body-base font-bold text-gefinc-on-accent transition-transform active:scale-[0.97];
+    background: linear-gradient(135deg, rgb(0 229 153 / 0.92) 0%, rgb(0 180 216 / 0.88) 100%);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.35),
+      0 12px 28px -12px rgb(0 180 216 / 0.55);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   }
 }
 
-/* Casca do app: cabeçalho, conteúdo rolável e barra de abas (altura em --gef-tabbar-h). */
+/* Casca do app: cabeçalho, conteúdo rolável e a ilha de navegação flutuante. */
 .gef-shell {
-  --gef-tabbar-h: 3.5rem;
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  background: var(--color-gefinc-bg);
 }
 .gef-shell-main {
   -webkit-overflow-scrolling: touch;
@@ -57,32 +66,40 @@
   overscroll-behavior: contain;
 }
 @layer components {
+  /* Ilha: pílula de vidro flutuante, centralizada sem `transform`, acima da barra de gestos. */
   .gef-tabbar {
-    @apply flex border-t border-gefinc-border bg-gefinc-surface;
-    padding-bottom: env(safe-area-inset-bottom);
+    @apply fixed z-40 flex gap-0.5 rounded-full p-1.5;
+    inset-inline: 0;
+    margin-inline: auto;
+    width: min(calc(100% - 1.5rem), 22rem);
+    bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 14px 32px -12px rgb(0 0 0 / 0.55);
   }
   .gef-tab {
-    @apply flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-caption text-gefinc-muted transition-colors active:bg-gefinc-bg;
+    @apply flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-0.5 text-caption font-medium text-gefinc-muted transition-colors active:bg-gefinc-primary/10;
   }
+  /* Ativo: pílula preenchida + peso da fonte + cor (não depende só da cor). */
   .gef-tab-active {
-    @apply font-semibold text-gefinc-primary;
-    box-shadow: inset 0 3px 0 0 var(--color-gefinc-primary);
+    @apply bg-gefinc-primary/15 font-bold text-gefinc-primary;
   }
   .gef-page {
     @apply p-4;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 6rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 5rem) + 1.5rem);
   }
   .gef-menu-item {
-    @apply flex min-h-14 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text transition-colors active:bg-gefinc-bg;
+    @apply flex min-h-14 items-center rounded-lg border border-gefinc-border px-4 text-body-base font-semibold text-gefinc-text transition-colors active:bg-gefinc-bg;
+    background-color: var(--glass-bg);
   }
 }
 
-/* Tela cheia rolável das páginas fora da casca (acesso e lançamento rápido). */
+/* Tela cheia rolável das páginas fora da casca (acesso e lançamento rápido); o fundo vem do corpo. */
 .gef-screen {
   height: 100dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--color-gefinc-bg);
 }
 
 /* O Ionic dá margem no topo dos títulos; os cartões e telas do GEFINC controlam o espaçamento sozinhos. */

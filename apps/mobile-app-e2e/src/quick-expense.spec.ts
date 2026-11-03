@@ -72,7 +72,8 @@ test.describe('novo lançamento rápido: despesa', () => {
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
     const position = await page.getByRole('button', { name: 'Salvar' }).evaluate((el) => {
       let node: Element | null = el;
-      while (node) {
+      // o <body> do Ionic é sempre `fixed` (estrutura da casca); vale só o que está entre o botão e ele
+      while (node && node !== document.body) {
         const p = getComputedStyle(node).position;
         if (p === 'fixed' || p === 'sticky') return p;
         node = node.parentElement;

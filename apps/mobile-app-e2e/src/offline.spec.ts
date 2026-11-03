@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount } from './support';
+import { apiGet, apiPost, categoryId, newUser, openMore, openTab, signIn, todayIso, chooseAccount } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 const banner = (page: Page) => page.getByTestId('offline-banner');
@@ -198,15 +198,14 @@ test.describe('uso sem internet', () => {
     await newExpense(page, 'Livraria', '8000');
     await expect(banner(page)).toContainText('1 operação pendente de envio');
 
-    await openTab(page, 'Mais');
-    await page.getByRole('main').getByRole('button', { name: 'Sair' }).click();
+    await (await openMore(page)).getByRole('button', { name: 'Sair' }).click();
     const dialog = page.getByRole('dialog', { name: 'Operações não enviadas' });
     await expect(dialog).toContainText('1 operação');
     await dialog.getByRole('button', { name: 'Voltar' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(banner(page)).toContainText('1 operação pendente de envio');
 
-    await page.getByRole('main').getByRole('button', { name: 'Sair' }).click();
+    await (await openMore(page)).getByRole('button', { name: 'Sair' }).click();
     await page.getByRole('dialog', { name: 'Operações não enviadas' }).getByRole('button', { name: 'Sair e descartar' }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
   });

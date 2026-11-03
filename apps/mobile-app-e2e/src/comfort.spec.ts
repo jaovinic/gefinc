@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { apiPost, categoryId, newUser, signIn, todayIso } from './support';
+import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso } from './support';
 
 const SIZES = [
   { name: 'Pixel 7', width: 412, height: 915 },
@@ -13,7 +13,6 @@ const ROUTES: { path: string; ready: string | RegExp }[] = [
   { path: '/lancamentos', ready: 'Lançamentos' },
   { path: '/faturas', ready: 'Faturas' },
   { path: '/contas', ready: 'Contas e cartões' },
-  { path: '/mais', ready: 'Mais' },
   { path: '/categorias', ready: 'Categorias' },
   { path: '/fluxo-de-caixa', ready: 'Fluxo de caixa' },
   { path: '/minha-conta', ready: 'Minha conta' },
@@ -97,6 +96,22 @@ for (const size of SIZES) {
       }
       expect(problems).toEqual([]);
     });
+
+    test('o menu Mais (painel) cabe na tela, tem alvos de 44 px e passa no axe', async ({ page, request }) => {
+      const user = await seed(request);
+      await signIn(page, user.email);
+      const more = await openMore(page);
+      const problems: string[] = [];
+
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+      if (overflow) problems.push('menu Mais: rolagem horizontal');
+      for (const small of await smallTouchTargets(page)) problems.push(`menu Mais: alvo pequeno ${small}`);
+      const box = await more.boundingBox();
+      if (box && box.x + box.width > size.width + 1) problems.push('menu Mais: painel maior que a tela');
+      const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+      for (const v of axe.violations) problems.push(`menu Mais: axe ${v.id} (${v.nodes.length})`);
+      expect(problems).toEqual([]);
+    });
   });
 }
 
@@ -121,6 +136,7 @@ test('formulário de conta com ícones, seletor de conta e avisos cabem em 360 p
   await signIn(page, user.email);
   const problems: string[] = [];
   const audit = async (label: string) => {
+    await settle(page);
     const overflow = await page.evaluate(() => Array.from(document.querySelectorAll('main, .gef-screen')).some((el) => el.scrollWidth > el.clientWidth + 1));
     if (overflow) problems.push(`${label}: rolagem horizontal`);
     for (const small of await smallTouchTargets(page)) problems.push(`${label}: alvo pequeno ${small}`);

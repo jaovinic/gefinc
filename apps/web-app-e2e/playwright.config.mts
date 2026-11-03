@@ -30,6 +30,8 @@ export default defineConfig({
     baseURL,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+    // A suíte assume o tema escuro (padrão do app sem preferência); os testes do tema claro mudam por teste.
+    colorScheme: 'dark',
   },
   webServer: [
     {

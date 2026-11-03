@@ -8,7 +8,7 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
   selector: 'gef-month-picker',
   imports: [Icon],
   template: `
-    <div class="flex w-full items-center justify-between gap-2 rounded-lg sm:inline-flex sm:w-auto sm:justify-start border border-gefinc-border bg-gefinc-surface px-2 py-1">
+    <div class="flex w-full items-center justify-between gap-2 rounded-lg sm:inline-flex sm:w-auto sm:justify-start border border-gefinc-border bg-(--glass-bg) px-2 py-1">
       <button type="button" class="gef-icon-btn" aria-label="Mês anterior" (click)="shift(-1)">
         <gef-icon name="chevron-left" [size]="20" />
       </button>

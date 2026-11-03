@@ -59,7 +59,7 @@ import { blockedAccountMessage } from './account-usage';
       } @else if (viewport.compact()) {
         <ul class="space-y-3">
           @for (account of visible(); track account.id) {
-            <li data-testid="account-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+            <li data-testid="account-card" class="gef-card p-4">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <gef-account-badge [account]="account" [showBank]="true" />

@@ -51,19 +51,19 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
             </gef-empty>
           } @else {
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="to-due">
+              <div class="gef-kpi gef-card p-3" data-indicator="to-due">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="clock" [size]="14" />A pagar</p>
                 <p class="financial-value text-title-md font-extrabold text-gefinc-warning">{{ money(d.totalToDue) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="paid">
+              <div class="gef-kpi gef-card p-3" data-indicator="paid">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="check" [size]="14" />Pago</p>
                 <p class="financial-value text-title-md font-extrabold text-gefinc-primary">{{ money(d.totalPaid) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" [class.border-gefinc-danger]="d.overdueTotal !== '0.00'" data-indicator="overdue">
+              <div class="gef-kpi gef-card p-3" [class.border-gefinc-danger]="d.overdueTotal !== '0.00'" data-indicator="overdue">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="alert" [size]="14" />Atrasado</p>
                 <p class="financial-value text-title-md font-extrabold" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="to-receive">
+              <div class="gef-kpi gef-card p-3" data-indicator="to-receive">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="arrow-up" [size]="14" />A receber</p>
                 <p class="financial-value text-title-md font-extrabold">{{ money(toReceive(d)) }}</p>
               </div>
@@ -73,13 +73,13 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
             </p>
 
               <div class="grid gap-6 lg:grid-cols-2">
-                <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+                <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Gastos por categoria</h2>
                   @if (categorySlices().length > 0) {
                     <gef-category-donut [slices]="categorySlices()" />
                   }
                 </div>
-                <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+                <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Distribuição por cartão</h2>
                   @if (cardSlices().length > 0) {
                     <gef-card-bars [slices]="cardSlices()" />

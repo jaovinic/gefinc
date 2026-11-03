@@ -4,6 +4,8 @@ import { createAccount, register, todayIso, uniqueEmail } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
+  // painéis entram com animação de opacidade: mede o contraste no estado final
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
   return result.violations
     .filter((v) => v.impact === 'critical' || v.impact === 'serious')

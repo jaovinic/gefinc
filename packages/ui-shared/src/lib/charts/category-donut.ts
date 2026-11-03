@@ -1,6 +1,7 @@
-import { Component, ElementRef, OnDestroy, computed, effect, input, viewChild } from '@angular/core';
+import { Component, ElementRef, OnDestroy, computed, effect, inject, input, viewChild } from '@angular/core';
 import { ArcElement, Chart, DoughnutController, Tooltip } from 'chart.js';
 import { formatBRL } from '@gefinc/utils';
+import { ThemeService } from '../theme/theme.service';
 import { ChartSlice } from './chart-slice';
 
 Chart.register(DoughnutController, ArcElement, Tooltip);
@@ -32,6 +33,7 @@ export class CategoryDonut implements OnDestroy {
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private chart: Chart | null = null;
+  private readonly theme = inject(ThemeService);
 
   protected readonly summary = computed(
     () => 'Gastos por categoria: ' + this.slices().map((s) => `${s.label} ${formatBRL(s.value)}`).join('; '),
@@ -40,13 +42,14 @@ export class CategoryDonut implements OnDestroy {
   constructor() {
     effect(() => {
       const slices = this.slices();
+      this.theme.resolved(); // o canvas não herda o CSS: ao trocar o tema, a borda é lida de novo
       const data = {
         labels: slices.map((s) => s.label),
         datasets: [
           {
             data: slices.map((s) => Number(s.value)),
             backgroundColor: slices.map((s) => s.color),
-            borderColor: '#131b2e',
+            borderColor: this.borderColor(),
             borderWidth: 2,
           },
         ],
@@ -67,6 +70,12 @@ export class CategoryDonut implements OnDestroy {
   ngOnDestroy(): void {
     this.chart?.destroy();
     this.chart = null;
+  }
+
+  /** Cor da borda entre as fatias, lida do token do tema (o canvas não usa CSS). */
+  private borderColor(): string {
+    const value = getComputedStyle(document.documentElement).getPropertyValue('--color-gefinc-chart-border').trim();
+    return value || '#131b2e';
   }
 
   protected money(value: string): string {
