@@ -86,7 +86,7 @@ describe('gráficos', () => {
 
     fixture.componentInstance.data.set([
       { label: 'Moradia', value: '1000.00', color: '#8B5CF6' },
-      { label: 'Compras', value: '1.00', color: '#A855F7' },
+      { label: 'Compras', value: '1.00', color: '#16A34A' },
     ]);
     fixture.detectChanges();
     expect(Array.from(el.querySelectorAll('[data-testid="slice-percent"]')).map((p) => p.textContent?.trim())).toEqual(['100%', '<1%']);

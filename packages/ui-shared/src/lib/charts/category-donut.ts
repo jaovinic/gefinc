@@ -86,7 +86,7 @@ export class CategoryDonut implements OnDestroy {
     return formatBRL(value);
   }
 
-  /** Participação da fatia no total, como pista além da cor (fatias de cores próximas, como Moradia e Compras). */
+  /** Participação da fatia no total, como pista além da cor (fatias de cores próximas). */
   protected percent(slice: ChartSlice): string {
     const total = this.slices().reduce((sum, s) => sum + Number(s.value), 0);
     const share = total > 0 ? (Number(slice.value) / total) * 100 : 0;
