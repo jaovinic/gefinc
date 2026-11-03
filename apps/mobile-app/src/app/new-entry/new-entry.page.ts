@@ -7,6 +7,7 @@ import {
   AccountPicker,
   AmountModeSwitch,
   type AmountMode,
+  DateField,
   DraftService,
   Icon,
   InstallmentSummaryCard,
@@ -15,6 +16,8 @@ import {
   MoneyInput,
   NoticeService,
   ReferenceData,
+  Select,
+  type SelectOption,
   TransactionsApi,
   accountsFor,
   belowMinimumPerInstallment,
@@ -44,7 +47,10 @@ interface Draft {
 
 /** Máximo de parcelas oferecido na tela rápida (o servidor aceita até 120, no cadastro completo). */
 const MAX_QUICK_INSTALLMENTS = 24;
-const INSTALLMENT_OPTIONS = Array.from({ length: MAX_QUICK_INSTALLMENTS }, (_, i) => i + 1);
+const INSTALLMENT_OPTIONS: SelectOption[] = Array.from({ length: MAX_QUICK_INSTALLMENTS }, (_, i) => ({
+  value: i + 1,
+  label: i === 0 ? 'À vista (1x)' : `${i + 1}x`,
+}));
 
 const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'income' : 'expense');
 
@@ -59,7 +65,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
  */
 @Component({
   selector: 'gef-new-entry-page',
-  imports: [AccountPicker, AmountModeSwitch, Icon, InstallmentSummaryCard, KindSwitch, ReactiveFormsModule, MoneyInput, RouterLink],
+  imports: [AccountPicker, AmountModeSwitch, DateField, Icon, InstallmentSummaryCard, KindSwitch, ReactiveFormsModule, MoneyInput, RouterLink, Select],
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
@@ -96,12 +102,13 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
           />
         </div>
         <div>
-          <label class="gef-label" for="categoryId">Categoria</label>
-          <select id="categoryId" class="gef-input" formControlName="categoryId">
-            @for (category of categories(); track category.id) {
-              <option [value]="category.id">{{ category.name }}</option>
-            }
-          </select>
+          <gef-select
+            label="Categoria"
+            placeholder="Escolha a categoria"
+            emptyMessage="Nenhuma categoria disponível."
+            formControlName="categoryId"
+            [options]="categoryOptions()"
+          />
         </div>
         <div>
           <gef-account-picker
@@ -120,12 +127,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
             <legend class="gef-label px-1">Parcelamento</legend>
             <div class="space-y-4" data-testid="installment-body">
               <div>
-                <label class="gef-label" for="installments">Parcelas</label>
-                <select id="installments" class="gef-input" formControlName="installments">
-                  @for (option of installmentOptions; track option) {
-                    <option [value]="option">{{ option === 1 ? 'À vista (1x)' : option + 'x' }}</option>
-                  }
-                </select>
+                <gef-select label="Parcelas" formControlName="installments" [options]="installmentOptions" />
                 @if (serverErrors()['totalInstallments']; as message) {
                   <p class="gef-field-error">{{ message }}</p>
                 }
@@ -137,8 +139,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
           </fieldset>
         }
         <div class="space-y-2">
-          <label class="gef-label !mb-0" for="date">{{ isIncome() ? 'Data do recebimento' : 'Data' }}</label>
-          <input id="date" class="gef-input" type="date" formControlName="date" aria-describedby="date-hint" />
+          <gef-date-field inputId="date" [label]="isIncome() ? 'Data do recebimento' : 'Data'" describedBy="date-hint" formControlName="date" />
           <div class="flex gap-2">
             <button
               type="button"
@@ -248,6 +249,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
     ),
   );
   protected readonly categories = computed(() => this.reference.categories().filter((c) => c.type === this.kind()));
+  protected readonly categoryOptions = computed<SelectOption[]>(() => this.categories().map((c) => ({ value: c.id, label: c.name })));
 
   /** Dica sob a data, por natureza: quando o valor entra na conta ou quando vence. */
   protected readonly hint = computed(() => {
@@ -392,6 +394,10 @@ export class NewEntryPage implements OnInit, OnDestroy {
     const categoryId = Number(value.categoryId);
     if (!value.amount) {
       this.error.set(income ? 'Informe o valor da receita.' : 'Informe o valor da despesa.');
+      return;
+    }
+    if (!value.date) {
+      this.error.set(income ? 'Informe a data do recebimento (dd/mm/aaaa).' : 'Informe a data da despesa (dd/mm/aaaa).');
       return;
     }
     if (accountId === 0 || categoryId === 0) {

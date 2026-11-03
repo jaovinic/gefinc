@@ -113,6 +113,32 @@ describe('theme.css - tema claro e Liquid Glass', () => {
   });
 });
 
+describe('theme.css - controles próprios no lugar dos nativos', () => {
+  it('não resta estilo para o seletor de data, a lista ou o seletor de cor do sistema', () => {
+    expect(css).not.toContain("input[type='date']");
+    expect(css).not.toContain("input[type='color']");
+    expect(css).not.toMatch(/^select[,\s{]/m);
+    expect(css).not.toContain('accent-color');
+  });
+
+  it('opção da lista, dia do calendário e cor da paleta têm alvo de 44 px (h-11 / min-h-11)', () => {
+    expect(css).toMatch(/\.gef-option \{[^}]*min-h-11/);
+    expect(css).toMatch(/\.gef-day \{[^}]*h-11/);
+    expect(css).toMatch(/\.gef-swatch \{[^}]*h-11 w-11/);
+  });
+
+  it('o item escolhido não depende só da cor: borda, negrito e (nas cores) borda dupla', () => {
+    expect(css).toMatch(/\.gef-option\[aria-selected='true'\] \{[^}]*border-gefinc-primary[^}]*font-semibold/);
+    expect(css).toMatch(/\[role='gridcell'\]\[aria-selected='true'\] > \.gef-day \{[^}]*border-gefinc-primary[^}]*font-bold/);
+    expect(css).toMatch(/\.gef-day\[aria-current='date'\] \{[^}]*underline/);
+    expect(css).toMatch(/\.gef-swatch\[aria-checked='true'\] \{[^}]*border-2/);
+  });
+
+  it('as cores da paleta têm borda de contraste (tokens do tema, sem hex)', () => {
+    expect(css).toMatch(/\.gef-swatch \{[^}]*border-gefinc-muted/);
+  });
+});
+
 /** Corpo do primeiro bloco cujo seletor é exatamente `selector`. */
 function block(selector: string): string {
   const start = css.indexOf(`${selector} {`);
@@ -280,6 +306,145 @@ describe('theme.css - ilha, botão flutuante e desempenho do vidro no celular', 
             throw new Error(`${end} sobre ${underlay.slice(0, 3).join(',')}: ${ratio.toFixed(2)}`);
           }
         }
+      }
+    });
+  });
+});
+
+describe('theme.css - contraste dos controles próprios (lista, calendário e paleta) nos dois temas', () => {
+  /** AA para texto (1.4.3) e para marca ou elemento gráfico (1.4.11). */
+  const TEXT = 4.5;
+  const GRAPHIC = 3;
+  /** Componente inativo é isento de AA; este piso só impede que o texto deixe de ser legível. */
+  const INACTIVE_FLOOR = 2.5;
+
+  const scopes: [string, string][] = [
+    ['escuro', ':root'],
+    ['claro', "html[data-theme='light']"],
+  ];
+
+  const pick = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope, name));
+    } catch {
+      return parseColor(token(':root', name));
+    }
+  };
+  const themeColor = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope === ':root' ? '@theme' : scope, name));
+    } catch {
+      return parseColor(token('@theme', name));
+    }
+  };
+
+  /** Regra de componente (`@layer components`) pelo seletor exato. */
+  const rule = (selector: string): string => {
+    const components = css.slice(css.indexOf('@layer components'));
+    const start = components.indexOf(`${selector} {`);
+    if (start < 0) {
+      throw new Error(`regra ${selector} ausente`);
+    }
+    return components.slice(start, components.indexOf('}', start));
+  };
+  /** Opacidade de um utilitário `prefixo-cor/NN` da regra (ex.: `bg-gefinc-primary/10` → 0,1); 1 sem barra. */
+  const alphaOf = (declaration: string, utility: string): number => {
+    const match = declaration.match(new RegExp(`${utility}(?:/(\\d+))?(?![\\w-])`));
+    if (!match) {
+      throw new Error(`${utility} ausente em: ${declaration}`);
+    }
+    return match[1] === undefined ? 1 : Number(match[1]) / 100;
+  };
+  /** Valor de um utilitário `prefixo-NN` de opacidade (ex.: `opacity-50` → 0,5). */
+  const opacityOf = (declaration: string, utility: string): number => {
+    const match = declaration.match(new RegExp(`${utility}-(\\d+)(?![\\w-])`));
+    if (!match) {
+      throw new Error(`${utility} ausente em: ${declaration}`);
+    }
+    return Number(match[1]) / 100;
+  };
+  const tint = (color: Rgba, alpha: number, base: Rgba): Rgba => over([color[0], color[1], color[2], alpha], base);
+
+  describe.each(scopes)('tema %s', (_label, scope) => {
+    const bg = themeColor(scope, '--color-gefinc-bg');
+    const surface = themeColor(scope, '--color-gefinc-surface');
+    const text = themeColor(scope, '--color-gefinc-text');
+    const muted = themeColor(scope, '--color-gefinc-muted');
+    const primary = themeColor(scope, '--color-gefinc-primary');
+    const scrim = themeColor(scope, '--color-gefinc-scrim');
+    const glass = over(pick(scope, '--glass-bg'), bg);
+
+    /** Fundos onde a lista e o calendário aparecem: o painel (vidro forte) sobre a página escurecida pelo fundo do painel. */
+    const sheets = [bg, surface].map((page) => over(pick(scope, '--glass-bg-strong'), over(scrim, page)));
+    /** Fundos onde a paleta aparece: a página, o cartão de vidro ou o painel. */
+    const swatchGrounds = [bg, surface, glass, ...sheets];
+
+    it('opção da lista: texto comum e texto da escolhida (cor de marca sobre o tom da marca) passam em 4,5:1', () => {
+      const selected = rule(".gef-option[aria-selected='true']");
+      const alpha = alphaOf(selected, 'bg-gefinc-primary');
+      expect(selected).toContain('text-gefinc-primary');
+      expect(alpha).toBeGreaterThan(0);
+      for (const sheet of sheets) {
+        expect(contrast(text, sheet)).toBeGreaterThanOrEqual(TEXT);
+        expect(contrast(primary, tint(primary, alpha, sheet))).toBeGreaterThanOrEqual(TEXT);
+      }
+    });
+
+    it('opção da lista: a borda da escolhida (marca de seleção) passa em 3:1 contra o painel', () => {
+      expect(rule(".gef-option[aria-selected='true']")).toContain('border-gefinc-primary');
+      for (const sheet of sheets) {
+        expect(contrast(primary, sheet)).toBeGreaterThanOrEqual(GRAPHIC);
+      }
+    });
+
+    it('opção da lista desabilitada segue legível (isenta de AA, com piso)', () => {
+      const alpha = opacityOf(rule(".gef-option[aria-disabled='true']"), 'opacity');
+      for (const sheet of sheets) {
+        expect(contrast(over([text[0], text[1], text[2], alpha], sheet), sheet)).toBeGreaterThanOrEqual(INACTIVE_FLOOR);
+      }
+    });
+
+    it('dia do calendário: número comum e de hoje (negrito e sublinhado, na cor do texto) passam em 4,5:1', () => {
+      expect(rule('.gef-day')).toContain('text-gefinc-text');
+      expect(rule(".gef-day[aria-current='date']")).toMatch(/font-bold[^}]*underline|underline[^}]*font-bold/);
+      for (const sheet of sheets) {
+        expect(contrast(text, sheet)).toBeGreaterThanOrEqual(TEXT);
+      }
+    });
+
+    it('dia do calendário escolhido: texto de marca sobre o tom da marca passa em 4,5:1 e a borda em 3:1', () => {
+      const selected = rule("[role='gridcell'][aria-selected='true'] > .gef-day");
+      const alpha = alphaOf(selected, 'bg-gefinc-primary');
+      expect(selected).toContain('text-gefinc-primary');
+      expect(selected).toContain('border-gefinc-primary');
+      for (const sheet of sheets) {
+        expect(contrast(primary, tint(primary, alpha, sheet))).toBeGreaterThanOrEqual(TEXT);
+        expect(contrast(primary, sheet)).toBeGreaterThanOrEqual(GRAPHIC);
+      }
+    });
+
+    it('dia do calendário fora do período (desabilitado) segue legível (isento de AA, com piso)', () => {
+      const alpha = opacityOf(rule('.gef-day'), 'disabled:opacity');
+      for (const sheet of sheets) {
+        expect(contrast(over([text[0], text[1], text[2], alpha], sheet), sheet)).toBeGreaterThanOrEqual(INACTIVE_FLOOR);
+      }
+    });
+
+    it('cor da paleta: a borda comum (muted) passa em 3:1 contra a página, o cartão e o painel', () => {
+      expect(rule('.gef-swatch')).toContain('border-gefinc-muted');
+      for (const ground of swatchGrounds) {
+        expect(contrast(muted, ground)).toBeGreaterThanOrEqual(GRAPHIC);
+      }
+    });
+
+    it('cor da paleta escolhida: a borda dupla na cor do texto passa em 3:1 e o anel separa com a cor do fundo', () => {
+      const selected = css.slice(css.indexOf(".gef-swatch[aria-checked='true'] {"));
+      const body = selected.slice(0, selected.indexOf('}'));
+      expect(body).toContain('border-2');
+      expect(body).toContain('border-gefinc-text');
+      expect(body).toContain('var(--color-gefinc-bg)');
+      for (const ground of swatchGrounds) {
+        expect(contrast(text, ground)).toBeGreaterThanOrEqual(GRAPHIC);
       }
     });
   });

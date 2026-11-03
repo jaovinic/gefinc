@@ -12,10 +12,12 @@ import type {
 import { NoticeService, ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { Icon } from '../icons/icon';
+import { DateField } from '../date-field/date-field';
 import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
 import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
+import { Select, type SelectOption } from '../select/select';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
 import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
@@ -36,7 +38,7 @@ const PAGE_SIZE = 25;
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
   selector: 'gef-transactions-page',
-  imports: [AccountBadge, ConfirmDialog, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, ConfirmDialog, DateField, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, GroupForm, LoadingView, MoneyInput, MonthPicker, Select, Sheet],
   template: `
     <section class="space-y-4">
       <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -79,34 +81,22 @@ const PAGE_SIZE = 25;
 
       <ng-template #filtersTpl>
         <div class="grid gap-3 sm:grid-cols-4">
-          <select class="gef-input" aria-label="Natureza" [ngModel]="kind()" (ngModelChange)="kind.set($event)">
-            <option value="">Receitas e despesas</option>
-            <option value="EXPENSE">Despesas</option>
-            <option value="INCOME">Receitas</option>
-          </select>
-          <select class="gef-input" aria-label="Status" [ngModel]="status()" (ngModelChange)="status.set($event)">
-            <option value="">Todos os status</option>
-            <option value="PENDING">{{ kind() === 'INCOME' ? 'A receber' : 'Pendentes' }}</option>
-            <option value="PAID">{{ kind() === 'INCOME' ? 'Recebidas' : 'Pagos' }}</option>
-          </select>
-          <select class="gef-input" aria-label="Conta" [ngModel]="accountId()" (ngModelChange)="accountId.set(+$event)">
-            <option value="0">Todas as contas</option>
-            @for (account of reference.accounts(); track account.id) {
-              <option [value]="account.id">{{ account.name }}</option>
-            }
-          </select>
-          <select class="gef-input" aria-label="Categoria" [ngModel]="categoryId()" (ngModelChange)="categoryId.set(+$event)">
-            <option value="0">Todas as categorias</option>
-            @for (category of reference.categories(); track category.id) {
-              <option [value]="category.id">{{ category.name }}</option>
-            }
-          </select>
+          <gef-select ariaLabel="Natureza" [options]="kindOptions" [ngModel]="kind()" (ngModelChange)="kind.set($event)" />
+          <gef-select ariaLabel="Status" [options]="statusOptions()" [ngModel]="status()" (ngModelChange)="status.set($event)" />
+          <gef-select ariaLabel="Conta" [options]="accountOptions()" [ngModel]="accountId()" (ngModelChange)="accountId.set(+$event)" />
+          <gef-select ariaLabel="Categoria" [options]="categoryOptions()" [ngModel]="categoryId()" (ngModelChange)="categoryId.set(+$event)" />
         </div>
       </ng-template>
 
       @if (message(); as text) {
         <p class="gef-alert-error" role="alert">{{ text }}</p>
       }
+
+      <ng-template #panelErrorTpl>
+        @if (panelError(); as text) {
+          <p id="panel-error" class="gef-field-error" role="alert">{{ text }}</p>
+        }
+      </ng-template>
 
       <ng-template #panelTpl let-p>
         @switch (p.kind) {
@@ -116,8 +106,17 @@ const PAGE_SIZE = 25;
             } @else {
               <p>Registrar o {{ isIncome(p.tx) ? 'recebimento' : 'pagamento' }} de <strong>{{ p.tx.description }}</strong>?</p>
             }
-            <label class="gef-label" for="paymentDate">Data do {{ isIncome(p.tx) ? 'recebimento' : 'pagamento' }}</label>
-            <input id="paymentDate" class="gef-input max-w-48" type="date" [(ngModel)]="paymentDate" />
+            <div>
+              <gef-date-field
+                class="max-w-56"
+                inputId="paymentDate"
+                [label]="'Data do ' + (isIncome(p.tx) ? 'recebimento' : 'pagamento')"
+                [describedBy]="panelError() ? 'panel-error' : null"
+                [ngModel]="paymentDate"
+                (ngModelChange)="paymentDate = $event; panelError.set(null)"
+              />
+              <ng-container *ngTemplateOutlet="panelErrorTpl" />
+            </div>
             <div class="flex gap-3">
               <button type="button" class="gef-btn-primary max-w-40" (click)="confirmPay(p.tx)">Confirmar</button>
               <button type="button" class="gef-btn-secondary" (click)="panel.set(null)">Cancelar</button>
@@ -129,14 +128,20 @@ const PAGE_SIZE = 25;
               <gef-money-input label="Valor" [ngModel]="editAmount()" (ngModelChange)="editAmount.set($event)" />
               @if (!isCard(p.tx)) {
                 <div>
-                  <label class="gef-label" for="editDue">{{ isIncome(p.tx) ? 'Data do recebimento' : 'Vencimento' }}</label>
-                  <input id="editDue" class="gef-input" type="date" [(ngModel)]="editDueDate" />
+                  <gef-date-field
+                    inputId="editDue"
+                    [label]="isIncome(p.tx) ? 'Data do recebimento' : 'Vencimento'"
+                    [describedBy]="panelError() ? 'panel-error' : null"
+                    [ngModel]="editDueDate"
+                    (ngModelChange)="editDueDate = $event; panelError.set(null)"
+                  />
                   @if (isIncome(p.tx) && editDueDate) {
                     <p class="mt-1 text-caption text-gefinc-muted" aria-live="polite">{{ incomeHint(editDueDate) }}</p>
                   }
                 </div>
               }
             </div>
+            <ng-container *ngTemplateOutlet="panelErrorTpl" />
             <div class="flex gap-3">
               <button type="button" class="gef-btn-primary max-w-40" (click)="confirmEdit(p.tx)">Salvar</button>
               <button type="button" class="gef-btn-secondary" (click)="panel.set(null)">Cancelar</button>
@@ -148,6 +153,7 @@ const PAGE_SIZE = 25;
               {{ p.tx.dueDate.slice(0, 7) }} (meses anteriores e já pagos não mudam):
             </p>
             <gef-money-input label="Novo valor" [ngModel]="editAmount()" (ngModelChange)="editAmount.set($event)" />
+            <ng-container *ngTemplateOutlet="panelErrorTpl" />
             <div class="flex gap-3">
               <button type="button" class="gef-btn-primary max-w-40" (click)="confirmAmount(p.tx)">Aplicar</button>
               <button type="button" class="gef-btn-secondary" (click)="panel.set(null)">Cancelar</button>
@@ -346,6 +352,27 @@ export class TransactionsPage implements OnInit {
   protected readonly message = signal<string | null>(null);
   protected readonly formOpen = signal(false);
   protected readonly filtersOpen = signal(false);
+  protected readonly kindOptions: SelectOption[] = [
+    { value: '', label: 'Receitas e despesas' },
+    { value: 'EXPENSE', label: 'Despesas' },
+    { value: 'INCOME', label: 'Receitas' },
+  ];
+  protected readonly statusOptions = computed<SelectOption[]>(() => {
+    const income = this.kind() === 'INCOME';
+    return [
+      { value: '', label: 'Todos os status' },
+      { value: 'PENDING', label: income ? 'A receber' : 'Pendentes' },
+      { value: 'PAID', label: income ? 'Recebidas' : 'Pagos' },
+    ];
+  });
+  protected readonly accountOptions = computed<SelectOption[]>(() => [
+    { value: 0, label: 'Todas as contas' },
+    ...this.reference.accounts().map((a) => ({ value: a.id, label: a.name })),
+  ]);
+  protected readonly categoryOptions = computed<SelectOption[]>(() => [
+    { value: 0, label: 'Todas as categorias' },
+    ...this.reference.categories().map((c) => ({ value: c.id, label: c.name })),
+  ]);
   protected readonly activeFilters = computed(
     () => [this.kind() !== '', this.status() !== '', this.accountId() !== 0, this.categoryId() !== 0].filter(Boolean).length,
   );
@@ -355,6 +382,8 @@ export class TransactionsPage implements OnInit {
   protected readonly confirming = signal<Confirming | null>(null);
   protected readonly confirmError = signal<string | null>(null);
 
+  /** Aviso das ações do painel (pagar, editar, novo valor): aparece dentro do painel, pois o aviso da página fica atrás do fundo do painel. */
+  protected readonly panelError = signal<string | null>(null);
   protected paymentDate = todayIso();
   protected editDueDate = '';
   protected readonly editAmount = signal<string | null>(null);
@@ -506,17 +535,20 @@ export class TransactionsPage implements OnInit {
 
   protected openPay(tx: Transaction): void {
     this.paymentDate = todayIso();
+    this.panelError.set(null);
     this.panel.set({ kind: 'pay', tx });
   }
 
   protected openEdit(tx: Transaction): void {
     this.editAmount.set(tx.amount);
     this.editDueDate = tx.dueDate;
+    this.panelError.set(null);
     this.panel.set({ kind: 'edit', tx });
   }
 
   protected openAmount(tx: Transaction): void {
     this.editAmount.set(tx.amount);
+    this.panelError.set(null);
     this.panel.set({ kind: 'amount', tx });
   }
 
@@ -532,6 +564,10 @@ export class TransactionsPage implements OnInit {
 
   protected confirmPay(tx: Transaction): void {
     const income = this.isIncome(tx);
+    if (!this.paymentDate) {
+      this.panelError.set('Informe uma data válida (dd/mm/aaaa).');
+      return;
+    }
     this.run(this.api.pay(tx.id, this.paymentDate), income ? 'Recebimento registrado.' : 'Pagamento registrado.', () => this.unpay(tx, false));
   }
 
@@ -542,6 +578,10 @@ export class TransactionsPage implements OnInit {
   protected confirmEdit(tx: Transaction): void {
     const amount = this.editAmount();
     if (!amount) {
+      return;
+    }
+    if (!this.isCard(tx) && !this.editDueDate) {
+      this.panelError.set('Informe uma data válida (dd/mm/aaaa).');
       return;
     }
     this.run(
@@ -618,6 +658,7 @@ export class TransactionsPage implements OnInit {
     }
     this.acting.set(true);
     this.message.set(null);
+    this.panelError.set(null);
     request.subscribe({
       next: () => {
         this.acting.set(false);
@@ -629,7 +670,13 @@ export class TransactionsPage implements OnInit {
       },
       error: (e: unknown) => {
         this.acting.set(false);
-        this.message.set(messageFor(toProblem(e)));
+        // com o painel aberto o erro fica dentro dele (o da página estaria atrás do fundo do painel)
+        const text = messageFor(toProblem(e));
+        if (this.panel()) {
+          this.panelError.set(text);
+        } else {
+          this.message.set(text);
+        }
       },
     });
   }

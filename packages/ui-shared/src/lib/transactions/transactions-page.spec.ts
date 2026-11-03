@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
-import { API, clickButton, configureHttpTesting, select } from '../../testing/testbed';
+import { API, clickButton, configureHttpTesting, fillDate, optionLabels, pickOption, type } from '../../testing/testbed';
 import { NoticeService } from '../api';
 import { PENDING_MARKER } from './pending-marker';
 import { Viewport } from '../viewport/viewport';
@@ -130,6 +130,59 @@ describe('TransactionsPage', () => {
     listRequest(http).flush(page([]));
   });
 
+  it('pagar com a data incompleta não envia e avisa; a data digitada vale no pagamento', async () => {
+    const { http, el, fixture } = await setup();
+    const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
+    (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Pagar') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    type(el, '#paymentDate', '0511');
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    fixture.detectChanges();
+    http.expectNone({ method: 'POST', url: `${API}/transactions/1/pay` });
+    // o aviso fica dentro do painel, junto ao campo (o da página ficaria atrás do fundo), e o campo o referencia
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Informe uma data válida');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+    expect(el.querySelector('#paymentDate')?.getAttribute('aria-describedby')).toContain(alert.id);
+
+    fillDate(el, '#paymentDate', '2026-11-05');
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    const pay = http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` });
+    expect(pay.request.body).toEqual({ paymentDate: '2026-11-05' });
+    pay.flush({ ...pending, status: 'PAID', paymentDate: '2026-11-05' });
+    listRequest(http).flush(page([]));
+  });
+
+  it('editar com o vencimento apagado não envia e avisa dentro do painel', async () => {
+    const { http, el, fixture } = await setup();
+    (el.querySelector('button[aria-label="Editar Mercado"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    type(el, '#editDue', '');
+    clickButton(el, 'Salvar');
+    fixture.detectChanges();
+    http.expectNone({ method: 'PATCH', url: `${API}/transactions/1` });
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Informe uma data válida');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+  });
+
+  it('erro do servidor ao pagar também aparece dentro do painel aberto', async () => {
+    const { http, el, fixture } = await setup();
+    (el.querySelector('button[aria-label="Pagar Mercado"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` }).flush({ title: 'Conflito', detail: 'Lançamento já foi pago.' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Lançamento já foi pago.');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+  });
+
   it('receita aparece com + e despesa com −, com seta e sem depender só da cor', async () => {
     const { el, http } = await setup();
     const expense = el.querySelector('tbody td[data-kind="expense"]') as HTMLElement;
@@ -178,7 +231,7 @@ describe('TransactionsPage', () => {
 
   it('mudar o filtro de status volta à primeira página e consulta de novo', async () => {
     const { http, el, fixture } = await setup();
-    select(el, 'select[aria-label="Status"]', 'PAID');
+    pickOption(fixture, 'Status', 'Pagos');
     fixture.detectChanges();
     const request = listRequest(http);
     expect(request.request.params.get('status')).toBe('PAID');
@@ -188,22 +241,22 @@ describe('TransactionsPage', () => {
 
   it('o filtro de status diz A receber e Recebidas só quando o tipo é Receita', async () => {
     const { http, el, fixture } = await setup();
-    const statusLabels = () => Array.from(el.querySelectorAll('select[aria-label="Status"] option')).map((o) => o.textContent?.trim());
+    const statusLabels = () => optionLabels(fixture, 'Status');
     expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
 
-    select(el, 'select[aria-label="Natureza"]', 'INCOME');
+    pickOption(fixture, 'Natureza', 'Receitas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
     expect(statusLabels()).toEqual(['Todos os status', 'A receber', 'Recebidas']);
 
-    select(el, 'select[aria-label="Natureza"]', 'EXPENSE');
+    pickOption(fixture, 'Natureza', 'Despesas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
     expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
 
-    select(el, 'select[aria-label="Natureza"]', '');
+    pickOption(fixture, 'Natureza', 'Receitas e despesas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
@@ -328,9 +381,7 @@ describe('TransactionsPage', () => {
     expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Entra na conta na data informada');
 
     const future = dayIso(20);
-    const input = el.querySelector('#editDue') as HTMLInputElement;
-    input.value = future;
-    input.dispatchEvent(new Event('input'));
+    fillDate(el, '#editDue', future);
     fixture.detectChanges();
     expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Fica a receber até');
 
@@ -443,12 +494,12 @@ describe('TransactionsPage', () => {
 
     it('os filtros ficam atrás do botão Filtros e aplicam a consulta', async () => {
       const { http, el, fixture } = await setup(undefined, compact);
-      expect(el.querySelector('select[aria-label="Status"]')).toBeNull();
+      expect(el.querySelector('gef-select')).toBeNull();
 
       clickButton(el, 'Filtros');
       fixture.detectChanges();
       expect(el.querySelector('[role="dialog"][aria-label="Filtros"]')).not.toBeNull();
-      select(el, 'select[aria-label="Status"]', 'PENDING');
+      pickOption(fixture, 'Status', 'Pendentes');
       fixture.detectChanges();
 
       const request = listRequest(http);
@@ -470,6 +521,22 @@ describe('TransactionsPage', () => {
       expect(pay.request.body).toEqual({ paymentDate: todayIso() });
       pay.flush({ ...pending, status: 'PAID', paymentDate: todayIso() });
       listRequest(http).flush(page([]));
+    });
+
+    it('pagar com a data apagada mostra o aviso dentro do painel inferior, junto ao campo', async () => {
+      const { http, el, fixture } = await setup(undefined, compact);
+
+      (el.querySelector('button[aria-label="Pagar Mercado"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      type(el, '#paymentDate', '');
+      clickButton(el, 'Confirmar');
+      fixture.detectChanges();
+
+      http.expectNone({ method: 'POST', url: `${API}/transactions/1/pay` });
+      const sheet = el.querySelector('[role="dialog"].gef-sheet') as HTMLElement;
+      const alert = sheet.querySelector('[role="alert"]') as HTMLElement;
+      expect(alert.textContent).toContain('Informe uma data válida');
+      expect(el.querySelectorAll('[role="alert"]')).toHaveLength(1);
     });
 
     it('Novo lançamento abre o formulário em um painel inferior', async () => {

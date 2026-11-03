@@ -5,6 +5,7 @@ import type { Invoice, InvoicePayment, InvoiceProjection, Transaction } from '@g
 import { InvoicesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { AccountPicker } from '../accounts/account-picker';
+import { DateField } from '../date-field/date-field';
 import { Icon } from '../icons/icon';
 import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
@@ -17,7 +18,7 @@ import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefin
 /** Faturas de cartão: itens, pagamento parcial ou total, desfazer e projeção dos próximos meses (FR-027, FR-034 a FR-039). */
 @Component({
   selector: 'gef-invoices-page',
-  imports: [AccountBadge, AccountPicker, ConfirmDialog, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
+  imports: [AccountBadge, AccountPicker, ConfirmDialog, DateField, FormsModule, Icon, NgTemplateOutlet, EmptyView, ErrorView, LoadingView, MoneyInput, MonthPicker, Sheet],
   template: `
     <section class="space-y-6">
       <header class="flex flex-wrap items-center justify-between gap-3">
@@ -70,12 +71,21 @@ import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefin
         <ng-template #paymentTpl let-mode>
           @if (mode === 'partial') {
             <p>Quanto você vai pagar agora? (restante: {{ money(inv.remaining) }})</p>
-            <gef-money-input label="Valor do pagamento" [ngModel]="paymentAmount()" (ngModelChange)="paymentAmount.set($event)" />
+            <gef-money-input label="Valor do pagamento" [ngModel]="paymentAmount()" (ngModelChange)="paymentAmount.set($event); paymentError.set(null)" />
           } @else {
             <p>Quitar a fatura pelo restante de <strong>{{ money(inv.remaining) }}</strong>?</p>
           }
-          <label class="gef-label" for="paidAt">Data do pagamento</label>
-          <input id="paidAt" class="gef-input max-w-48" type="date" [(ngModel)]="paidAt" />
+          <gef-date-field
+            class="max-w-56"
+            inputId="paidAt"
+            label="Data do pagamento"
+            [describedBy]="paymentError() ? 'payment-error' : null"
+            [ngModel]="paidAt"
+            (ngModelChange)="paidAt = $event; paymentError.set(null)"
+          />
+          @if (paymentError(); as text) {
+            <p id="payment-error" class="gef-field-error" role="alert">{{ text }}</p>
+          }
           <div class="flex gap-3">
             <button type="button" class="gef-btn-primary max-w-40" (click)="confirmPayment(inv)">Confirmar</button>
             <button type="button" class="gef-btn-secondary" (click)="paymentMode.set(null)">Cancelar</button>
@@ -254,6 +264,8 @@ export class InvoicesPage implements OnInit {
   protected readonly confirmingUndo = signal<InvoicePayment | null>(null);
   protected readonly undoError = signal<string | null>(null);
   protected readonly paymentAmount = signal<string | null>(null);
+  /** Aviso do painel de pagamento, dentro dele (o aviso da página fica atrás do fundo do painel). */
+  protected readonly paymentError = signal<string | null>(null);
   protected paidAt = todayIso();
 
   /** Cartão para o selo; a projeção traz o nome e a lista de contas, o ícone e o vínculo. */
@@ -354,6 +366,7 @@ export class InvoicesPage implements OnInit {
 
   protected openPayment(mode: 'partial' | 'settle'): void {
     this.message.set(null);
+    this.paymentError.set(null);
     this.paidAt = todayIso();
     this.paymentAmount.set(null);
     this.paymentMode.set(mode);
@@ -366,7 +379,11 @@ export class InvoicesPage implements OnInit {
     const mode = this.paymentMode();
     const amount = this.paymentAmount();
     if (mode === 'partial' && !amount) {
-      this.message.set('Informe o valor do pagamento.');
+      this.paymentError.set('Informe o valor do pagamento.');
+      return;
+    }
+    if (!this.paidAt) {
+      this.paymentError.set('Informe uma data válida (dd/mm/aaaa).');
       return;
     }
     const request =
@@ -374,6 +391,7 @@ export class InvoicesPage implements OnInit {
         ? this.api.settle(invoice.accountId, invoice.month, this.paidAt)
         : this.api.pay(invoice.accountId, invoice.month, amount as string, this.paidAt);
     this.message.set(null);
+    this.paymentError.set(null);
     this.acting.set(true);
     request.subscribe({
       next: (updated) => {
@@ -387,7 +405,7 @@ export class InvoicesPage implements OnInit {
       },
       error: (e: unknown) => {
         this.acting.set(false);
-        this.message.set(messageFor(toProblem(e)));
+        this.paymentError.set(messageFor(toProblem(e)));
       },
     });
   }

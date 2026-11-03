@@ -1,13 +1,13 @@
 import { Page, expect, test } from '@playwright/test';
 import { goToBackground, installNativeDoubles, queueBiometric, returnToForeground, setBiometricAvailable } from './native-doubles';
-import { newUser, openFromMore, signIn } from './support';
+import { newUser, openFromMore, signIn, chooseOption } from './support';
 
 const lockScreen = (page: Page) => page.getByRole('dialog', { name: 'Aplicativo bloqueado' });
 const toggle = (page: Page) => page.getByRole('switch', { name: 'Bloquear o app com biometria' });
 
 async function enableLock(page: Page, minutes: '0' | '1' | '5' = '0') {
   await openFromMore(page, 'Minha conta');
-  await page.getByLabel('Bloquear depois de').selectOption(minutes);
+  await chooseOption(page, page, 'Bloquear depois de', { '0': 'Na hora', '1': '1 minuto', '5': '5 minutos' }[minutes]);
   await queueBiometric(page, 'ok');
   await toggle(page).check();
   await expect(toggle(page)).toBeChecked();

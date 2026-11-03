@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openMore, openTab, signIn, todayIso, chooseAccount } from './support';
+import { apiGet, apiPost, categoryId, newUser, openMore, openTab, signIn, todayIso, chooseAccount, chooseOption, fillDate } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 const banner = (page: Page) => page.getByTestId('offline-banner');
@@ -22,9 +22,9 @@ async function newExpense(page: Page, description: string, cents: string) {
   const form = page.getByRole('dialog', { name: 'Novo lançamento' }).locator('gef-group-form');
   await form.getByLabel('Descrição ou loja').fill(description);
   await chooseAccount(page, form, 'Itaú');
-  await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+  await chooseOption(page, form, 'Categoria', 'Alimentação');
   await form.getByLabel('Valor').fill(cents);
-  await form.getByLabel(/vencimento/i).fill(todayIso());
+  await fillDate(form.getByLabel(/vencimento/i), todayIso());
   await form.getByRole('button', { name: 'Salvar' }).click();
 }
 
@@ -99,7 +99,7 @@ test.describe('uso sem internet', () => {
 
     await context.setOffline(true);
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
-    await page.getByLabel('Receita').check();
+    await page.getByLabel('Receita', { exact: true }).check();
     await page.keyboard.type('25000');
     await page.getByLabel('Descrição (opcional)').fill('Bônus');
     await page.getByRole('button', { name: 'Salvar' }).click();

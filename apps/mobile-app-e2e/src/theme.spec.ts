@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
 import { installNativeDoubles, systemBarStyles } from './native-doubles';
-import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso } from './support';
+import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso, chooseOption, fillDate } from './support';
 
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 const THEME_KEY = 'gefinc.ui.theme';
@@ -246,8 +246,8 @@ test.describe('ilha de navegação e contraste (app)', () => {
       await page.goto('/novo');
       await page.locator('gef-account-picker button[aria-haspopup]').click();
       await page.locator('[role="option"]').filter({ hasText: 'Nubank' }).click();
-      await page.getByLabel('Parcelas').selectOption('10');
-      await page.getByLabel('Data', { exact: true }).fill('2026-11-05');
+      await chooseOption(page, page, 'Parcelas', '10x');
+      await fillDate(page.getByLabel('Data', { exact: true }), '2026-11-05');
       await page.getByLabel('Valor da parcela').click();
       await page.keyboard.type('10000');
       await expect(page.getByTestId('installment-card')).toBeVisible();
@@ -256,7 +256,7 @@ test.describe('ilha de navegação e contraste (app)', () => {
       expect(overflow).toBe(false);
       const small = await page.evaluate(() => {
         const found: string[] = [];
-        for (const el of Array.from(document.querySelectorAll('button, a[href], select, input:not([type="hidden"]), summary'))) {
+        for (const el of Array.from(document.querySelectorAll('button, a[href], [role="option"], input:not([type="hidden"]), summary'))) {
           const target = el instanceof HTMLInputElement ? (el.closest('label') ?? el) : el;
           const r = target.getBoundingClientRect();
           if (r.width > 0 && r.height > 0 && (r.width < 43.5 || r.height < 43.5)) found.push(`${el.tagName} ${(el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 30)} ${Math.round(r.width)}x${Math.round(r.height)}`);

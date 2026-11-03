@@ -4,6 +4,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { Account } from '@gefinc/core-models';
 import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authInterceptor } from '../api';
+import { pickOption } from '../../testing/testbed';
 import { AccountForm } from './account-form';
 
 const API = '/api/v1';
@@ -43,11 +44,8 @@ function setup(configure: (host: Host) => void = () => undefined) {
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
   };
-  const selectType = (value: string) => {
-    const select = el.querySelector('#type') as HTMLSelectElement;
-    select.value = value;
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+  const selectType = (value: 'CHECKING' | 'CASH' | 'CREDIT_CARD') => {
+    pickOption(fixture, 'Tipo', { CHECKING: 'Conta bancária', CASH: 'Dinheiro', CREDIT_CARD: 'Cartão de crédito' }[value]);
   };
   const submit = () => {
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));

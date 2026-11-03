@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, NoticeService, TokenStore, authInterceptor } from '../api';
 import { Viewport } from '../viewport/viewport';
+import { pickOption, selectTrigger } from '../../testing/testbed';
 import { AccountsPage } from './accounts-page';
 
 const API = '/api/v1';
@@ -104,10 +105,7 @@ describe('AccountsPage', () => {
     click(el, 'Nova conta');
     fixture.detectChanges();
     type(el, '#name', 'Nubank');
-    const select = el.querySelector('#type') as HTMLSelectElement;
-    select.value = 'CREDIT_CARD';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    pickOption(fixture, 'Tipo', 'Cartão de crédito');
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     fixture.detectChanges();
     http.expectNone({ method: 'POST', url: `${API}/accounts` });
@@ -416,13 +414,10 @@ describe('AccountsPage', () => {
     fixture.detectChanges();
     click(el, 'Nova conta');
     fixture.detectChanges();
-    const select = el.querySelector('#type') as HTMLSelectElement;
-    select.value = 'CREDIT_CARD';
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+    pickOption(fixture, 'Tipo', 'Cartão de crédito');
     click(el, 'Cadastrar conta bancária');
     fixture.detectChanges();
-    expect((el.querySelector('#type') as HTMLSelectElement).value).toBe('CHECKING');
+    expect(selectTrigger(el, 'Tipo').textContent).toContain('Conta bancária');
     expect(el.querySelector('#holder-PF')).not.toBeNull();
   });
 

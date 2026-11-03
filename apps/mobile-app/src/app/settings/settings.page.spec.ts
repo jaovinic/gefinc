@@ -8,6 +8,7 @@ import { LogoutAction } from '../core/logout';
 import { AppLockService } from '../lock/app-lock.service';
 import { DevicePreferences } from '../lock/device-preferences';
 import { RemindersService } from '../reminders/reminders.service';
+import { optionLabels, pickOption, selectTrigger } from '../../test/testbed';
 import { SettingsPage } from './settings.page';
 
 describe('Minha conta (app móvel)', () => {
@@ -111,20 +112,20 @@ describe('Minha conta (app móvel)', () => {
     const toggle = (el: HTMLElement) => el.querySelector('input[role="switch"][aria-label="Bloquear o app com biometria"]') as HTMLInputElement;
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-    it('vem desligado, com o tempo de bloqueio', () => {
-      const { el } = setup();
+    it('vem desligado, com o tempo de bloqueio', async () => {
+      const { el, fixture } = setup();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
       expect(toggle(el).checked).toBe(false);
-      const options = Array.from(el.querySelectorAll('select[aria-label="Bloquear depois de"] option')).map((o) => o.textContent?.trim());
-      expect(options).toEqual(['Na hora', '1 minuto', '5 minutos']);
+      expect(optionLabels(fixture, 'Bloquear depois de')).toEqual(['Na hora', '1 minuto', '5 minutos']);
+      expect(selectTrigger(el, 'Bloquear depois de').textContent).toContain('1 minuto');
       expect(el.textContent).not.toContain('capturas de tela');
     });
 
     it('ativar pede a biometria com o tempo escolhido e mostra o resultado', async () => {
       const { el, fixture } = setup();
-      const select = el.querySelector('select[aria-label="Bloquear depois de"]') as HTMLSelectElement;
-      select.value = '5';
-      select.dispatchEvent(new Event('change'));
+      pickOption(fixture, 'Bloquear depois de', '5 minutos');
 
       toggle(el).click();
       await flush();
@@ -161,14 +162,16 @@ describe('Minha conta (app móvel)', () => {
     const sw = (el: HTMLElement, label: string) => el.querySelector(`input[role="switch"][aria-label="${label}"]`) as HTMLInputElement;
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-    it('mostra os três tipos de aviso desligados e o horário padrão das 9h', () => {
-      const { el } = setup();
+    it('mostra os três tipos de aviso desligados e o horário padrão das 9h', async () => {
+      const { el, fixture } = setup();
+      await fixture.whenStable();
+      fixture.detectChanges();
 
       for (const label of ['Contas que vencem amanhã', 'Contas que vencem hoje', 'Contas atrasadas']) {
         expect(sw(el, label).checked).toBe(false);
       }
-      const hour = el.querySelector('select[aria-label="Horário dos lembretes"]') as HTMLSelectElement;
-      expect(hour.value).toBe('9');
+      expect(selectTrigger(el, 'Horário dos lembretes').textContent).toContain('9h');
+      expect(optionLabels(fixture, 'Horário dos lembretes')).toHaveLength(24);
       expect(el.textContent).toContain('só quantidade');
     });
 
@@ -194,10 +197,8 @@ describe('Minha conta (app móvel)', () => {
     });
 
     it('mudar o horário reagenda', async () => {
-      const { el } = setup();
-      const hour = el.querySelector('select[aria-label="Horário dos lembretes"]') as HTMLSelectElement;
-      hour.value = '20';
-      hour.dispatchEvent(new Event('change'));
+      const { fixture } = setup();
+      pickOption(fixture, 'Horário dos lembretes', '20h');
       await flush();
 
       expect(remindersService.setHour).toHaveBeenCalledWith(20);

@@ -1,4 +1,4 @@
-import { isoToBR, monthLabelBR } from './date-format';
+import { brToIso, isoToBR, monthLabelBR } from './date-format';
 
 describe('isoToBR', () => {
   it('formata datas ISO no padrão brasileiro', () => {
@@ -36,5 +36,36 @@ describe('monthLabelBR', () => {
     expect(monthLabelBR('')).toBe('');
     expect(monthLabelBR('2026-13-01')).toBe('2026-13-01');
     expect(monthLabelBR('17/11/2026')).toBe('17/11/2026');
+  });
+});
+
+describe('brToIso', () => {
+  it('converte dd/mm/aaaa em AAAA-MM-DD', () => {
+    expect(brToIso('10/12/2026')).toBe('2026-12-10');
+    expect(brToIso('01/01/2027')).toBe('2027-01-01');
+  });
+  it('aceita 29/02 só em ano bissexto', () => {
+    expect(brToIso('29/02/2028')).toBe('2028-02-29');
+    expect(brToIso('29/02/2026')).toBeNull();
+    expect(brToIso('29/02/2100')).toBeNull();
+    expect(brToIso('29/02/2000')).toBe('2000-02-29');
+  });
+  it('recusa dia ou mês inexistentes', () => {
+    expect(brToIso('31/04/2026')).toBeNull();
+    expect(brToIso('00/05/2026')).toBeNull();
+    expect(brToIso('15/13/2026')).toBeNull();
+    expect(brToIso('15/00/2026')).toBeNull();
+    expect(brToIso('32/01/2026')).toBeNull();
+  });
+  it('recusa texto fora do padrão', () => {
+    expect(brToIso('')).toBeNull();
+    expect(brToIso('1/2/2026')).toBeNull();
+    expect(brToIso('2026-12-10')).toBeNull();
+    expect(brToIso('10/12/26')).toBeNull();
+    expect(brToIso('10/12/2026 ')).toBeNull();
+    expect(brToIso('ab/cd/efgh')).toBeNull();
+  });
+  it('é o inverso de isoToBR', () => {
+    expect(brToIso(isoToBR('2026-11-05'))).toBe('2026-11-05');
   });
 });

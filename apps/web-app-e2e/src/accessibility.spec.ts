@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { createAccount, register, todayIso, uniqueEmail } from './support';
+import { createAccount, register, todayIso, uniqueEmail, chooseOption, fillDate } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
@@ -50,12 +50,12 @@ test.describe('acessibilidade (WCAG AA)', () => {
 
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await page.getByLabel('Conta bancária').click();
     await expect(page.getByRole('dialog', { name: 'Conta bancária' })).toBeVisible();
     expect(await violations(page), 'seletor de conta').toEqual([]);
     await page.keyboard.press('Escape');
-    await page.getByLabel('Tipo').selectOption('CHECKING');
+    await chooseOption(page, page, 'Tipo', 'Conta bancária');
     await expect(page.getByRole('radio', { name: 'Banco' })).toBeVisible();
     expect(await violations(page), 'formulário de conta').toEqual([]);
     await page.getByRole('dialog', { name: 'Nova conta' }).getByRole('button', { name: 'Cancelar' }).click();
@@ -73,17 +73,17 @@ test.describe('acessibilidade (WCAG AA)', () => {
     await page.goto('/transactions');
     await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
     const form = page.locator('gef-group-form');
-    await form.getByLabel('Receita').check();
+    await form.getByLabel('Receita', { exact: true }).check();
     await form.getByLabel('Descrição ou loja').fill('Salário');
     await form.getByLabel('Conta ou cartão').click();
     await page.locator('[role="option"]').first().click();
-    await form.getByLabel('Categoria').selectOption({ label: 'Salário' });
+    await chooseOption(page, form, 'Categoria', 'Salário');
     await form.getByLabel('Valor').fill('500000');
     // receita tem uma só data (a do recebimento), sem "Data da compra" nem "Vencimento"
     await expect(form.getByLabel('Data do recebimento')).toBeVisible();
     await expect(form.getByLabel('Data da compra')).toHaveCount(0);
     await expect(form.getByLabel(/vencimento/i)).toHaveCount(0);
-    await form.getByLabel('Data do recebimento').fill(todayIso());
+    await fillDate(form.getByLabel('Data do recebimento'), todayIso());
     await form.getByRole('button', { name: 'Salvar' }).click();
 
     const amount = page.locator('td[data-kind="income"]').first();

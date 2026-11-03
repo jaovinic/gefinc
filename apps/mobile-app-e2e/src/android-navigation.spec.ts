@@ -1,6 +1,6 @@
 import { Page, expect, test } from '@playwright/test';
 import { goToBackground, installNativeDoubles, minimizedCount, pressAndroidBack, queueBiometric, returnToForeground } from './native-doubles';
-import { newUser, openFromMore, openMore, openTab, signIn } from './support';
+import { newUser, openFromMore, openMore, openTab, signIn, chooseOption } from './support';
 
 const path = (page: Page) => new URL(page.url()).pathname;
 const more = (page: Page) => page.getByRole('dialog', { name: 'Mais', exact: true });
@@ -63,7 +63,7 @@ test.describe('botão Voltar do Android (com dublê do plugin)', () => {
     const user = await newUser(request);
     await signIn(page, user.email);
     await openFromMore(page, 'Minha conta');
-    await page.getByLabel('Bloquear depois de').selectOption('0');
+    await chooseOption(page, page, 'Bloquear depois de', 'Na hora');
     await queueBiometric(page, 'ok');
     await page.getByRole('switch', { name: 'Bloquear o app com biometria' }).check();
     await expect(page.getByRole('switch', { name: 'Bloquear o app com biometria' })).toBeChecked();

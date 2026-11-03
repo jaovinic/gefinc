@@ -1,7 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { NoticeService } from '../api';
-import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
+import { API, CATEGORIES, clickButton, configureHttpTesting, selectTrigger, type } from '../../testing/testbed';
 import { CategoriesPage } from './categories-page';
 
 describe('CategoriesPage', () => {
@@ -47,6 +47,51 @@ describe('CategoriesPage', () => {
     expect(notices.toasts().some((t) => t.message === 'Categoria criada.')).toBe(true);
   });
 
+  it('a cor se escolhe numa paleta (sem seletor do sistema) e vai no corpo da criação', async () => {
+    const { http, el, fixture } = await setup();
+    clickButton(el, 'Nova categoria');
+    fixture.detectChanges();
+    expect(el.querySelector('input[type="color"]')).toBeNull();
+    expect(el.querySelector('gef-sheet [role="radiogroup"][aria-label="Cor"]')).not.toBeNull();
+    type(el, '#name', 'Pets');
+    (el.querySelector('[role="radio"][data-color="#16A34A"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+
+    const post = http.expectOne({ method: 'POST', url: `${API}/categories` });
+    expect(post.request.body).toMatchObject({ name: 'Pets', colorHex: '#16A34A' });
+    post.flush({ id: 30, name: 'Pets', type: 'EXPENSE', colorHex: '#16A34A' }, { status: 201, statusText: 'Created' });
+    http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+    http.expectOne((r) => r.url === `${API}/accounts`).flush([]);
+    http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush(CATEGORIES);
+  });
+
+  it('editar uma categoria com cor fora da paleta mostra "Cor atual" marcada e preserva a cor ao salvar', async () => {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(CategoriesPage);
+    fixture.detectChanges();
+    const custom = { id: 40, name: 'Pets', type: 'EXPENSE', colorHex: '#123ABC' };
+    ctx.expectGet('/categories').flush([custom]);
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    (el.querySelector('button[aria-label="Editar Pets"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const checked = Array.from(el.querySelectorAll('[role="radio"]')).filter((r) => r.getAttribute('aria-checked') === 'true');
+    expect(checked).toHaveLength(1);
+    expect(checked[0].getAttribute('aria-label')).toBe('Cor atual (#123ABC)');
+
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    const put = ctx.http.expectOne({ method: 'PUT', url: `${API}/categories/40` });
+    expect(put.request.body).toMatchObject({ colorHex: '#123ABC' });
+    put.flush(custom);
+    ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush([custom]);
+    ctx.http.expectOne((r) => r.url === `${API}/accounts`).flush([]);
+    ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/categories`).flush([custom]);
+  });
+
   it('editar abre o modal com o título Editar categoria, pré-carrega os dados, desabilita tipo com aviso, atualiza e avisa', async () => {
     const { http, el, fixture } = await setup();
     const notices = TestBed.inject(NoticeService);
@@ -61,8 +106,8 @@ describe('CategoriesPage', () => {
     const nameInput = el.querySelector('#name') as HTMLInputElement;
     expect(nameInput.value).toBe('Alimentação');
 
-    const typeSelect = el.querySelector('#type') as HTMLSelectElement;
-    expect(typeSelect.value).toBe('EXPENSE');
+    const typeSelect = selectTrigger(el, 'Tipo');
+    expect(typeSelect.textContent).toContain('Despesas');
     expect(typeSelect.disabled).toBe(true);
 
     type(el, '#name', 'Supermercado');

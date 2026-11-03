@@ -1,5 +1,5 @@
 import { APIRequestContext, expect, test } from '@playwright/test';
-import { PASSWORD, login, todayIso, uniqueEmail } from './support';
+import { PASSWORD, login, todayIso, uniqueEmail, chooseOption } from './support';
 
 const API = 'http://localhost:8080/api/v1';
 
@@ -110,7 +110,7 @@ test.describe('saldo por conta', () => {
 
     // cartão não tem saldo inicial
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await expect(page.getByLabel('Saldo inicial (opcional)')).toHaveCount(0);
     await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
 

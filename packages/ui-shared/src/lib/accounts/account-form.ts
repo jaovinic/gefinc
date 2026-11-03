@@ -5,6 +5,7 @@ import { fromCents, isValidMoney, toCents } from '@gefinc/utils';
 import { AccountsApi, messageFor, toProblem } from '../api';
 import { Icon } from '../icons/icon';
 import { MoneyInput } from '../money-input/money-input';
+import { Select, type SelectOption } from '../select/select';
 import { IconPicker } from './icon-picker';
 import { AccountPicker } from './account-picker';
 
@@ -63,7 +64,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
 @Component({
   selector: 'gef-account-form',
   host: { class: 'block' },
-  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput],
+  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput, Select],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
       @if (error(); as message) {
@@ -71,12 +72,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
       }
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="gef-label" for="type">Tipo</label>
-          <select id="type" class="gef-input" formControlName="type">
-            @for (type of types; track type) {
-              <option [value]="type">{{ labels[type] }}</option>
-            }
-          </select>
+          <gef-select label="Tipo" formControlName="type" [options]="typeOptions" />
         </div>
         <div>
           <label class="gef-label" for="name">Nome</label>
@@ -209,8 +205,7 @@ export class AccountForm {
   /** O usuário quer cadastrar uma conta bancária antes de criar o cartão. */
   readonly newBankRequested = output<void>();
 
-  protected readonly types = ACCOUNT_TYPES;
-  protected readonly labels = ACCOUNT_TYPE_LABELS;
+  protected readonly typeOptions: SelectOption[] = ACCOUNT_TYPES.map((value) => ({ value, label: ACCOUNT_TYPE_LABELS[value] }));
   protected readonly holders: HolderType[] = ['PF', 'PJ'];
   protected readonly holderLabels = HOLDER_LABELS;
   protected readonly form = this.fb.group(

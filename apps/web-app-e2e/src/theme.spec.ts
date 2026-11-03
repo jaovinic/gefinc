@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { createAccount, register, uniqueEmail } from './support';
+import { createAccount, register, uniqueEmail, chooseOption } from './support';
 
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 const THEME_KEY = 'gefinc.ui.theme';
@@ -103,7 +103,7 @@ test.describe('tema claro e escuro (web)', () => {
     await page.goto('/transactions');
     await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
     const form = page.locator('gef-group-form');
-    await form.getByLabel('Tipo').selectOption('INSTALLMENT');
+    await chooseOption(page, form, 'Tipo', 'Parcelado');
     const mode = form.locator('gef-amount-mode-switch');
     await expect(mode).toContainText('O valor digitado é');
     await expect(mode.getByRole('button')).toHaveText(['Valor total', 'Valor da parcela']);

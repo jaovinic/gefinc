@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso } from './support';
+import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso, chooseOption } from './support';
 
 const SIZES = [
   { name: 'Pixel 7', width: 412, height: 915 },
@@ -47,7 +47,7 @@ async function smallTouchTargets(page: Page) {
       return r.width > 0 && r.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
     };
     const found: string[] = [];
-    for (const el of Array.from(document.querySelectorAll('button, a[href], select, input:not([type="hidden"]), textarea'))) {
+    for (const el of Array.from(document.querySelectorAll('button, a[href], [role="option"], input:not([type="hidden"]), textarea'))) {
       if (!visible(el)) continue;
       if (el.tagName === 'A' && el.closest('p, li > span')) continue; // link no meio do texto
       // campo dentro de um rótulo que o envolve (valor em reais, caixa de seleção): o alvo é o rótulo todo
@@ -149,7 +149,7 @@ test('formulário de conta com ícones, seletor de conta e avisos cabem em 360 p
   await expect(page.getByRole('radio', { name: 'Banco' })).toBeVisible();
   await audit('formulário de conta bancária');
 
-  await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+  await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
   await page.getByLabel('Conta bancária').click();
   await expect(page.getByRole('dialog', { name: 'Conta bancária' })).toBeVisible();
   await audit('seletor de conta bancária');

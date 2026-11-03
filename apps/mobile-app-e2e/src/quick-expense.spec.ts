@@ -1,5 +1,5 @@
 import { APIRequestContext, Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, chooseAccount, newUser } from './support';
+import { apiGet, apiPost, chooseAccount, newUser, chooseOption, fillDate } from './support';
 
 const API = 'http://localhost:8080/api/v1';
 const PASSWORD = 'senha-forte-123';
@@ -41,7 +41,7 @@ test.describe('novo lançamento rápido: despesa', () => {
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click(); // toque 1
     await expect(page.getByRole('heading', { name: 'Novo lançamento' })).toBeVisible();
-    await expect(page.getByLabel('Despesa')).toBeChecked(); // a despesa é a natureza padrão
+    await expect(page.getByLabel('Despesa', { exact: true })).toBeChecked(); // a despesa é a natureza padrão
     await expect(page.getByLabel('Valor')).toBeFocused(); // o teclado numérico já está aberto
     await page.keyboard.type('2550'); // digitar não é toque
     await page.getByRole('button', { name: 'Salvar' }).click(); // toque 2
@@ -59,13 +59,13 @@ test.describe('novo lançamento rápido: despesa', () => {
     await page.keyboard.type('1000');
     await page.getByLabel('Descrição (opcional)').fill('Padaria');
     await chooseAccount(page, page, 'Itaú');
-    await page.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+    await chooseOption(page, page, 'Categoria', 'Alimentação');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.locator('[data-indicator="total-month"]')).toContainText('R$ 10,00');
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
     await expect(page.getByLabel('Conta ou cartão')).toContainText('Itaú');
-    await expect(page.getByLabel('Categoria').locator('option:checked')).toHaveText('Alimentação');
+    await expect(page.getByLabel('Categoria')).toContainText('Alimentação');
   });
 
   test('o rodapé não é fixo: o botão Salvar rola junto com o formulário', async ({ page, request }) => {
@@ -126,9 +126,9 @@ test.describe('novo lançamento rápido: parcelado no cartão', () => {
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
     await expect(page.getByLabel('Valor', { exact: true })).toBeFocused();
     await chooseAccount(page, page, 'Nubank');
-    await expect(page.getByLabel('Parcelas')).toHaveValue('1');
-    await page.getByLabel('Parcelas').selectOption('10');
-    await page.getByLabel('Data', { exact: true }).fill('2026-11-05'); // antes do fechamento (dia 10)
+    await expect(page.getByLabel('Parcelas')).toContainText('À vista (1x)');
+    await chooseOption(page, page, 'Parcelas', '10x');
+    await fillDate(page.getByLabel('Data', { exact: true }), '2026-11-05'); // antes do fechamento (dia 10)
     await page.getByLabel('Descrição (opcional)').fill('Geladeira');
     await page.getByLabel('Valor da parcela').click();
     await page.keyboard.type('10000');
@@ -160,8 +160,8 @@ test.describe('novo lançamento rápido: parcelado no cartão', () => {
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
     await chooseAccount(page, page, 'Nubank');
-    await page.getByLabel('Parcelas').selectOption('3');
-    await page.getByLabel('Data', { exact: true }).fill('2026-11-12'); // depois do fechamento
+    await chooseOption(page, page, 'Parcelas', '3x');
+    await fillDate(page.getByLabel('Data', { exact: true }), '2026-11-12'); // depois do fechamento
     await page.getByRole('button', { name: 'Valor total' }).click();
     await page.keyboard.type('10000');
 
@@ -180,7 +180,7 @@ test.describe('novo lançamento rápido: parcelado no cartão', () => {
     await signIn(page, await prepareUser(request));
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
     await expect(page.getByLabel('Parcelas')).toHaveCount(0);
-    await page.getByLabel('Receita').check();
+    await page.getByLabel('Receita', { exact: true }).check();
     await expect(page.getByLabel('Parcelas')).toHaveCount(0);
   });
 });

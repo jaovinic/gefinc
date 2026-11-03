@@ -214,11 +214,6 @@ textarea:focus-visible,
 .gef-money-field input:not([type='checkbox']):not([type='radio']):focus-visible {
   outline: none;
 }
-/* Seletor de data e demais controles nativos sem tom verde ou ciano. */
-input[type='date'],
-select {
-  accent-color: var(--color-gefinc-focus);
-}
 
 /* Quem pede menos movimento no sistema não vê transições nem animações (FR-034). */
 @media (prefers-reduced-motion: reduce) {
@@ -333,6 +328,34 @@ table td {
   }
   .gef-icon-option[aria-checked='true'] {
     @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
+  }
+  /* Opção das listas próprias (gef-select, calendário): alvo de 44 px; a escolhida leva borda, fundo e a marca de "check". */
+  .gef-option {
+    @apply flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-transparent px-3 py-2 text-left text-body-base text-gefinc-text hover:border-gefinc-primary;
+  }
+  .gef-option[aria-selected='true'] {
+    @apply border-gefinc-primary bg-gefinc-primary/10 font-semibold text-gefinc-primary;
+  }
+  .gef-option[aria-disabled='true'] {
+    @apply cursor-not-allowed opacity-50 hover:border-transparent;
+  }
+  /* Cor da paleta (gef-color-swatch): bolinha de 44 px com borda de contraste; a escolhida leva anel duplo e a marca de "check". */
+  .gef-swatch {
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gefinc-muted disabled:opacity-50;
+  }
+  .gef-swatch[aria-checked='true'] {
+    @apply border-2 border-gefinc-text;
+    box-shadow: 0 0 0 2px var(--color-gefinc-bg);
+  }
+  /* Dia do calendário próprio (gef-date-field): alvo de 44 px; o escolhido leva borda, fundo e negrito, e hoje vai sublinhado. */
+  .gef-day {
+    @apply inline-flex h-11 w-full items-center justify-center rounded-lg border border-transparent text-body-base font-medium text-gefinc-text hover:border-gefinc-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent;
+  }
+  .gef-day[aria-current='date'] {
+    @apply font-bold underline underline-offset-4;
+  }
+  [role='gridcell'][aria-selected='true'] > .gef-day {
+    @apply border-gefinc-primary bg-gefinc-primary/10 font-bold text-gefinc-primary;
   }
   /* Escolha entre poucas opções (PF/PJ, receita/despesa): rádios nativos com aparência de botões. */
   .gef-segment {

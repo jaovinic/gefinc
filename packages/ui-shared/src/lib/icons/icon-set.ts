@@ -61,6 +61,8 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   moon: [p('M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z')],
   monitor: [p('M3 4h18v12H3zM8 20h8M12 16v4')],
 
+  calendar: [p('M4 6h16v15H4zM4 10h16M8 3v4M16 3v4')],
+
   // natureza e status
   'arrow-up': [p('M12 19V5M6 11l6-6 6 6')],
   'arrow-down': [p('M12 5v14M6 13l6 6 6-6')],

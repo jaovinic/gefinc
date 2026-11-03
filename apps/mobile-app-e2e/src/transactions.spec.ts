@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount } from './support';
+import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount, chooseOption, fillDate } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 
@@ -25,10 +25,10 @@ test.describe('lançamentos completos no celular', () => {
     const form = await openNewTransaction(page);
     await form.getByLabel('Descrição ou loja').fill('Mercado');
     await chooseAccount(page, form, 'Itaú');
-    await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+    await chooseOption(page, form, 'Categoria', 'Alimentação');
     await form.getByLabel('Valor').fill('15000');
-    await form.getByLabel('Data da compra').fill(todayIso());
-    await form.getByLabel(/vencimento/i).fill(todayIso());
+    await fillDate(form.getByLabel('Data da compra'), todayIso());
+    await fillDate(form.getByLabel(/vencimento/i), todayIso());
     await form.getByRole('button', { name: 'Salvar' }).click();
     await expect(card(page, 'Mercado')).toContainText('R$ 150,00');
     await expect(card(page, 'Mercado')).toContainText('Pend');
@@ -59,13 +59,13 @@ test.describe('lançamentos completos no celular', () => {
     await openTab(page, 'Lançamentos');
 
     const form = await openNewTransaction(page);
-    await form.getByLabel('Tipo').selectOption('FIXED');
+    await chooseOption(page, form, 'Tipo', 'Fixo mensal');
     await form.getByLabel('Descrição ou loja').fill('Internet');
     await chooseAccount(page, form, 'Itaú');
-    await form.getByLabel('Categoria').selectOption({ label: 'Serviços' });
+    await chooseOption(page, form, 'Categoria', 'Serviços');
     await form.getByLabel('Valor').fill('9990');
-    await form.getByLabel('Data da compra').fill(todayIso());
-    await form.getByLabel(/vencimento/i).fill(todayIso());
+    await fillDate(form.getByLabel('Data da compra'), todayIso());
+    await fillDate(form.getByLabel(/vencimento/i), todayIso());
     await form.getByRole('button', { name: 'Salvar' }).click();
     await expect(card(page, 'Internet')).toContainText('Fixo');
 
@@ -95,13 +95,13 @@ test.describe('lançamentos completos no celular', () => {
     await openTab(page, 'Lançamentos');
 
     const form = await openNewTransaction(page);
-    await form.getByLabel('Tipo').selectOption('INSTALLMENT');
+    await chooseOption(page, form, 'Tipo', 'Parcelado');
     await form.getByLabel('Descrição ou loja').fill('Notebook');
     await chooseAccount(page, form, 'Nubank');
-    await form.getByLabel('Categoria').selectOption({ label: 'Compras' });
+    await chooseOption(page, form, 'Categoria', 'Compras');
     await form.getByLabel('Valor total').fill('10000');
     await form.getByLabel('Quantidade de parcelas').fill('3');
-    await form.getByLabel('Data da compra').fill('2026-11-12');
+    await fillDate(form.getByLabel('Data da compra'), '2026-11-12');
     await expect(form.getByLabel(/vencimento/i)).toHaveCount(0);
     const preview = form.getByLabel('Prévia das parcelas');
     await expect(preview).toContainText('R$ 33,33');
@@ -131,7 +131,7 @@ test.describe('lançamentos completos no celular', () => {
     await expect(page.getByTestId('transaction-card')).toHaveCount(2);
 
     await page.getByRole('button', { name: 'Filtros' }).click();
-    await page.getByLabel('Categoria').selectOption({ label: 'Lazer' });
+    await chooseOption(page, page, 'Categoria', 'Lazer');
     await page.getByRole('button', { name: 'Aplicar' }).click();
 
     await expect(page.getByTestId('transaction-card')).toHaveCount(1);
@@ -147,9 +147,9 @@ test.describe('lançamentos completos no celular', () => {
     const form = await openNewTransaction(page);
     await form.getByLabel('Descrição ou loja').fill('Padaria');
     await chooseAccount(page, form, 'Itaú');
-    await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+    await chooseOption(page, form, 'Categoria', 'Alimentação');
     await form.getByLabel('Valor').fill('0');
-    await form.getByLabel(/vencimento/i).fill(todayIso());
+    await fillDate(form.getByLabel(/vencimento/i), todayIso());
     await form.getByRole('button', { name: 'Salvar' }).click();
 
     await expect(form.getByText('Informe um valor maior que zero.')).toBeVisible();
