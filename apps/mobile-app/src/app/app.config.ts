@@ -4,7 +4,7 @@ import localePt from '@angular/common/locales/pt';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideIonicAngular } from '@ionic/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { APP_PATHS, THEME_CHROME, authInterceptor, provideTheme } from '@gefinc/ui-shared';
+import { APP_PATHS, THEME_CHROME, authInterceptor, provideGlass, provideTheme } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
 import { provideBackNavigation } from './navigation/back-navigation';
 import { systemBarsChrome } from './native/native-ports';
@@ -27,6 +27,7 @@ export const appConfig: ApplicationConfig = {
     provideSession(),
     { provide: THEME_CHROME, useFactory: systemBarsChrome },
     provideTheme(),
+    provideGlass(),
     provideOffline(),
     provideLock(),
     provideBackNavigation(),

@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { AuthApi, CurrentUser, NoticeService, SessionService, messageFor, passwordPolicyValidator, toProblem, userInitial } from '../../api';
 import { Icon } from '../../icons/icon';
+import { GlassToggle } from '../../theme/glass-toggle';
 import { ThemeToggle } from '../../theme/theme-toggle';
 import { Avatar } from '../avatar/avatar';
 import { DeleteAccount } from '../delete-account/delete-account';
@@ -16,7 +17,7 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'gef-profile-page',
-  imports: [Avatar, DeleteAccount, Icon, ReactiveFormsModule, ThemeToggle],
+  imports: [Avatar, DeleteAccount, GlassToggle, Icon, ReactiveFormsModule, ThemeToggle],
   template: `
     <section class="mx-auto max-w-2xl space-y-6">
       <h1 class="text-title-lg font-bold">Minha conta</h1>
@@ -33,6 +34,7 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
         <h2 id="appearance-title" class="text-title-md font-bold">Aparência</h2>
         <p class="text-body-base text-gefinc-muted">Escolha o tema claro, o escuro ou siga o do seu aparelho.</p>
         <gef-theme-toggle />
+        <gef-glass-toggle />
       </section>
 
       <section class="space-y-4 gef-card p-4" aria-labelledby="name-title">

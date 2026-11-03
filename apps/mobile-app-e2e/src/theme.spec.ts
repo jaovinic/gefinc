@@ -1,12 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
-import { Page, expect, test } from '@playwright/test';
+import { Locator, Page, expect, test } from '@playwright/test';
 import { installNativeDoubles, systemBarStyles } from './native-doubles';
 import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso, chooseOption, fillDate } from './support';
 
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 const THEME_KEY = 'gefinc.ui.theme';
+const GLASS_KEY = 'gefinc.ui.glass';
 
 const theme = (page: Page) => page.evaluate(() => document.documentElement.dataset['theme']);
+const glass = (page: Page) => page.evaluate(() => document.documentElement.dataset['glass']);
+const nav = (page: Page) => page.getByRole('navigation', { name: 'Navegação principal' });
+const fab = (page: Page) => page.getByRole('link', { name: 'Novo lançamento' });
+const backdrop = (locator: Locator) => locator.evaluate((el) => getComputedStyle(el).backdropFilter);
 const bodyBg = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
 async function seed(request: Parameters<typeof newUser>[0]) {
@@ -173,18 +178,197 @@ test.describe('ilha de navegação e contraste (app)', () => {
     expect(await glass.evaluate((el) => getComputedStyle(el).opacity)).toBe('0');
   });
 
-  test('a ilha não tem transform/filter nem desfoque (desempenho a 120 Hz) e o cabeçalho também não desfoca', async ({ page, request }) => {
+  test('a ilha e o botão Novo lançamento desfocam de verdade por padrão, a ilha sem transform/filter, e o cabeçalho não desfoca', async ({ page, request }) => {
     const user = await newUser(request);
     await signIn(page, user.email);
-    const nav = await page.getByRole('navigation', { name: 'Navegação principal' }).evaluate((el) => {
+    expect(await glass(page)).toBe('blur');
+    const island = await nav(page).evaluate((el) => {
       const s = getComputedStyle(el);
-      return { transform: s.transform, filter: s.filter, backdrop: s.backdropFilter };
+      return { transform: s.transform, filter: s.filter, backdrop: s.backdropFilter, isolation: s.isolation, bg: s.backgroundColor };
     });
-    expect(nav.transform).toBe('none');
-    expect(nav.filter).toBe('none');
-    expect(nav.backdrop).toBe('none');
-    const header = await page.locator('header.gef-app-header').evaluate((el) => getComputedStyle(el).backdropFilter);
-    expect(header).toBe('none');
+    expect(island.transform).toBe('none');
+    expect(island.filter).toBe('none');
+    expect(island.backdrop).toContain('blur(12px)');
+    expect(island.isolation).toBe('isolate');
+    expect(island.bg).toMatch(/^rgba\(19, 27, 46, 0\.8\)$/);
+
+    expect(await backdrop(fab(page))).toContain('blur(12px)');
+    // o contêiner fixo do botão nunca leva filtro (quebraria os painéis `fixed`)
+    expect(await fab(page).evaluate((el) => getComputedStyle(el.parentElement!).backdropFilter)).toBe('none');
+    expect(await page.locator('header.gef-app-header').evaluate((el) => getComputedStyle(el).backdropFilter)).toBe('none');
+  });
+
+  test('o desfoque é real: o que passa atrás da ilha aparece borrado (pixels do fundo mudam com o desfoque ligado)', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    // faixa de listras de alto contraste atrás da ilha; com o desfoque, as bordas das listras se misturam
+    await page.addStyleTag({ content: `body::before { background: repeating-linear-gradient(90deg, #fff 0 3px, #000 3px 6px) !important; z-index: 0 !important; }
+      .gef-tabbar { background-color: rgb(128 128 128 / 0.05) !important; }` });
+    const box = (await nav(page).boundingBox())!;
+    const clip = { x: box.x + box.width / 2 - 40, y: box.y + 2, width: 80, height: 6 };
+    const spread = async () => {
+      const png = await page.screenshot({ clip });
+      return page.evaluate(async (b64) => {
+        const image = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+        const canvas = new OffscreenCanvas(image.width, image.height);
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(image, 0, 0);
+        const data = ctx.getImageData(0, 0, image.width, image.height).data;
+        let min = 255;
+        let max = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          min = Math.min(min, data[i]);
+          max = Math.max(max, data[i]);
+        }
+        return max - min;
+      }, png.toString('base64'));
+    };
+    const blurred = await spread();
+    await page.evaluate(() => document.documentElement.setAttribute('data-glass', 'flat'));
+    await expect.poll(() => backdrop(nav(page))).toBe('none');
+    const sharp = await spread();
+    expect(sharp).toBeGreaterThan(blurred);
+  });
+
+  test('o menu Mais desliga o desfoque: a ilha e o botão ficam sem filtro e sólidos, a escolha persiste e a ilha segue sem transform', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    const more = await openMore(page);
+    const toggle = more.getByRole('switch', { name: 'Desfoque (vidro)' });
+    await expect(toggle).toBeChecked();
+
+    await toggle.uncheck();
+    await expect.poll(() => glass(page)).toBe('flat');
+    expect(await page.evaluate((key) => localStorage.getItem(key), GLASS_KEY)).toBe('flat');
+    await page.keyboard.press('Escape');
+    await expect(more).toHaveCount(0);
+    expect(await backdrop(nav(page))).toBe('none');
+    expect(await backdrop(fab(page))).toBe('none');
+    await expect.poll(() => nav(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(19, 27, 46, 0.95)');
+    expect(await nav(page).evaluate((el) => getComputedStyle(el).transform)).toBe('none');
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
+    expect(await glass(page)).toBe('flat');
+    expect(await backdrop(nav(page))).toBe('none');
+    const again = await openMore(page);
+    await expect(again.getByRole('switch', { name: 'Desfoque (vidro)' })).not.toBeChecked();
+    await again.getByRole('switch', { name: 'Desfoque (vidro)' }).check();
+    await expect.poll(() => glass(page)).toBe('blur');
+    await page.keyboard.press('Escape');
+    await expect(again).toHaveCount(0);
+    expect(await backdrop(nav(page))).toContain('blur');
+    expect(await backdrop(fab(page))).toContain('blur');
+  });
+
+  test('Minha conta também tem o interruptor, junto do tema (Aparência)', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    await page.goto('/minha-conta');
+    const section = page.getByRole('region', { name: 'Aparência' });
+    await expect(section.getByRole('radiogroup')).toBeVisible();
+    await section.getByRole('switch', { name: 'Desfoque (vidro)' }).uncheck();
+    await expect.poll(() => glass(page)).toBe('flat');
+  });
+
+  test('um valor inválido gravado para o desfoque é ignorado (vale o padrão ligado)', async ({ page }) => {
+    await page.addInitScript((key) => localStorage.setItem(key, '"><script>'), GLASS_KEY);
+    await page.goto('/login');
+    expect(await glass(page)).toBe('blur');
+  });
+
+  test('sem flash: com "sólido" gravado, o desfoque nunca é aplicado nem por um instante', async ({ page }) => {
+    await page.addInitScript((key) => {
+      localStorage.setItem(key, 'flat');
+      const seen: string[] = [];
+      (window as unknown as { __glass: string[] }).__glass = seen;
+      new MutationObserver((records) => {
+        for (const record of records) seen.push((record.target as HTMLElement).getAttribute('data-glass') ?? '');
+      }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-glass'] });
+    }, GLASS_KEY);
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
+    const seen = await page.evaluate(() => (window as unknown as { __glass: string[] }).__glass);
+    expect(seen).not.toContain('blur');
+    expect(seen[0]).toBe('flat');
+  });
+
+  test('o painel abre com a ilha e o botão desfocados: o desfoque fica no fundo do painel e nenhum ancestral do painel tem filtro', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    const more = await openMore(page);
+    expect(await backdrop(nav(page))).toContain('blur');
+    expect(await backdrop(fab(page))).toContain('blur');
+    expect(await backdrop(page.locator('.gef-sheet-backdrop'))).toContain('blur(6px)');
+    expect(await backdrop(page.locator('.gef-sheet'))).toBe('none');
+    const bad = await more.evaluate((panel) => {
+      const found: string[] = [];
+      for (let el: Element | null = panel; el; el = el.parentElement) {
+        const s = getComputedStyle(el);
+        if (el !== panel && el.className.toString().includes('gef-sheet-backdrop')) continue; // o fundo do painel é o dono do desfoque
+        // transformação identidade (o Ionic põe `translateZ(0)` no corpo) não muda o bloco de contenção do que é `fixed` de forma útil
+        const moved = s.transform !== 'none' && s.transform !== 'matrix(1, 0, 0, 1, 0, 0)';
+        if (s.backdropFilter !== 'none' || s.filter !== 'none' || moved) found.push(`${el.tagName}.${el.className}`);
+      }
+      return found;
+    });
+    expect(bad).toEqual([]);
+    // o painel continua fixo ao conteúdo da tela (não preso ao pai), com a ilha por baixo
+    const box = (await page.locator('.gef-sheet').boundingBox())!;
+    expect(box.y + box.height).toBeGreaterThan(page.viewportSize()!.height - 2);
+
+    // sólido: o fundo do painel também perde o desfoque
+    await page.evaluate(() => document.documentElement.setAttribute('data-glass', 'flat'));
+    await expect.poll(() => backdrop(page.locator('.gef-sheet-backdrop'))).toBe('none');
+  });
+
+  test('ao rolar o conteúdo o desfoque desliga e a ilha fica mais opaca; ao parar o desfoque volta', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    await page.evaluate(() => {
+      const main = document.querySelector('main.gef-shell-main') as HTMLElement;
+      const filler = document.createElement('div');
+      filler.style.height = '4000px';
+      main.appendChild(filler);
+      const samples: { scrolling: boolean; filter: string; bg: string }[] = [];
+      (window as unknown as { __samples: typeof samples }).__samples = samples;
+      main.addEventListener('scroll', () => {
+        const island = document.querySelector('nav.gef-tabbar')!;
+        const style = getComputedStyle(island);
+        samples.push({ scrolling: document.documentElement.hasAttribute('data-scrolling'), filter: style.backdropFilter, bg: style.backgroundColor });
+      }, { passive: true });
+      main.scrollTop = 600;
+    });
+    const samples = () => page.evaluate(() => (window as unknown as { __samples: { scrolling: boolean; filter: string; bg: string }[] }).__samples);
+    await expect.poll(async () => (await samples()).length).toBeGreaterThan(0);
+    const first = (await samples())[0];
+    expect(first.scrolling).toBe(true);
+    expect(first.filter).toBe('none');
+    // a cor do fundo transiciona (150 ms) até o sólido; o alvo final é checado depois
+    await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute('data-scrolling'))).toBe(false);
+    expect(await backdrop(nav(page))).toContain('blur');
+    expect(await backdrop(fab(page))).toContain('blur');
+    await expect.poll(() => nav(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(19, 27, 46, 0.8)');
+  });
+
+  test('rolar com o desfoque desligado não marca a raiz', async ({ page, request }) => {
+    const user = await newUser(request);
+    await page.addInitScript((key) => localStorage.setItem(key, 'flat'), GLASS_KEY);
+    await signIn(page, user.email);
+    const marked = await page.evaluate(async () => {
+      const main = document.querySelector('main.gef-shell-main') as HTMLElement;
+      const filler = document.createElement('div');
+      filler.style.height = '4000px';
+      main.appendChild(filler);
+      let seen = false;
+      main.addEventListener('scroll', () => {
+        seen ||= document.documentElement.hasAttribute('data-scrolling');
+      });
+      main.scrollTop = 600;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return seen;
+    });
+    expect(marked).toBe(false);
   });
 
   for (const scheme of ['light', 'dark'] as const) {
@@ -239,6 +423,30 @@ test.describe('ilha de navegação e contraste (app)', () => {
       expect(problems).toEqual([]);
     });
 
+    for (const mode of ['blur', 'flat'] as const) {
+      test(`painel, Minha conta e menu Mais passam no axe com o desfoque ${mode === 'blur' ? 'ligado' : 'desligado'} (tema ${scheme})`, async ({ page, request }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.addInitScript((args) => localStorage.setItem(args.key, args.mode), { key: GLASS_KEY, mode });
+        const user = await seed(request);
+        await signIn(page, user.email);
+        expect(await glass(page)).toBe(mode);
+        const problems: string[] = [];
+        const check = async (where: string) => {
+          const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+          for (const v of axe.violations) problems.push(`${where}: ${v.id} (${v.nodes.length}) ${v.nodes[0]?.html.slice(0, 80)}`);
+        };
+        await check('/');
+        const more = await openMore(page);
+        await check('menu Mais');
+        await page.keyboard.press('Escape');
+        await expect(more).toHaveCount(0);
+        await page.goto('/minha-conta');
+        await expect(page.getByRole('heading', { name: 'Minha conta', exact: true })).toBeVisible();
+        await check('/minha-conta');
+        expect(problems).toEqual([]);
+      });
+    }
+
     test(`/novo em cartão 10x (${scheme}): sem rolagem horizontal, alvos de 44 px e sem violações`, async ({ page, request }) => {
       await page.emulateMedia({ colorScheme: scheme });
       const user = await seed(request);
@@ -279,5 +487,10 @@ test.describe('ilha de navegação e contraste (app)', () => {
     });
     expect(style.bg).toBe(rgb(19, 27, 46));
     expect(style.filter).toBe('none');
+    expect(await backdrop(fab(page))).toBe('none');
+    const more = await openMore(page);
+    expect(await backdrop(page.locator('.gef-sheet-backdrop'))).toBe('none');
+    await expect(more.getByRole('switch', { name: 'Desfoque (vidro)' })).toBeChecked(); // a escolha segue ligada; o sistema é que a sobrepõe
+    await expect(more.getByTestId('glass-forced-notice')).toBeVisible();
   });
 });

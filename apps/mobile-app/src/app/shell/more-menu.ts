@@ -1,16 +1,16 @@
 import { Component, inject, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { Icon, NAV_ITEMS, ThemeToggle } from '@gefinc/ui-shared';
+import { GlassToggle, Icon, NAV_ITEMS, ThemeToggle } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
 
 /**
  * Menu "Mais" (aberto pelo atalho Minha conta do cabeçalho): as áreas que não cabem na ilha de navegação
- * (fluxo de caixa, categorias e minha conta), a aparência (tema) e a saída da conta. Quem o hospeda fecha o
+ * (fluxo de caixa, categorias e minha conta), a aparência (tema e desfoque) e a saída da conta. Quem o hospeda fecha o
  * painel ao receber `navigated`.
  */
 @Component({
   selector: 'gef-more-menu',
-  imports: [Icon, RouterLink, ThemeToggle],
+  imports: [GlassToggle, Icon, RouterLink, ThemeToggle],
   template: `
     <nav class="space-y-3" aria-label="Mais opções">
       @for (item of items; track item.key) {
@@ -24,6 +24,7 @@ import { LogoutAction } from '../core/logout';
     <section class="mt-4 space-y-2" aria-labelledby="more-appearance">
       <h3 id="more-appearance" class="gef-label">Aparência</h3>
       <gef-theme-toggle />
+      <gef-glass-toggle />
     </section>
     <button type="button" class="gef-btn-secondary mt-4 flex w-full items-center justify-center gap-2" (click)="leave()">
       <gef-icon name="logout" [size]="18" />Sair

@@ -4,6 +4,8 @@ import { createAccount, register, uniqueEmail, chooseOption } from './support';
 
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 const THEME_KEY = 'gefinc.ui.theme';
+const GLASS_KEY = 'gefinc.ui.glass';
+const glass = (page: Page) => page.evaluate(() => document.documentElement.dataset['glass']);
 const theme = (page: Page) => page.evaluate(() => document.documentElement.dataset['theme']);
 
 async function violations(page: Page) {
@@ -53,6 +55,63 @@ test.describe('tema claro e escuro (web)', () => {
     const opaque = await bg('sidenav');
     expect(opaque.bg).toBe(rgb(19, 27, 46));
     expect(opaque.blur).toBe('none');
+  });
+
+  test('Minha conta desliga o desfoque (vidro): a barra do topo e o menu lateral ficam sem filtro, e a escolha persiste', async ({ page }) => {
+    await register(page, uniqueEmail());
+    expect(await glass(page)).toBe('blur');
+    await page.goto('/settings');
+    const toggle = page.getByRole('region', { name: 'Aparência' }).getByRole('switch', { name: 'Desfoque (vidro)' });
+    await expect(toggle).toBeChecked();
+    const blur = (testid: string) => page.getByTestId(testid).evaluate((el) => getComputedStyle(el).backdropFilter);
+    expect(await blur('sidenav')).toContain('blur(12px)');
+
+    await toggle.uncheck();
+    await expect.poll(() => glass(page)).toBe('flat');
+    expect(await page.evaluate((key) => localStorage.getItem(key), GLASS_KEY)).toBe('flat');
+    expect(await blur('sidenav')).toBe('none');
+
+    await page.reload();
+    expect(await glass(page)).toBe('flat');
+    await expect(page.getByRole('switch', { name: 'Desfoque (vidro)' })).not.toBeChecked();
+    expect(await blur('sidenav')).toBe('none');
+
+    await page.getByRole('switch', { name: 'Desfoque (vidro)' }).check();
+    await expect.poll(() => glass(page)).toBe('blur');
+    expect(await blur('sidenav')).toContain('blur');
+  });
+
+  test('um valor inválido gravado para o desfoque é ignorado e o sem flash respeita "sólido"', async ({ page }) => {
+    await page.addInitScript((key) => localStorage.setItem(key, '"><script>'), GLASS_KEY);
+    await page.goto('/login');
+    expect(await glass(page)).toBe('blur');
+
+    const other = await page.context().newPage();
+    await other.addInitScript((key) => {
+      localStorage.setItem(key, 'flat');
+      const seen: string[] = [];
+      (window as unknown as { __glass: string[] }).__glass = seen;
+      new MutationObserver((records) => {
+        for (const record of records) seen.push((record.target as HTMLElement).getAttribute('data-glass') ?? '');
+      }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-glass'] });
+    }, GLASS_KEY);
+    await other.goto('/login');
+    const seen = await other.evaluate(() => (window as unknown as { __glass: string[] }).__glass);
+    expect(seen).not.toContain('blur');
+    expect(seen[0]).toBe('flat');
+  });
+
+  test('Minha conta passa no axe com o desfoque desligado nos dois temas', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await page.goto('/settings');
+    await page.getByRole('switch', { name: 'Desfoque (vidro)' }).uncheck();
+    const problems: string[] = [];
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await expect.poll(() => theme(page)).toBe(scheme);
+      for (const v of await violations(page)) problems.push(`${scheme}: ${v}`);
+    }
+    expect(problems).toEqual([]);
   });
 
   test('no tema claro o foco dos campos é neutro e os cartões têm borda legível', async ({ page }) => {

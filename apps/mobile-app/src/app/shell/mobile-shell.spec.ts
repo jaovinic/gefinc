@@ -260,12 +260,29 @@ describe('shell do app móvel', () => {
       ['Minha conta', '/minha-conta'],
     ]);
     expect(menu.querySelector('[role="radiogroup"][aria-label="Aparência"]')).not.toBeNull();
+    const glass = menu.querySelector('input[role="switch"]') as HTMLInputElement;
+    expect(glass.closest('label')?.textContent).toContain('Desfoque (vidro)');
+    expect(glass.checked).toBe(true);
 
     const leave = [...menu.querySelectorAll('button')].find((b) => b.textContent?.trim() === 'Sair') as HTMLButtonElement;
     leave.click();
     harness.detectChanges();
     expect(logout.run).toHaveBeenCalledTimes(1);
     expect(more(el)).toBeNull();
+  });
+
+  it('rolar o conteúdo marca a raiz com data-scrolling (desfoque desligado durante a rolagem)', async () => {
+    jest.useFakeTimers();
+    try {
+      const { el } = await open('/');
+      const main = el.querySelector('main.gef-shell-main') as HTMLElement;
+      main.dispatchEvent(new Event('scroll'));
+      expect(document.documentElement.hasAttribute('data-scrolling')).toBe(true);
+      jest.advanceTimersByTime(1000);
+      expect(document.documentElement.hasAttribute('data-scrolling')).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('escolher um destino do menu navega e fecha o painel', async () => {

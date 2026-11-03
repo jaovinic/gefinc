@@ -14,7 +14,7 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <script>
-      /* Tema antes da primeira pintura (evita o flash). Mesma regra do ThemeService; só lê e aplica, sem dados externos. */
+      /* Tema e desfoque antes da primeira pintura (evita o flash). Mesma regra do ThemeService e do GlassService; só lê e aplica, sem dados externos. */
       (function () {
         var theme = 'dark';
         try {
@@ -32,6 +32,14 @@
           for (var i = 0; i < metas.length; i++) {
             metas[i].setAttribute('content', theme === 'light' ? '#f3f6fb' : '#090d16');
           }
+        } catch (e) {}
+        /* Desfoque do vidro: só 'blur' ou 'flat' valem; qualquer outro valor (ou sem armazenamento) vira 'blur'. */
+        try {
+          var glass = null;
+          try {
+            glass = localStorage.getItem('gefinc.ui.glass');
+          } catch (e) {}
+          document.documentElement.setAttribute('data-glass', glass === 'flat' ? 'flat' : 'blur');
         } catch (e) {}
       })();
     </script>
