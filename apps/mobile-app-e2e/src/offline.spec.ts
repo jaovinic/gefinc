@@ -90,6 +90,12 @@ test.describe('uso sem internet', () => {
     await expect(card(page, 'Mercado')).toBeVisible();
     await openTab(page, 'Painel');
     await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
+    // no navegador a tela do novo lançamento é carregada sob demanda (no app instalado o código já vem no pacote):
+    // abre uma vez com rede para que ela exista no aparelho antes de a conexão cair
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await expect(page.getByLabel('Valor', { exact: true })).toBeFocused();
+    await page.getByRole('link', { name: 'Cancelar' }).click();
+    await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
 
     await context.setOffline(true);
     await page.getByRole('link', { name: 'Novo lançamento' }).click();

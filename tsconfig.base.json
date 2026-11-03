@@ -27,6 +27,9 @@
       "@gefinc/ui-shared": [
         "./packages/ui-shared/src/index.ts"
       ],
+      "@gefinc/ui-shared/pages": [
+        "./packages/ui-shared/src/pages.ts"
+      ],
       "@gefinc/ui-shared/testing": [
         "./packages/ui-shared/src/testing/testbed.ts"
       ]

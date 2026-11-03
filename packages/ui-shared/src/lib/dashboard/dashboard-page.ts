@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Balances, Dashboard } from '@gefinc/core-models';
@@ -76,13 +77,25 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
                 <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Gastos por categoria</h2>
                   @if (categorySlices().length > 0) {
-                    <gef-category-donut [slices]="categorySlices()" />
+                    @defer (on viewport) {
+                      <gef-category-donut [slices]="categorySlices()" />
+                    } @placeholder {
+                      <div class="h-48 rounded-lg bg-gefinc-border/70" data-testid="chart-placeholder" aria-hidden="true"></div>
+                    } @error {
+                      <gef-error message="Não foi possível carregar o gráfico." (retry)="reloadPage()" />
+                    }
                   }
                 </div>
                 <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Distribuição por cartão</h2>
                   @if (cardSlices().length > 0) {
-                    <gef-card-bars [slices]="cardSlices()" />
+                    @defer (on viewport) {
+                      <gef-card-bars [slices]="cardSlices()" />
+                    } @placeholder {
+                      <div class="h-32 rounded-lg bg-gefinc-border/70" data-testid="chart-placeholder" aria-hidden="true"></div>
+                    } @error {
+                      <gef-error message="Não foi possível carregar o gráfico." (retry)="reloadPage()" />
+                    }
                   } @else {
                     <p class="text-body-base text-gefinc-muted">Nenhum gasto em cartão neste mês.</p>
                   }
@@ -99,6 +112,7 @@ export class DashboardPage {
   private readonly balancesApi = inject(BalancesApi);
   private readonly notices = inject(NoticeService);
   private readonly reference = inject(ReferenceData);
+  private readonly document = inject(DOCUMENT);
   protected readonly paths = inject(APP_PATHS);
 
   protected readonly month = signal(currentMonth());
@@ -170,6 +184,15 @@ export class DashboardPage {
         this.loading.set(false);
       },
     });
+  }
+
+  /**
+   * "Tentar novamente" dos gráficos: o Angular guarda a falha do `@defer` por template (não por instância), então
+   * recriar o bloco não refaz o carregamento. Recarregar a tela é o caminho seguro: refaz o pedido do trecho de
+   * código e os dados vêm do servidor (a fila de pendências do app móvel fica em armazenamento persistente).
+   */
+  protected reloadPage(): void {
+    this.document.defaultView?.location.reload();
   }
 
   protected isEmpty(d: Dashboard): boolean {

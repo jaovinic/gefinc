@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, InjectionToken, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import type { Observable } from 'rxjs';
@@ -21,6 +21,7 @@ import { Viewport } from '../viewport/viewport';
 import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 import { GroupForm } from './group-form';
 import { incomeDateHint } from './income-hint';
+import { PENDING_MARKER } from './pending-marker';
 
 type Panel =
   | { kind: 'pay'; tx: Transaction }
@@ -31,15 +32,6 @@ type Panel =
 type Confirming = { kind: 'delete'; tx: Transaction; impact: GroupImpact } | { kind: 'end'; tx: Transaction };
 
 const PAGE_SIZE = 25;
-
-/**
- * Diz se um lançamento só existe no aparelho (criado sem conexão, ainda não enviado). O app móvel
- * fornece; nesses itens as ações ficam desligadas até o envio. No web nunca há itens assim.
- */
-export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('PENDING_MARKER', {
-  providedIn: 'root',
-  factory: () => () => false,
-});
 
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({

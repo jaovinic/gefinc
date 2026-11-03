@@ -5,7 +5,7 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
 import { API, clickButton, configureHttpTesting, select } from '../../testing/testbed';
 import { NoticeService } from '../api';
-import { PENDING_MARKER } from './transactions-page';
+import { PENDING_MARKER } from './pending-marker';
 import { Viewport } from '../viewport/viewport';
 import { TransactionsPage } from './transactions-page';
 

@@ -46,11 +46,14 @@ test.describe('painel e fluxo de caixa no celular', () => {
     await expect(indicator(page, 'paid')).toContainText(brl(api.totalPaid));
     await expect(indicator(page, 'overdue')).toContainText(brl(api.overdueTotal));
 
+    // os gráficos só carregam quando chegam à tela (@defer on viewport): rola até cada um
+    await page.getByRole('heading', { name: 'Gastos por categoria' }).scrollIntoViewIfNeeded();
     const categories = page.getByLabel('Legenda do gráfico por categoria');
     for (const c of api.byCategory as { name: string; amount: string }[]) {
       await expect(categories).toContainText(c.name);
       await expect(categories).toContainText(brl(c.amount));
     }
+    await page.getByRole('heading', { name: 'Distribuição por cartão' }).scrollIntoViewIfNeeded();
     const cards = page.getByLabel('Legenda do gráfico por cartão');
     for (const c of api.byCard as { name: string; amount: string }[]) {
       await expect(cards).toContainText(c.name);

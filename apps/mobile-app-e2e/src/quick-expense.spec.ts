@@ -55,6 +55,7 @@ test.describe('novo lançamento rápido: despesa', () => {
     await signIn(page, await prepareUser(request));
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await expect(page.getByLabel('Valor', { exact: true })).toBeFocused(); // a tela carrega sob demanda: espera abrir
     await page.keyboard.type('1000');
     await page.getByLabel('Descrição (opcional)').fill('Padaria');
     await chooseAccount(page, page, 'Itaú');
@@ -98,6 +99,7 @@ test.describe('novo lançamento rápido: despesa', () => {
     await signIn(page, await prepareUser(request));
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await expect(page.getByLabel('Valor', { exact: true })).toBeFocused(); // a tela carrega sob demanda: espera abrir
     await page.keyboard.type('4200');
     await page.getByLabel('Descrição (opcional)').fill('Farmácia');
     await page.route('**/transaction-groups', (route) => route.abort('internetdisconnected'));
