@@ -32,6 +32,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
 /** Cadastro de lançamento avulso, fixo mensal ou parcelado (FR-017 a FR-024). */
 @Component({
   selector: 'gef-group-form',
+  host: { class: 'block' },
   imports: [AccountPicker, AmountModeSwitch, KindSwitch, ReactiveFormsModule, MoneyInput],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 gef-card p-4" novalidate>

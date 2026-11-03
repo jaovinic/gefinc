@@ -23,9 +23,27 @@ export async function installNativeDoubles(page: Page, config: NativeConfig = {}
       },
       privacyOn: state?.privacyOn ?? false,
       notifications: { permission: cfg.notifications?.permission ?? 'granted', scheduled: [], tapListeners: [] },
+      systemBars: [],
+      back: { listeners: [], minimized: 0 },
     };
   }, config);
 }
+
+/** Estilos de barras de sistema pedidos ao plugin, na ordem ('Dark' = ícones claros; 'Light' = ícones escuros). */
+export const systemBarStyles = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __gefincNative: { systemBars: string[] } }).__gefincNative.systemBars);
+
+/** Simula o botão Voltar do Android (tecla ou gesto de borda). */
+export async function pressAndroidBack(page: Page, canGoBack = true) {
+  await page.evaluate((can) => {
+    const back = (window as unknown as { __gefincNative: { back: { listeners: ((e: { canGoBack: boolean }) => void)[] } } }).__gefincNative.back;
+    back.listeners.forEach((listener) => listener({ canGoBack: can }));
+  }, canGoBack);
+}
+
+/** Quantas vezes o app foi mandado para o segundo plano pelo Voltar na raiz. */
+export const minimizedCount = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __gefincNative: { back: { minimized: number } } }).__gefincNative.back.minimized);
 
 /** Resultados que a biometria dará nas próximas confirmações ('ok', 'failed', 'cancelled', 'lockout', 'unavailable'). */
 export async function queueBiometric(page: Page, ...results: string[]) {

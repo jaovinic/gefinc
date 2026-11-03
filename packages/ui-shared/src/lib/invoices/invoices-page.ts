@@ -12,7 +12,7 @@ import { MoneyInput } from '../money-input/money-input';
 import { MonthPicker } from '../month-picker/month-picker';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
-import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
+import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefinc/utils';
 
 /** Faturas de cartão: itens, pagamento parcial ou total, desfazer e projeção dos próximos meses (FR-027, FR-034 a FR-039). */
 @Component({
@@ -177,10 +177,10 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
                       <button
                         type="button"
                         class="gef-action rounded-lg border border-gefinc-border"
-                        [attr.aria-label]="'Abrir fatura de ' + card.name + ' em ' + inv.month"
+                        [attr.aria-label]="'Abrir fatura de ' + card.name + ' em ' + label(inv.month)"
                         (click)="open(card.accountId, inv.month)"
                       >
-                        <span class="text-caption text-gefinc-muted">{{ inv.month }}</span>&nbsp;<span class="financial-value">{{ money(inv.remaining) }}</span>
+                        <span class="text-caption text-gefinc-muted">{{ label(inv.month) }}</span>&nbsp;<span class="financial-value">{{ money(inv.remaining) }}</span>
                       </button>
                     }
                   </div>
@@ -194,7 +194,7 @@ import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
                 <tr>
                   <th class="px-4 py-3">Cartão</th>
                   @for (m of proj.months; track m) {
-                    <th class="px-4 py-3 text-right">{{ m }}</th>
+                    <th class="px-4 py-3 text-right">{{ label(m) }}</th>
                   }
                   <th class="px-4 py-3 text-right">Comprometido</th>
                 </tr>
@@ -320,6 +320,10 @@ export class InvoicesPage implements OnInit {
     return isoToBR(iso);
   }
 
+  protected label(month: string): string {
+    return monthLabelBR(month);
+  }
+
   protected money(value: string): string {
     return formatBRL(value);
   }
@@ -345,7 +349,7 @@ export class InvoicesPage implements OnInit {
     if (item.overdue) {
       return { label: 'Vencido', icon: 'alert', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
     }
-    return { label: 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+    return { label: 'Pendente', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
   }
 
   protected openPayment(mode: 'partial' | 'settle'): void {

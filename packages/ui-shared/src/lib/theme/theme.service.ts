@@ -1,5 +1,5 @@
 import { DOCUMENT } from '@angular/common';
-import { EnvironmentProviders, Injectable, computed, effect, inject, provideAppInitializer, signal } from '@angular/core';
+import { EnvironmentProviders, Injectable, InjectionToken, computed, effect, inject, provideAppInitializer, signal } from '@angular/core';
 
 /** Escolha da pessoa: seguir o sistema (padrão), claro ou escuro. */
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -13,6 +13,16 @@ export const THEME_LABELS: Readonly<Record<ThemePreference, string>> = { light: 
 /** Cor da barra do navegador por tema (a do escuro é a do manifesto). */
 const META_COLOR: Readonly<Record<ResolvedTheme, string>> = { dark: '#090d16', light: '#f3f6fb' };
 const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+/**
+ * Porta para o "chrome" do sistema (barras de status e de gestos do app nativo): o app móvel liga a
+ * implementação com Capacitor; a web não fornece nada e nada acontece.
+ */
+export interface ThemeChrome {
+  /** Avisa o sistema qual tema o app está mostrando, para os ícones das barras ficarem legíveis. */
+  sync(theme: ResolvedTheme): void | Promise<void>;
+}
+export const THEME_CHROME = new InjectionToken<ThemeChrome | null>('THEME_CHROME', { providedIn: 'root', factory: () => null });
 
 /** Aceita só valores conhecidos: o que estiver gravado fora da lista é ignorado (vira "sistema"). */
 export function parseThemePreference(value: unknown): ThemePreference {
@@ -29,6 +39,7 @@ export function parseThemePreference(value: unknown): ThemePreference {
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly media = this.matchDark();
+  private readonly chrome = inject(THEME_CHROME);
 
   readonly preference = signal<ThemePreference>(this.read());
   private readonly systemDark = signal(this.media?.matches ?? true);
@@ -79,6 +90,16 @@ export class ThemeService {
     const root = this.doc.documentElement;
     root.dataset['theme'] = theme;
     this.doc.querySelectorAll('meta[name="theme-color"]').forEach((meta) => meta.setAttribute('content', META_COLOR[theme]));
+    this.syncChrome(theme);
+  }
+
+  /** Falha do plugin nativo nunca atrapalha o tema do app. */
+  private syncChrome(theme: ResolvedTheme): void {
+    try {
+      Promise.resolve(this.chrome?.sync(theme)).catch(() => undefined);
+    } catch {
+      /* plugin ausente ou sem suporte: o tema do app segue valendo */
+    }
   }
 }
 

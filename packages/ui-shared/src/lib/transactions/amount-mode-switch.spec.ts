@@ -32,6 +32,13 @@ describe('AmountModeSwitch', () => {
     expect(buttons().every((b) => b.type === 'button' && b.classList.contains('gef-seg-btn'))).toBe(true);
   });
 
+  it('a raiz é de bloco e os botões deixam o rótulo respirar (px-2, centralizado, entrelinha curta)', () => {
+    const { el, buttons } = render();
+
+    expect(el.querySelector('gef-amount-mode-switch')?.className).toContain('block');
+    expect(buttons().every((b) => b.classList.contains('px-2') && b.classList.contains('text-center') && b.classList.contains('leading-tight'))).toBe(true);
+  });
+
   it('a ordem pode começar pelo total (cadastro completo)', () => {
     const { fixture, buttons } = render();
     fixture.componentInstance.order.set('total-first');

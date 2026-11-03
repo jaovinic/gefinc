@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { THEME_STORAGE_KEY, ThemeService, parseThemePreference } from './theme.service';
+import { THEME_CHROME, THEME_STORAGE_KEY, ThemeChrome, ThemeService, parseThemePreference } from './theme.service';
 
 type Listener = (event: { matches: boolean }) => void;
 
@@ -134,5 +134,61 @@ describe('ThemeService', () => {
     expect(service.preference()).toBe('system');
     expect(() => service.set('light')).not.toThrow();
     expect(service.preference()).toBe('light');
+  });
+  describe('porta do chrome do sistema (barras de status e de gestos)', () => {
+    const withChrome = (sync: ThemeChrome['sync']) => TestBed.configureTestingModule({ providers: [{ provide: THEME_CHROME, useValue: { sync } }] });
+
+    it('é avisada do tema na partida e a cada mudança de preferência', () => {
+      fakeMatchMedia(true);
+      const sync = jest.fn();
+      withChrome(sync);
+      const service = TestBed.inject(ThemeService);
+      TestBed.tick();
+      expect(sync).toHaveBeenLastCalledWith('dark');
+
+      service.set('light');
+      TestBed.tick();
+      expect(sync).toHaveBeenLastCalledWith('light');
+
+      service.set('dark');
+      TestBed.tick();
+      expect(sync).toHaveBeenLastCalledWith('dark');
+    });
+
+    it('em "sistema" acompanha a mudança do sistema em tempo real', () => {
+      const media = fakeMatchMedia(true);
+      const sync = jest.fn();
+      withChrome(sync);
+      TestBed.inject(ThemeService);
+      TestBed.tick();
+
+      media.change(false);
+      TestBed.tick();
+      expect(sync).toHaveBeenLastCalledWith('light');
+    });
+
+    it('falha da porta (síncrona ou assíncrona) não lança nem atrapalha o tema', async () => {
+      fakeMatchMedia(true);
+      withChrome(() => {
+        throw new Error('plugin ausente');
+      });
+      const service = TestBed.inject(ThemeService);
+      expect(() => service.set('light')).not.toThrow();
+      TestBed.tick();
+      expect(document.documentElement.dataset['theme']).toBe('light');
+
+      TestBed.resetTestingModule();
+      withChrome(() => Promise.reject(new Error('sem suporte')));
+      const other = TestBed.inject(ThemeService);
+      other.set('dark');
+      TestBed.tick();
+      await Promise.resolve();
+      expect(document.documentElement.dataset['theme']).toBe('dark');
+    });
+
+    it('sem a porta (web) nada acontece', () => {
+      fakeMatchMedia(true);
+      expect(() => TestBed.inject(ThemeService).set('light')).not.toThrow();
+    });
   });
 });

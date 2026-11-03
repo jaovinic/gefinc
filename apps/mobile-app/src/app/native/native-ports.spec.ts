@@ -2,6 +2,8 @@ const biometric = {
   checkBiometry: jest.fn(),
   authenticate: jest.fn(),
 };
+const systemBars = { setStyle: jest.fn(async () => undefined) };
+const app = { addListener: jest.fn(async () => ({ remove: jest.fn() })), minimizeApp: jest.fn(async () => undefined) };
 const privacy = { enable: jest.fn(async () => undefined), disable: jest.fn(async () => undefined) };
 
 jest.mock('@aparajita/capacitor-biometric-auth', () => ({
@@ -16,9 +18,11 @@ jest.mock('@aparajita/capacitor-biometric-auth', () => ({
   },
 }));
 jest.mock('@capacitor-community/privacy-screen', () => ({ PrivacyScreen: privacy }));
+jest.mock('@capacitor/core', () => ({ ...jest.requireActual('@capacitor/core'), SystemBars: systemBars }));
+jest.mock('@capacitor/app', () => ({ App: app }));
 
 import { BiometryError } from '@aparajita/capacitor-biometric-auth';
-import { BiometricFailure, biometricPort, privacyPort } from './native-ports';
+import { BiometricFailure, backButtonPort, biometricPort, privacyPort, systemBarsChrome } from './native-ports';
 
 describe('portas para os plugins nativos', () => {
   beforeEach(() => {
@@ -87,5 +91,55 @@ describe('portas para os plugins nativos', () => {
     await privacyPort().enable();
     expect(calls).toEqual(['on']);
     expect(biometric.authenticate).not.toHaveBeenCalled();
+  });
+
+  it('barras do sistema: tema escuro pede ícones claros (Dark) e o claro, ícones escuros (Light), nas duas barras', async () => {
+    systemBars.setStyle.mockClear();
+    await systemBarsChrome().sync('dark');
+    await systemBarsChrome().sync('light');
+
+    expect(systemBars.setStyle).toHaveBeenNthCalledWith(1, { style: 'DARK' });
+    expect(systemBars.setStyle).toHaveBeenNthCalledWith(2, { style: 'LIGHT' });
+    // sem `bar`: vale para a barra de status e para a de gestos
+    expect(systemBars.setStyle.mock.calls.every(([options]) => !('bar' in (options as object)))).toBe(true);
+  });
+
+  it('barras do sistema: o dublê registra o estilo pedido sem chamar o plugin', async () => {
+    systemBars.setStyle.mockClear();
+    const doubles: { systemBars?: string[] } = {};
+    (window as { __gefincNative?: unknown }).__gefincNative = doubles;
+
+    await systemBarsChrome().sync('dark');
+    await systemBarsChrome().sync('light');
+
+    expect(doubles.systemBars).toEqual(['Dark', 'Light']);
+    expect(systemBars.setStyle).not.toHaveBeenCalled();
+  });
+
+  it('botão Voltar: repassa canGoBack do plugin e minimiza o app (sem exitApp)', async () => {
+    const listener = jest.fn();
+    app.addListener.mockClear();
+    await backButtonPort().onBack(listener);
+
+    expect(app.addListener).toHaveBeenCalledWith('backButton', expect.any(Function));
+    const handler = (app.addListener.mock.calls[0] as unknown as [string, (e: { canGoBack: boolean }) => void])[1];
+    handler({ canGoBack: true });
+    expect(listener).toHaveBeenCalledWith({ canGoBack: true });
+
+    await backButtonPort().minimize();
+    expect(app.minimizeApp).toHaveBeenCalledTimes(1);
+  });
+
+  it('botão Voltar: o dublê guarda os ouvintes e conta as minimizações', async () => {
+    const back = { listeners: [] as ((e: { canGoBack: boolean }) => void)[], minimized: 0 };
+    (window as { __gefincNative?: unknown }).__gefincNative = { back };
+    const listener = jest.fn();
+
+    await backButtonPort().onBack(listener);
+    back.listeners[0]({ canGoBack: false });
+    await backButtonPort().minimize();
+
+    expect(listener).toHaveBeenCalledWith({ canGoBack: false });
+    expect(back.minimized).toBe(1);
   });
 });

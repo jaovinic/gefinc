@@ -19,6 +19,7 @@ function toneOf(value: string): Tone {
  */
 @Component({
   selector: 'gef-balance-panel',
+  host: { class: 'block' },
   imports: [AccountBadge, Icon, RouterLink],
   template: `
     <section class="space-y-3" aria-label="Saldo das contas" data-testid="balance-panel">

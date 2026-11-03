@@ -38,6 +38,15 @@ describe('MonthPicker', () => {
     expect(el.textContent).toContain('dezembro de 2026');
   });
 
+  it('capitaliza só a primeira letra do mês por CSS e mantém o texto em minúsculas', async () => {
+    const { el } = await setup();
+    const label = el.querySelector('[aria-live="polite"]') as HTMLElement;
+    expect(label.className).toContain('first-letter:uppercase');
+    expect(label.className).not.toMatch(/(^|\s)capitalize(\s|$)/);
+    expect(label.className).toContain('min-w-0');
+    expect(label.textContent?.trim()).toBe('dezembro de 2026');
+  });
+
   it('avança pela virada de ano e volta', async () => {
     const { fixture, el, click } = await setup();
 

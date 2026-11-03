@@ -7,6 +7,7 @@ import { Icon } from '../icons/icon';
  */
 @Component({
   selector: 'gef-loading',
+  host: { class: 'block' },
   template: `
     <div role="status" aria-live="polite" [attr.aria-busy]="true">
       @switch (variant()) {
@@ -45,6 +46,7 @@ export class LoadingView {
 /** Estado vazio com orientação e, opcionalmente, uma ação (conteúdo projetado). */
 @Component({
   selector: 'gef-empty',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     <div class="flex flex-col items-center gap-2 p-8 text-center">
@@ -66,6 +68,7 @@ export class EmptyView {
 /** Estado de erro com botão para tentar de novo. */
 @Component({
   selector: 'gef-error',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     <div class="flex flex-col items-center gap-3 p-8 text-center" role="alert">

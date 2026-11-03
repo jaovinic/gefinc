@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fundo do splash no tema claro (igual ao fundo claro do app). -->
+    <color name="gefinc_splash_background">#F3F6FB</color>
+</resources>

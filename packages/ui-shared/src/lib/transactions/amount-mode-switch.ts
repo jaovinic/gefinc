@@ -13,13 +13,14 @@ const OPTIONS: Record<AmountMode, string> = { INSTALLMENT: 'Valor da parcela', T
  */
 @Component({
   selector: 'gef-amount-mode-switch',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     <div class="space-y-2" data-testid="amount-mode-switch">
       <p class="gef-label !mb-0">O valor digitado é</p>
       <div class="gef-seg-track" role="group" aria-label="Forma de informar" [attr.aria-describedby]="helpId">
         @for (mode of modes(); track mode) {
-          <button type="button" class="gef-seg-btn" [attr.aria-pressed]="value() === mode" (click)="pick(mode, $event)">
+          <button type="button" class="gef-seg-btn px-2 text-center leading-tight" [attr.aria-pressed]="value() === mode" (click)="pick(mode, $event)">
             @if (value() === mode) {
               <gef-icon name="check" [size]="16" />
             }

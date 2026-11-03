@@ -116,22 +116,24 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
           <p class="mt-1 text-caption text-gefinc-warning" aria-live="polite" data-testid="account-notice">{{ accountNotice() }}</p>
         </div>
         @if (showInstallments()) {
-          <fieldset class="gef-card space-y-4 p-4 pt-2" data-testid="installment-group">
+          <fieldset class="gef-card p-4 pt-2" data-testid="installment-group">
             <legend class="gef-label px-1">Parcelamento</legend>
-            <div>
-              <label class="gef-label" for="installments">Parcelas</label>
-              <select id="installments" class="gef-input" formControlName="installments">
-                @for (option of installmentOptions; track option) {
-                  <option [value]="option">{{ option === 1 ? 'À vista (1x)' : option + 'x' }}</option>
+            <div class="space-y-4" data-testid="installment-body">
+              <div>
+                <label class="gef-label" for="installments">Parcelas</label>
+                <select id="installments" class="gef-input" formControlName="installments">
+                  @for (option of installmentOptions; track option) {
+                    <option [value]="option">{{ option === 1 ? 'À vista (1x)' : option + 'x' }}</option>
+                  }
+                </select>
+                @if (serverErrors()['totalInstallments']; as message) {
+                  <p class="gef-field-error">{{ message }}</p>
                 }
-              </select>
-              @if (serverErrors()['totalInstallments']; as message) {
-                <p class="gef-field-error">{{ message }}</p>
+              </div>
+              @if (parcelado()) {
+                <gef-amount-mode-switch [value]="amountMode()" [count]="installments()" (changed)="onAmountModeChanged($event)" />
               }
             </div>
-            @if (parcelado()) {
-              <gef-amount-mode-switch [value]="amountMode()" [count]="installments()" (changed)="onAmountModeChanged($event)" />
-            }
           </fieldset>
         }
         <div class="space-y-2">
@@ -334,7 +336,8 @@ export class NewEntryPage implements OnInit, OnDestroy {
    */
   protected onKindPicked(source: 'pointer' | 'keyboard'): void {
     if (source === 'pointer') {
-      this.amountField()?.focus();
+      // `preventScroll`: devolver o foco não pode rolar a tela (o resumo e o Salvar ficam à vista).
+      this.amountField()?.focus({ preventScroll: true });
     }
   }
 
@@ -346,7 +349,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
   protected onAmountModeChanged(change: { mode: AmountMode; byPointer: boolean }): void {
     this.amountMode.set(change.mode);
     if (change.byPointer) {
-      this.amountField()?.focus();
+      this.amountField()?.focus({ preventScroll: true });
     }
   }
 

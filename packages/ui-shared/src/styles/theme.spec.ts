@@ -214,3 +214,73 @@ describe('theme.css - contraste WCAG AA (4,5:1) nos dois temas', () => {
     });
   });
 });
+
+describe('theme.css - ilha, botão flutuante e desempenho do vidro no celular', () => {
+  const scopes: [string, string][] = [
+    ['escuro', ':root'],
+    ['claro', "html[data-theme='light']"],
+  ];
+  const pick = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope, name));
+    } catch {
+      return parseColor(token(':root', name));
+    }
+  };
+  const themeColor = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope === ':root' ? '@theme' : scope, name));
+    } catch {
+      return parseColor(token('@theme', name));
+    }
+  };
+
+  it('cabeçalho e ilha do app móvel não desfocam (desempenho a 120 Hz): a ilha usa um vidro mais opaco', () => {
+    const header = css.match(/\.gef-app-header\s*\{[^}]*\}/)?.[0] ?? '';
+    const island = css.match(/\.gef-tabbar\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(header).toContain('background-color: var(--glass-bg-strong)');
+    expect(header).not.toContain('backdrop-filter');
+    expect(island).toContain('background-color: var(--glass-nav-bg)');
+    expect(island).not.toContain('backdrop-filter');
+    const blurGroup = css.match(/\.gef-glass-strong,[^{]*\{[^}]*\}/)?.[0] ?? '';
+    expect(blurGroup).not.toContain('.gef-app-header');
+    expect(blurGroup).not.toContain('.gef-tabbar');
+  });
+
+  it('a ilha é mais opaca que o vidro comum e volta a ser sólida nos três fallbacks', () => {
+    for (const scope of [':root', "html[data-theme='light']"]) {
+      expect(parseColor(token(scope, '--glass-nav-bg'))[3]).toBeGreaterThan(parseColor(token(scope, '--glass-bg-strong'))[3]);
+    }
+    for (const marker of ['@media (prefers-reduced-transparency: reduce) {', '@media (prefers-contrast: more) {', '@supports not (']) {
+      const start = css.indexOf(marker);
+      expect(css.slice(start, css.indexOf('\n}', start))).toContain('--glass-nav-bg: var(--color-gefinc-surface)');
+    }
+  });
+
+  describe.each(scopes)('tema %s', (_label, scope) => {
+    const bg = themeColor(scope, '--color-gefinc-bg');
+    const strong = over(pick(scope, '--glass-nav-bg'), bg);
+
+    it('o rótulo ativo (cor de marca) é legível sobre o indicador de vidro, no pior ponto do brilho', () => {
+      const primary = themeColor(scope, '--color-gefinc-primary');
+      const tint = over(pick(scope, '--glass-indicator-tint'), strong);
+      const worst = over(pick(scope, '--glass-indicator-sheen'), tint);
+      expect(contrast(primary, tint)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(primary, worst)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    it('o texto escuro do botão flutuante passa em AA nas duas pontas, mesmo sobre o fundo mais escuro e o mais claro', () => {
+      const onAccent = themeColor(scope, '--color-gefinc-on-accent');
+      const darkest = parseColor('#090d16');
+      const lightest = parseColor('#f3f6fb');
+      for (const underlay of [darkest, lightest, bg]) {
+        for (const end of ['--glass-fab-start', '--glass-fab-end']) {
+          const ratio = contrast(onAccent, over(pick(scope, end), underlay));
+          if (ratio < 4.5) {
+            throw new Error(`${end} sobre ${underlay.slice(0, 3).join(',')}: ${ratio.toFixed(2)}`);
+          }
+        }
+      }
+    });
+  });
+});

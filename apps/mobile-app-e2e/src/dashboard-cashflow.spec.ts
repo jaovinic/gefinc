@@ -6,6 +6,12 @@ const currentMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+/** "2026-11" -> "nov/2026", no mesmo formato do app. */
+const monthLabel = (iso: string) => {
+  const [year, month] = iso.split('-');
+  return `${['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(month) - 1]}/${year}`;
+};
+
 /** "1380.50" -> "R$ 1.380,50", no mesmo formato do app. */
 const brl = (value: string) => {
   const negative = value.startsWith('-');
@@ -98,7 +104,7 @@ test.describe('painel e fluxo de caixa no celular', () => {
       month: string; expectedIncome: string; expectedExpense: string; residual: string;
     }[];
     const first = page.getByTestId('cashflow-card').first();
-    await expect(first).toContainText(api[0].month);
+    await expect(first).toContainText(monthLabel(api[0].month));
     await expect(first).toContainText(brl(api[0].expectedExpense));
     await expect(first).toContainText(brl(api[0].residual));
   });

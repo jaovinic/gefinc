@@ -62,6 +62,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
 
 @Component({
   selector: 'gef-account-form',
+  host: { class: 'block' },
   imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>

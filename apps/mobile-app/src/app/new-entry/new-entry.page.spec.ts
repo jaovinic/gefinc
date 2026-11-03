@@ -561,6 +561,27 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     el.remove();
   });
 
+  it('devolver o foco ao valor não rola a tela (preventScroll), ao alternar o modo e ao escolher a natureza', async () => {
+    const { fixture, el } = await setup();
+    document.body.appendChild(el);
+    await card10x(fixture, el, '3', '10000');
+    const focus = jest.spyOn(HTMLInputElement.prototype, 'focus');
+
+    modeButton(el, 'Valor total').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    fixture.detectChanges();
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    expect(focus.mock.instances.at(-1)).toBe(el.querySelector('gef-money-input input'));
+
+    focus.mockClear();
+    (el.querySelector('gef-kind-switch') as HTMLElement).dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+
+    focus.mockRestore();
+    el.remove();
+  });
+
   it('alternar o modo pelo teclado ou leitor de tela mantém o foco no botão', async () => {
     const { fixture, el } = await setup();
     document.body.appendChild(el);
@@ -606,6 +627,18 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     expect(mode.closest('[data-testid="installment-group"]')?.querySelector('legend')?.textContent).toContain('Parcelamento');
     expect(mode.textContent).toContain('O valor digitado é');
     expect(mode.contains(el.querySelector('gef-money-input'))).toBe(false);
+  });
+
+  it('os componentes do formulário são de bloco (as margens do espaçamento valem) e a legenda não ganha a margem do grupo', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    for (const selector of ['gef-kind-switch', 'gef-money-input', 'gef-account-picker', 'gef-amount-mode-switch', 'gef-installment-summary-card']) {
+      expect((el.querySelector(selector) as HTMLElement).className).toContain('block');
+    }
+    const group = el.querySelector('[data-testid="installment-group"]') as HTMLElement;
+    expect(group.className).not.toContain('space-y');
+    expect(group.querySelector('legend')?.nextElementSibling?.className).toContain('space-y-4');
   });
 
   it('o card de resumo só aparece com 2 ou mais parcelas e valor', async () => {

@@ -51,12 +51,12 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
         <h1 class="text-title-lg font-bold">Lançamentos</h1>
         <div class="flex flex-col gap-3 md:flex-row md:items-center">
           <gef-month-picker [(value)]="month" />
-          <div class="flex gap-3">
-            <button type="button" class="gef-btn-primary flex flex-1 items-center justify-center gap-2 md:w-auto" (click)="formOpen.set(true)">
+          <div class="flex flex-wrap gap-3">
+            <button type="button" class="gef-btn-primary flex w-auto flex-1 basis-auto items-center justify-center gap-2 md:w-auto" (click)="formOpen.set(true)">
               <gef-icon name="plus" [size]="18" />Novo lançamento
             </button>
             @if (viewport.compact()) {
-              <button type="button" class="gef-btn-secondary flex items-center gap-2" (click)="filtersOpen.set(true)">
+              <button type="button" class="gef-btn-secondary flex shrink-0 items-center gap-2 whitespace-nowrap" (click)="filtersOpen.set(true)">
                 <gef-icon name="filter" [size]="18" />Filtros@if (activeFilters() > 0) {
                   ({{ activeFilters() }})
                 }
@@ -220,8 +220,8 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
         <ul class="space-y-3">
           @for (tx of items(); track tx.id) {
             <li data-testid="transaction-card" class="gef-card p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
+              <div class="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                <div class="min-w-[9rem] flex-1 break-words">
                   <p class="font-semibold">{{ tx.description }}</p>
                   <p class="text-caption text-gefinc-muted">
                     {{ br(tx.dueDate) }}
@@ -318,9 +318,9 @@ export const PENDING_MARKER = new InjectionToken<(tx: Transaction) => boolean>('
         <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + tx.description" (click)="openDelete(tx)">Excluir</button>
       </ng-template>
       <ng-template #paginationTpl>
-        <nav class="flex items-center justify-between text-body-base text-gefinc-muted" aria-label="Paginação">
-          <span>{{ total() }} lançamento(s)</span>
-          <span class="space-x-3">
+        <nav class="flex flex-wrap items-center justify-between gap-2 text-body-base text-gefinc-muted" aria-label="Paginação">
+          <span class="whitespace-nowrap">{{ total() }} lançamento(s)</span>
+          <span class="flex gap-3">
             <button type="button" class="gef-btn-secondary" [disabled]="page() === 0" (click)="goTo(page() - 1)">Anterior</button>
             <button type="button" class="gef-btn-secondary" [disabled]="(page() + 1) * pageSize >= total()" (click)="goTo(page() + 1)">Próxima</button>
           </span>
@@ -504,7 +504,7 @@ export class TransactionsPage implements OnInit {
     if (tx.overdue && !income) {
       return { label: 'Vencido', icon: 'alert', css: 'border-gefinc-danger/25 bg-gefinc-danger/10 text-gefinc-danger' };
     }
-    return { label: income ? 'A receber' : 'Pend', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
+    return { label: income ? 'A receber' : 'Pendente', icon: 'clock', css: 'border-gefinc-warning/25 bg-gefinc-warning/10 text-gefinc-warning' };
   }
 
   /** Valor com sinal: receita com "+" e despesa com "−", para não depender só da cor. */

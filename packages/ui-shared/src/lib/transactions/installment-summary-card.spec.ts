@@ -55,6 +55,9 @@ describe('InstallmentSummaryCard', () => {
     expect(preview.textContent).toContain('1/10 · fatura de nov/2026 · vence 17/11 · R$ 100,00');
     expect(preview.textContent).toContain('10/10 · fatura de ago/2027 · vence 17/08 · R$ 100,00');
     expect(preview.querySelector('details summary')?.textContent).toContain('Ver todas as parcelas');
+    expect(preview.querySelector('details summary')?.textContent).toContain('(10)');
+    expect(preview.querySelector('details')?.classList.contains('group')).toBe(true);
+    expect(preview.querySelector('details summary gef-icon')?.getAttribute('name')).toBe('chevron-down');
     expect(preview.querySelectorAll('details li')).toHaveLength(8);
   });
 

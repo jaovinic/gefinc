@@ -98,6 +98,96 @@ describe('shell do app móvel', () => {
     expect(active()).toEqual(['Faturas']);
   });
 
+  describe('indicador de vidro da ilha', () => {
+    const nav = (el: HTMLElement) => el.querySelector('nav.gef-tabbar') as HTMLElement;
+    const index = (el: HTMLElement) => nav(el).style.getPropertyValue('--i');
+
+    it('é o primeiro filho da ilha, decorativo, e a ilha continua com exatamente 4 abas', async () => {
+      const { el } = await open('/');
+      const glass = nav(el).firstElementChild as HTMLElement;
+
+      expect(glass.classList).toContain('gef-tab-glass');
+      expect(glass.getAttribute('aria-hidden')).toBe('true');
+      expect(nav(el).querySelectorAll('a')).toHaveLength(4);
+      expect(nav(el).querySelectorAll('.gef-tab-label')).toHaveLength(4);
+    });
+
+    it('acompanha a rota: Painel 0, Lançamentos 1, Faturas 2, Contas 3', async () => {
+      const { harness, el } = await open('/');
+      expect(index(el)).toBe('0');
+
+      for (const [url, expected] of [['/lancamentos', '1'], ['/faturas', '2'], ['/contas', '3'], ['/', '0']]) {
+        await harness.navigateByUrl(url);
+        harness.detectChanges();
+        expect(index(el)).toBe(expected);
+        expect(nav(el).hasAttribute('data-none')).toBe(false);
+      }
+    });
+
+    it('em rotas fora das abas o indicador some (data-none) e fica onde estava', async () => {
+      const { harness, el } = await open('/contas');
+      await harness.navigateByUrl('/categorias');
+      harness.detectChanges();
+
+      expect(nav(el).hasAttribute('data-none')).toBe(true);
+      expect(index(el)).toBe('3');
+      expect(el.querySelectorAll('nav a[aria-current="page"]')).toHaveLength(0);
+
+      await harness.navigateByUrl('/faturas');
+      harness.detectChanges();
+      expect(nav(el).hasAttribute('data-none')).toBe(false);
+      expect(index(el)).toBe('2');
+    });
+
+    it('a transição só liga depois da primeira posição (data-ready)', async () => {
+      const { harness, el } = await open('/lancamentos');
+      expect(nav(el).hasAttribute('data-ready')).toBe(false);
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      harness.detectChanges();
+      expect(nav(el).hasAttribute('data-ready')).toBe(true);
+    });
+
+    it('publica a escala de texto do sistema (raiz / 16px) em --text-scale para a ilha limitar o crescimento dos rótulos', async () => {
+      document.documentElement.style.fontSize = '20.8px';
+      try {
+        await open('/');
+        expect(document.documentElement.style.getPropertyValue('--text-scale')).toBe('1.3');
+      } finally {
+        document.documentElement.style.fontSize = '';
+        document.documentElement.style.removeProperty('--text-scale');
+      }
+    });
+
+    it('com ajuste de fonte muito grande (2.0) a ilha marca data-large-text; em 1.3 não', async () => {
+      try {
+        document.documentElement.style.fontSize = '32px';
+        const big = await open('/');
+        expect(big.el.querySelector('nav.gef-tabbar')?.hasAttribute('data-large-text')).toBe(true);
+        expect(document.documentElement.style.getPropertyValue('--text-scale')).toBe('2');
+      } finally {
+        document.documentElement.style.fontSize = '';
+        document.documentElement.style.removeProperty('--text-scale');
+      }
+      TestBed.resetTestingModule();
+      try {
+        document.documentElement.style.fontSize = '20.8px';
+        const medium = await open('/');
+        expect(medium.el.querySelector('nav.gef-tabbar')?.hasAttribute('data-large-text')).toBe(false);
+      } finally {
+        document.documentElement.style.fontSize = '';
+        document.documentElement.style.removeProperty('--text-scale');
+      }
+    });
+
+    it('o rótulo da aba tem classe própria para elipse e o ativo não muda de peso', async () => {
+      const { el } = await open('/lancamentos');
+      const label = el.querySelector('nav a .gef-tab-label') as HTMLElement;
+      expect(label).not.toBeNull();
+      expect(el.querySelector('nav a.gef-tab-active')?.className).not.toContain('font-bold');
+    });
+  });
+
   it('o conteúdo das telas tem margem lateral (não cola nas bordas) e espaço para o botão flutuante', async () => {
     const { el } = await open('/');
 

@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { Sheet } from './sheet';
+import { Sheet, closeTopSheet } from './sheet';
 
 @Component({
   imports: [Sheet],
@@ -264,5 +264,54 @@ describe('Sheet (opções de confirmação)', () => {
     fixture.detectChanges();
     (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
     expect(host.closed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('closeTopSheet (botão Voltar do sistema)', () => {
+  it('sem painel aberto devolve false', () => {
+    expect(closeTopSheet()).toBe(false);
+  });
+
+  it('fecha só o painel de cima de uma pilha de dois e depois o outro', async () => {
+    const fixture = TestBed.createComponent(NestedHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const host = fixture.componentInstance;
+
+    expect(closeTopSheet()).toBe(true);
+    expect(host.innerClosed).toHaveBeenCalledTimes(1);
+    expect(host.outerClosed).not.toHaveBeenCalled();
+
+    host.inner.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(closeTopSheet()).toBe(true);
+    expect(host.outerClosed).toHaveBeenCalledTimes(1);
+
+    host.outer.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(closeTopSheet()).toBe(false);
+  });
+
+  it('consome o Voltar mesmo quando o painel não pode ser dispensado (operação em andamento), sem fechá-lo', async () => {
+    const fixture = TestBed.createComponent(OptionsHost);
+    fixture.componentInstance.dismissible.set(false);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(closeTopSheet()).toBe(true);
+    expect(fixture.componentInstance.closed).not.toHaveBeenCalled();
+  });
+
+  it('um painel destruído aberto sai da pilha e não engole o Voltar', async () => {
+    const fixture = TestBed.createComponent(NestedHost);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.destroy();
+
+    expect(closeTopSheet()).toBe(false);
   });
 });

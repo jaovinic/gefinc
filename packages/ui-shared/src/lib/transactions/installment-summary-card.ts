@@ -19,6 +19,7 @@ export const MIN_PER_INSTALLMENT_MESSAGE = 'O valor deve ter pelo menos R$ 0,01 
  */
 @Component({
   selector: 'gef-installment-summary-card',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     @if (belowMinimum()) {
@@ -59,8 +60,11 @@ export const MIN_PER_INSTALLMENT_MESSAGE = 'O valor deve ter pelo menos R$ 0,01 
               <li class="financial-value">{{ rows()[0].text }}</li>
               @if (rows().length > 2) {
                 <li>
-                  <details>
-                    <summary class="inline-flex min-h-11 cursor-pointer items-center text-gefinc-secondary">Ver todas as parcelas</summary>
+                  <details class="group">
+                    <summary class="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-gefinc-secondary [&::-webkit-details-marker]:hidden">
+                      Ver todas as parcelas ({{ rows().length }})
+                      <gef-icon name="chevron-down" [size]="16" class="transition-transform group-open:rotate-180" />
+                    </summary>
                     <ul class="mt-1 space-y-1">
                       @for (row of middle(); track row.number) {
                         <li class="financial-value">{{ row.text }}</li>

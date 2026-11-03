@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { apiPost, categoryId, newUser, openMore, signIn, todayIso } from './support';
+import { installNativeDoubles, systemBarStyles } from './native-doubles';
+import { apiPost, categoryId, newUser, openMore, settle, signIn, todayIso } from './support';
 
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 const THEME_KEY = 'gefinc.ui.theme';
@@ -43,6 +44,19 @@ test.describe('alternância de tema (app)', () => {
     await expect(again.getByRole('radio', { name: 'Claro' })).toBeChecked();
     await again.getByRole('radio', { name: 'Escuro' }).check();
     await expect.poll(() => theme(page)).toBe('dark');
+  });
+
+  test('a cada troca de tema o app pede às barras do sistema o estilo certo (Dark = ícones claros)', async ({ page, request }) => {
+    await installNativeDoubles(page);
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    expect((await systemBarStyles(page)).at(-1)).toBe('Dark');
+
+    const more = await openMore(page);
+    await more.getByRole('radiogroup', { name: 'Aparência' }).getByRole('radio', { name: 'Claro' }).check();
+    await expect.poll(async () => (await systemBarStyles(page)).at(-1)).toBe('Light');
+    await more.getByRole('radiogroup', { name: 'Aparência' }).getByRole('radio', { name: 'Escuro' }).check();
+    await expect.poll(async () => (await systemBarStyles(page)).at(-1)).toBe('Dark');
   });
 
   test('a tela Minha conta também tem a seção Aparência', async ({ page, request }) => {
@@ -120,6 +134,81 @@ test.describe('ilha de navegação e contraste (app)', () => {
     await expect(links.nth(2)).toHaveAttribute('aria-current', 'page');
     await expect(links.first()).not.toHaveAttribute('aria-current', 'page');
   });
+
+  test('o indicador de vidro desliza até a aba ativa, fica oculto fora das abas e não vaza rótulo', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    const nav = page.getByRole('navigation', { name: 'Navegação principal' });
+    const links = nav.getByRole('link');
+    const glass = nav.locator('.gef-tab-glass');
+    const near = async (index: number) => {
+      await settle(page);
+      const g = (await glass.boundingBox())!;
+      const l = (await links.nth(index).boundingBox())!;
+      expect(Math.abs(g.x - l.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(g.width - l.width)).toBeLessThanOrEqual(2);
+    };
+    await near(0);
+
+    await links.nth(3).click();
+    await expect(links.nth(3)).toHaveAttribute('aria-current', 'page');
+    await near(3);
+    await links.nth(1).click();
+    await expect(links.nth(1)).toHaveAttribute('aria-current', 'page');
+    await near(1);
+
+    // o rótulo nunca passa da própria aba
+    for (const link of await links.all()) {
+      const fits = await link.evaluate((a) => {
+        const label = a.querySelector('.gef-tab-label') as HTMLElement;
+        return label.scrollWidth <= label.clientWidth + 1 && label.getBoundingClientRect().right <= a.getBoundingClientRect().right + 1;
+      });
+      expect(fits).toBe(true);
+    }
+
+    await openMore(page).then((dialog) => dialog.getByRole('link', { name: 'Categorias' }).click());
+    await expect(page).toHaveURL(/\/categorias$/);
+    await expect(nav).toHaveAttribute('data-none', '');
+    await settle(page);
+    expect(await glass.evaluate((el) => getComputedStyle(el).opacity)).toBe('0');
+  });
+
+  test('a ilha não tem transform/filter nem desfoque (desempenho a 120 Hz) e o cabeçalho também não desfoca', async ({ page, request }) => {
+    const user = await newUser(request);
+    await signIn(page, user.email);
+    const nav = await page.getByRole('navigation', { name: 'Navegação principal' }).evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { transform: s.transform, filter: s.filter, backdrop: s.backdropFilter };
+    });
+    expect(nav.transform).toBe('none');
+    expect(nav.filter).toBe('none');
+    expect(nav.backdrop).toBe('none');
+    const header = await page.locator('header.gef-app-header').evaluate((el) => getComputedStyle(el).backdropFilter);
+    expect(header).toBe('none');
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`o véu da barra de status fica abaixo do fundo do painel e da ilha (tema ${scheme})`, async ({ page, request }) => {
+      const user = await newUser(request);
+      await page.emulateMedia({ colorScheme: scheme });
+      await signIn(page, user.email);
+      const more = await openMore(page);
+      // No navegador `env(safe-area-inset-top)` vale 0 (o véu some): força uma altura e torna o véu clicável, assim
+      // `elementFromPoint` devolve o dono do véu (`ion-app`, ou `body` se ele voltar a ser irmão do app) quando está por cima.
+      await page.addStyleTag({ content: 'ion-app::after, body::after { height: 40px !important; pointer-events: auto !important; }' });
+      const topPoint = () => page.evaluate(() => {
+        const el = document.elementFromPoint(window.innerWidth / 2, 10);
+        return { tag: el?.tagName.toLowerCase() ?? '', backdrop: !!el?.closest('.gef-sheet-backdrop') };
+      });
+      // Com o menu Mais aberto, o fundo do painel (z-50) tem de ficar por cima do véu (z-30)...
+      expect((await topPoint()).backdrop).toBe(true);
+
+      // ...e sem painel o véu existe e cobre o topo (prova que o CSS injetado vale e o teste não passa à toa).
+      await page.keyboard.press('Escape');
+      await expect(more).toHaveCount(0);
+      expect((await topPoint()).tag).toBe('ion-app');
+    });
+  }
 
   test('o botão Novo lançamento fica acima da ilha, sem sobrepô-la, em 360x640', async ({ page, request }) => {
     const user = await newUser(request);

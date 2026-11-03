@@ -52,7 +52,8 @@ describe('CashflowPage', () => {
     expect(el.querySelector('table')).toBeNull();
     const cards = el.querySelectorAll('[data-testid="cashflow-card"]');
     expect(cards).toHaveLength(2);
-    expect(cards[0].textContent).toContain('2026-11');
+    expect(cards[0].textContent).toContain('nov/2026');
+    expect(cards[0].textContent).not.toContain('2026-11');
     expect(cards[0].textContent).toContain('Receitas previstas');
     expect(cards[0].textContent).toContain('R$ 5.000,00');
     expect(cards[0].textContent).toContain('Despesas previstas');

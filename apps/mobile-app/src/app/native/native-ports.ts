@@ -1,7 +1,10 @@
 import { InjectionToken, isDevMode } from '@angular/core';
 import { BiometricAuth, BiometryError } from '@aparajita/capacitor-biometric-auth';
 import { PrivacyScreen } from '@capacitor-community/privacy-screen';
+import { App } from '@capacitor/app';
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import type { ThemeChrome } from '@gefinc/ui-shared';
 
 export type BiometricFailureCode = 'cancelled' | 'failed' | 'lockout' | 'unavailable';
 
@@ -33,6 +36,17 @@ interface NativeDoubles {
   biometric?: { available: boolean; reason?: string; results: string[]; defaultResult?: string };
   privacy?: { enable(): void; disable(): void };
   notifications?: NotificationDoubles;
+  /** Estilos de barras de sistema pedidos, na ordem (`'Dark'` = ícones claros, para o tema escuro). */
+  systemBars?: string[];
+  back?: BackDoubles;
+}
+
+/** Forma do dublê do botão Voltar do Android. */
+export interface BackDoubles {
+  /** Simula o toque no Voltar; `canGoBack` é o que o WebView informaria. */
+  listeners: ((event: { canGoBack: boolean }) => void)[];
+  /** Quantas vezes o app foi mandado para o segundo plano. */
+  minimized: number;
 }
 
 /** Forma dos dublês de notificação (usada na história de lembretes). */
@@ -186,3 +200,40 @@ export function notificationsPort(): NotificationsPort {
 }
 
 export const NOTIFICATIONS_PORT = new InjectionToken<NotificationsPort>('NOTIFICATIONS_PORT', { providedIn: 'root', factory: () => notificationsPort() });
+
+/**
+ * Cor dos ícones das barras de status e de gestos conforme o tema do app (e não o do sistema): no tema
+ * escuro, ícones claros; no claro, ícones escuros. Sem o parâmetro `bar`, vale para as duas barras.
+ */
+export function systemBarsChrome(): ThemeChrome {
+  const doubles = nativeDoubles();
+  if (doubles) {
+    return { sync: (theme) => void (doubles.systemBars ??= []).push(theme === 'dark' ? 'Dark' : 'Light') };
+  }
+  return { sync: (theme) => SystemBars.setStyle({ style: theme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light }) };
+}
+
+export interface BackButtonPort {
+  /** Registra o ouvinte do botão Voltar do Android (gesto de borda ou tecla). Com ouvinte, o padrão do Capacitor é desligado. */
+  onBack(listener: (event: { canGoBack: boolean }) => void): Promise<void>;
+  /** Manda o app para o segundo plano mantendo a sessão (`exitApp` encerraria o processo). */
+  minimize(): Promise<void>;
+}
+
+export function backButtonPort(): BackButtonPort {
+  const double = nativeDoubles()?.back;
+  if (double) {
+    return {
+      onBack: async (listener) => void double.listeners.push(listener),
+      minimize: async () => void (double.minimized += 1),
+    };
+  }
+  return {
+    onBack: async (listener) => {
+      await App.addListener('backButton', (event) => listener({ canGoBack: event.canGoBack }));
+    },
+    minimize: () => App.minimizeApp(),
+  };
+}
+
+export const BACK_BUTTON_PORT = new InjectionToken<BackButtonPort>('BACK_BUTTON_PORT', { providedIn: 'root', factory: () => backButtonPort() });

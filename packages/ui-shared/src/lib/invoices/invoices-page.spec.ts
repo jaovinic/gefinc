@@ -1,7 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { currentMonth, todayIso } from '@gefinc/utils';
+import { currentMonth, monthLabelBR, todayIso } from '@gefinc/utils';
 import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
 import { NoticeService } from '../api';
 import { Viewport } from '../viewport/viewport';
@@ -216,7 +216,7 @@ describe('InvoicesPage', () => {
         true,
       );
 
-      expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${month}"]`)).not.toBeNull();
+      expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${monthLabelBR(month)}"]`)).not.toBeNull();
       const undo = el.querySelector('button[aria-label^="Desfazer pagamento"]') as HTMLButtonElement;
       expect(undo).not.toBeNull();
       expect(undo.className).toContain('gef-btn-sm');

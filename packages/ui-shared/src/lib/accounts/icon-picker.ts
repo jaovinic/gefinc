@@ -10,6 +10,7 @@ import { Icon } from '../icons/icon';
  */
 @Component({
   selector: 'gef-icon-picker',
+  host: { class: 'block' },
   imports: [Icon],
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => IconPicker), multi: true }],
   template: `

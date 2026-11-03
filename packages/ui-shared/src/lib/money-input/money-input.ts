@@ -11,6 +11,7 @@ const MAX_DIGITS = 15;
  */
 @Component({
   selector: 'gef-money-input',
+  host: { class: 'block' },
   providers: [
     { provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => MoneyInput), multi: true },
   ],
@@ -71,8 +72,8 @@ export class MoneyInput implements ControlValueAccessor {
   });
 
   /** Foca o campo (ex.: depois de trocar a natureza do lançamento, para o teclado numérico continuar aberto). */
-  focus(): void {
-    this.field()?.nativeElement.focus();
+  focus(options?: FocusOptions): void {
+    this.field()?.nativeElement.focus(options);
   }
 
   constructor() {

@@ -1,8 +1,21 @@
-import { Component, ElementRef, Injector, afterNextRender, effect, inject, input, output, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, effect, inject, input, output, untracked, viewChild } from '@angular/core';
 import { Icon } from '../icons/icon';
 
 /** Painéis abertos, do mais antigo ao mais novo: só o de cima reage ao Escape (há painéis dentro de painéis). */
-const OPEN_SHEETS: object[] = [];
+const OPEN_SHEETS: Sheet[] = [];
+
+/**
+ * Trata o "Voltar" do sistema (ex.: botão do Android) fechando o painel de cima. Devolve `true` quando havia um
+ * painel aberto (mesmo que ele não possa ser dispensado agora), para o Voltar não vazar para a navegação.
+ */
+export function closeTopSheet(): boolean {
+  const top = OPEN_SHEETS[OPEN_SHEETS.length - 1];
+  if (!top) {
+    return false;
+  }
+  top.dismissFromBack();
+  return true;
+}
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -60,6 +73,13 @@ export class Sheet {
   private opener: HTMLElement | null = null;
 
   constructor() {
+    // Um painel destruído com a tela (ex.: sair da conta com o menu aberto) não pode ficar na pilha: o Voltar o engoliria.
+    inject(DestroyRef).onDestroy(() => {
+      const index = OPEN_SHEETS.indexOf(this);
+      if (index !== -1) {
+        OPEN_SHEETS.splice(index, 1);
+      }
+    });
     effect(() => {
       const open = this.open();
       untracked(() => {
@@ -85,6 +105,11 @@ export class Sheet {
     if (event.target === event.currentTarget) {
       this.requestClose();
     }
+  }
+
+  /** Pedido de fechar vindo do "Voltar" do sistema; respeita `dismissible` como os outros caminhos. */
+  dismissFromBack(): void {
+    this.requestClose();
   }
 
   protected requestClose(): void {

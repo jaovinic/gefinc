@@ -4,7 +4,7 @@ import { InvoicesApi, NoticeService, messageFor, toProblem } from '../api';
 import { MonthPicker } from '../month-picker/month-picker';
 import { ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
-import { currentMonth, formatBRL } from '@gefinc/utils';
+import { currentMonth, formatBRL, monthLabelBR } from '@gefinc/utils';
 
 /** Saldo residual por mês: receitas previstas menos despesas previstas (FR-028). */
 @Component({
@@ -24,7 +24,7 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
         <ul class="space-y-3" aria-label="Saldo residual por mês">
           @for (row of rows(); track row.month) {
             <li data-testid="cashflow-card" class="gef-card p-4">
-              <p class="font-semibold">{{ row.month }}</p>
+              <p class="font-semibold">{{ label(row.month) }}</p>
               <dl class="mt-2 space-y-1 text-body-base">
                 <div class="flex justify-between gap-3">
                   <dt class="text-gefinc-muted">Receitas previstas</dt>
@@ -56,7 +56,7 @@ import { currentMonth, formatBRL } from '@gefinc/utils';
             <tbody>
               @for (row of rows(); track row.month) {
                 <tr class="border-t border-gefinc-border">
-                  <td class="px-4 py-3 font-medium">{{ row.month }}</td>
+                  <td class="px-4 py-3 font-medium">{{ label(row.month) }}</td>
                   <td class="financial-value px-4 py-3 text-right text-gefinc-primary">{{ money(row.expectedIncome) }}</td>
                   <td class="financial-value px-4 py-3 text-right">{{ money(row.expectedExpense) }}</td>
                   <td class="financial-value px-4 py-3 text-right font-semibold" [class.text-gefinc-danger]="isNegative(row)" [attr.data-negative]="isNegative(row)">
@@ -110,6 +110,10 @@ export class CashflowPage {
 
   protected money(value: string): string {
     return formatBRL(value);
+  }
+
+  protected label(month: string): string {
+    return monthLabelBR(month);
   }
 
   protected isNegative(row: CashflowMonth): boolean {

@@ -9,13 +9,13 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
   imports: [Icon],
   template: `
     <div class="flex w-full items-center justify-between gap-2 rounded-lg sm:inline-flex sm:w-auto sm:justify-start border border-gefinc-border bg-(--glass-bg) px-2 py-1">
-      <button type="button" class="gef-icon-btn" aria-label="Mês anterior" (click)="shift(-1)">
+      <button type="button" class="gef-icon-btn min-h-[44px] min-w-[44px] md:min-h-9 md:min-w-9" aria-label="Mês anterior" (click)="shift(-1)">
         <gef-icon name="chevron-left" [size]="20" />
       </button>
-      <span class="min-w-36 flex-1 text-center sm:flex-none text-body-base font-semibold capitalize text-gefinc-text" aria-live="polite">
+      <span class="min-w-0 flex-1 text-balance text-center leading-tight first-letter:uppercase sm:min-w-36 sm:flex-none text-body-base font-semibold text-gefinc-text" aria-live="polite">
         {{ label() }}
       </span>
-      <button type="button" class="gef-icon-btn" aria-label="Próximo mês" (click)="shift(1)">
+      <button type="button" class="gef-icon-btn min-h-[44px] min-w-[44px] md:min-h-9 md:min-w-9" aria-label="Próximo mês" (click)="shift(1)">
         <gef-icon name="chevron-right" [size]="20" />
       </button>
     </div>

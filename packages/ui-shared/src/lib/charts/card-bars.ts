@@ -10,6 +10,7 @@ import { ChartSlice } from './chart-slice';
  */
 @Component({
   selector: 'gef-card-bars',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     <ul class="space-y-4" aria-label="Legenda do gráfico por cartão" data-testid="card-share">

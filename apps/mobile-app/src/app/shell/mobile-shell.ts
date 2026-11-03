@@ -1,4 +1,5 @@
-import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AccountChip, Icon, Logo, Sheet } from '@gefinc/ui-shared';
@@ -14,6 +15,9 @@ interface Tab {
   icon: string;
   exact: boolean;
 }
+
+/** A partir daqui só o rótulo da aba ativa fica visível (os demais continuam disponíveis a leitores de tela). */
+const LARGE_TEXT_SCALE = 1.6;
 
 const TABS: Tab[] = [
   { path: '/', label: 'Painel', exact: true, icon: 'dashboard' },
@@ -45,17 +49,26 @@ const TABS: Tab[] = [
       </header>
       <gef-offline-banner />
       <main class="gef-shell-main gef-page"><router-outlet /></main>
-      <nav class="gef-tabbar" aria-label="Navegação principal">
-        @for (tab of tabs; track tab.path) {
+      <nav
+        class="gef-tabbar"
+        aria-label="Navegação principal"
+        [style.--i]="shownIndex()"
+        [attr.data-none]="activeIndex() < 0 ? '' : null"
+        [attr.data-ready]="ready() ? '' : null"
+        [attr.data-large-text]="largeText() ? '' : null"
+      >
+        <span class="gef-tab-glass" aria-hidden="true"></span>
+        @for (tab of tabs; track tab.path; let i = $index) {
           <a
             class="gef-tab"
             [routerLink]="tab.path"
             routerLinkActive="gef-tab-active"
             ariaCurrentWhenActive="page"
             [routerLinkActiveOptions]="{ exact: tab.exact }"
+            (isActiveChange)="onActive(i, $event)"
           >
             <gef-icon [name]="tab.icon" [size]="24" />
-            <span>{{ tab.label }}</span>
+            <span class="gef-tab-label">{{ tab.label }}</span>
           </a>
         }
       </nav>
@@ -83,6 +96,16 @@ export class MobileShell {
   /** Menu Mais aberto (pelo atalho Minha conta do cabeçalho). */
   protected readonly moreOpen = signal(false);
 
+  /** Aba ativa (`-1` em rotas fora das abas, como Categorias): posição do indicador de vidro da ilha. */
+  protected readonly activeIndex = signal(-1);
+  private readonly lastIndex = signal(0);
+  /** Fora das abas o indicador fica onde estava (some por opacidade), em vez de voltar à primeira. */
+  protected readonly shownIndex = computed(() => (this.activeIndex() >= 0 ? this.activeIndex() : this.lastIndex()));
+  /** Liga a transição só depois da primeira posição, para o indicador não deslizar desde a primeira aba na partida. */
+  protected readonly ready = signal(false);
+  /** Ajuste de fonte muito grande: o WebView impõe um piso ao tamanho da letra e o rótulo não cabe na aba. */
+  protected readonly largeText = signal(false);
+
   private readonly url = toSignal(
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -93,7 +116,39 @@ export class MobileShell {
   /** A rota atual é Minha conta: o atalho fica destacado mesmo com o menu fechado. */
   protected readonly onAccountPage = () => this.url().split(/[?#]/)[0] === '/minha-conta';
 
+  /**
+   * Escala de texto do sistema (ajuste de fonte do Android): o WebView a aplica ao `font-size` da raiz, então
+   * `raiz / 16px` a revela. A ilha usa `--text-scale` para limitar o crescimento dos rótulos.
+   */
+  private publishTextScale(): void {
+    const doc = inject(DOCUMENT);
+    const root = doc.documentElement;
+    const scale = parseFloat(doc.defaultView?.getComputedStyle(root).fontSize ?? '') / 16;
+    const safe = Number.isFinite(scale) && scale > 0 ? Math.round(scale * 100) / 100 : 1;
+    root.style.setProperty('--text-scale', String(safe));
+    this.largeText.set(safe >= LARGE_TEXT_SCALE);
+  }
+
+  /** `isActiveChange` de cada aba: reaproveita o casamento de rotas do `routerLinkActive` (exato no Painel). */
+  protected onActive(index: number, active: boolean): void {
+    if (active) {
+      this.activeIndex.set(index);
+      this.lastIndex.set(index);
+      if (!this.ready()) {
+        const arm = () => this.ready.set(true);
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(arm);
+        } else {
+          setTimeout(arm, 0);
+        }
+      }
+    } else if (this.activeIndex() === index) {
+      this.activeIndex.set(-1);
+    }
+  }
+
   constructor() {
+    this.publishTextScale();
     // Qualquer navegação (inclusive voltar do sistema) fecha o menu.
     const subscription = this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => this.moreOpen.set(false));
     inject(DestroyRef).onDestroy(() => subscription.unsubscribe());

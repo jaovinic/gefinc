@@ -14,6 +14,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-account-picker',
+  host: { class: 'block' },
   imports: [AccountBadge, Icon, Sheet],
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => AccountPicker), multi: true }],
   template: `

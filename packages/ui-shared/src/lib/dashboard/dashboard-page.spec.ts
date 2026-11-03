@@ -95,6 +95,7 @@ describe('DashboardPage', () => {
   it('mostra o painel de saldo com o saldo geral e uma linha por conta', async () => {
     const { el } = await setup(full);
     const panel = el.querySelector('gef-balance-panel')!;
+    expect(panel.className).toContain('block');
     expect(panel.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 1.300,00');
     expect(panel.querySelectorAll('[data-testid="account-balance"]')).toHaveLength(2);
     expect(panel.textContent).toContain('-R$ 200,00');
