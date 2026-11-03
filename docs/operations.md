@@ -60,6 +60,24 @@ Security e SQL em DEBUG. Por isso:
   ficam **cifradas** com AES-GCM; a chave de 256 bits fica no Keystore (Android) ou Keychain (iOS). Sair da
   conta ou excluí-la apaga cópia, fila, preferências, chave e lembretes agendados. Se a sessão expirar sem
   o usuário sair, só a cópia é apagada: a fila e a chave ficam para o mesmo usuário continuar.
+- **Consulta sem conexão (cópia local):** toda leitura da API (menos `/auth`) é guardada pela URL completa,
+  cifrada e separada por usuário. Sem conexão, a tela usa a cópia e a faixa do topo mostra a data da
+  última sincronização. Se a rede estiver "conectada" mas não responder em ~3 s, uma leitura que tem cópia é
+  respondida pela cópia e o pedido segue vivo em segundo plano (até 60 s, um por endereço): se chegar, renova a
+  cópia e, havendo diferença, as telas recarregam (leitura sem cópia espera a rede; escritas nunca têm esse limite).
+- **Aquecimento da cópia:** depois do login, ao voltar ao primeiro plano e ao reconectar (no máximo a cada 15
+  min, só com rede, desbloqueado e logado, uma requisição por vez e em ociosidade), o app busca contas
+  (inclusive inativas), categorias, saldos, painel, lançamentos (1ª página, 25 itens) e fluxo de caixa do mês
+  corrente, e a fatura e a projeção de cada cartão (até 6), com os mesmos parâmetros das telas. Meses e
+  filtros que o usuário ainda não abriu só existem sem conexão se ele os abriu antes com rede. A volta da
+  conexão também reagenda o envio da fila quando o aparelho segue "conectado" mas a API não responde
+  (espera de 2 s, dobrando até 60 s).
+- **Mensagens das telas:** *Sem conexão* (ícone de wifi cortado, "Tentar novamente") = sem rede e sem cópia
+  daquela tela (`OFFLINE_NO_DATA`). *Sem lançamentos/Nenhuma conta... na última sincronização (dd/MM HH:mm)* =
+  a cópia local estava vazia naquele momento; pode haver dados novos em outro aparelho, que só chegam ao
+  reconectar. *Sem lançamentos neste mês* (sem data) = dado atual do servidor. "Esta ação precisa de conexão"
+  = escrita fora da fila (editar, excluir, pagar fatura etc.). Em *Novo lançamento* sem conexão o aviso é
+  "Salvo no aparelho; será enviado quando houver conexão".
 - **Lembretes:** são notificações **locais**, agendadas no aparelho a partir de `GET /due-summary` (só
   contagens, sem valores nem nomes). Só se atualizam quando o app abre, sincroniza ou muda algo; um item
   pago em outro aparelho continua a avisar até a próxima abertura. Limite de 35 avisos agendados (o iOS

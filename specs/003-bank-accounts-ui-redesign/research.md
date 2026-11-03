@@ -75,6 +75,7 @@ Decisões técnicas (D1–D15) que resolvem as incógnitas do plano.
 
 - **Decisão**: o app tolera respostas antigas guardadas na cópia local (sem `holderType`, `icon` ou `bankAccountId`): trata como PF, ícone padrão e cartão sem vínculo. Criar conta, editar conta e vincular cartão **exigem conexão** (já são operações fora da fila).
 - **Racional**: a cópia local pode ter sido gravada antes da atualização do app.
+- **Telas sem conexão**: estado vazio vindo da cópia local diz "na última sincronização (dd/MM HH:mm)" e a falta de cópia mostra o aviso "Sem conexão" (`OFFLINE_NO_DATA`); a cópia é aquecida com a rede (detalhes em `docs/operations.md`).
 
 ## D14. Contrato e tipos
 

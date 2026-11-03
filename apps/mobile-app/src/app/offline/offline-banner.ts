@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Icon } from '@gefinc/ui-shared';
 import { NetworkStatus } from './network-status';
 import { OfflineState } from './offline-state';
 import { PendingQueue } from './pending-queue';
@@ -8,13 +9,25 @@ import { SyncEngine } from './sync-engine';
 
 /**
  * Faixa de aviso do modo offline: sem conexão e com que data estão os dados, operações pendentes de
- * envio (e o que ainda não as inclui), recusas a resolver e o botão "Sincronizar agora".
+ * envio (e o que ainda não as inclui), recusas a resolver e o botão "Sincronizar agora". A versão
+ * `compact` é uma só linha, para a tela de novo lançamento.
  */
 @Component({
   selector: 'gef-offline-banner',
-  imports: [DatePipe, RouterLink],
+  host: { class: 'block' },
+  imports: [DatePipe, Icon, RouterLink],
   template: `
-    @if (visible()) {
+    @if (compact()) {
+      @if (!network.online()) {
+        <div data-testid="offline-banner" class="flex items-start gap-2 border-b border-gefinc-border bg-(--glass-bg) px-4 py-2 text-caption" role="status">
+          <gef-icon name="wifi-off" [size]="16" class="mt-0.5 shrink-0 text-gefinc-warning" />
+          <p>
+            <span class="font-semibold text-gefinc-warning">Sem conexão.</span>
+            O lançamento fica salvo no aparelho e é enviado quando houver conexão.
+          </p>
+        </div>
+      }
+    } @else if (visible()) {
       <div data-testid="offline-banner" class="space-y-1 border-b border-gefinc-border bg-(--glass-bg) px-4 py-2 text-caption" role="status">
         @if (!network.online()) {
           <p class="font-semibold text-gefinc-warning">
@@ -50,6 +63,8 @@ import { SyncEngine } from './sync-engine';
   `,
 })
 export class OfflineBanner {
+  /** Versão de uma linha para telas fora da casca (novo lançamento): só avisa que está sem conexão. */
+  readonly compact = input(false);
   protected readonly network = inject(NetworkStatus);
   protected readonly state = inject(OfflineState);
   protected readonly engine = inject(SyncEngine);

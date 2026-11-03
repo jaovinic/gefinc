@@ -71,6 +71,7 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   alert: [p('M12 3 2 20h20zM12 10v5M12 18h.01')],
   info: [p('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01')],
   inbox: [p('M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5')],
+  'wifi-off': [p('M3 3l18 18M4 9.5a12 12 0 0 1 4-2.4M20 9.5a12 12 0 0 0-8-3.4M7 13a7 7 0 0 1 3-1.8M17 13a7 7 0 0 0-2-1.6M9.5 16.5a3.5 3.5 0 0 1 5 0M12 20h.01')],
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_SET);

@@ -95,16 +95,60 @@ describe('SyncEngine (envio das operações pendentes)', () => {
   });
 
   it('erro de rede devolve a operação para a fila e interrompe o envio', async () => {
+    jest.useFakeTimers();
     await queue.enqueue(create('A'));
     await queue.enqueue(create('B'));
 
     const done = engine.flush();
-    await tick();
+    await jest.advanceTimersByTimeAsync(0);
     http.expectOne(`${API}/transaction-groups`).error(new ProgressEvent('error'), { status: 0 });
     const result = await done;
 
     expect(result).toEqual({ sent: 0, rejected: 0, stopped: 'offline' });
     expect(queue.ops().map((o) => o.state)).toEqual(['PENDING', 'PENDING']);
+  });
+
+  it('o envio para por erro de rede mas o aparelho segue "conectado" (portal cativo, sem dados): tenta de novo sozinho, com espera crescente', async () => {
+    jest.useFakeTimers();
+    await queue.enqueue(create('A'));
+
+    const done = engine.flush();
+    await jest.advanceTimersByTimeAsync(0);
+    http.expectOne(`${API}/transaction-groups`).error(new ProgressEvent('error'), { status: 0 });
+    expect((await done).stopped).toBe('offline');
+    expect(online()).toBe(true);
+
+    await jest.advanceTimersByTimeAsync(1_999);
+    http.expectNone(`${API}/transaction-groups`);
+    await jest.advanceTimersByTimeAsync(2);
+    http.expectOne(`${API}/transaction-groups`).error(new ProgressEvent('error'), { status: 0 });
+    await jest.advanceTimersByTimeAsync(0);
+
+    // a segunda falha dobra a espera (2 s -> 4 s)
+    await jest.advanceTimersByTimeAsync(3_999);
+    http.expectNone(`${API}/transaction-groups`);
+    await jest.advanceTimersByTimeAsync(2);
+    http.expectOne(`${API}/transaction-groups`).flush({}, { status: 201, statusText: 'Created' });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(queue.ops()).toEqual([]);
+
+    // enviou tudo: nada mais é agendado
+    await jest.advanceTimersByTimeAsync(120_000);
+    http.expectNone(`${API}/transaction-groups`);
+  });
+
+  it('com o aparelho sem conexão de fato, a falha de rede não agenda nova tentativa: a volta da conexão dispara o envio', async () => {
+    jest.useFakeTimers();
+    await queue.enqueue(create('A'));
+
+    const done = engine.flush();
+    await jest.advanceTimersByTimeAsync(0);
+    online.set(false);
+    http.expectOne(`${API}/transaction-groups`).error(new ProgressEvent('error'), { status: 0 });
+    expect((await done).stopped).toBe('offline');
+
+    await jest.advanceTimersByTimeAsync(120_000);
+    http.expectNone(`${API}/transaction-groups`);
   });
 
   it('recusa do servidor (4xx) marca a operação com o motivo e segue com as demais', async () => {

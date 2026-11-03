@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Balances, Dashboard } from '@gefinc/core-models';
-import { BalancesApi, DashboardApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { BalancesApi, DATA_FRESHNESS, DashboardApi, NoticeService, ReferenceData, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { BalancePanel } from '../balances/balance-panel';
 import { CardBars } from '../charts/card-bars';
 import { Icon } from '../icons/icon';
@@ -44,10 +44,10 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
         @if (loading()) {
           <gef-loading variant="cards" message="Carregando o painel…" />
         } @else if (error()) {
-          <gef-error [message]="error()!" (retry)="load()" />
+          <gef-error [message]="error()!" [variant]="offline() ? 'offline' : 'error'" (retry)="load()" />
         } @else if (data(); as d) {
           @if (isEmpty(d)) {
-            <gef-empty icon="dashboard" title="Sem lançamentos neste mês" hint="Cadastre uma receita ou despesa para ver os indicadores e os gráficos.">
+            <gef-empty icon="dashboard" [title]="emptyTitle()" [hint]="emptyHint()">
               <a class="gef-btn-secondary inline-block" [routerLink]="paths.transactions">Ir para lançamentos</a>
             </gef-empty>
           } @else {
@@ -112,6 +112,7 @@ export class DashboardPage {
   private readonly balancesApi = inject(BalancesApi);
   private readonly notices = inject(NoticeService);
   private readonly reference = inject(ReferenceData);
+  private readonly freshness = inject(DATA_FRESHNESS);
   private readonly document = inject(DOCUMENT);
   protected readonly paths = inject(APP_PATHS);
 
@@ -119,6 +120,19 @@ export class DashboardPage {
   protected readonly data = signal<Dashboard | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly offline = signal(false);
+  /** De quando são os dados do mês, se vieram da cópia local do aparelho (`null`: do servidor). */
+  private readonly staleAt = signal<Date | null>(null);
+  protected readonly emptyTitle = computed(() => {
+    const since = this.staleAt();
+    return since ? `Sem lançamentos na última sincronização (${formatSyncedAt(since)})` : 'Sem lançamentos neste mês';
+  });
+  protected readonly emptyHint = computed(() =>
+    this.staleAt()
+      ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.'
+      : 'Cadastre uma receita ou despesa para ver os indicadores e os gráficos.',
+  );
 
   /** Saldo das contas: carga própria, para a falha dele não apagar o painel do mês (e vice-versa). */
   protected readonly balances = signal<Balances | null>(null);
@@ -177,10 +191,13 @@ export class DashboardPage {
     this.api.dashboard(this.month()).subscribe({
       next: (data) => {
         this.data.set(data);
+        this.staleAt.set(this.freshness());
         this.loading.set(false);
       },
       error: (e: unknown) => {
-        this.error.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.error.set(messageFor(problem));
+        this.offline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });

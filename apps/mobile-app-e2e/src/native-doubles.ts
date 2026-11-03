@@ -4,6 +4,8 @@ export interface NativeConfig {
   /** `defaultResult`: o que a biometria responde quando a fila `results` está vazia (padrão 'ok'). */
   biometric?: { available?: boolean; reason?: string; results?: string[]; defaultResult?: string };
   notifications?: { permission?: 'granted' | 'denied' | 'prompt' };
+  /** Conexão do aparelho simulada pelo app (sem depender de `context.setOffline`). Sem esta chave, vale a rede do navegador. */
+  network?: { connected?: boolean };
 }
 
 /**
@@ -19,6 +21,7 @@ export async function installNativeDoubles(page: Page, config: NativeConfig = {}
       notifications: { permission: cfg.notifications?.permission ?? 'granted', scheduled: [], tapListeners: [] },
       systemBars: [],
       back: { listeners: [], minimized: 0 },
+      ...(cfg.network ? { network: { connected: cfg.network.connected ?? true, listeners: [] } } : {}),
     };
   }, config);
 }
@@ -65,4 +68,19 @@ export async function returnToForeground(page: Page) {
     Object.defineProperty(document, 'hidden', { value: false, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
+}
+
+/**
+ * Muda a conexão que o app acredita ter (exige `network` em {@link installNativeDoubles}). Com `connected: true`
+ * e a API bloqueada por `page.route`, simula "conectado, mas sem servidor"; com `false`, simula rede ausente.
+ */
+export async function setNetwork(page: Page, connected: boolean) {
+  await page.evaluate((value) => {
+    const network = (window as unknown as { __gefincNative: { network?: { connected: boolean; listeners: ((c: boolean) => void)[] } } }).__gefincNative.network;
+    if (!network) {
+      throw new Error('Instale o dublê de rede: installNativeDoubles(page, { network: { connected: true } })');
+    }
+    network.connected = value;
+    network.listeners.forEach((listener) => listener(value));
+  }, connected);
 }

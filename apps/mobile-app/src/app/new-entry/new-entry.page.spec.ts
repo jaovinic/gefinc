@@ -15,6 +15,9 @@ import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { DraftService, NoticeService } from '@gefinc/ui-shared';
+import { Provider, signal } from '@angular/core';
+import { NetworkStatus } from '../offline/network-status';
+import { OfflineState } from '../offline/offline-state';
 import { isoToBR, todayIso } from '@gefinc/utils';
 import { API, chooseAccount, configureMobileTesting, fillDate, optionLabels, pickOption, selectTrigger, type } from '../../test/testbed';
 import { NewEntryPage } from './new-entry.page';
@@ -22,9 +25,10 @@ import { NewEntryPage } from './new-entry.page';
 const dayIso = (offset: number) => todayIso(new Date(Date.now() + offset * 86_400_000));
 
 describe('NewEntryPage (despesa e receita na mesma tela)', () => {
-  async function setup(query: Record<string, string> = {}) {
+  async function setup(query: Record<string, string> = {}, extra: Provider[] = []) {
     const ctx = configureMobileTesting([
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query), data: {} } } },
+      ...extra,
     ]);
     const fixture = TestBed.createComponent(NewEntryPage);
     fixture.detectChanges();
@@ -313,9 +317,10 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
 });
 
 describe('NewEntryPage - parcelamento no cartão', () => {
-  async function setup(query: Record<string, string> = {}) {
+  async function setup(query: Record<string, string> = {}, extra: Provider[] = []) {
     const ctx = configureMobileTesting([
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query), data: {} } } },
+      ...extra,
     ]);
     const fixture = TestBed.createComponent(NewEntryPage);
     fixture.detectChanges();
@@ -693,5 +698,61 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     expect(field.compareDocumentPosition(hoje) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(date.getAttribute('aria-describedby')).toBe('date-hint');
     expect(el.querySelector('#date-hint')?.getAttribute('data-testid')).toBe('date-hint');
+  });
+
+  describe('sem conexão', () => {
+    const online = signal(false);
+    async function setupOffline(connected: boolean) {
+      online.set(connected);
+      const ctx = await setup({}, [{ provide: NetworkStatus, useValue: { online } }]);
+      return ctx;
+    }
+
+    it('mostra o aviso compacto de falta de conexão (a tela fica fora da casca, sem a faixa do topo)', async () => {
+      const { el } = await setupOffline(false);
+
+      const banner = el.querySelector('[data-testid="offline-banner"]');
+      expect(banner?.textContent).toContain('Sem conexão');
+      expect(banner?.textContent).toContain('salvo no aparelho');
+    });
+
+    it('com conexão não mostra o aviso', async () => {
+      const { el } = await setupOffline(true);
+
+      expect(el.querySelector('[data-testid="offline-banner"]')).toBeNull();
+    });
+
+    it('salvar sem conexão diz que ficou no aparelho e será enviado, e não que foi registrado', async () => {
+      const { el, http, fixture } = await setupOffline(false);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 202, statusText: 'Accepted' });
+      await fixture.whenStable();
+
+      const messages = TestBed.inject(NoticeService).toasts().map((t) => t.message);
+      expect(messages).toEqual(['Salvo no aparelho; será enviado quando houver conexão.']);
+    });
+
+    it('se a conexão cai no meio do envio e o lançamento vai para a fila, o aviso também é o de "salvo no aparelho"', async () => {
+      const { el, http, fixture } = await setupOffline(true);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      TestBed.inject(OfflineState).queued();
+      post.flush({}, { status: 202, statusText: 'Accepted' });
+      await fixture.whenStable();
+
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Salvo no aparelho; será enviado quando houver conexão.');
+    });
+
+    it('com conexão e envio direto, o aviso continua sendo o de registrado', async () => {
+      const { el, http, fixture } = await setupOffline(true);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({ id: 3 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada.');
+    });
   });
 });

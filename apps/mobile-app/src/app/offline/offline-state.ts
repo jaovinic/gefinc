@@ -7,6 +7,13 @@ export class OfflineState {
   /** Cresce a cada alteração enviada ou enfileirada; os lembretes observam para reagendar. */
   readonly mutationCount = signal(0);
 
+  /** Cresce a cada operação que foi para a fila no aparelho em vez de ir ao servidor. */
+  readonly queuedCount = signal(0);
+
+  queued(): void {
+    this.queuedCount.update((n) => n + 1);
+  }
+
   mutated(): void {
     this.mutationCount.update((n) => n + 1);
   }
@@ -16,6 +23,11 @@ export class OfflineState {
   }
 
   markFresh(): void {
+    this.staleSince.set(null);
+  }
+
+  /** Fim da sessão: o próximo usuário não herda a data de sincronização do anterior. */
+  reset(): void {
     this.staleSince.set(null);
   }
 }

@@ -34,8 +34,16 @@ export function toProblem(error: unknown): ApiProblem {
   };
 }
 
+/** Falta de conexão (sem resposta do servidor ou sem dados salvos sem rede): a tela mostra o aviso de "Sem conexão". */
+export function isOfflineProblem(problem: ApiProblem): boolean {
+  return problem.status === 0;
+}
+
 /** Mensagem amigável em português para mostrar ao usuário. */
 export function messageFor(problem: ApiProblem): string {
+  if (problem.code === 'OFFLINE_NO_DATA') {
+    return 'Sem conexão e sem dados salvos desta tela. Conecte-se à internet e tente de novo.';
+  }
   if (problem.code === 'OFFLINE_REQUIRES_CONNECTION') {
     return 'Esta ação precisa de conexão com a internet. Conecte-se e tente de novo.';
   }

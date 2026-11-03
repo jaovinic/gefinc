@@ -65,20 +65,30 @@ export class EmptyView {
   readonly icon = input('inbox');
 }
 
-/** Estado de erro com botão para tentar de novo. */
+/**
+ * Estado de erro com botão para tentar de novo. A variante `offline` é a falta de conexão: ícone próprio e o
+ * título "Sem conexão", para não ser confundida com uma tela sem dados.
+ */
 @Component({
   selector: 'gef-error',
   host: { class: 'block' },
   imports: [Icon],
   template: `
-    <div class="flex flex-col items-center gap-3 p-8 text-center" role="alert">
-      <span class="gef-state-icon text-gefinc-danger"><gef-icon name="alert" [size]="28" /></span>
-      <p class="text-body-base text-gefinc-danger">{{ message() }}</p>
+    <div class="flex flex-col items-center gap-3 p-8 text-center" role="alert" [attr.data-variant]="variant()">
+      @if (variant() === 'offline') {
+        <span class="gef-state-icon text-gefinc-warning"><gef-icon name="wifi-off" [size]="28" /></span>
+        <p class="text-title-md font-semibold text-gefinc-text">Sem conexão</p>
+        <p class="text-body-base text-gefinc-muted">{{ message() }}</p>
+      } @else {
+        <span class="gef-state-icon text-gefinc-danger"><gef-icon name="alert" [size]="28" /></span>
+        <p class="text-body-base text-gefinc-danger">{{ message() }}</p>
+      }
       <button type="button" class="gef-btn-secondary" (click)="retry.emit()">Tentar novamente</button>
     </div>
   `,
 })
 export class ErrorView {
   readonly message = input('Não foi possível carregar os dados.');
+  readonly variant = input<'error' | 'offline'>('error');
   readonly retry = output<void>();
 }

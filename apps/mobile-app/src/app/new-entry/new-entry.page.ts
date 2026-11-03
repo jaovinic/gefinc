@@ -28,6 +28,9 @@ import {
   toProblem,
 } from '@gefinc/ui-shared';
 import { invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+import { NetworkStatus } from '../offline/network-status';
+import { OfflineBanner } from '../offline/offline-banner';
+import { OfflineState } from '../offline/offline-state';
 import { QuickExpenseDefaults, type QuickKind } from '../quick-expense/quick-expense-defaults.service';
 
 /** Chave única do rascunho: guarda também a natureza escolhida. */
@@ -65,7 +68,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
  */
 @Component({
   selector: 'gef-new-entry-page',
-  imports: [AccountPicker, AmountModeSwitch, DateField, Icon, InstallmentSummaryCard, KindSwitch, ReactiveFormsModule, MoneyInput, RouterLink, Select],
+  imports: [AccountPicker, AmountModeSwitch, DateField, Icon, InstallmentSummaryCard, KindSwitch, OfflineBanner, ReactiveFormsModule, MoneyInput, RouterLink, Select],
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
@@ -73,6 +76,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
         <h1 class="whitespace-nowrap text-title-md font-bold">Novo lançamento</h1>
         <span class="w-11" aria-hidden="true"></span>
       </header>
+      <gef-offline-banner [compact]="true" />
       <form [formGroup]="form" (ngSubmit)="save()" class="space-y-5 p-4 pb-10" novalidate>
         @if (error(); as message) {
           <p class="gef-alert-error" role="alert">{{ message }}</p>
@@ -179,6 +183,8 @@ export class NewEntryPage implements OnInit, OnDestroy {
   private readonly defaults = inject(QuickExpenseDefaults);
   private readonly route = inject(ActivatedRoute);
   private readonly notices = inject(NoticeService);
+  private readonly network = inject(NetworkStatus);
+  private readonly offline = inject(OfflineState);
   protected readonly reference = inject(ReferenceData);
   private readonly amountField = viewChild(MoneyInput);
 
@@ -428,11 +434,18 @@ export class NewEntryPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.serverErrors.set({});
     this.busy.set(true);
+    const queuedBefore = this.offline.queuedCount();
     this.api.createGroup(input).subscribe({
       next: () => {
         this.busy.set(false);
         void this.defaults.remember(accountId, categoryId, quickKind(value.kind));
-        this.notices.toast(income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : 'Despesa registrada.');
+        // Sem conexão (ou com a rede caindo no meio do envio) o lançamento só foi para a fila do aparelho.
+        const savedOnDevice = !this.network.online() || this.offline.queuedCount() > queuedBefore;
+        this.notices.toast(
+          savedOnDevice
+            ? 'Salvo no aparelho; será enviado quando houver conexão.'
+            : income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : 'Despesa registrada.',
+        );
         void Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined);
         void this.router.navigate(['/']);
       },

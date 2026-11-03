@@ -1,10 +1,11 @@
-import { Injectable, signal } from '@angular/core';
-import { Network } from '@capacitor/network';
+import { Injectable, inject, signal } from '@angular/core';
+import { NETWORK_PORT } from '../native/native-ports';
 
 /** Conexão do aparelho (Capacitor Network; no navegador, os eventos online/offline). */
 @Injectable({ providedIn: 'root' })
 export class NetworkStatus {
-  readonly online = signal(typeof navigator === 'undefined' ? true : navigator.onLine);
+  private readonly port = inject(NETWORK_PORT);
+  readonly online = signal(this.port.initial() ?? (typeof navigator === 'undefined' ? true : navigator.onLine));
   private started = false;
 
   /** Começa a acompanhar a conexão; chamado uma vez na abertura do app. */
@@ -14,8 +15,8 @@ export class NetworkStatus {
     }
     this.started = true;
     try {
-      this.online.set((await Network.getStatus()).connected);
-      await Network.addListener('networkStatusChange', (status) => this.online.set(status.connected));
+      this.online.set(await this.port.status());
+      await this.port.onChange((connected) => this.online.set(connected));
     } catch {
       // Sem o plugin, vale o estado do navegador.
     }

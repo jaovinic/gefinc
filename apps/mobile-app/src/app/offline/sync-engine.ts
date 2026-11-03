@@ -84,7 +84,9 @@ export class SyncEngine {
     if (sent > 0 || rejected > 0) {
       this.notices.dataChanged();
     }
-    if (stopped === 'retry') {
+    // "Sem conexão" com o aparelho ainda conectado (portal cativo, sem dados): nada avisará quando a internet
+    // voltar, então tenta de novo sozinho. Com o aparelho desconectado, a volta da conexão dispara o envio.
+    if (stopped === 'retry' || (stopped === 'offline' && this.network.online())) {
       this.scheduleRetry();
     } else {
       this.attempts = 0;

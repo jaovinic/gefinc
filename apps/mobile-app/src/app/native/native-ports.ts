@@ -3,6 +3,7 @@ import { BiometricAuth, BiometryError } from '@aparajita/capacitor-biometric-aut
 import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Network } from '@capacitor/network';
 import type { ThemeChrome } from '@gefinc/ui-shared';
 
 export type BiometricFailureCode = 'cancelled' | 'failed' | 'lockout' | 'unavailable';
@@ -31,6 +32,13 @@ interface NativeDoubles {
   /** Estilos de barras de sistema pedidos, na ordem (`'Dark'` = ícones claros, para o tema escuro). */
   systemBars?: string[];
   back?: BackDoubles;
+  network?: NetworkDoubles;
+}
+
+/** Forma do dublê da conexão do aparelho: o teste muda `connected` e avisa os `listeners`. */
+export interface NetworkDoubles {
+  connected: boolean;
+  listeners: ((connected: boolean) => void)[];
 }
 
 /** Forma do dublê do botão Voltar do Android. */
@@ -217,3 +225,31 @@ export function backButtonPort(): BackButtonPort {
 }
 
 export const BACK_BUTTON_PORT = new InjectionToken<BackButtonPort>('BACK_BUTTON_PORT', { providedIn: 'root', factory: () => backButtonPort() });
+
+export interface NetworkPort {
+  /** Estado conhecido de imediato (só o dublê sabe); `null` quando é preciso perguntar ao plugin. */
+  initial(): boolean | null;
+  status(): Promise<boolean>;
+  /** Chamado quando o aparelho conecta ou desconecta. */
+  onChange(listener: (connected: boolean) => void): Promise<void>;
+}
+
+export function networkPort(): NetworkPort {
+  const double = nativeDoubles()?.network;
+  if (double) {
+    return {
+      initial: () => double.connected,
+      status: async () => double.connected,
+      onChange: async (listener) => void double.listeners.push(listener),
+    };
+  }
+  return {
+    initial: () => null,
+    status: async () => (await Network.getStatus()).connected,
+    onChange: async (listener) => {
+      await Network.addListener('networkStatusChange', (status) => listener(status.connected));
+    },
+  };
+}
+
+export const NETWORK_PORT = new InjectionToken<NetworkPort>('NETWORK_PORT', { providedIn: 'root', factory: () => networkPort() });

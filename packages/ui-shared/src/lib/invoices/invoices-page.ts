@@ -2,7 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { Invoice, InvoicePayment, InvoiceProjection, Transaction } from '@gefinc/core-models';
-import { InvoicesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { DATA_FRESHNESS, InvoicesApi, NoticeService, PROJECTION_MONTHS, ReferenceData, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { AccountPicker } from '../accounts/account-picker';
 import { DateField } from '../date-field/date-field';
@@ -35,12 +35,20 @@ import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefin
         <p class="gef-alert-error" role="alert">{{ text }}</p>
       }
 
-      @if (cards().length === 0) {
-        <gef-empty icon="invoice" title="Nenhum cartão cadastrado" hint="Cadastre um cartão de crédito em Contas para acompanhar as faturas." />
+      @if (reference.accountsError(); as accountsError) {
+        <gef-error [message]="accountsError" [variant]="reference.accountsOffline() ? 'offline' : 'error'" (retry)="reference.refresh()" />
+      } @else if (!reference.accountsLoaded()) {
+        <gef-loading message="Carregando cartões…" />
+      } @else if (cards().length === 0) {
+        @if (reference.staleSince(); as since) {
+          <gef-empty icon="invoice" [title]="'Nenhum cartão na última sincronização (' + sync(since) + ')'" hint="Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar." />
+        } @else {
+          <gef-empty icon="invoice" title="Nenhum cartão cadastrado" hint="Cadastre um cartão de crédito em Contas para acompanhar as faturas." />
+        }
       } @else if (loading()) {
         <gef-loading message="Carregando fatura…" />
       } @else if (loadError()) {
-        <gef-error [message]="loadError()!" (retry)="load()" />
+        <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (invoice(); as inv) {
         <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <div class="gef-kpi gef-card p-4">
@@ -104,7 +112,11 @@ import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefin
         }
 
         @if (inv.items.length === 0) {
-          <gef-empty icon="invoice" title="Fatura sem lançamentos" hint="Nenhuma compra neste cartão vence neste mês." />
+          @if (staleAt(); as since) {
+            <gef-empty icon="invoice" [title]="'Fatura sem lançamentos na última sincronização (' + sync(since) + ')'" hint="Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar." />
+          } @else {
+            <gef-empty icon="invoice" title="Fatura sem lançamentos" hint="Nenhuma compra neste cartão vence neste mês." />
+          }
         } @else if (viewport.compact()) {
           <ul class="space-y-3">
             @for (item of inv.items; track item.id) {
@@ -249,6 +261,7 @@ export class InvoicesPage implements OnInit {
   private readonly notices = inject(NoticeService);
   protected readonly reference = inject(ReferenceData);
   protected readonly viewport = inject(Viewport);
+  private readonly freshness = inject(DATA_FRESHNESS);
 
   protected readonly month = signal(currentMonth());
   protected readonly cardId = signal(0);
@@ -256,6 +269,10 @@ export class InvoicesPage implements OnInit {
   protected readonly projection = signal<InvoiceProjection | null>(null);
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly loadOffline = signal(false);
+  /** De quando é a fatura, se veio da cópia local do aparelho (`null`: do servidor). */
+  protected readonly staleAt = signal<Date | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly paymentMode = signal<'partial' | 'settle' | null>(null);
   /** Pagamento em andamento: toques repetidos não registram de novo. */
@@ -310,14 +327,17 @@ export class InvoicesPage implements OnInit {
     this.api.invoice(cardId, this.month()).subscribe({
       next: (invoice) => {
         this.invoice.set(invoice);
+        this.staleAt.set(this.freshness());
         this.loading.set(false);
       },
       error: (e: unknown) => {
-        this.loadError.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.loadError.set(messageFor(problem));
+        this.loadOffline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });
-    this.api.projection(this.month(), 12, cardId).subscribe({
+    this.api.projection(this.month(), PROJECTION_MONTHS, cardId).subscribe({
       next: (projection) => this.projection.set(projection),
       error: () => this.projection.set(null),
     });
@@ -326,6 +346,10 @@ export class InvoicesPage implements OnInit {
   protected open(accountId: number, month: string): void {
     this.cardId.set(accountId);
     this.month.set(month);
+  }
+
+  protected sync(date: Date): string {
+    return formatSyncedAt(date);
   }
 
   protected br(iso: string): string {

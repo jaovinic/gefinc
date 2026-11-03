@@ -3,6 +3,7 @@ const biometric = {
   authenticate: jest.fn(),
 };
 const systemBars = { setStyle: jest.fn(async () => undefined) };
+const network = { getStatus: jest.fn(), addListener: jest.fn(async () => ({ remove: jest.fn() })) };
 const app = { addListener: jest.fn(async () => ({ remove: jest.fn() })), minimizeApp: jest.fn(async () => undefined) };
 
 jest.mock('@aparajita/capacitor-biometric-auth', () => ({
@@ -18,9 +19,10 @@ jest.mock('@aparajita/capacitor-biometric-auth', () => ({
 }));
 jest.mock('@capacitor/core', () => ({ ...jest.requireActual('@capacitor/core'), SystemBars: systemBars }));
 jest.mock('@capacitor/app', () => ({ App: app }));
+jest.mock('@capacitor/network', () => ({ Network: network }));
 
 import { BiometryError } from '@aparajita/capacitor-biometric-auth';
-import { BiometricFailure, backButtonPort, biometricPort, systemBarsChrome } from './native-ports';
+import { BiometricFailure, backButtonPort, biometricPort, networkPort, systemBarsChrome } from './native-ports';
 
 describe('portas para os plugins nativos', () => {
   beforeEach(() => {
@@ -127,5 +129,36 @@ describe('portas para os plugins nativos', () => {
 
     expect(listener).toHaveBeenCalledWith({ canGoBack: false });
     expect(back.minimized).toBe(1);
+  });
+
+  it('rede: sem dublê, lê a conexão e as mudanças do plugin', async () => {
+    network.getStatus.mockResolvedValue({ connected: false, connectionType: 'none' });
+    expect(networkPort().initial()).toBeNull();
+    expect(await networkPort().status()).toBe(false);
+
+    const listener = jest.fn();
+    network.addListener.mockClear();
+    await networkPort().onChange(listener);
+    const handler = (network.addListener.mock.calls[0] as unknown as [string, (s: { connected: boolean }) => void])[1];
+    expect(network.addListener.mock.calls[0][0]).toBe('networkStatusChange');
+    handler({ connected: true });
+    expect(listener).toHaveBeenCalledWith(true);
+  });
+
+  it('rede: o dublê simula conectado/desconectado sem tocar no plugin nem na rede do navegador', async () => {
+    network.getStatus.mockClear();
+    const double = { connected: false, listeners: [] as ((connected: boolean) => void)[] };
+    (window as { __gefincNative?: unknown }).__gefincNative = { network: double };
+    const listener = jest.fn();
+
+    expect(networkPort().initial()).toBe(false);
+    expect(await networkPort().status()).toBe(false);
+    await networkPort().onChange(listener);
+    double.connected = true;
+    double.listeners.forEach((l) => l(true));
+
+    expect(await networkPort().status()).toBe(true);
+    expect(listener).toHaveBeenCalledWith(true);
+    expect(network.getStatus).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED } from './api.tokens';
 import { CurrentUser } from './current-user';
 import { SessionService } from './session.service';
+import { ReferenceData } from './reference-data';
 import { MemoryTokenStore, TokenStore } from './token-store';
 
 describe('SessionService - aviso de sessão encerrada', () => {
@@ -66,6 +67,42 @@ describe('SessionService - aviso de sessão encerrada', () => {
     session.endLocalSession();
 
     expect(session.authenticated()).toBe(false);
+  });
+
+  it('uma falha ao esquecer as contas não impede de apagar os tokens e encerrar a sessão', () => {
+    jest.spyOn(TestBed.inject(ReferenceData), 'reset').mockImplementation(() => {
+      throw new Error('falha ao esquecer');
+    });
+    const clear = jest.spyOn(TestBed.inject(TokenStore), 'clear');
+    session.authenticated.set(true);
+
+    session.endLocalSession();
+
+    expect(clear).toHaveBeenCalled();
+    expect(session.authenticated()).toBe(false);
+  });
+
+  describe('contas e categorias do usuário', () => {
+    const seed = () => {
+      const reference = TestBed.inject(ReferenceData);
+      reference.accounts.set([{ id: 1, name: 'Itaú' } as never]);
+      reference.accountsLoaded.set(true);
+      return reference;
+    };
+
+    it.each([
+      ['sair', () => session.logout().subscribe(), () => http.expectOne('/api/v1/auth/logout').flush(null)],
+      ['sessão perdida', () => session.expire(), () => undefined],
+      ['exclusão da conta', () => session.endLocalSession(), () => undefined],
+    ])('%s esquece as contas, para o próximo usuário não ver as do anterior', (_name, end, finish) => {
+      const reference = seed();
+
+      end();
+      finish();
+
+      expect(reference.accounts()).toEqual([]);
+      expect(reference.accountsLoaded()).toBe(false);
+    });
   });
 
   describe('perfil do atalho Minha conta', () => {

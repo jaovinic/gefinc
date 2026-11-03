@@ -9,7 +9,7 @@ import type {
   Transaction,
   TransactionStatus,
 } from '@gefinc/core-models';
-import { NoticeService, ReferenceData, TransactionsApi, messageFor, toProblem } from '../api';
+import { DATA_FRESHNESS, NoticeService, ReferenceData, TRANSACTIONS_PAGE_SIZE, TransactionsApi, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { AccountBadge, type AccountLike } from '../accounts/account-badge';
 import { Icon } from '../icons/icon';
 import { DateField } from '../date-field/date-field';
@@ -33,7 +33,7 @@ type Panel =
 /** Ações destrutivas que pedem confirmação num diálogo modal (nos dois formatos de tela). */
 type Confirming = { kind: 'delete'; tx: Transaction; impact: GroupImpact } | { kind: 'end'; tx: Transaction };
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
 
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
@@ -209,9 +209,9 @@ const PAGE_SIZE = 25;
       @if (loading()) {
         <gef-loading variant="list" message="Carregando lançamentos…" />
       } @else if (loadError()) {
-        <gef-error [message]="loadError()!" (retry)="load()" />
+        <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (items().length === 0) {
-        <gef-empty icon="list" title="Nenhum lançamento neste mês" hint="Cadastre um lançamento ou escolha outro mês.">
+        <gef-empty icon="list" [title]="emptyTitle()" [hint]="emptyHint()">
           <button type="button" class="gef-btn-secondary" (click)="formOpen.set(true)">Novo lançamento</button>
         </gef-empty>
       } @else if (viewport.compact()) {
@@ -334,6 +334,7 @@ export class TransactionsPage implements OnInit {
   protected readonly viewport = inject(Viewport);
   protected readonly isLocal = inject(PENDING_MARKER);
   private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly freshness = inject(DATA_FRESHNESS);
 
   protected readonly pageSize = PAGE_SIZE;
   /** Filtros iniciais vindos da rota (ex.: toque em um lembrete): `month`, `status` e `kind`. */
@@ -349,6 +350,19 @@ export class TransactionsPage implements OnInit {
   protected readonly total = signal(0);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly loadOffline = signal(false);
+  /** De quando é a lista, se veio da cópia local do aparelho (`null`: do servidor). */
+  private readonly staleAt = signal<Date | null>(null);
+  protected readonly emptyTitle = computed(() => {
+    const since = this.staleAt();
+    return since ? `Nenhum lançamento na última sincronização (${formatSyncedAt(since)})` : 'Nenhum lançamento neste mês';
+  });
+  protected readonly emptyHint = computed(() =>
+    this.staleAt()
+      ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.'
+      : 'Cadastre um lançamento ou escolha outro mês.',
+  );
   protected readonly message = signal<string | null>(null);
   protected readonly formOpen = signal(false);
   protected readonly filtersOpen = signal(false);
@@ -434,10 +448,13 @@ export class TransactionsPage implements OnInit {
         next: (result) => {
           this.items.set(result.content);
           this.total.set(result.totalElements);
+          this.staleAt.set(this.freshness());
           this.loading.set(false);
         },
         error: (e: unknown) => {
-          this.loadError.set(messageFor(toProblem(e)));
+          const problem = toProblem(e);
+          this.loadError.set(messageFor(problem));
+          this.loadOffline.set(isOfflineProblem(problem));
           this.loading.set(false);
         },
       });

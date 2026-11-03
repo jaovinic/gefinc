@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CATEGORY_TYPES, ERROR_CODES, type Category, type CategoryType, type CategoryUsage } from '@gefinc/core-models';
-import { CategoriesApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { CategoriesApi, DATA_FRESHNESS, NoticeService, ReferenceData, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { ConfirmDialog } from '../layout/confirm-dialog';
 import { ColorSwatch } from '../color-swatch/color-swatch';
 import { Sheet } from '../layout/sheet';
@@ -28,9 +28,13 @@ const TYPE_LABELS: Record<CategoryType, string> = { EXPENSE: 'Despesas', INCOME:
       @if (loading()) {
         <gef-loading variant="list" message="Carregando categorias…" />
       } @else if (loadError()) {
-        <gef-error [message]="loadError()!" (retry)="load()" />
+        <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (categories().length === 0) {
-        <gef-empty icon="tag" title="Nenhuma categoria" hint="Crie categorias para classificar receitas e despesas." />
+        <gef-empty
+          icon="tag"
+          [title]="staleAt() ? 'Nenhuma categoria na última sincronização (' + sync(staleAt()!) + ')' : 'Nenhuma categoria'"
+          [hint]="staleAt() ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.' : 'Crie categorias para classificar receitas e despesas.'"
+        />
       } @else {
         @for (type of types; track type) {
           <div>
@@ -104,6 +108,7 @@ export class CategoriesPage implements OnInit {
   private readonly api = inject(CategoriesApi);
   private readonly reference = inject(ReferenceData);
   private readonly notices = inject(NoticeService);
+  private readonly freshness = inject(DATA_FRESHNESS);
 
   protected readonly types = CATEGORY_TYPES;
   protected readonly labels = TYPE_LABELS;
@@ -111,6 +116,10 @@ export class CategoriesPage implements OnInit {
   protected readonly categories = signal<Category[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly loadOffline = signal(false);
+  /** De quando é a lista, se veio da cópia local do aparelho (`null`: do servidor). */
+  protected readonly staleAt = signal<Date | null>(null);
   protected readonly message = signal<string | null>(null);
   protected readonly formError = signal<string | null>(null);
   protected readonly formOpen = signal(false);
@@ -147,14 +156,21 @@ export class CategoriesPage implements OnInit {
     this.api.list().subscribe({
       next: (list) => {
         this.categories.set(list);
+        this.staleAt.set(this.freshness());
         this.loading.set(false);
         this.reference.refresh();
       },
       error: (e: unknown) => {
-        this.loadError.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.loadError.set(messageFor(problem));
+        this.loadOffline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });
+  }
+
+  protected sync(date: Date): string {
+    return formatSyncedAt(date);
   }
 
   protected byType(type: CategoryType): Category[] {

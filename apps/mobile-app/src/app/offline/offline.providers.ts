@@ -1,8 +1,14 @@
 import { EnvironmentProviders, Injector, Provider, inject, provideAppInitializer } from '@angular/core';
-import { PENDING_MARKER, SESSION_ENDED, SessionEndReason } from '@gefinc/ui-shared';
+import { DATA_FRESHNESS, PENDING_MARKER, SESSION_ENDED, SessionEndReason } from '@gefinc/ui-shared';
+import { BackgroundReads } from './background-reads';
 import { LocalDataWipe } from './local-data-wipe';
 import { OfflineBootstrap } from './offline-bootstrap';
+import { OfflineState } from './offline-state';
+import { OfflineWarmup } from './offline-warmup';
 import { isPendingRow } from './overlay';
+
+/** De quando são os dados mostrados: as telas dizem "na última sincronização" quando vêm da cópia local. */
+export const DATA_FRESHNESS_PROVIDER: Provider = { provide: DATA_FRESHNESS, useFactory: () => inject(OfflineState).staleSince };
 
 /**
  * Modo offline do app móvel: limpeza dos dados locais ao encerrar a sessão, marcação dos itens ainda
@@ -12,17 +18,25 @@ import { isPendingRow } from './overlay';
 export function provideOffline(): (Provider | EnvironmentProviders)[] {
   return [
     { provide: PENDING_MARKER, useValue: isPendingRow },
+    DATA_FRESHNESS_PROVIDER,
     {
       provide: SESSION_ENDED,
       useFactory: () => {
         const injector = inject(Injector);
-        return (reason: SessionEndReason) => injector.get(LocalDataWipe).onSessionEnded(reason);
+        return (reason: SessionEndReason) => {
+          // Leituras em segundo plano e o estado de frescor são do usuário que sai (as contas e categorias são esquecidas pela sessão).
+          injector.get(BackgroundReads).cancelAll();
+          injector.get(OfflineState).reset();
+          return injector.get(LocalDataWipe).onSessionEnded(reason);
+        };
       },
     },
     provideAppInitializer(() => {
       // `inject` só funciona antes do primeiro `await`.
       const bootstrap = inject(OfflineBootstrap);
+      const warmup = inject(OfflineWarmup);
       void bootstrap.start();
+      void warmup.start();
     }),
   ];
 }

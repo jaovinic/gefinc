@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { messageFor, toProblem } from './problem';
+import { isOfflineProblem, messageFor, toProblem } from './problem';
 
 function http(status: number, body: unknown) {
   return new HttpErrorResponse({ status, error: body });
@@ -30,5 +30,16 @@ describe('problem', () => {
   it('ação que exige conexão tem mensagem própria, mesmo sendo um erro sem resposta do servidor', () => {
     const offline = toProblem(new HttpErrorResponse({ status: 0, error: { code: 'OFFLINE_REQUIRES_CONNECTION' } }));
     expect(messageFor(offline)).toBe('Esta ação precisa de conexão com a internet. Conecte-se e tente de novo.');
+  });
+
+  it('falta de dados salvos sem conexão tem mensagem própria e conta como falta de conexão', () => {
+    const noData = toProblem(
+      new HttpErrorResponse({ status: 0, error: { code: 'OFFLINE_NO_DATA', detail: 'Sem conexão e sem dados salvos desta tela' } }),
+    );
+    expect(messageFor(noData)).toBe('Sem conexão e sem dados salvos desta tela. Conecte-se à internet e tente de novo.');
+    expect(isOfflineProblem(noData)).toBe(true);
+    expect(isOfflineProblem(toProblem(http(0, null)))).toBe(true);
+    expect(isOfflineProblem(toProblem(http(500, {})))).toBe(false);
+    expect(isOfflineProblem(toProblem(http(409, { code: 'OFFLINE_NO_DATA' })))).toBe(false);
   });
 });

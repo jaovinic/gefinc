@@ -1,6 +1,6 @@
 import { Component, effect, signal, untracked, inject } from '@angular/core';
 import type { CashflowMonth } from '@gefinc/core-models';
-import { InvoicesApi, NoticeService, messageFor, toProblem } from '../api';
+import { CASHFLOW_MONTHS, InvoicesApi, NoticeService, isOfflineProblem, messageFor, toProblem } from '../api';
 import { MonthPicker } from '../month-picker/month-picker';
 import { ErrorView, LoadingView } from '../state-views/state-views';
 import { Viewport } from '../viewport/viewport';
@@ -19,7 +19,7 @@ import { currentMonth, formatBRL, monthLabelBR } from '@gefinc/utils';
       @if (loading()) {
         <gef-loading message="Calculando saldo residual…" />
       } @else if (error()) {
-        <gef-error [message]="error()!" (retry)="load()" />
+        <gef-error [message]="error()!" [variant]="offline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (viewport.compact()) {
         <ul class="space-y-3" aria-label="Saldo residual por mês">
           @for (row of rows(); track row.month) {
@@ -80,6 +80,8 @@ export class CashflowPage {
   protected readonly rows = signal<CashflowMonth[]>([]);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly offline = signal(false);
 
   constructor() {
     effect(() => {
@@ -96,13 +98,15 @@ export class CashflowPage {
   protected load(): void {
     this.loading.set(true);
     this.error.set(null);
-    this.api.cashflow(this.from(), 12).subscribe({
+    this.api.cashflow(this.from(), CASHFLOW_MONTHS).subscribe({
       next: (rows) => {
         this.rows.set(rows);
         this.loading.set(false);
       },
       error: (e: unknown) => {
-        this.error.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.error.set(messageFor(problem));
+        this.offline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });
