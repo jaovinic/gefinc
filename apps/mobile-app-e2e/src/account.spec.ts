@@ -18,7 +18,9 @@ async function messageTo(request: APIRequestContext, email: string) {
 test.describe('conta e acesso no celular', () => {
   test('recuperação de senha dá a mesma resposta para e-mail cadastrado ou não e explica o link', async ({ page, request }) => {
     const user = await newUser(request);
-    for (const email of [user.email, 'ninguem.cadastrado@example.com']) {
+    // E-mail inédito a cada execução: o limitador de redefinição (3/hora por e-mail, em memória) não esgota entre execuções.
+    const unknown = `ninguem.cadastrado.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+    for (const email of [user.email, unknown]) {
       await page.goto('/forgot-password');
       await page.getByLabel('E-mail cadastrado').fill(email);
       await page.getByRole('button', { name: 'Enviar link' }).click();
