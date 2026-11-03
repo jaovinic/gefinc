@@ -65,9 +65,8 @@ Security e SQL em DEBUG. Por isso:
   pago em outro aparelho continua a avisar até a próxima abertura. Limite de 35 avisos agendados (o iOS
   aceita 64). No Android 12+ usam alarme inexato (pode atrasar alguns minutos). Push remoto (Firebase e
   APNs) exigiria contas externas e não está incluído.
-- **Biometria:** só destrava a tela e a sessão já guardada; nunca vai ao servidor. Com o bloqueio ligado, o
-  Android usa `FLAG_SECURE`: **capturas de tela do app ficam bloqueadas** e o conteúdo some dos aplicativos
-  recentes.
+- **Biometria:** só destrava a tela e a sessão já guardada; nunca vai ao servidor. O app não oculta o
+  conteúdo na visão de aplicativos recentes nem bloqueia capturas de tela (decisão do usuário).
 - **iOS:** o projeto está sincronizado (plugins no `Package.swift`, `NSFaceIDUsageDescription` no
   `Info.plist`), mas **não foi compilado nem testado em aparelho** porque exige um Mac com Xcode: pendência
   conhecida até haver acesso a um Mac.

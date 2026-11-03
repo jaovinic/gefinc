@@ -259,6 +259,7 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 
 - **FR-034**: O aplicativo MUST oferecer o bloqueio por biometria do aparelho como opção desligada por padrão, ativada e desativada em Minha conta, com tempo de bloqueio escolhido (imediato, 1 minuto ou 5 minutos em segundo plano).
 - **FR-035**: Com o bloqueio ativo, o aplicativo MUST ocultar todo o conteúdo financeiro, inclusive na visão de aplicativos recentes do sistema, até a biometria ser confirmada.
+  > **Revogado em parte (TASK-UI-LIQUID-GLASS-PENDENCIAS):** a exigência de ocultar o conteúdo na visão de aplicativos recentes (e de bloquear capturas de tela) foi retirada por decisão do usuário; o plugin de privacidade de tela foi removido. A tela de bloqueio por biometria continua valendo.
 - **FR-036**: O aplicativo MUST oferecer a entrada por e-mail e senha como alternativa quando a biometria falhar, for recusada ou ficar indisponível no aparelho, e nesse caso MUST encerrar a sessão anterior.
 - **FR-037**: A biometria MUST NOT substituir a senha em ações que já a exigem (exclusão de conta) e MUST NOT ser armazenada nem enviada ao servidor.
 
@@ -299,6 +300,7 @@ Esta feature não cria entidades novas; ela expõe no celular as entidades da fe
 - **SC-010**: Em 100% dos testes, operações registradas sem conexão aparecem exatamente uma vez no servidor depois que a conexão volta, inclusive quando o envio é interrompido e repetido, e 100% das recusas são mostradas ao usuário com o motivo.
 - **SC-011**: Sem conexão, painel, lançamentos e faturas da última sincronização abrem em até 2 segundos.
 - **SC-012**: Com o bloqueio ativo, o usuário desbloqueia o aplicativo em até 3 segundos com a biometria, e em nenhum teste o conteúdo financeiro fica visível antes do desbloqueio, inclusive na visão de aplicativos recentes.
+  > **Revogado em parte (TASK-UI-LIQUID-GLASS-PENDENCIAS):** a cláusula "inclusive na visão de aplicativos recentes" deixa de valer, por decisão do usuário; a visão de apps recentes deixa de ser ocultada.
 - **SC-013**: Em pelo menos 95% dos testes, o lembrete aparece no horário escolhido (margem de 15 minutos, por limitação dos alarmes do sistema operacional), e em 100% dos testes não aparece lembrete de item já pago.
 
 ## Assumptions

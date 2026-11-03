@@ -111,13 +111,13 @@ describe('Minha conta (app móvel)', () => {
     const toggle = (el: HTMLElement) => el.querySelector('input[role="switch"][aria-label="Bloquear o app com biometria"]') as HTMLInputElement;
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-    it('vem desligado, com o tempo de bloqueio e o aviso sobre capturas de tela no Android', () => {
+    it('vem desligado, com o tempo de bloqueio', () => {
       const { el } = setup();
 
       expect(toggle(el).checked).toBe(false);
       const options = Array.from(el.querySelectorAll('select[aria-label="Bloquear depois de"] option')).map((o) => o.textContent?.trim());
       expect(options).toEqual(['Na hora', '1 minuto', '5 minutos']);
-      expect(el.textContent).toContain('capturas de tela');
+      expect(el.textContent).not.toContain('capturas de tela');
     });
 
     it('ativar pede a biometria com o tempo escolhido e mostra o resultado', async () => {

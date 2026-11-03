@@ -4,7 +4,6 @@ const biometric = {
 };
 const systemBars = { setStyle: jest.fn(async () => undefined) };
 const app = { addListener: jest.fn(async () => ({ remove: jest.fn() })), minimizeApp: jest.fn(async () => undefined) };
-const privacy = { enable: jest.fn(async () => undefined), disable: jest.fn(async () => undefined) };
 
 jest.mock('@aparajita/capacitor-biometric-auth', () => ({
   BiometricAuth: biometric,
@@ -17,12 +16,11 @@ jest.mock('@aparajita/capacitor-biometric-auth', () => ({
     }
   },
 }));
-jest.mock('@capacitor-community/privacy-screen', () => ({ PrivacyScreen: privacy }));
 jest.mock('@capacitor/core', () => ({ ...jest.requireActual('@capacitor/core'), SystemBars: systemBars }));
 jest.mock('@capacitor/app', () => ({ App: app }));
 
 import { BiometryError } from '@aparajita/capacitor-biometric-auth';
-import { BiometricFailure, backButtonPort, biometricPort, privacyPort, systemBarsChrome } from './native-ports';
+import { BiometricFailure, backButtonPort, biometricPort, systemBarsChrome } from './native-ports';
 
 describe('portas para os plugins nativos', () => {
   beforeEach(() => {
@@ -70,26 +68,14 @@ describe('portas para os plugins nativos', () => {
     await expect(biometricPort().authenticate('motivo')).rejects.toMatchObject({ code: 'failed' });
   });
 
-  it('proteção da visão de apps recentes liga e desliga o plugin', async () => {
-    await privacyPort().enable();
-    await privacyPort().disable();
-
-    expect(privacy.enable).toHaveBeenCalledTimes(1);
-    expect(privacy.disable).toHaveBeenCalledTimes(1);
-  });
-
   it('em desenvolvimento, os testes podem trocar os plugins por dublês (window.__gefincNative)', async () => {
-    const calls: string[] = [];
     (window as { __gefincNative?: unknown }).__gefincNative = {
       biometric: { available: true, results: ['failed', 'ok'], calls: 0 },
-      privacy: { enable: () => calls.push('on'), disable: () => calls.push('off') },
     };
 
     expect(await biometricPort().check()).toEqual({ available: true });
     await expect(biometricPort().authenticate('x')).rejects.toMatchObject({ code: 'failed' });
     await expect(biometricPort().authenticate('x')).resolves.toBeUndefined();
-    await privacyPort().enable();
-    expect(calls).toEqual(['on']);
     expect(biometric.authenticate).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,5 @@
 import { InjectionToken, isDevMode } from '@angular/core';
 import { BiometricAuth, BiometryError } from '@aparajita/capacitor-biometric-auth';
-import { PrivacyScreen } from '@capacitor-community/privacy-screen';
 import { App } from '@capacitor/app';
 import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
@@ -22,19 +21,12 @@ export interface BiometricPort {
   authenticate(reason: string): Promise<void>;
 }
 
-export interface PrivacyPort {
-  /** Oculta o conteúdo na visão de apps recentes (no Android, também bloqueia capturas de tela). */
-  enable(): Promise<void>;
-  disable(): Promise<void>;
-}
-
 /**
  * Dublês dos plugins nativos para os testes de ponta a ponta no navegador. Só valem em build de
  * desenvolvimento (`isDevMode`); no build de produção são ignorados.
  */
 interface NativeDoubles {
   biometric?: { available: boolean; reason?: string; results: string[]; defaultResult?: string };
-  privacy?: { enable(): void; disable(): void };
   notifications?: NotificationDoubles;
   /** Estilos de barras de sistema pedidos, na ordem (`'Dark'` = ícones claros, para o tema escuro). */
   systemBars?: string[];
@@ -103,19 +95,7 @@ export function biometricPort(): BiometricPort {
   };
 }
 
-export function privacyPort(): PrivacyPort {
-  const double = nativeDoubles()?.privacy;
-  if (double) {
-    return { enable: async () => double.enable(), disable: async () => double.disable() };
-  }
-  return {
-    enable: () => PrivacyScreen.enable(),
-    disable: () => PrivacyScreen.disable(),
-  };
-}
-
 export const BIOMETRIC_PORT = new InjectionToken<BiometricPort>('BIOMETRIC_PORT', { providedIn: 'root', factory: () => biometricPort() });
-export const PRIVACY_PORT = new InjectionToken<PrivacyPort>('PRIVACY_PORT', { providedIn: 'root', factory: () => privacyPort() });
 
 export type NotificationPermission = 'granted' | 'denied' | 'prompt';
 

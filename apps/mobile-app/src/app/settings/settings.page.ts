@@ -41,9 +41,6 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
         @if (feedback(); as text) {
           <p data-testid="lock-feedback" class="gef-alert-warning" role="status">{{ text }}</p>
         }
-        <p class="text-caption text-gefinc-muted">
-          No Android, enquanto o bloqueio estiver ligado, capturas de tela do aplicativo ficam bloqueadas, e o conteúdo some da lista de aplicativos recentes.
-        </p>
       </section>
 
       <section class="space-y-3 gef-card p-4" aria-labelledby="reminders-title">

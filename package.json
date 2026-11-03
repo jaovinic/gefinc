@@ -66,7 +66,6 @@
     "@angular/router": "~22.2.0",
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@aparajita/capacitor-secure-storage": "^8.0.1",
-    "@capacitor-community/privacy-screen": "^8.0.0",
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.3",
