@@ -39,13 +39,13 @@ export const MIN_PER_INSTALLMENT_MESSAGE = 'O valor deve ter pelo menos R$ 0,01 
         <div>
           <p class="financial-value text-title-lg font-extrabold" data-testid="installment-hero">
             @if (o.hasRemainder) {
-              {{ o.count - 1 }}× de {{ money(o.first) }}
+              1ª parcela de {{ money(o.first) }}
             } @else {
               {{ o.count }}× de {{ money(o.first) }}
             }
           </p>
           @if (o.hasRemainder) {
-            <p class="financial-value text-body-base font-semibold" data-testid="installment-last">+ 1× de {{ money(o.last) }} (última parcela)</p>
+            <p class="financial-value text-body-base font-semibold" data-testid="installment-others">{{ o.count - 1 }}× de {{ money(o.others) }}</p>
           }
           <p class="financial-value mt-1 text-body-base text-gefinc-muted">Total <span class="font-semibold text-gefinc-text">{{ money(o.total) }}</span></p>
           <p class="financial-value text-caption text-gefinc-muted" aria-live="polite" data-testid="installment-summary">{{ exact() }}</p>

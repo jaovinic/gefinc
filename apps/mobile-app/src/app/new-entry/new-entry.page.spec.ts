@@ -471,7 +471,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
 
     expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor total');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('333,31'); // não converte
-    expect(summary(el)).toBe('9 × R$ 33,33 + 1 × R$ 33,34');
+    expect(summary(el)).toBe('1 × R$ 33,34 + 9 × R$ 33,33');
     expect(modeButton(el, 'Valor total').getAttribute('aria-pressed')).toBe('true');
 
     submit(el);

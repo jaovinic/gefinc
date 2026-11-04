@@ -22,7 +22,7 @@ export interface InstallmentPlan {
  * Agenda de parcelas (FR-020 a FR-023), a mesma regra do backend (`InstallmentScheduler`), validada pelos
  * vetores de `packages/core-models/fixtures/installments.json`. No cartão, o vencimento vem do fechamento e
  * do vencimento da fatura; nas demais contas, as parcelas vencem mensalmente a partir da data informada.
- * O resto de centavos fica na última parcela.
+ * O resto de centavos fica todo na primeira parcela.
  */
 export function scheduleInstallments(params: InstallmentParams): InstallmentPlan[] {
   if (!Number.isInteger(params.count) || params.count < 1 || params.count > 120) {

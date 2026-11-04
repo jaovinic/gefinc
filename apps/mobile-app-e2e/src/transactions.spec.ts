@@ -89,7 +89,7 @@ test.describe('lançamentos completos no celular', () => {
     await expect(page.getByText('Nenhum lançamento neste mês')).toBeVisible();
   });
 
-  test('parcelado no cartão mostra a prévia (33,33 / 33,33 / 33,34) e o vencimento definido pela fatura', async ({ page, request }) => {
+  test('parcelado no cartão mostra a prévia (33,34 / 33,33 / 33,33) e o vencimento definido pela fatura', async ({ page, request }) => {
     const { user } = await seed(request);
     await signIn(page, user.email);
     await openTab(page, 'Lançamentos');
@@ -111,9 +111,9 @@ test.describe('lançamentos completos no celular', () => {
     await expect(page.getByRole('dialog', { name: 'Novo lançamento' })).toHaveCount(0);
 
     const groups = (await apiGet(request, user, '/transactions?month=2026-12')) as { content: { amount: string; dueDate: string }[] };
-    expect(groups.content.map((t) => t.amount)).toEqual(['33.33']);
+    expect(groups.content.map((t) => t.amount)).toEqual(['33.34']);
     const last = (await apiGet(request, user, '/transactions?month=2027-02')) as { content: { amount: string }[] };
-    expect(last.content.map((t) => t.amount)).toEqual(['33.34']);
+    expect(last.content.map((t) => t.amount)).toEqual(['33.33']);
   });
 
   test('filtros por status e categoria ficam no painel Filtros', async ({ page, request }) => {

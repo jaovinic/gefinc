@@ -57,8 +57,11 @@ export function multiplyMoney(value: string, factor: number): string {
 }
 
 /**
- * Divide o total em `count` parcelas de valor inteiro em centavos. O resto da divisão vai para a
- * última parcela, de modo que a soma é sempre exatamente igual ao total (FR-023).
+ * Divide o total em `count` parcelas de valor inteiro em centavos: `base = floor(centavos / count)`; a
+ * primeira parcela recebe `base` mais todo o resto da divisão e as demais recebem `base` (convenção das
+ * adquirentes: 134,30 em 4x = 33,59 + 3 × 33,57). A soma é sempre exatamente igual ao total (FR-023).
+ * Mesma regra de `InstallmentScheduler.split`, validada pelos vetores `split` de
+ * `packages/core-models/fixtures/installments.json`.
  */
 export function splitMoney(total: string, count: number): string[] {
   if (!Number.isInteger(count) || count < 1) {
@@ -70,7 +73,7 @@ export function splitMoney(total: string, count: number): string[] {
   }
   const base = cents / BigInt(count);
   const parts = Array.from({ length: count }, () => base);
-  parts[count - 1] = cents - base * BigInt(count - 1);
+  parts[0] = cents - base * BigInt(count - 1);
   return parts.map(fromCents);
 }
 

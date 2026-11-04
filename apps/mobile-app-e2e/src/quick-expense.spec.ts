@@ -165,7 +165,7 @@ test.describe('novo lançamento rápido: parcelado no cartão', () => {
     await page.getByRole('button', { name: 'Valor total' }).click();
     await page.keyboard.type('10000');
 
-    await expect(page.getByTestId('installment-summary')).toHaveText('2 × R$ 33,33 + 1 × R$ 33,34');
+    await expect(page.getByTestId('installment-summary')).toHaveText('1 × R$ 33,34 + 2 × R$ 33,33');
     await expect(page.getByTestId('installment-preview')).toContainText('1/3 · fatura de dez/2026 · vence 17/12');
     await page.getByRole('button', { name: 'Salvar' }).click();
     await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
@@ -173,7 +173,7 @@ test.describe('novo lançamento rápido: parcelado no cartão', () => {
     const nov = (await apiGet(request, user, '/transactions?month=2026-11')) as { content: unknown[] };
     expect(nov.content).toHaveLength(0);
     const feb = (await apiGet(request, user, '/transactions?month=2027-02')) as { content: { amount: string }[] };
-    expect(feb.content.map((t) => t.amount)).toEqual(['33.34']);
+    expect(feb.content.map((t) => t.amount)).toEqual(['33.33']);
   });
 
   test('o campo Parcelas não aparece em conta bancária nem em receita', async ({ page, request }) => {

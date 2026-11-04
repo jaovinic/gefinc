@@ -105,7 +105,7 @@ test.describe('receitas e despesas', () => {
     expect((await created).status()).toBe(201);
   });
 
-  test('parcelado: carnê em 3 parcelas aparece mês a mês com o resto de centavos na última', async ({ page }) => {
+  test('parcelado: carnê em 3 parcelas aparece mês a mês com o resto de centavos na primeira', async ({ page }) => {
     await register(page, uniqueEmail());
     await createAccount(page, 'Itaú', 'CHECKING');
     await page.getByRole('link', { name: 'Lançamentos' }).click();
@@ -126,11 +126,13 @@ test.describe('receitas e despesas', () => {
     await form.getByRole('button', { name: 'Salvar' }).click();
 
     await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('1/3');
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,34');
     await page.getByRole('button', { name: 'Próximo mês' }).click();
     await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('2/3');
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,33');
     await page.getByRole('button', { name: 'Próximo mês' }).click();
     await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('3/3');
-    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,34');
+    await expect(page.getByRole('row', { name: /Notebook/ })).toContainText('R$ 33,33');
   });
 
   test('parcelado no cartão pelo valor da parcela: 10 × R$ 100,00 mostra as faturas e envia o total', async ({ page }) => {

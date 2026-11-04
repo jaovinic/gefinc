@@ -37,6 +37,15 @@ describe('scheduleInstallments (vetores compartilhados com o backend)', () => {
     expect(sumMoney(result.map((i) => i.amount))).toBe(vector.total);
   });
 
+  it('134,30 em 4x: a primeira parcela leva os 2 centavos de resto', () => {
+    const result = scheduleInstallments({ purchaseDate: '2026-11-01', firstDueDate: '2026-11-10', total: '134.30', count: 4 });
+    expect(result.map((i) => i.amount)).toEqual(['33.59', '33.57', '33.57', '33.57']);
+  });
+
+  it('recusa total menor que um centavo por parcela (0,01 em 3x)', () => {
+    expect(() => scheduleInstallments({ purchaseDate: '2026-11-01', firstDueDate: '2026-11-10', total: '0.01', count: 3 })).toThrow();
+  });
+
   it('recusa conta sem primeiro vencimento e quantidade inválida', () => {
     expect(() => scheduleInstallments({ purchaseDate: '2026-11-01', total: '100.00', count: 3 })).toThrow();
     expect(() => scheduleInstallments({ purchaseDate: '2026-11-01', firstDueDate: '2026-11-10', total: '100.00', count: 0 })).toThrow();
