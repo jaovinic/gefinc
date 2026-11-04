@@ -1,6 +1,6 @@
 import { InjectionToken } from '@angular/core';
 
-/** Endereço base da API, ex.: `/api/v1` (web, com proxy) ou `http://host:8080/api/v1` (mobile). */
+/** Endereço base da API, ex.: `/api/v1` (web em dev, com proxy), `https://api.<dominio>/api/v1` (web em produção e mobile). */
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');
 
 export type ClientKind = 'web' | 'mobile';

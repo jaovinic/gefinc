@@ -23,7 +23,7 @@
           {
             "glob": "**/*",
             "input": "apps/web-app/public",
-	    "output": "."
+            "output": "."
           }
         ],
         "styles": [
@@ -33,6 +33,12 @@
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/web-app/src/environments/environment.ts",
+              "with": "apps/web-app/src/environments/environment.prod.ts"
+            }
+          ],
           "budgets": [
             {
               "type": "initial",

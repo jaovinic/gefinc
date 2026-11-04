@@ -150,9 +150,14 @@ adb reverse tcp:8080 tcp:8080 && adb install -r app/build/outputs/apk/debug/app-
 node apps/mobile-app-e2e/device/android-smoke.cjs <serial>   # roteiro de fumaça no aparelho (adb devices)
 ```
 
-No emulador Android a API local é `http://10.0.2.2:8080/api/v1` (`apps/mobile-app/src/environments`); em um
-aparelho por USB, use `adb reverse` como acima (o build de debug libera HTTP só para `localhost`). O build
-do **iOS** precisa de um Mac com Xcode (`npx nx run mobile-app:open -- ios`); o projeto já está sincronizado.
+Ajuste `apps/mobile-app/src/environments/environment.ts` para a API desejada antes de gerar o build: API pública
+(`https://api.gefinc.tech/api/v1` no deploy atual) ou API local (`http://10.0.2.2:8080/api/v1` no emulador Android, ou
+`http://localhost:8080/api/v1` com `adb reverse` em um aparelho por USB; o build de debug libera HTTP só para
+`localhost`). Não há `environment.prod` no mobile: o valor desse arquivo vai direto para o APK, então confira o bundle
+antes de instalar (`grep -c "localhost:8080" apps/mobile-app/android/app/src/main/assets/public/main-*.js` deve dar 0
+para build de produção).
+
+O build do **iOS** precisa de um Mac com Xcode (`npx nx run mobile-app:open -- ios`); o projeto já está sincronizado.
 
 ## 📚 Mais documentação
 

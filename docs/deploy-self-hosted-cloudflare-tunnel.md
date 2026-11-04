@@ -40,8 +40,8 @@ A arquitetura híbrida resolve cada um desses pontos:
 |   (Desktop/Cel)   | <------> |  (Angular 22 SPA) |           |  (Terminação TLS) |
 +-------------------+          +-------------------+           +-------------------+
           |                              |                               |
-          | Proxy Rewrite /api/*         |                               | Túnel Seguro Outbound
-          +------------------------------+                               | (HTTP/2 ou QUIC)
+          | Chamadas diretas a api.<dominio> (CORS + cookie)              | Túnel Seguro Outbound
+          +---------------------------------------------------------------+ (HTTP/2 ou QUIC)
                                                                          v
 =========================================================== | =======================
 REDE LOCAL RESIDENCIAL (Atrás de CGNAT / Roteador Doméstico) |  Túnel Criptografado
@@ -379,30 +379,29 @@ A aplicação web Angular (`apps/web-app`) será hospedada de forma estática no
    - Adicione: `NODE_VERSION` = `22`
 5. Clique em **Save and Deploy**.
 
-### 6.2. Configuração de Proxy Rewrite (`_redirects`) e Headers de Segurança (`_headers`)
+### 6.2. Fallback SPA (`_redirects`), Headers (`_headers`) e CORS
 
-Para obter a melhor experiência de usuário e evitar problemas de CORS e restrições de cookies de terceiros (*third-party cookies*), configure uma regra de proxy reverso na borda do Cloudflare Pages.
-
-Os arquivos colocados na pasta `apps/web-app/public/` são copiados diretamente para a raiz do pacote de build final:
+Os arquivos colocados na pasta `apps/web-app/public/` são copiados diretamente para a raiz do pacote de build final.
 
 #### Arquivo `apps/web-app/public/_redirects`
 
-Crie o arquivo `apps/web-app/public/_redirects`:
+Crie o arquivo `apps/web-app/public/_redirects` apenas com o fallback das rotas internas do Angular:
 
 ```text
-# Redireciona chamadas /api/* diretamente para o túnel do PC local com status 200 (Proxy Rewrite)
-/api/*  https://api.meudominio.com/api/:splat  200
-
-# Redirecionamento SPA para rotas internas do Angular
-/*      /index.html                           200
+/*  /index.html  200
 ```
 
-> [!TIP]
-> **Vantagem do Proxy Rewrite (Código 200):** Com a regra `/api/* ... 200`, para o navegador do usuário, as requisições HTTP continuam acontecendo no mesmo domínio (`https://app.meudominio.com/api/v1/...`). A borda da Cloudflare busca os dados no túnel local de forma transparente. Isso elimina configurações complexas de CORS e permite o funcionamento de cookies com atributo `SameSite=Lax` ou `Strict`.
+> [!NOTE]
+> O Cloudflare Pages **não** faz proxy para outro host: a regra de status `200` (rewrite) só vale para caminhos do mesmo site, e uma regra como `/api/* https://api.meudominio.com/... 200` é ignorada (a rota cai no fallback e devolve o `index.html`; um `POST` de login retorna 405). Por isso o web chama a API **diretamente** em `https://api.meudominio.com/api/v1`.
+>
+> - O build de produção (`--configuration=production`) troca `environment.ts` por `apps/web-app/src/environments/environment.prod.ts`, que contém `apiUrl: 'https://api.meudominio.com/api/v1'`. Ajuste esse valor para o seu domínio. Em desenvolvimento, `environment.ts` mantém `/api/v1` e o `proxy.conf.json` encaminha `/api` para `localhost:8080`.
+> - `APP_BASE_URL` no backend deve ser exatamente `https://app.meudominio.com`, **sem barra final**: é a origem liberada no CORS e a base dos links enviados por e-mail.
+> - O cookie `gefinc_refresh` (`Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`) funciona porque `app.` e `api.` pertencem ao mesmo *site* (mesmo domínio registrável); o front usa `withCredentials`.
+> - Não funcionam contra a API de produção: previews `*.pages.dev` e `localhost:4200` (o CORS responde 403 e o cookie seria cross-site).
 
 #### Arquivo `apps/web-app/public/_headers`
 
-Crie o arquivo `apps/web-app/public/_headers` para aplicar cabeçalhos defensivos de HTTP em todas as páginas:
+Crie o arquivo `apps/web-app/public/_headers` para aplicar cabeçalhos defensivos de HTTP e regras de cache. Os arquivos gerados pelo build (`main-*.js`, `chunk-*.js`, `polyfills-*.js`, `styles-*.css` e as fontes em `media/`) têm hash no nome e podem ser cacheados por um ano; o `index.html` deve sempre ser revalidado. O Cloudflare Pages aceita apenas um `*` (splat) por regra, por isso as regras são por prefixo:
 
 ```text
 /*
@@ -411,7 +410,31 @@ Crie o arquivo `apps/web-app/public/_headers` para aplicar cabeçalhos defensivo
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+
+/main-*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/chunk-*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/polyfills-*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/styles-*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/index.html
+  Cache-Control: no-cache
+
+/
+  Cache-Control: no-cache
 ```
+
+> [!NOTE]
+> Por causa do fallback SPA, um `.js` inexistente devolve o `index.html` com status 200 (*soft 404*) em vez de 404. Após o deploy, confirme no painel/`curl -I` que os cabeçalhos de cache foram aplicados aos arquivos `.js` e `.css`.
 
 ### 6.3. Associação de Domínio Personalizado
 
@@ -421,7 +444,7 @@ No Cloudflare Pages, vá na aba **Custom domains** do projeto e configure seu su
 
 ## 7. Configuração e Conexão do Mobile App
 
-Diferente da aplicação web que pode tirar proveito do proxy rewrite no Pages, o aplicativo móvel compilado com **Capacitor** roda nativamente no smartphone (Android/iOS) sob o esquema local (`http://localhost` ou `capacitor://localhost`). Ele deve consumir diretamente o endpoint público HTTPS do Cloudflare Tunnel.
+O aplicativo móvel compilado com **Capacitor** roda nativamente no smartphone (Android/iOS) sob o esquema local (`https://localhost` no Android, padrão do Capacitor 8, e `capacitor://localhost` no iOS). Assim como o web, ele consome diretamente o endpoint público HTTPS do Cloudflare Tunnel.
 
 ### 7.1. Configuração do Endpoint no Código
 
@@ -434,19 +457,28 @@ export const environment = {
 };
 ```
 
+> [!WARNING]
+> A URL da API deve ser `https://`. O mobile **não** tem `environment.prod`: o valor de `environment.ts` vai direto para o APK. Um build antigo permanece em `apps/mobile-app/android/app/src/main/assets/public` até que um novo `sync` seja executado; depois de alterar o endereço, sincronize novamente antes de gerar o APK.
+
 ### 7.2. Compilação e Sincronização do Capacitor
 
-No seu computador de desenvolvimento:
+No seu computador de desenvolvimento, na raiz do repositório:
 
 ```bash
-# 1. Compilar o frontend Angular do aplicativo móvel
-npx nx build mobile-app --configuration=production
-
-# 2. Copiar os artefatos compilados para a pasta nativa Android
-npx cap sync android
+# Build do frontend móvel + cap sync (já executa com o diretório correto, apps/mobile-app)
+npx nx run mobile-app:sync
 ```
 
+> [!NOTE]
+> Qualquer comando `cap` executado diretamente (ex.: `npx cap sync android`) precisa ser rodado dentro de `apps/mobile-app` (`cd apps/mobile-app`), onde está o `capacitor.config.ts`.
+
 ### 7.3. Geração do APK e Instalação no Smartphone
+
+Pré-requisitos:
+
+- JDK 21 e Android SDK com a plataforma 36 (*platform 36*).
+- `ANDROID_HOME` apontando para o SDK, ou o arquivo `apps/mobile-app/android/local.properties` (já ignorado pelo Git) com `sdk.dir=/caminho/Android/Sdk`.
+- Node 22 e dependências instaladas (`npm ci`).
 
 Conecte o smartphone Android com a **Depuração USB** habilitada:
 
@@ -454,13 +486,27 @@ Conecte o smartphone Android com a **Depuração USB** habilitada:
 # Verificar aparelho conectado
 adb devices
 
-# Compilar e instalar o APK de depuração
+# Compilar o APK de depuração
 cd apps/mobile-app/android
 ./gradlew assembleDebug
+
+# Instalar no aparelho conectado
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-*(Ou utilize o utilitário integrado do Capacitor: `npx cap run android`)*.
+O APK fica em `apps/mobile-app/android/app/build/outputs/apk/debug/app-debug.apk`. Sem cabo, copie o arquivo para o celular e instale-o manualmente (é preciso liberar a instalação de fontes desconhecidas).
+
+*(Ou utilize o utilitário integrado do Capacitor: `cd apps/mobile-app && npx cap run android`)*.
+
+> [!WARNING]
+> A tarefa `assembleRelease` não tem `signingConfigs` configurado: o APK de release sai sem assinatura e não instala. Para testes, use `assembleDebug`.
+
+> [!TIP]
+> Ao usar flags do Nx como `--skip-nx-cache`, passe-as **sem** `--` (ex.: `npx nx run mobile-app:sync --skip-nx-cache`); com `--` a flag é repassada ao `cap sync` e o comando falha. Para validar o bundle sincronizado, o comando abaixo deve imprimir `0` para cada arquivo:
+>
+> ```bash
+> grep -c "localhost:8080" apps/mobile-app/android/app/src/main/assets/public/main-*.js
+> ```
 
 ---
 
@@ -616,7 +662,7 @@ Execute este checklist prático para assegurar que todo o ecossistema está oper
   - Acesse `https://app.meudominio.com` pelo navegador.
   - Verifique se a aplicação Angular carrega sem erros de console.
   - Realize um cadastro e login de usuário.
-  - Verifique na aba *Network* das Ferramentas de Desenvolvedor se as requisições `/api/v1/...` recebem status `200` através da regra de `_redirects`.
+  - Verifique na aba *Network* das Ferramentas de Desenvolvedor se as requisições `/api/v1/...` são enviadas para `https://api.meudominio.com/api/v1/...` (e não para `app.meudominio.com`), recebem status `200` e que as respostas de login trazem `Set-Cookie: gefinc_refresh` com CORS válido.
 - [ ] **3. Validação do App Mobile no Smartphone:**
   - Abra o aplicativo instalado via APK.
   - Faça login com a conta recém-criada.
