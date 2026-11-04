@@ -14,7 +14,7 @@ import type {
   TransactionPatch,
   TransactionStatus,
 } from '@gefinc/core-models';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { API_BASE_URL } from './api.tokens';
 
 export interface TransactionFilter {
@@ -90,9 +90,12 @@ export class TransactionsApi {
     return this.http.get<GroupImpact>(`${this.base}/transaction-groups/${id}/impact`);
   }
 
-  deleteGroup(id: number): Observable<void> {
+  /** Emite `true` quando a exclusão só foi guardada (resposta 202, app móvel sem conexão) e `false` quando o servidor a aplicou. */
+  deleteGroup(id: number): Observable<boolean> {
     const params = new HttpParams().set('confirm', true);
-    return this.http.delete<void>(`${this.base}/transaction-groups/${id}`, { params });
+    return this.http
+      .delete<void>(`${this.base}/transaction-groups/${id}`, { params, observe: 'response' })
+      .pipe(map((response) => response.status === 202));
   }
 
   changeAmount(id: number, fromMonth: Month, amount: Money): Observable<TransactionGroupDetail> {

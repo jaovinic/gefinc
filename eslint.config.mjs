@@ -25,6 +25,10 @@ export default [
                 "error",
                 {
                     enforceBuildableLibDependency: true,
+                    // As telas pesadas de ui-shared são carregadas sob demanda pelo entry `@gefinc/ui-shared/pages`,
+                    // enquanto o restante da biblioteca é importado de forma estática: sem esta exceção, a regra
+                    // proíbe o import estático de uma biblioteca que também aparece em `import()`.
+                    checkDynamicDependenciesExceptions: ["@gefinc/ui-shared"],
                     allow: [
                         "^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$"
                     ],

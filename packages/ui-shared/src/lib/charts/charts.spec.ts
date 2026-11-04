@@ -73,6 +73,25 @@ describe('gráficos', () => {
     expect(el.querySelector('canvas[role="img"]')?.getAttribute('aria-label')).toContain('Gastos por categoria: Alimentação R$ 240,50');
   });
 
+  it('a legenda mostra o percentual de cada fatia (pista além da cor) e as raízes são de bloco', async () => {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const percents = Array.from(el.querySelectorAll('[data-testid="slice-percent"]')).map((p) => p.textContent?.trim());
+    expect(percents).toEqual(['86%', '14%']);
+    expect(el.querySelector('gef-category-donut')?.className).toContain('block');
+    expect(el.querySelector('gef-card-bars')?.className).toContain('block');
+
+    fixture.componentInstance.data.set([
+      { label: 'Moradia', value: '1000.00', color: '#8B5CF6' },
+      { label: 'Compras', value: '1.00', color: '#16A34A' },
+    ]);
+    fixture.detectChanges();
+    expect(Array.from(el.querySelectorAll('[data-testid="slice-percent"]')).map((p) => p.textContent?.trim())).toEqual(['100%', '<1%']);
+  });
+
   it('atualiza o gráfico existente quando os dados mudam e o destrói ao sair', async () => {
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();

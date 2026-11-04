@@ -4,9 +4,13 @@ import { ConfirmDialog, EmptyView, GroupForm, Sheet } from '@gefinc/ui-shared';
 import { PendingOp, PendingQueue } from './pending-queue';
 import { SyncEngine } from './sync-engine';
 
+/** O servidor só reconhece o reenvio de uma operação por 7 dias; a partir de 6 o aviso aparece na pendência. */
+const IDEMPOTENCY_WARNING_MS = 6 * 86_400_000;
+
 /**
  * Pendências de envio: o que está esperando a conexão e o que o servidor recusou (com o motivo). Uma
- * recusada pode ser tentada de novo, corrigida (lançamentos novos) ou descartada.
+ * recusada pode ser tentada de novo, corrigida (só lançamentos novos) ou descartada. Edição e exclusão
+ * recusadas não se corrigem aqui: o motivo costuma ser versão desatualizada, e refazer pede os dados atuais.
  */
 @Component({
   selector: 'gef-pending-list-page',
@@ -22,9 +26,12 @@ import { SyncEngine } from './sync-engine';
           <h2 class="text-title-md font-semibold">Aguardando envio</h2>
           <ul class="space-y-2">
             @for (op of waiting(); track op.id) {
-              <li class="rounded-xl border border-gefinc-border bg-gefinc-surface p-3">
+              <li class="gef-card p-3">
                 <p class="font-medium">{{ op.label }}</p>
                 <p class="text-caption text-gefinc-muted">Será enviado quando houver conexão.</p>
+                @if (isOld(op)) {
+                  <p class="text-caption text-gefinc-warning">Na fila há mais de 6 dias: depois do envio, confira se o resultado não ficou repetido.</p>
+                }
               </li>
             }
           </ul>
@@ -35,9 +42,12 @@ import { SyncEngine } from './sync-engine';
           <h2 class="text-title-md font-semibold text-gefinc-danger">Recusadas pelo servidor</h2>
           <ul class="space-y-2">
             @for (op of rejected(); track op.id) {
-              <li class="rounded-xl border border-gefinc-danger/40 bg-gefinc-surface p-3">
+              <li class="gef-card border-gefinc-danger/40 p-3">
                 <p class="font-medium">{{ op.label }}</p>
                 <p class="text-caption text-gefinc-danger">{{ op.error }}</p>
+                @if (isChange(op)) {
+                  <p class="text-caption text-gefinc-muted">Para refazer, descarte e repita a ação na lista atualizada.</p>
+                }
                 <div class="mt-2 flex flex-wrap gap-1">
                   <button type="button" class="gef-btn-sm" [attr.aria-label]="'Tentar de novo ' + op.label" (click)="retry(op)">Tentar de novo</button>
                   @if (op.kind === 'CREATE_GROUP') {
@@ -84,6 +94,15 @@ export class PendingListPage {
   protected readonly discarding = signal<PendingOp | null>(null);
   protected readonly discardBusy = signal(false);
   protected readonly discardError = signal<string | null>(null);
+
+  protected isOld(op: PendingOp): boolean {
+    return Date.now() - op.createdAt > IDEMPOTENCY_WARNING_MS;
+  }
+
+  /** Edição ou exclusão de lançamento que já existe no servidor. */
+  protected isChange(op: PendingOp): boolean {
+    return op.kind === 'EDIT_TX' || op.kind === 'EDIT_GROUP' || op.kind === 'DELETE_GROUP';
+  }
 
   protected bodyOf(op: PendingOp): TransactionGroupInput {
     return op.body as TransactionGroupInput;

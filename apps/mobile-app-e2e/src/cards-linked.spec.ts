@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiPost, categoryId, newUser, openTab, signIn, todayIso } from './support';
+import { apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseOption } from './support';
 
 test.describe('cartões vinculados a uma conta bancária no celular', () => {
   test('o cartão aparece com ícone, nome, conta e selo no lançamento rápido e na lista de contas', async ({ page, request }) => {
@@ -47,7 +47,7 @@ test.describe('cartões vinculados a uma conta bancária no celular', () => {
     await signIn(page, user.email);
     await openTab(page, 'Contas');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await expect(page.getByText('Cadastre uma conta bancária antes de criar um cartão.')).toBeVisible();
     await page.getByRole('button', { name: 'Cadastrar conta bancária' }).click();
     await expect(page.getByLabel('Pessoa física')).toBeVisible();

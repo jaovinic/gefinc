@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.http.MediaType;
@@ -23,18 +24,31 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.util.ContentCachingResponseWrapper;
 
 /**
- * Idempotência das três operações que o app executa offline: criar lançamento, pagar e desfazer o
- * pagamento. Só age quando o cabeçalho {@code Idempotency-Key} vem em um {@code POST} autenticado
- * para esses caminhos; todo o resto passa direto. Fica depois da autenticação na cadeia de
- * segurança, e a chave vale por usuário (Princípio III).
+ * Idempotência das operações que o app executa offline: criar lançamento, pagar, desfazer o
+ * pagamento, editar lançamento ({@code PATCH}) ou grupo ({@code PUT}), excluir grupo ({@code
+ * DELETE}), alterar o valor e encerrar um lançamento fixo. Só age quando o cabeçalho {@code
+ * Idempotency-Key} vem em uma requisição autenticada de um desses verbos e caminhos (a query
+ * string, como o {@code ?confirm=true} da exclusão, não faz parte do caminho); todo o resto passa
+ * direto. Fica depois da autenticação na cadeia de segurança, e a chave vale por usuário (Princípio
+ * III).
  */
 public class IdempotencyFilter extends OncePerRequestFilter {
 
   static final String KEY_HEADER = "Idempotency-Key";
   static final String REPLAYED_HEADER = "Idempotent-Replayed";
 
-  private static final Pattern SUPPORTED_PATHS =
-      Pattern.compile("^/(transaction-groups|transactions/\\d+/(pay|unpay))$");
+  private static final Map<String, Pattern> SUPPORTED =
+      Map.of(
+          "POST",
+          Pattern.compile(
+              "^/(transaction-groups|transactions/\\d+/(pay|unpay)"
+                  + "|transaction-groups/\\d+/(amount-changes|end))$"),
+          "PATCH",
+          Pattern.compile("^/transactions/\\d+$"),
+          "PUT",
+          Pattern.compile("^/transaction-groups/\\d+$"),
+          "DELETE",
+          Pattern.compile("^/transaction-groups/\\d+$"));
 
   private final IdempotencyService service;
   private final ObjectMapper mapper;
@@ -51,10 +65,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     String path = request.getRequestURI().substring(request.getContextPath().length());
     String header = request.getHeader(KEY_HEADER);
     Long userId = authenticatedUserId();
-    if (header == null
-        || userId == null
-        || !"POST".equals(request.getMethod())
-        || !SUPPORTED_PATHS.matcher(path).matches()) {
+    if (header == null || userId == null || !supports(request.getMethod(), path)) {
       chain.doFilter(request, response);
       return;
     }
@@ -115,12 +126,13 @@ public class IdempotencyFilter extends OncePerRequestFilter {
       throws IOException {
     response.setStatus(replay.status());
     response.setHeader(REPLAYED_HEADER, "true");
-    response.setContentType(
-        replay.status() >= 400
-            ? MediaType.APPLICATION_PROBLEM_JSON_VALUE
-            : MediaType.APPLICATION_JSON_VALUE);
-    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-    if (replay.body() != null) {
+    // Respostas sem corpo (204 da exclusão) voltam sem corpo e sem tipo de conteúdo.
+    if (replay.body() != null && !replay.body().isEmpty()) {
+      response.setContentType(
+          replay.status() >= 400
+              ? MediaType.APPLICATION_PROBLEM_JSON_VALUE
+              : MediaType.APPLICATION_JSON_VALUE);
+      response.setCharacterEncoding(StandardCharsets.UTF_8.name());
       response.getOutputStream().write(replay.body().getBytes(StandardCharsets.UTF_8));
     }
   }
@@ -130,6 +142,11 @@ public class IdempotencyFilter extends OncePerRequestFilter {
     response.setStatus(code.status().value());
     response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
     mapper.writeValue(response.getOutputStream(), ProblemFactory.create(code, detail));
+  }
+
+  private static boolean supports(String method, String path) {
+    Pattern pattern = SUPPORTED.get(method);
+    return pattern != null && pattern.matcher(path).matches();
   }
 
   private static UUID parse(String value) {

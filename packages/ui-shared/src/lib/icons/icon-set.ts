@@ -56,6 +56,13 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   filter: [p('M3 5h18l-7 8v6l-4-2v-4z')],
   search: [p('M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5')],
 
+  // aparência
+  sun: [p('M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4')],
+  moon: [p('M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z')],
+  monitor: [p('M3 4h18v12H3zM8 20h8M12 16v4')],
+
+  calendar: [p('M4 6h16v15H4zM4 10h16M8 3v4M16 3v4')],
+
   // natureza e status
   'arrow-up': [p('M12 19V5M6 11l6-6 6 6')],
   'arrow-down': [p('M12 5v14M6 13l6 6 6-6')],
@@ -64,6 +71,7 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   alert: [p('M12 3 2 20h20zM12 10v5M12 18h.01')],
   info: [p('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01')],
   inbox: [p('M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5')],
+  'wifi-off': [p('M3 3l18 18M4 9.5a12 12 0 0 1 4-2.4M20 9.5a12 12 0 0 0-8-3.4M7 13a7 7 0 0 1 3-1.8M17 13a7 7 0 0 0-2-1.6M9.5 16.5a3.5 3.5 0 0 1 5 0M12 20h.01')],
 };
 
 export const ICON_NAMES: readonly string[] = Object.keys(ICON_SET);

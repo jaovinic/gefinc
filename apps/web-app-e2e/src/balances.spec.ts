@@ -1,5 +1,5 @@
 import { APIRequestContext, expect, test } from '@playwright/test';
-import { PASSWORD, login, todayIso, uniqueEmail } from './support';
+import { PASSWORD, login, todayIso, uniqueEmail, chooseOption } from './support';
 
 const API = 'http://localhost:8080/api/v1';
 
@@ -99,6 +99,7 @@ test.describe('saldo por conta', () => {
   test('o formulário de conta aceita um saldo inicial opcional e o painel o mostra', async ({ page, request }) => {
     const user = await newUser(request);
     await login(page, user.email, PASSWORD);
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible(); // a sessão precisa terminar antes de abrir outra página
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Inter');
@@ -109,7 +110,7 @@ test.describe('saldo por conta', () => {
 
     // cartão não tem saldo inicial
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await expect(page.getByLabel('Saldo inicial (opcional)')).toHaveCount(0);
     await page.getByRole('dialog').getByRole('button', { name: 'Cancelar' }).click();
 
@@ -121,6 +122,7 @@ test.describe('saldo por conta', () => {
   test('conta que já começa devendo: saldo inicial negativo aparece na tela de Contas e no painel', async ({ page, request }) => {
     const user = await newUser(request);
     await login(page, user.email, PASSWORD);
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible(); // a sessão precisa terminar antes de abrir outra página
     await page.goto('/accounts');
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Conta devedora');

@@ -9,45 +9,57 @@
 @import '@ionic/angular/css/structure.css' layer(base);
 @import '@ionic/angular/css/typography.css' layer(base);
 
-/* Tokens do Ionic mapeados para a identidade visual do GEFINC (dark-first) */
+/* Tokens do Ionic apontando para as variáveis do tema (claro/escuro): trocar o tema troca o Ionic junto. */
 :root {
   --ion-font-family: var(--font-sans);
-  --ion-background-color: #090d16;
-  --ion-text-color: #f8fafc;
-  --ion-color-primary: #00e599;
-  --ion-color-primary-contrast: #090d16;
-  --ion-color-secondary: #00b4d8;
-  --ion-color-danger: #f43f5e;
-  --ion-color-warning: #f59e0b;
-  --ion-item-background: #131b2e;
-  --ion-card-background: #131b2e;
-  --ion-toolbar-background: #131b2e;
-  --ion-border-color: #1e293b;
+  --ion-background-color: var(--color-gefinc-bg);
+  --ion-text-color: var(--color-gefinc-text);
+  --ion-color-primary: var(--color-gefinc-primary);
+  --ion-color-primary-contrast: var(--color-gefinc-on-accent);
+  --ion-color-secondary: var(--color-gefinc-secondary);
+  --ion-color-danger: var(--color-gefinc-danger);
+  --ion-color-warning: var(--color-gefinc-warning);
+  --ion-item-background: var(--color-gefinc-surface);
+  --ion-card-background: var(--color-gefinc-surface);
+  --ion-toolbar-background: var(--color-gefinc-surface);
+  --ion-border-color: var(--color-gefinc-border);
+  /* Altura total reservada pela ilha de navegação (altura + folga): botão flutuante e avisos ficam acima dela. */
+  --gef-tabbar-h: 5rem;
 }
 
 /* Android 15+ desenha o app sob a barra de status e a de gestos: respeitar as áreas seguras. */
 @layer components {
   .gef-app-header {
-    @apply flex items-center justify-between border-b border-gefinc-border bg-gefinc-surface px-4 pb-3;
+    @apply flex items-center justify-between border-b px-4 pb-3;
+    border-color: var(--glass-border);
     padding-top: calc(env(safe-area-inset-top) + 0.75rem);
   }
-  /* Ação rápida da tela inicial: um único botão destacado para o novo lançamento. */
+  /* Ação rápida da tela inicial: um único botão destacado para o novo lançamento, em vidro com tinta de marca e
+     desfoque real do fundo, acima da ilha de navegação. O desfoque fica na FOLHA (o link), nunca no contêiner `fixed`
+     `.gef-quick-actions`: filtro em ancestral de elemento `fixed` quebraria os painéis. */
   .gef-quick-actions {
     @apply fixed left-4 right-4 z-10 flex;
-    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 1rem);
+    bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 0.75rem);
   }
   .gef-quick-action {
-    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-gefinc-primary px-4 text-body-base font-bold text-gefinc-bg shadow-lg transition-transform active:scale-[0.97];
+    @apply inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full px-4 text-body-base font-bold text-gefinc-on-accent transition-transform active:scale-[0.97];
+    background:
+      linear-gradient(180deg, var(--glass-fab-sheen), transparent 55%),
+      linear-gradient(135deg, var(--glass-fab-start) 0%, var(--glass-fab-end) 100%);
+    border: 1px solid var(--glass-fab-border);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    box-shadow:
+      inset 0 1px 0 var(--glass-fab-rim),
+      0 12px 28px -12px rgb(0 180 216 / 0.55);
   }
 }
 
-/* Casca do app: cabeçalho, conteúdo rolável e barra de abas (altura em --gef-tabbar-h). */
+/* Casca do app: cabeçalho, conteúdo rolável e a ilha de navegação flutuante. */
 .gef-shell {
-  --gef-tabbar-h: 3.5rem;
   display: flex;
   height: 100dvh;
   flex-direction: column;
-  background: var(--color-gefinc-bg);
 }
 .gef-shell-main {
   -webkit-overflow-scrolling: touch;
@@ -57,32 +69,113 @@
   overscroll-behavior: contain;
 }
 @layer components {
+  /* Ilha: pílula de vidro flutuante, centralizada sem `transform`, acima da barra de gestos, com desfoque real do fundo
+     (`--glass-filter`, que vira `none` na escolha "sólido" e nos fallbacks do sistema). O desfoque fica SEMPRE ligado no modo
+     padrão, sem pausa na rolagem: medido no celular a 120 Hz (Galaxy S21, Painel), pausar o desfoque ao rolar (troca de
+     atributo na raiz, que invalida os estilos da página) deu mais quadros lentos que não pausar (escuro: 6,56% contra 2,48%;
+     sem desfoque: 1,35%). Decisões de desempenho: o desfoque existe SÓ na ilha e no botão flutuante, nunca empilhado com
+     outro, nunca em cartões nem listas; `isolation` sem `transform`/`filter`/opacidade animada em ancestrais (viram "raiz
+     do fundo" e quebram ou encarecem o desfoque); sem `will-change`. */
   .gef-tabbar {
-    @apply flex border-t border-gefinc-border bg-gefinc-surface;
-    padding-bottom: env(safe-area-inset-bottom);
+    @apply fixed z-40 flex gap-0.5 rounded-full p-1.5;
+    inset-inline: 0;
+    margin-inline: auto;
+    isolation: isolate;
+    width: min(calc(100% - 1.5rem), 26rem);
+    bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 14px 32px -12px rgb(0 0 0 / 0.55);
   }
   .gef-tab {
-    @apply flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-caption text-gefinc-muted transition-colors active:bg-gefinc-bg;
+    @apply flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 overflow-hidden px-0.5 font-semibold text-gefinc-muted transition-colors active:bg-gefinc-primary/10;
+    border-radius: 1.25rem;
+    /* A ilha tem largura fixa: o ajuste de fonte do Android (que escala até valores em px) é quase todo anulado
+       aqui e o rótulo cresce no máximo 10% (`--text-scale` vem do MobileShell). */
+    font-size: calc(11px * min(1.1, var(--text-scale, 1)) / var(--text-scale, 1));
+    line-height: 1rem;
   }
+  .gef-tab-label {
+    @apply block max-w-full min-w-0 overflow-hidden whitespace-nowrap;
+    text-overflow: ellipsis;
+  }
+  /* Fonte do sistema muito grande: só o rótulo da aba ativa fica visível; os outros seguem acessíveis (sr-only). */
+  .gef-tabbar[data-large-text] .gef-tab:not(.gef-tab-active) .gef-tab-label {
+    @apply sr-only;
+  }
+  /* Ativo: o indicador de vidro desliza até a aba; aqui só muda a cor (o peso é o mesmo, para o texto não alargar). */
   .gef-tab-active {
-    @apply font-semibold text-gefinc-primary;
-    box-shadow: inset 0 3px 0 0 var(--color-gefinc-primary);
+    @apply text-gefinc-primary;
+  }
+  /* Indicador de vidro: irmão das abas (nunca ancestral), sem desfoque próprio, deslizando com leve ultrapassagem.
+     Largura e posição seguem o preenchimento (p-1.5) e o vão (gap-0.5) da ilha. */
+  .gef-tab-glass {
+    @apply pointer-events-none absolute;
+    top: 0.375rem;
+    bottom: 0.375rem;
+    left: 0.375rem;
+    z-index: -1;
+    width: calc((100% - 0.75rem - 0.375rem) / 4);
+    border-radius: 1.25rem;
+    background:
+      linear-gradient(180deg, var(--glass-indicator-sheen), transparent 60%),
+      var(--glass-indicator-tint);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 8px 16px -10px var(--glass-indicator-tint);
+    transform: translateX(calc(var(--i, 0) * (100% + 0.125rem)));
+  }
+  .gef-tabbar[data-ready] .gef-tab-glass {
+    transition:
+      transform 0.45s cubic-bezier(0.34, 1.3, 0.5, 1),
+      opacity 0.2s;
+  }
+  .gef-tabbar[data-none] .gef-tab-glass {
+    opacity: 0;
   }
   .gef-page {
     @apply p-4;
-    padding-bottom: calc(env(safe-area-inset-bottom) + 6rem);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 5rem) + 1.5rem);
   }
   .gef-menu-item {
-    @apply flex min-h-14 items-center rounded-lg border border-gefinc-border bg-gefinc-surface px-4 text-body-base font-semibold text-gefinc-text transition-colors active:bg-gefinc-bg;
+    @apply flex min-h-14 items-center rounded-lg border border-gefinc-border px-4 text-body-base font-semibold text-gefinc-text transition-colors active:bg-gefinc-bg;
+    background-color: var(--glass-bg);
   }
 }
 
-/* Tela cheia rolável das páginas fora da casca (acesso e lançamento rápido). */
+/* Tela cheia rolável das páginas fora da casca (acesso e lançamento rápido); o fundo vem do corpo. */
 .gef-screen {
   height: 100dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--color-gefinc-bg);
+  /* Fim da rolagem acima da barra de gestos (o Salvar não fica sob ela); o formulário mantém o seu `pb-10`. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Barra de status: o relógio e os ícones ficam legíveis sobre o conteúdo que rola por baixo (Android 15 desenha
+   o app sob ela). É só cor (sem filtro: ele quebraria elementos `fixed` dentro); no navegador `env()` vale 0
+   e o véu some. Fica DENTRO do `ion-app` (que tem `contain: layout` e z-index 0, logo um contexto de empilhamento
+   próprio que contém a ilha, os painéis e a tela de bloqueio): assim o z-index 30 vale de fato abaixo da ilha (z-40),
+   dos painéis (z-50) e da tela de bloqueio/avisos (z-60). Em `body::after` ele ficaria acima do app inteiro. */
+ion-app::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: env(safe-area-inset-top);
+  pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--color-gefinc-bg) 88%, transparent) 0%, transparent 100%);
+}
+@media (prefers-contrast: more) {
+  ion-app::after {
+    background: var(--color-gefinc-bg);
+  }
 }
 
 /* O Ionic dá margem no topo dos títulos; os cartões e telas do GEFINC controlam o espaçamento sozinhos. */

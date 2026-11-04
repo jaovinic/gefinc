@@ -76,8 +76,18 @@ describe('Shell (menu lateral)', () => {
     expect(link.getAttribute('aria-label')).toBe('Minha conta — Ana Souza');
     expect(link.textContent).toContain('Ana Souza');
     expect(link.querySelector('gef-avatar')?.textContent?.trim()).toBe('A');
-    expect(chip.classList.contains('ml-auto')).toBe(true);
+    expect(chip.parentElement?.classList.contains('ml-auto')).toBe(true);
     expect(load).toHaveBeenCalled();
+  });
+
+  it('a barra do topo traz o alternador de tema (ícone) antes do atalho, e a barra e o menu são de vidro', async () => {
+    const { el } = await setup();
+    const topbar = el.querySelector('header.gef-topbar') as HTMLElement;
+    const toggle = topbar.querySelector('gef-theme-toggle button[data-testid="theme-toggle"]') as HTMLButtonElement;
+
+    expect(toggle.getAttribute('aria-label')).toMatch(/^Tema: .+\. Alternar para /);
+    expect(toggle.compareDocumentPosition(topbar.querySelector('gef-account-chip') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(el.querySelector('aside.gef-sidenav')).not.toBeNull();
   });
 
   it('no desktop a barra do topo esconde o botão de menu e o logo, mas mantém o atalho', async () => {

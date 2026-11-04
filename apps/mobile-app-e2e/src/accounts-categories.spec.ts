@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openFromMore, openTab, signIn } from './support';
+import { apiGet, apiPost, categoryId, newUser, openFromMore, openTab, signIn, chooseOption } from './support';
 
 test.describe('contas, cartões e categorias no celular', () => {
   test('cria conta e cartão (dias inválidos recusados sem perder o digitado), edita e inativa', async ({ page, request }) => {
@@ -20,7 +20,7 @@ test.describe('contas, cartões e categorias no celular', () => {
     // cartão com dia inválido: avisa e mantém o que foi digitado
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
     await page.getByLabel('Nome').fill('Nubank');
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await page.getByLabel('Conta bancária').click();
     await page.locator('[role="option"]').filter({ hasText: 'Itaú' }).click();
     await page.getByLabel('Dia de fechamento da fatura').fill('32');

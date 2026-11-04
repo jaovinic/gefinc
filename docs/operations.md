@@ -52,22 +52,69 @@ Security e SQL em DEBUG. Por isso:
 
 ## Aplicativo móvel: dados locais, offline, biometria e lembretes
 
-- **Idempotência:** as três operações do modo offline (`POST /transaction-groups`, `/transactions/{id}/pay`
-  e `/unpay`) aceitam o cabeçalho `Idempotency-Key`. As chaves ficam na tabela `idempotency_keys` por **7
-  dias** (job diário às 3h30) e valem por usuário. Reprocesso de uma chave devolve a resposta original com
-  `Idempotent-Replayed: true`; reserva sem conclusão há mais de 2 minutos é considerada abandonada.
+- **Idempotência:** as operações do modo offline aceitam o cabeçalho `Idempotency-Key` (UUID): `POST
+  /transaction-groups`, `POST /transactions/{id}/pay` e `/unpay`, `PATCH /transactions/{id}`, `PUT` e `DELETE
+  /transaction-groups/{id}` (o `?confirm=true` não faz parte da identidade) e `POST /transaction-groups/{id}/amount-changes`
+  e `/end` (estas duas o app ainda não enfileira). As chaves ficam na tabela `idempotency_keys` por **7 dias** (job
+  diário às 3h30) e valem por usuário. Reprocesso de uma chave devolve a resposta original com `Idempotent-Replayed:
+  true` (inclusive o `204` da exclusão e o `200` de uma edição, sem `409 STALE_VERSION` nem `404` falsos); a mesma
+  chave com outro verbo, caminho ou corpo é `422 IDEMPOTENCY_KEY_REUSED`; reserva sem conclusão há mais de 2
+  minutos é considerada abandonada. Uma operação que ficou na fila do aparelho **mais de 7 dias** deixa de ser
+  reconhecida como repetição: se a resposta de uma tentativa anterior tiver se perdido, ela pode ser aplicada de novo
+  (o app avisa na pendência a partir de 6 dias).
 - **Dados no aparelho:** a cópia local das leituras (até 20 MB, IndexedDB) e a fila de operações pendentes
   ficam **cifradas** com AES-GCM; a chave de 256 bits fica no Keystore (Android) ou Keychain (iOS). Sair da
   conta ou excluí-la apaga cópia, fila, preferências, chave e lembretes agendados. Se a sessão expirar sem
   o usuário sair, só a cópia é apagada: a fila e a chave ficam para o mesmo usuário continuar.
+- **Consulta sem conexão (cópia local):** toda leitura da API (menos `/auth`) é guardada pela URL completa,
+  cifrada e separada por usuário. Sem conexão, a tela usa a cópia e a faixa do topo mostra a data da
+  última sincronização. Se a rede estiver "conectada" mas não responder em ~3 s, uma leitura que tem cópia é
+  respondida pela cópia e o pedido segue vivo em segundo plano (até 60 s, um por endereço): se chegar, renova a
+  cópia e, havendo diferença, as telas recarregam (leitura sem cópia espera a rede; escritas nunca têm esse limite).
+- **Aquecimento da cópia:** depois do login, ao voltar ao primeiro plano e ao reconectar (no máximo a cada 15
+  min, só com rede, desbloqueado e logado, uma requisição por vez e em ociosidade), o app busca contas
+  (inclusive inativas), categorias, saldos, painel, lançamentos (1ª página, 25 itens) e fluxo de caixa do mês
+  corrente, e a fatura e a projeção de cada cartão (até 6), com os mesmos parâmetros das telas. Meses e
+  filtros que o usuário ainda não abriu só existem sem conexão se ele os abriu antes com rede. A volta da
+  conexão também reagenda o envio da fila quando o aparelho segue "conectado" mas a API não responde
+  (espera de 2 s, dobrando até 60 s).
+- **O que se faz sem conexão:** consultar (cópia local), **lançar** (avulso, fixo e parcelado), **pagar e desfazer**,
+  **editar valor e vencimento** de um lançamento que já existe no servidor e **excluir** um lançamento (grupo). Cada
+  operação vai para a fila cifrada e sai na ordem em que foi feita, com a mesma `Idempotency-Key` em todas as
+  tentativas. O que **não** se faz: contas e categorias (criar, editar, excluir), pagar fatura, alterar valor
+  "daqui" e encerrar lançamento fixo, excluir a conta, recuperar senha, e **editar ou excluir um lançamento criado
+  sem conexão e ainda não enviado** (os botões ficam desligados até o envio; a edição desses itens é uma evolução
+  futura). Essas ações dizem "Esta ação precisa de conexão" e não perdem o que foi digitado.
+- **Editar e excluir offline:** a lista mostra o efeito por cima da cópia local (valor, vencimento, pagamento; o
+  excluído sai da lista, preservando o que já estava pago, como o servidor) e marca o item com "Pendente de envio".
+  Painel, faturas, saldos e fluxo de caixa **não** incluem as pendências (o aviso do topo diz isso). Duas edições
+  seguidas do mesmo lançamento, ainda não enviadas, viram uma só (vale a última). Depois de cada edição aplicada, a
+  `version` nova devolvida pelo servidor passa às edições seguintes do mesmo registro. Excluir sem conexão não
+  consulta o impacto (leitura que precisa de rede): a confirmação avisa que a exclusão "será aplicada quando a
+  conexão voltar" e o servidor aplica a regra de sempre. Se o registro mudou em outro aparelho (`409
+  STALE_VERSION`) ou o servidor recusar por outro motivo, a operação vai para **Pendências de envio** com o motivo;
+  nada sobrescreve dados do servidor em silêncio, e a resolução de conflitos (comparar e escolher) é evolução
+  futura. Excluir algo que já não existe (`404`) conta como feito.
+- **Envio da fila:** sai quando a conexão volta, ao abrir/voltar ao app, em "Sincronizar agora" e **na hora** em que
+  uma escrita é enfileirada por falha de rede com o aparelho ainda "conectado". Cada tentativa tem limite de 30 s: se a
+  rede "conectada" não responder, a tentativa é abortada, a operação volta a pendente e o envio é repetido com espera
+  de 2 s dobrando até 60 s (a chave de idempotência impede duplicata). Erros 4xx definitivos ficam como recusadas.
+- **Mensagens das telas:** *Sem conexão* (ícone de wifi cortado, "Tentar novamente") = sem rede e sem cópia
+  daquela tela (`OFFLINE_NO_DATA`). *Sem lançamentos/Nenhuma conta... na última sincronização (dd/MM HH:mm)* =
+  a cópia local estava vazia naquele momento; pode haver dados novos em outro aparelho, que só chegam ao
+  reconectar. *Sem lançamentos neste mês* (sem data) = dado atual do servidor. "Esta ação precisa de conexão"
+  = escrita fora da fila (contas, categorias, pagar fatura etc.). Em *Novo lançamento* sem conexão o aviso é
+  "Salvo no aparelho; será enviado quando houver conexão".
+- **Avisos às telas (`dataChanged`):** envio da fila, aquecimento e leituras tardias avisam as telas para recarregar; os
+  avisos são coalescidos (o primeiro é imediato, os seguintes dentro de 1,5 s viram um só no fim da janela). A recarga
+  depois de uma ação do próprio usuário não passa por esse aviso e é imediata.
 - **Lembretes:** são notificações **locais**, agendadas no aparelho a partir de `GET /due-summary` (só
   contagens, sem valores nem nomes). Só se atualizam quando o app abre, sincroniza ou muda algo; um item
   pago em outro aparelho continua a avisar até a próxima abertura. Limite de 35 avisos agendados (o iOS
   aceita 64). No Android 12+ usam alarme inexato (pode atrasar alguns minutos). Push remoto (Firebase e
   APNs) exigiria contas externas e não está incluído.
-- **Biometria:** só destrava a tela e a sessão já guardada; nunca vai ao servidor. Com o bloqueio ligado, o
-  Android usa `FLAG_SECURE`: **capturas de tela do app ficam bloqueadas** e o conteúdo some dos aplicativos
-  recentes.
+- **Biometria:** só destrava a tela e a sessão já guardada; nunca vai ao servidor. O app não oculta o
+  conteúdo na visão de aplicativos recentes nem bloqueia capturas de tela (decisão do usuário).
 - **iOS:** o projeto está sincronizado (plugins no `Package.swift`, `NSFaceIDUsageDescription` no
   `Info.plist`), mas **não foi compilado nem testado em aparelho** porque exige um Mac com Xcode: pendência
   conhecida até haver acesso a um Mac.

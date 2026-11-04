@@ -1,6 +1,6 @@
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { ERROR_CODES, type Account, type AccountUsage, type HolderType } from '@gefinc/core-models';
-import { AccountsApi, BalancesApi, NoticeService, messageFor, toProblem } from '../api';
+import { AccountsApi, BalancesApi, DATA_FRESHNESS, NoticeService, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { BalanceValue } from '../balances/balance-value';
 import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
@@ -51,15 +51,19 @@ import { blockedAccountMessage } from './account-usage';
       @if (loading()) {
         <gef-loading variant="list" message="Carregando contas…" />
       } @else if (loadError()) {
-        <gef-error [message]="loadError()!" (retry)="load()" />
+        <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (accounts().length === 0) {
-        <gef-empty icon="accounts" title="Nenhuma conta cadastrada" hint="Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.">
+        <gef-empty
+          icon="accounts"
+          [title]="staleAt() ? 'Nenhuma conta na última sincronização (' + sync(staleAt()!) + ')' : 'Nenhuma conta cadastrada'"
+          [hint]="staleAt() ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.' : 'Cadastre uma conta, o dinheiro em espécie ou um cartão de crédito para começar.'"
+        >
           <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
         </gef-empty>
       } @else if (viewport.compact()) {
         <ul class="space-y-3">
           @for (account of visible(); track account.id) {
-            <li data-testid="account-card" class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+            <li data-testid="account-card" class="gef-card p-4">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <gef-account-badge [account]="account" [showBank]="true" />
@@ -195,12 +199,17 @@ export class AccountsPage implements OnInit {
   private readonly api = inject(AccountsApi);
   private readonly balancesApi = inject(BalancesApi);
   private readonly notices = inject(NoticeService);
+  private readonly freshness = inject(DATA_FRESHNESS);
   protected readonly viewport = inject(Viewport);
 
   protected readonly labels = ACCOUNT_TYPE_LABELS;
   protected readonly accounts = signal<Account[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly loadOffline = signal(false);
+  /** De quando é a lista, se veio da cópia local do aparelho (`null`: do servidor). */
+  protected readonly staleAt = signal<Date | null>(null);
   protected readonly message = signal<string | null>(null);
   /** Saldo atual por conta (id -> valor): carga e erro próprios, para não bloquear a lista de contas. */
   protected readonly balances = signal<Map<number, string> | null>(null);
@@ -289,13 +298,20 @@ export class AccountsPage implements OnInit {
     this.api.list(this.showInactive()).subscribe({
       next: (list) => {
         this.accounts.set(list);
+        this.staleAt.set(this.freshness());
         this.loading.set(false);
       },
       error: (e: unknown) => {
-        this.loadError.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.loadError.set(messageFor(problem));
+        this.loadOffline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });
+  }
+
+  protected sync(date: Date): string {
+    return formatSyncedAt(date);
   }
 
   protected toggleInactive(event: Event): void {

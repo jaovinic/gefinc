@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { BIOMETRIC_PORT, BiometricFailure, PRIVACY_PORT } from '../native/native-ports';
+import { BIOMETRIC_PORT, BiometricFailure } from '../native/native-ports';
 import { DevicePreferences } from './device-preferences';
 
 export type LockChange = { ok: true } | { ok: false; reason: 'unavailable' | 'cancelled' | 'failed' | 'lockout'; message: string };
@@ -25,7 +25,6 @@ const MESSAGES = {
 export class AppLockService {
   private readonly prefs = inject(DevicePreferences);
   private readonly biometric = inject(BIOMETRIC_PORT);
-  private readonly privacy = inject(PRIVACY_PORT);
 
   readonly locked = signal(false);
   readonly failures = signal(0);
@@ -44,16 +43,12 @@ export class AppLockService {
     await this.prefs.load();
     if (this.prefs.lock().enabled) {
       this.locked.set(true);
-      await this.privacy.enable();
     }
   }
 
   /** Depois de entrar com a senha: aplica as preferências do usuário sem bloquear. */
   async onSignedIn(): Promise<void> {
     await this.prefs.load();
-    if (this.prefs.lock().enabled) {
-      await this.privacy.enable();
-    }
   }
 
   async onSignedOut(): Promise<void> {
@@ -61,7 +56,6 @@ export class AppLockService {
     this.failures.set(0);
     this.message.set(null);
     this.passwordRequired.set(false);
-    await this.privacy.disable();
   }
 
   async enable(timeoutMinutes: number): Promise<LockChange> {
@@ -74,7 +68,6 @@ export class AppLockService {
       return confirmed;
     }
     await this.prefs.setLock({ enabled: true, timeoutMinutes });
-    await this.privacy.enable();
     return { ok: true };
   }
 
@@ -84,7 +77,6 @@ export class AppLockService {
       return confirmed;
     }
     await this.prefs.setLock({ enabled: false });
-    await this.privacy.disable();
     this.locked.set(false);
     return { ok: true };
   }
@@ -166,7 +158,6 @@ export class AppLockService {
   /** A biometria sumiu do aparelho: desliga o bloqueio e só deixa entrar com e-mail e senha. */
   private async biometricGone(): Promise<void> {
     await this.prefs.setLock({ enabled: false });
-    await this.privacy.disable();
     this.passwordRequired.set(true);
     this.message.set(MESSAGES.unavailable);
     this.locked.set(true);

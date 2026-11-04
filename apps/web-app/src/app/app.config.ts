@@ -3,7 +3,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import localePt from '@angular/common/locales/pt';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { authInterceptor } from '@gefinc/ui-shared';
+import { authInterceptor, provideGlass, provideTheme } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
 import { provideSession } from './core/session.providers';
 
@@ -16,5 +16,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor])),
     { provide: LOCALE_ID, useValue: 'pt-BR' },
     provideSession(),
+    provideTheme(),
+    provideGlass(),
   ],
 };

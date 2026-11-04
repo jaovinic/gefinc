@@ -2,13 +2,15 @@ import { HttpClient, HttpContext, provideHttpClient, withInterceptors } from '@a
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { API_BASE_URL, ReferenceData } from '@gefinc/ui-shared';
+import { API_BASE_URL, NoticeService, ReferenceData } from '@gefinc/ui-shared';
+import { BACKGROUND_READ_MAX_MS, offlineInterceptor } from './offline.interceptor';
+import { BackgroundReads } from './background-reads';
 import { CacheStore } from './cache-store';
 import { NetworkStatus } from './network-status';
 import { OfflineState } from './offline-state';
 import { BYPASS_OFFLINE } from './offline-context';
-import { offlineInterceptor } from './offline.interceptor';
 import { PendingOp, PendingQueue } from './pending-queue';
+import { UserScope } from './user-scope';
 
 const API = 'http://api.test/api/v1';
 
@@ -18,11 +20,14 @@ describe('offlineInterceptor', () => {
   const cache = { put: jest.fn(async () => undefined), get: jest.fn(async (): Promise<{ value: unknown; syncedAt: Date } | null> => null) };
   const queue = {
     ops,
-    enqueue: jest.fn(async (input: Omit<PendingOp, 'id' | 'state' | 'createdAt'>) => {
-      const op = { ...input, id: 'op-1', state: 'PENDING' as const, createdAt: 1 };
+    enqueue: jest.fn(async (input: Omit<PendingOp, 'id' | 'state' | 'createdAt' | 'method' | 'schema'> & { method?: PendingOp['method'] }) => {
+      const op = { ...input, method: input.method ?? 'POST', schema: 2, id: 'op-1', state: 'PENDING' as const, createdAt: 1 } as PendingOp;
       ops.update((list) => [...list, op]);
       return op;
     }),
+    hasLive: jest.fn((entity: { type: string; id: number }) =>
+      ops().some((o) => o.state !== 'REJECTED' && o.entity?.type === entity.type && o.entity.id === entity.id),
+    ),
   };
   const reference = {
     accounts: signal([{ id: 1, name: 'Itaú', type: 'CHECKING', active: true, version: 0 }]),
@@ -31,13 +36,16 @@ describe('offlineInterceptor', () => {
   let http: HttpClient;
   let backend: HttpTestingController;
   let state: OfflineState;
+  let userId: string | null;
 
   beforeEach(() => {
     online.set(true);
+    userId = 'user-1';
     ops.set([]);
     cache.put.mockClear();
     cache.get.mockReset().mockResolvedValue(null);
     queue.enqueue.mockClear();
+    queue.hasLive.mockClear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -48,6 +56,7 @@ describe('offlineInterceptor', () => {
         { provide: PendingQueue, useValue: queue },
         { provide: NetworkStatus, useValue: { online } },
         { provide: ReferenceData, useValue: reference },
+        { provide: UserScope, useValue: { id: () => userId } },
       ],
     });
     http = TestBed.inject(HttpClient);
@@ -76,12 +85,254 @@ describe('offlineInterceptor', () => {
     expect(state.staleSince()).toEqual(syncedAt);
   });
 
-  it('GET sem rede e sem cópia local devolve o erro', async () => {
+  it('GET com falha de rede e sem cópia local devolve OFFLINE_NO_DATA (sem dados salvos), não o aviso de "ação"', async () => {
     const result = new Promise<unknown>((resolve) => http.get(`${API}/dashboard?month=2026-11`).subscribe({ error: resolve }));
 
     backend.expectOne(`${API}/dashboard?month=2026-11`).error(new ProgressEvent('error'), { status: 0 });
 
-    expect(await result).toMatchObject({ status: 0 });
+    expect(await result).toMatchObject({
+      status: 0,
+      error: { code: 'OFFLINE_NO_DATA', detail: 'Sem conexão e sem dados salvos desta tela' },
+    });
+  });
+
+  it('GET com o aparelho desconectado e sem cópia local devolve OFFLINE_NO_DATA, sem tentar a rede', async () => {
+    online.set(false);
+    const result = new Promise<unknown>((resolve) => http.get(`${API}/dashboard?month=2026-11`).subscribe({ error: resolve }));
+
+    backend.expectNone(`${API}/dashboard?month=2026-11`);
+
+    expect(await result).toMatchObject({ status: 0, error: { code: 'OFFLINE_NO_DATA' } });
+  });
+
+  it('leitura que prepara uma alteração (impacto da exclusão, uso, registro a editar) sem cópia continua dizendo que a AÇÃO precisa de conexão', async () => {
+    online.set(false);
+    for (const path of ['/transaction-groups/3/impact', '/accounts/1/usage', '/categories/2/usage', '/transaction-groups/3', '/transactions/9']) {
+      const error = await new Promise<{ error: { code: string } }>((resolve) => http.get(`${API}${path}`).subscribe({ error: resolve }));
+      expect(error.error.code).toBe('OFFLINE_REQUIRES_CONNECTION');
+    }
+    backend.verify();
+  });
+
+  describe('conectado sem internet (a rede não responde)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    it('com cópia local, depois de 3 s sem resposta responde com a cópia (marcada como antiga) e mantém o pedido vivo', async () => {
+      const syncedAt = new Date('2026-11-09T20:00:00Z');
+      cache.get.mockResolvedValue({ value: [{ id: 1 }], syncedAt });
+      const received = jest.fn();
+      const completed = jest.fn();
+      http.get(`${API}/accounts`).subscribe({ next: received, complete: completed });
+
+      await jest.advanceTimersByTimeAsync(2_999);
+      expect(received).not.toHaveBeenCalled();
+      expect(cache.get).not.toHaveBeenCalled();
+      await jest.advanceTimersByTimeAsync(2);
+
+      expect(received).toHaveBeenCalledWith([{ id: 1 }]);
+      expect(completed).toHaveBeenCalled();
+      expect(state.staleSince()).toEqual(syncedAt);
+      const request = backend.expectOne(`${API}/accounts`);
+      expect(request.cancelled).toBe(false);
+      request.flush([{ id: 1 }]);
+    });
+
+    describe('resposta tardia (depois de a cópia local já ter respondido)', () => {
+      const syncedAt = new Date('2026-11-09T20:00:00Z');
+      let notices: NoticeService;
+      beforeEach(() => {
+        notices = TestBed.inject(NoticeService);
+        cache.get.mockResolvedValue({ value: [{ id: 1 }], syncedAt });
+      });
+
+      async function slowRead(url = `${API}/accounts`) {
+        const received = jest.fn();
+        http.get(url).subscribe(received);
+        await jest.advanceTimersByTimeAsync(3_001);
+        return received;
+      }
+
+      it('renova a cópia local, marca os dados como atuais e avisa as telas, sem emitir uma segunda resposta ao mesmo pedido', async () => {
+        const received = await slowRead();
+        expect(state.staleSince()).toEqual(syncedAt);
+
+        backend.expectOne(`${API}/accounts`).flush([{ id: 1 }, { id: 2 }]);
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(received).toHaveBeenCalledTimes(1);
+        expect(received).toHaveBeenCalledWith([{ id: 1 }]);
+        expect(cache.put).toHaveBeenCalledWith(`${API}/accounts`, [{ id: 1 }, { id: 2 }]);
+        expect(state.staleSince()).toBeNull();
+        expect(notices.dataChangedCount()).toBe(1);
+      });
+
+      it('se a resposta tardia for igual à cópia, renova sem pedir às telas que recarreguem (evita laço)', async () => {
+        await slowRead();
+
+        backend.expectOne(`${API}/accounts`).flush([{ id: 1 }]);
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(cache.put).toHaveBeenCalledTimes(1);
+        expect(state.staleSince()).toBeNull();
+        expect(notices.dataChangedCount()).toBe(0);
+      });
+
+      it('mantém no máximo um pedido pendente por endereço: o segundo que perde para a cópia é cancelado', async () => {
+        await slowRead();
+        const second = jest.fn();
+        http.get(`${API}/accounts`).subscribe(second);
+        await jest.advanceTimersByTimeAsync(3_001);
+
+        expect(second).toHaveBeenCalledWith([{ id: 1 }]);
+        const requests = backend.match(`${API}/accounts`);
+        expect(requests.map((r) => r.cancelled)).toEqual([false, true]);
+        requests[0].flush([{ id: 1 }]);
+      });
+
+      it('endereços diferentes têm cada um o seu pedido pendente', async () => {
+        await slowRead(`${API}/accounts`);
+        await slowRead(`${API}/categories`);
+
+        const requests = backend.match(() => true);
+        expect(requests.map((r) => r.cancelled)).toEqual([false, false]);
+        requests.forEach((r) => r.flush([{ id: 1 }]));
+      });
+
+      it('encerrar a sessão cancela os pedidos pendentes e nada é gravado', async () => {
+        await slowRead();
+        const request = backend.expectOne(`${API}/accounts`);
+
+        TestBed.inject(BackgroundReads).cancelAll();
+
+        expect(request.cancelled).toBe(true);
+        expect(cache.put).not.toHaveBeenCalled();
+        expect(notices.dataChangedCount()).toBe(0);
+      });
+
+      it('se o usuário mudou antes de a resposta chegar, ela não é gravada na cópia do outro nem marca os dados como atuais ou avisa as telas', async () => {
+        await slowRead();
+        userId = 'user-2';
+
+        backend.expectOne(`${API}/accounts`).flush([{ id: 9 }]);
+        await jest.advanceTimersByTimeAsync(0);
+
+        expect(cache.put).not.toHaveBeenCalled();
+        expect(state.staleSince()).toEqual(syncedAt);
+        expect(notices.dataChangedCount()).toBe(0);
+      });
+
+      it('abandona o pedido que passa de um minuto em segundo plano', async () => {
+        await slowRead();
+        const request = backend.expectOne(`${API}/accounts`);
+
+        await jest.advanceTimersByTimeAsync(BACKGROUND_READ_MAX_MS - 100);
+        expect(request.cancelled).toBe(false);
+        await jest.advanceTimersByTimeAsync(200);
+
+        expect(request.cancelled).toBe(true);
+        // Liberado o endereço, um novo pedido que perca para a cópia volta a ficar vivo.
+        const again = jest.fn();
+        http.get(`${API}/accounts`).subscribe(again);
+        await jest.advanceTimersByTimeAsync(3_001);
+        const next = backend.expectOne(`${API}/accounts`);
+        expect(next.cancelled).toBe(false);
+        next.flush([{ id: 1 }]);
+      });
+
+      it('erro do servidor na resposta tardia é ignorado: a tela segue com a cópia, sem aviso nem exceção', async () => {
+        const received = await slowRead();
+
+        backend.expectOne(`${API}/accounts`).flush({}, { status: 500, statusText: 'Server Error' });
+        await jest.advanceTimersByTimeAsync(10);
+
+        expect(received).toHaveBeenCalledTimes(1);
+        expect(cache.put).not.toHaveBeenCalled();
+        expect(notices.dataChangedCount()).toBe(0);
+        expect(state.staleSince()).toEqual(syncedAt);
+      });
+
+      it('falha de rede na resposta tardia é ignorada', async () => {
+        const received = await slowRead();
+
+        backend.expectOne(`${API}/accounts`).error(new ProgressEvent('error'), { status: 0 });
+        await jest.advanceTimersByTimeAsync(10);
+
+        expect(received).toHaveBeenCalledTimes(1);
+        expect(notices.dataChangedCount()).toBe(0);
+      });
+
+      it('falha ao gravar a cópia da resposta tardia não vira exceção nem aviso', async () => {
+        await slowRead();
+        cache.put.mockRejectedValueOnce(new Error('disco cheio'));
+
+        backend.expectOne(`${API}/accounts`).flush([{ id: 2 }]);
+        await jest.advanceTimersByTimeAsync(10);
+
+        expect(notices.dataChangedCount()).toBe(0);
+      });
+    });
+
+    it('se a cópia local não puder ser lida (falha do armazenamento), segue aguardando a rede sem estourar exceção', async () => {
+      cache.get.mockRejectedValue(new Error('IndexedDB indisponível'));
+      const received = jest.fn();
+      const failed = jest.fn();
+      http.get(`${API}/accounts`).subscribe({ next: received, error: failed });
+
+      await jest.advanceTimersByTimeAsync(30_000);
+      const request = backend.expectOne(`${API}/accounts`);
+      expect(request.cancelled).toBe(false);
+      expect(received).not.toHaveBeenCalled();
+      expect(failed).not.toHaveBeenCalled();
+      request.flush(['nova']);
+
+      expect(received).toHaveBeenCalledWith(['nova']);
+    });
+
+    it('sem cópia local, não desiste da rede: aguarda a resposta normalmente, por mais lenta que seja', async () => {
+      cache.get.mockResolvedValue(null);
+      const received = jest.fn();
+      const failed = jest.fn();
+      http.get(`${API}/dashboard?month=2026-11`).subscribe({ next: received, error: failed });
+
+      await jest.advanceTimersByTimeAsync(30_000);
+      const request = backend.expectOne(`${API}/dashboard?month=2026-11`);
+      expect(request.cancelled).toBe(false);
+      expect(failed).not.toHaveBeenCalled();
+      request.flush({ ok: true });
+
+      expect(received).toHaveBeenCalledWith({ ok: true });
+      expect(state.staleSince()).toBeNull();
+    });
+
+    it('resposta que chega antes dos 3 s vale: não consulta nem usa a cópia', async () => {
+      cache.get.mockResolvedValue({ value: ['velha'], syncedAt: new Date() });
+      const received = jest.fn();
+      http.get(`${API}/accounts`).subscribe(received);
+
+      await jest.advanceTimersByTimeAsync(1_000);
+      backend.expectOne(`${API}/accounts`).flush(['nova']);
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      expect(received).toHaveBeenCalledTimes(1);
+      expect(received).toHaveBeenCalledWith(['nova']);
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(state.staleSince()).toBeNull();
+    });
+
+    it('escrita lenta não é cancelada nem enfileirada: o limite de 3 s vale só para leitura', async () => {
+      cache.get.mockResolvedValue({ value: ['velha'], syncedAt: new Date() });
+      const received = jest.fn();
+      http.post(`${API}/transactions/9/pay`, { paymentDate: '2026-11-10' }).subscribe(received);
+
+      await jest.advanceTimersByTimeAsync(20_000);
+      const request = backend.expectOne(`${API}/transactions/9/pay`);
+      expect(request.cancelled).toBe(false);
+      request.flush({ id: 9 });
+
+      expect(received).toHaveBeenCalledWith({ id: 9 });
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
   });
 
   it('erro do servidor (5xx) não é trocado pela cópia local', async () => {
@@ -115,7 +366,7 @@ describe('offlineInterceptor', () => {
 
       backend.expectNone(`${API}/transaction-groups`);
       expect(queue.enqueue).toHaveBeenCalledWith({
-        id: expect.stringMatching(/^[0-9a-f-]{36}$/), kind: 'CREATE_GROUP', path: '/transaction-groups',
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/), kind: 'CREATE_GROUP', method: 'POST', path: '/transaction-groups',
         body: { description: 'Mercado', totalAmount: '10.00' }, label: 'Mercado',
       });
       expect(result).toMatchObject({ status: 202 });
@@ -135,7 +386,10 @@ describe('offlineInterceptor', () => {
       http.post(`${API}/transactions/9/unpay`, null).subscribe();
       await new Promise((r) => setTimeout(r, 0));
 
-      expect(queue.enqueue).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: 'PAY', path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' } }));
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ kind: 'PAY', path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' }, entity: { type: 'TRANSACTION', id: 9 } }),
+      );
       expect(queue.enqueue).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'UNPAY', path: '/transactions/9/unpay', body: null }));
     });
 
@@ -184,11 +438,16 @@ describe('offlineInterceptor', () => {
   it('as demais alterações sem conexão avisam que precisam de conexão, sem enviar nada', async () => {
     online.set(false);
     for (const call of [
-      () => http.patch(`${API}/transactions/9`, {}),
       () => http.put(`${API}/accounts/1`, {}),
-      () => http.delete(`${API}/transaction-groups/3`),
+      () => http.patch(`${API}/accounts/1`, {}),
+      () => http.delete(`${API}/accounts/1`),
+      () => http.delete(`${API}/categories/2`),
       () => http.post(`${API}/accounts/2/invoices/2026-11/payments`, {}),
       () => http.post(`${API}/categories`, {}),
+      () => http.post(`${API}/transaction-groups/3/amount-changes`, {}),
+      () => http.post(`${API}/transaction-groups/3/end`, {}),
+      () => http.patch(`${API}/transactions/9/other`, {}),
+      () => http.delete(`${API}/transactions/9`),
     ]) {
       const error = await new Promise<{ status: number; error: { code: string } }>((resolve) =>
         call().subscribe({ error: resolve }),
@@ -199,9 +458,114 @@ describe('offlineInterceptor', () => {
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
+  describe('editar e excluir (fase B)', () => {
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+
+    it('editar lançamento sem conexão entra na fila como PATCH, com a entidade, e responde como aceito', async () => {
+      online.set(false);
+      const result = await new Promise<unknown>((resolve) =>
+        http.patch(`${API}/transactions/9`, { amount: '175.50', dueDate: '2026-12-02', version: 3 }, { observe: 'response' }).subscribe(resolve),
+      );
+
+      backend.expectNone(`${API}/transactions/9`);
+      expect(queue.enqueue).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        kind: 'EDIT_TX',
+        method: 'PATCH',
+        path: '/transactions/9',
+        body: { amount: '175.50', dueDate: '2026-12-02', version: 3 },
+        entity: { type: 'TRANSACTION', id: 9 },
+        label: expect.stringContaining('Editar lançamento 9'),
+      });
+      expect(queue.enqueue.mock.calls[0][0].label).toContain('175,50');
+      expect(queue.enqueue.mock.calls[0][0].label).toContain('02/12/2026');
+      expect(result).toMatchObject({ status: 202 });
+    });
+
+    it('editar o grupo (PUT) e excluir o grupo (DELETE) sem conexão entram na fila; o ?confirm=true segue no caminho enviado', async () => {
+      online.set(false);
+      http.put(`${API}/transaction-groups/4`, { description: 'Supermercado', categoryId: 10, version: 1 }).subscribe();
+      http.delete(`${API}/transaction-groups/4`, { params: { confirm: true } }).subscribe();
+      await settle();
+
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ kind: 'EDIT_GROUP', method: 'PUT', path: '/transaction-groups/4', entity: { type: 'GROUP', id: 4 } }),
+      );
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ kind: 'DELETE_GROUP', method: 'DELETE', path: '/transaction-groups/4?confirm=true', body: null, entity: { type: 'GROUP', id: 4 } }),
+      );
+    });
+
+    it('com conexão envia normalmente com a chave de idempotência (PATCH, PUT e DELETE)', async () => {
+      http.patch(`${API}/transactions/9`, { amount: '1.00', version: 0 }).subscribe();
+      http.put(`${API}/transaction-groups/4`, { description: 'x', categoryId: 1, version: 0 }).subscribe();
+      http.delete(`${API}/transaction-groups/4`, { params: { confirm: true } }).subscribe();
+
+      const patch = backend.expectOne(`${API}/transactions/9`);
+      const put = backend.expectOne(`${API}/transaction-groups/4`);
+      const del = backend.expectOne(`${API}/transaction-groups/4?confirm=true`);
+      for (const request of [patch, put, del]) {
+        expect(request.request.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/);
+        request.flush({});
+      }
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('se a rede cair no meio da edição, enfileira com a MESMA chave e marcada como já tentada (a resposta pode ter se perdido)', async () => {
+      const dropped = new Promise((resolve) => http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }, { observe: 'response' }).subscribe(resolve));
+      const request = backend.expectOne(`${API}/transactions/9`);
+      const key = request.request.headers.get('Idempotency-Key');
+      request.error(new ProgressEvent('error'), { status: 0 });
+
+      expect(await dropped).toMatchObject({ status: 202 });
+      expect(queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({ id: key, kind: 'EDIT_TX', attempted: true }));
+    });
+
+    it('já havendo operação do mesmo lançamento esperando na fila, a nova não passa na frente pela rede: entra na fila mesmo com conexão', async () => {
+      ops.set([
+        { id: 'p', kind: 'PAY', method: 'POST', path: '/transactions/9/pay', body: {}, createdAt: 1, state: 'PENDING', label: 'Pagar', entity: { type: 'TRANSACTION', id: 9 }, schema: 2 },
+      ]);
+      const queuedBefore = state.queuedCount();
+
+      const result = await new Promise<unknown>((resolve) => http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }, { observe: 'response' }).subscribe(resolve));
+
+      backend.expectNone(`${API}/transactions/9`);
+      expect(result).toMatchObject({ status: 202 });
+      expect(queue.enqueue).toHaveBeenCalledTimes(1);
+      expect(state.queuedCount()).toBe(queuedBefore + 1);
+    });
+
+    it('editar outro lançamento não é afetado por operações de um diferente', async () => {
+      ops.set([
+        { id: 'p', kind: 'PAY', method: 'POST', path: '/transactions/8/pay', body: {}, createdAt: 1, state: 'PENDING', label: 'Pagar', entity: { type: 'TRANSACTION', id: 8 }, schema: 2 },
+      ]);
+
+      http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }).subscribe();
+
+      backend.expectOne(`${API}/transactions/9`).flush({});
+    });
+
+    it('a edição enfileirada aparece na lista por cima da cópia local, marcada como pendente', async () => {
+      online.set(false);
+      ops.set([
+        { id: 'e', kind: 'EDIT_TX', method: 'PATCH', path: '/transactions/5', body: { amount: '99.00', dueDate: '2026-11-20', version: 0 }, createdAt: 1, state: 'PENDING', label: 'Editar', entity: { type: 'TRANSACTION', id: 5 }, schema: 2 },
+      ]);
+      cache.get.mockResolvedValue({
+        value: { content: [{ id: 5, groupId: 50, accountId: 1, categoryId: 10, description: 'Luz', recurrenceType: 'VARIABLE', installmentNumber: 1, totalInstallments: 1, amount: '90.50', dueDate: '2026-11-15', status: 'PENDING', overdue: false, version: 0 }], page: 0, size: 25, totalElements: 1 },
+        syncedAt: new Date(),
+      });
+
+      const page = await new Promise<{ content: { amount: string; dueDate: string }[] }>((resolve) => http.get<never>(`${API}/transactions?month=2026-11`).subscribe(resolve as never));
+
+      expect(page.content[0]).toMatchObject({ amount: '99.00', dueDate: '2026-11-20' });
+    });
+  });
+
   describe('lista de lançamentos com operações pendentes', () => {
     const op: PendingOp = {
-      id: 'op-1', kind: 'CREATE_GROUP', path: '/transaction-groups', createdAt: 1, state: 'PENDING', label: 'Mercado',
+      id: 'op-1', kind: 'CREATE_GROUP', method: 'POST', schema: 2, path: '/transaction-groups', createdAt: 1, state: 'PENDING', label: 'Mercado',
       body: { description: 'Mercado', recurrenceType: 'VARIABLE', totalAmount: '10.00', accountId: 1, categoryId: 10, purchaseDate: '2026-11-08', firstDueDate: '2026-11-12' },
     };
 

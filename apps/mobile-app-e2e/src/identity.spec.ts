@@ -4,7 +4,7 @@ import { newUser, signIn } from './support';
 const rgb = (r: number, g: number, b: number) => `rgb(${r}, ${g}, ${b})`;
 
 test.describe('identidade visual Aurora FinTech (app)', () => {
-  test('telas de acesso mostram o logo, o fundo escuro e a fonte da marca', async ({ page }) => {
+  test('telas de acesso mostram o logo, o fundo escuro (padrão da suíte) e a fonte da marca', async ({ page }) => {
     await page.goto('/login');
     await expect(page.locator('gef-auth-card gef-logo svg[aria-label="GEFINC"]')).toBeVisible();
     const style = await page.evaluate(() => ({
@@ -22,7 +22,7 @@ test.describe('identidade visual Aurora FinTech (app)', () => {
     await signIn(page, user.email);
     await expect(page.locator('header gef-logo svg[aria-label="GEFINC"]')).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link');
-    await expect(tabs).toHaveCount(5);
+    await expect(tabs).toHaveCount(4);
     for (const tab of await tabs.all()) {
       await expect(tab.locator('gef-icon svg')).toBeVisible();
     }

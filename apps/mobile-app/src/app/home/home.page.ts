@@ -10,7 +10,7 @@ import { DashboardPage, Icon } from '@gefinc/ui-shared';
   selector: 'gef-home-page',
   imports: [DashboardPage, Icon, RouterLink],
   template: `
-    <div class="pb-24"><gef-dashboard-page /></div>
+    <div class="pb-12"><gef-dashboard-page /></div>
     <div class="gef-quick-actions" data-testid="quick-actions">
       <a routerLink="/novo" class="gef-quick-action">
         <gef-icon name="plus" [size]="20" />Novo lançamento

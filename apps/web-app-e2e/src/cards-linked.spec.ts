@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, register, todayIso, uniqueEmail } from './support';
+import { createAccount, register, todayIso, uniqueEmail, chooseOption, fillDate } from './support';
 
 test.describe('cartões vinculados a uma conta bancária', () => {
   test('lança no cartão e vê ícone, nome, conta e selo; troca o vínculo sem mudar valores; avisa ao inativar a conta', async ({ page }) => {
@@ -23,9 +23,9 @@ test.describe('cartões vinculados a uma conta bancária', () => {
     await expect(option.locator('svg').first()).toBeVisible();
     await option.click();
     await form.getByLabel('Descrição ou loja').fill('Mercado');
-    await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+    await chooseOption(page, form, 'Categoria', 'Alimentação');
     await form.getByLabel('Valor').fill('15000');
-    await form.getByLabel('Data da compra').fill(`${todayIso().slice(0, 8)}01`);
+    await fillDate(form.getByLabel('Data da compra'), `${todayIso().slice(0, 8)}01`);
     await form.getByRole('button', { name: 'Salvar' }).click();
     const row = page.getByRole('row', { name: /Mercado/ });
     await expect(row).toContainText('Nubank Roxinho');

@@ -10,6 +10,7 @@ import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
+import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,14 @@ class CategoryApiIT extends IntegrationTestBase {
     JsonNode expense = api.get(ana, "/categories?type=EXPENSE");
     assertThat(expense).hasSize(9);
     assertThat(expense.get(0).get("colorHex").asText()).matches("^#[0-9A-Fa-f]{6}$");
+  }
+
+  @Test
+  void comprasNasceVerdeEDistintaDeMoradia() throws Exception {
+    JsonNode expense = api.get(ana, "/categories?type=EXPENSE");
+    Map<String, String> colors = new HashMap<>();
+    expense.forEach(c -> colors.put(c.get("name").asText(), c.get("colorHex").asText()));
+    assertThat(colors).containsEntry("Compras", "#16A34A").containsEntry("Moradia", "#8B5CF6");
   }
 
   @Test

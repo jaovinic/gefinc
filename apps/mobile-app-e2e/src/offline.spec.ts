@@ -1,5 +1,5 @@
 import { Page, expect, test } from '@playwright/test';
-import { apiGet, apiPost, categoryId, newUser, openTab, signIn, todayIso, chooseAccount } from './support';
+import { apiGet, apiPost, categoryId, newUser, openMore, openTab, signIn, todayIso, chooseAccount, chooseOption, fillDate } from './support';
 
 const card = (page: Page, description: string) => page.getByTestId('transaction-card').filter({ hasText: description });
 const banner = (page: Page) => page.getByTestId('offline-banner');
@@ -22,9 +22,9 @@ async function newExpense(page: Page, description: string, cents: string) {
   const form = page.getByRole('dialog', { name: 'Novo lançamento' }).locator('gef-group-form');
   await form.getByLabel('Descrição ou loja').fill(description);
   await chooseAccount(page, form, 'Itaú');
-  await form.getByLabel('Categoria').selectOption({ label: 'Alimentação' });
+  await chooseOption(page, form, 'Categoria', 'Alimentação');
   await form.getByLabel('Valor').fill(cents);
-  await form.getByLabel(/vencimento/i).fill(todayIso());
+  await fillDate(form.getByLabel(/vencimento/i), todayIso());
   await form.getByRole('button', { name: 'Salvar' }).click();
 }
 
@@ -64,10 +64,12 @@ test.describe('uso sem internet', () => {
     await expect(banner(page)).toContainText('2 operações pendentes de envio');
     await expect(banner(page)).toContainText('Painel, faturas e fluxo de caixa ainda não incluem');
 
-    // ação que exige conexão: avisa e não perde nada
+    // excluir sem conexão é aceito: a confirmação avisa que será aplicado ao reconectar e o item sai da lista
     await page.getByRole('button', { name: 'Excluir Luz' }).click();
-    await expect(page.getByRole('alert')).toContainText('precisa de conexão');
-    await expect(card(page, 'Luz')).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toContainText('será aplicada quando a conexão voltar');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir "Luz"' }).click();
+    await expect(card(page, 'Luz')).toHaveCount(0);
+    await expect(banner(page)).toContainText('3 operações pendentes de envio');
 
     // item ainda não enviado não oferece ações
     await expect(card(page, 'Padaria').getByRole('button')).toHaveCount(0);
@@ -79,6 +81,7 @@ test.describe('uso sem internet', () => {
     await expect(card(page, 'Mercado')).toContainText('Pago');
 
     expect(await countOf(request, user, 'Padaria')).toBe(1);
+    expect(await countOf(request, user, 'Luz')).toBe(0);
     const mercado = ((await apiGet(request, user, `/transactions?month=${todayIso().slice(0, 7)}&size=100`)) as { content: { description: string; status: string }[] }).content.find((t) => t.description === 'Mercado');
     expect(mercado?.status).toBe('PAID');
   });
@@ -90,10 +93,16 @@ test.describe('uso sem internet', () => {
     await expect(card(page, 'Mercado')).toBeVisible();
     await openTab(page, 'Painel');
     await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
+    // no navegador a tela do novo lançamento é carregada sob demanda (no app instalado o código já vem no pacote):
+    // abre uma vez com rede para que ela exista no aparelho antes de a conexão cair
+    await page.getByRole('link', { name: 'Novo lançamento' }).click();
+    await expect(page.getByLabel('Valor', { exact: true })).toBeFocused();
+    await page.getByRole('link', { name: 'Cancelar' }).click();
+    await expect(page.locator('[data-indicator="total-month"]')).toBeVisible();
 
     await context.setOffline(true);
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
-    await page.getByLabel('Receita').check();
+    await page.getByLabel('Receita', { exact: true }).check();
     await page.keyboard.type('25000');
     await page.getByLabel('Descrição (opcional)').fill('Bônus');
     await page.getByRole('button', { name: 'Salvar' }).click();
@@ -198,15 +207,14 @@ test.describe('uso sem internet', () => {
     await newExpense(page, 'Livraria', '8000');
     await expect(banner(page)).toContainText('1 operação pendente de envio');
 
-    await openTab(page, 'Mais');
-    await page.getByRole('main').getByRole('button', { name: 'Sair' }).click();
+    await (await openMore(page)).getByRole('button', { name: 'Sair' }).click();
     const dialog = page.getByRole('dialog', { name: 'Operações não enviadas' });
     await expect(dialog).toContainText('1 operação');
     await dialog.getByRole('button', { name: 'Voltar' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(banner(page)).toContainText('1 operação pendente de envio');
 
-    await page.getByRole('main').getByRole('button', { name: 'Sair' }).click();
+    await (await openMore(page)).getByRole('button', { name: 'Sair' }).click();
     await page.getByRole('dialog', { name: 'Operações não enviadas' }).getByRole('button', { name: 'Sair e descartar' }).click();
     await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible();
   });

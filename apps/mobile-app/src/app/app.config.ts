@@ -4,8 +4,10 @@ import localePt from '@angular/common/locales/pt';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideIonicAngular } from '@ionic/angular';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { APP_PATHS, authInterceptor } from '@gefinc/ui-shared';
+import { APP_PATHS, THEME_CHROME, authInterceptor, provideGlass, provideTheme } from '@gefinc/ui-shared';
 import { appRoutes } from './app.routes';
+import { provideBackNavigation } from './navigation/back-navigation';
+import { systemBarsChrome } from './native/native-ports';
 import { provideLock } from './lock/lock.providers';
 import { offlineInterceptor } from './offline/offline.interceptor';
 import { provideOffline } from './offline/offline.providers';
@@ -23,8 +25,12 @@ export const appConfig: ApplicationConfig = {
     { provide: LOCALE_ID, useValue: 'pt-BR' },
     { provide: APP_PATHS, useValue: { transactions: '/lancamentos', accounts: '/contas' } },
     provideSession(),
+    { provide: THEME_CHROME, useFactory: systemBarsChrome },
+    provideTheme(),
+    provideGlass(),
     provideOffline(),
     provideLock(),
+    provideBackNavigation(),
     provideReminders(),
   ],
 };

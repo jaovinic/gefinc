@@ -15,16 +15,20 @@ import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { DraftService, NoticeService } from '@gefinc/ui-shared';
-import { todayIso } from '@gefinc/utils';
-import { API, chooseAccount, configureMobileTesting, select, type } from '../../test/testbed';
+import { Provider, signal } from '@angular/core';
+import { NetworkStatus } from '../offline/network-status';
+import { OfflineState } from '../offline/offline-state';
+import { isoToBR, todayIso } from '@gefinc/utils';
+import { API, chooseAccount, configureMobileTesting, fillDate, optionLabels, pickOption, selectTrigger, type } from '../../test/testbed';
 import { NewEntryPage } from './new-entry.page';
 
 const dayIso = (offset: number) => todayIso(new Date(Date.now() + offset * 86_400_000));
 
 describe('NewEntryPage (despesa e receita na mesma tela)', () => {
-  async function setup(query: Record<string, string> = {}) {
+  async function setup(query: Record<string, string> = {}, extra: Provider[] = []) {
     const ctx = configureMobileTesting([
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query), data: {} } } },
+      ...extra,
     ]);
     const fixture = TestBed.createComponent(NewEntryPage);
     fixture.detectChanges();
@@ -63,18 +67,17 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
   });
 
   it('o primeiro controle é o seletor de natureza, com Despesa marcada por padrão', async () => {
-    const { el } = await setup();
-    const first = el.querySelector('form')!.querySelector('gef-kind-switch, gef-money-input, input, select');
+    const { el, fixture } = await setup();
+    const first = el.querySelector('form')!.querySelector('gef-kind-switch, gef-money-input, input, select, gef-select');
     expect(first?.tagName.toLowerCase()).toBe('gef-kind-switch');
     expect((el.querySelector('#kind-EXPENSE') as HTMLInputElement).checked).toBe(true);
-    expect(el.querySelector('#categoryId')?.textContent).toContain('Alimentação');
-    expect(el.querySelector('#categoryId')?.textContent).not.toContain('Salário');
+    expect(optionLabels(fixture, 'Categoria')).toEqual(['Alimentação', 'Outras despesas']);
   });
 
   it('?tipo=receita abre já em Receita, com a categoria Salário e sem cartões na lista de contas', async () => {
     const { el, fixture } = await setup({ tipo: 'receita' });
     expect((el.querySelector('#kind-INCOME') as HTMLInputElement).checked).toBe(true);
-    expect((el.querySelector('#categoryId') as HTMLSelectElement).selectedOptions[0].textContent).toContain('Salário');
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Salário');
     expect(el.querySelector('input[placeholder="Ex.: Salário"]')).not.toBeNull();
     expect(optionIds(fixture, el)).toEqual(['1']);
   });
@@ -125,9 +128,8 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
   it('alternar para Receita troca as categorias e escolhe a categoria padrão de receita', async () => {
     const { el, fixture } = await setup();
     income(el, fixture);
-    expect(el.querySelector('#categoryId')?.textContent).toContain('Salário');
-    expect(el.querySelector('#categoryId')?.textContent).not.toContain('Alimentação');
-    expect((el.querySelector('#categoryId') as HTMLSelectElement).selectedOptions[0].textContent).toContain('Salário');
+    expect(optionLabels(fixture, 'Categoria')).toEqual(['Salário']);
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Salário');
     expect(optionIds(fixture, el)).toEqual(['1']);
   });
 
@@ -149,18 +151,18 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     const { el, fixture } = await setup();
     const date = el.querySelector('#date') as HTMLInputElement;
     const button = (label: string) => Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
-    expect(date.value).toBe(todayIso());
+    expect(date.value).toBe(isoToBR(todayIso()));
     expect(button('Hoje').getAttribute('aria-pressed')).toBe('true');
 
     button('Ontem').click();
     fixture.detectChanges();
-    expect(date.value).toBe(dayIso(-1));
+    expect(date.value).toBe(isoToBR(dayIso(-1)));
     expect(button('Ontem').getAttribute('aria-pressed')).toBe('true');
     expect(button('Hoje').getAttribute('aria-pressed')).toBe('false');
 
     button('Hoje').click();
     fixture.detectChanges();
-    expect(date.value).toBe(todayIso());
+    expect(date.value).toBe(isoToBR(todayIso()));
   });
 
   it('a dica da data muda por natureza: vence na data, entra na conta hoje, fica a receber até a data', async () => {
@@ -171,11 +173,11 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     income(el, fixture);
     expect(hint()).toBe('Entra na conta hoje');
 
-    type(el, '#date', '2999-12-25');
+    fillDate(el, '#date', '2999-12-25');
     fixture.detectChanges();
     expect(hint()).toBe('Fica a receber até 25/12/2999');
 
-    type(el, '#date', '2020-01-02');
+    fillDate(el, '#date', '2020-01-02');
     fixture.detectChanges();
     expect(hint()).toBe('Entra na conta na data informada');
   });
@@ -183,7 +185,7 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
   it('despesa no cartão mostra a fatura em que entra', async () => {
     const { el, fixture } = await setup();
     chooseAccount(fixture, el, 2);
-    type(el, '#date', '2026-11-12'); // depois do fechamento (dia 10)
+    fillDate(el, '#date', '2026-11-12'); // depois do fechamento (dia 10)
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="date-hint"]')?.textContent).toContain('Entra na fatura que vence em 17/12/2026');
   });
@@ -197,11 +199,29 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Freela de novembro');
   });
 
+  it('data apagada ou incompleta não é enviada: avisa e preserva o que foi digitado', async () => {
+    const { fixture, el, http } = await setup();
+    type(el, 'gef-money-input input', '3000');
+    type(el, '#description', 'Mercado');
+    type(el, '#date', '3112');
+    fixture.detectChanges();
+    expect((el.querySelector('#date') as HTMLInputElement).value).toBe('31/12');
+
+    (el.querySelector('#date') as HTMLInputElement).dispatchEvent(new Event('blur')); // tocar em Salvar tira o foco do campo
+    submit(el);
+    fixture.detectChanges();
+
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(el.querySelector('form > p[role="alert"]')?.textContent).toContain('Informe a data da despesa');
+    expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
+    expect(el.querySelector('gef-date-field')?.textContent).toContain('dd/mm/aaaa');
+  });
+
   it('receita é salva como avulsa na conta, com data e vencimento iguais, sem settled', async () => {
     const { fixture, el, http } = await setup({ tipo: 'receita' });
     type(el, 'gef-money-input input', '500000');
     type(el, '#description', 'Salário de novembro');
-    type(el, '#date', '2026-11-05');
+    fillDate(el, '#date', '2026-11-05');
     chooseAccount(fixture, el, 1);
 
     submit(el);
@@ -291,15 +311,16 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     expect((el.querySelector('#kind-INCOME') as HTMLInputElement).checked).toBe(true);
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Freela');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('120,00');
-    expect((el.querySelector('#date') as HTMLInputElement).value).toBe('2026-11-05');
-    expect(el.querySelector('#categoryId')?.textContent).toContain('Salário');
+    expect((el.querySelector('#date') as HTMLInputElement).value).toBe('05/11/2026');
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Salário');
   });
 });
 
 describe('NewEntryPage - parcelamento no cartão', () => {
-  async function setup(query: Record<string, string> = {}) {
+  async function setup(query: Record<string, string> = {}, extra: Provider[] = []) {
     const ctx = configureMobileTesting([
       { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(query), data: {} } } },
+      ...extra,
     ]);
     const fixture = TestBed.createComponent(NewEntryPage);
     fixture.detectChanges();
@@ -311,7 +332,8 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   }
   type Fixture = { detectChanges(): void };
   const submit = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
-  const installments = (el: HTMLElement) => el.querySelector('#installments') as HTMLSelectElement | null;
+  const installments = (el: HTMLElement) =>
+    (Array.from(el.querySelectorAll('gef-select')).find((f) => f.querySelector('label')?.textContent?.trim() === 'Parcelas')?.querySelector('button') as HTMLButtonElement | undefined) ?? null;
   const modeButton = (el: HTMLElement, label: string) =>
     Array.from(el.querySelectorAll('[aria-label="Forma de informar"] button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
   const summary = (el: HTMLElement) => el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim();
@@ -322,8 +344,8 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   /** Cartão Nubank (fecha 10, vence 17), compra em 05/11/2026 (antes do fechamento). */
   async function card10x(fixture: Fixture, el: HTMLElement, count: string, digits: string) {
     chooseAccount(fixture, el, 2);
-    type(el, '#date', '2026-11-05');
-    select(el, '#installments', count);
+    fillDate(el, '#date', '2026-11-05');
+    pickOption(fixture, 'Parcelas', `${count}x`);
     fixture.detectChanges();
     type(el, 'gef-money-input input', digits);
     fixture.detectChanges();
@@ -339,15 +361,15 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     const { el, fixture } = await setup();
     expect(installments(el)).toBeNull(); // conta bancária
     chooseAccount(fixture, el, 2);
-    const field = installments(el) as HTMLSelectElement;
+    const field = installments(el) as HTMLButtonElement;
     expect(field).not.toBeNull();
-    expect(el.querySelector('label[for="installments"]')?.textContent).toContain('Parcelas');
-    const options = Array.from(field.options).map((o) => o.textContent?.trim());
+    expect(el.querySelector(`label[for="${field.id}"]`)?.textContent).toContain('Parcelas');
+    const options = optionLabels(fixture, 'Parcelas');
     expect(options[0]).toBe('À vista (1x)');
     expect(options[1]).toBe('2x');
     expect(options[options.length - 1]).toBe('24x');
     expect(options).toHaveLength(24);
-    expect(field.value).toBe('1');
+    expect(field.textContent).toContain('À vista (1x)');
     expect(modeButton(el, 'Valor da parcela')).toBeUndefined();
     expect(el.querySelector('[data-testid="installment-preview"]')).toBeNull();
   });
@@ -355,7 +377,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   it('receita e conta bancária não têm o campo; ao trocar, as parcelas voltam para 1x', async () => {
     const { el, fixture } = await setup();
     chooseAccount(fixture, el, 2);
-    select(el, '#installments', '6');
+    pickOption(fixture, 'Parcelas', '6x');
     fixture.detectChanges();
     expect(modeButton(el, 'Valor da parcela')).toBeDefined();
 
@@ -363,16 +385,16 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     expect(installments(el)).toBeNull();
     expect(modeButton(el, 'Valor da parcela')).toBeUndefined();
     chooseAccount(fixture, el, 2);
-    expect(installments(el)?.value).toBe('1');
+    expect(installments(el)?.textContent).toContain('À vista (1x)');
 
-    select(el, '#installments', '6');
+    pickOption(fixture, 'Parcelas', '6x');
     fixture.detectChanges();
     pickKind(el, fixture, 'INCOME');
     expect(installments(el)).toBeNull();
     pickKind(el, fixture, 'EXPENSE');
     chooseAccount(fixture, el, 2);
-    expect(installments(el)?.value).toBe('1');
-    expect(el.querySelector('label[for="installments"]')).not.toBeNull();
+    expect(installments(el)?.textContent).toContain('À vista (1x)');
+    expect(installments(el)).not.toBeNull();
   });
 
   it('à vista no cartão mantém avulso, sem alternador, sem totalInstallments e com o toast atual', async () => {
@@ -426,7 +448,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   it('compra após o fechamento empurra a 1ª parcela para a fatura seguinte', async () => {
     const { fixture, el } = await setup();
     await card10x(fixture, el, '3', '10000');
-    type(el, '#date', '2026-11-12');
+    fillDate(el, '#date', '2026-11-12');
     fixture.detectChanges();
     const preview = el.querySelector('[data-testid="installment-preview"]') as HTMLElement;
     expect(preview.textContent).toContain('1/3 · fatura de dez/2026 · vence 17/12');
@@ -490,7 +512,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     const { fixture, el } = await setup();
     await card10x(fixture, el, '3', '10000');
     expect(el.querySelector('[data-testid="installment-overdue"]')).toBeNull();
-    type(el, '#date', '2020-01-05');
+    fillDate(el, '#date', '2020-01-05');
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="installment-overdue"]')?.textContent).toContain('já nascem vencidas');
   });
@@ -512,8 +534,8 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     fixture.detectChanges();
 
     expect(el.querySelector('gef-money-input')?.parentElement?.textContent).toContain('Valor fora do limite permitido.');
-    expect(installments(el)?.parentElement?.textContent).toContain('Informe de 1 a 120 parcelas.');
-    expect(installments(el)?.value).toBe('10');
+    expect(installments(el)?.closest('gef-select')?.parentElement?.textContent).toContain('Informe de 1 a 120 parcelas.');
+    expect(installments(el)?.textContent).toContain('10x');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('100,00');
     expect(summary(el)).toBe('10 × R$ 100,00 = R$ 1.000,00');
   });
@@ -529,7 +551,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     TestBed.resetTestingModule();
 
     const { el } = await setup();
-    expect(installments(el)?.value).toBe('10');
+    expect(installments(el)?.textContent).toContain('10x');
     expect(modeButton(el, 'Valor total').getAttribute('aria-pressed')).toBe('true');
     expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor total');
     expect(summary(el)).toBe('10 × R$ 10,00 = R$ 100,00');
@@ -541,9 +563,9 @@ describe('NewEntryPage - parcelamento no cartão', () => {
       JSON.stringify({ kind: 'EXPENSE', amount: '50.00', description: 'Mercado', accountId: 2, categoryId: 11, date: '2026-11-05' }),
     );
     const { el, fixture } = await setup();
-    expect(installments(el)?.value).toBe('1');
+    expect(installments(el)?.textContent).toContain('À vista (1x)');
     expect(el.querySelector('gef-money-input')?.textContent).not.toContain('Valor da parcela');
-    select(el, '#installments', '5');
+    pickOption(fixture, 'Parcelas', '5x');
     fixture.detectChanges();
     expect(modeButton(el, 'Valor da parcela').getAttribute('aria-pressed')).toBe('true');
     expect(summary(el)).toBe('5 × R$ 50,00 = R$ 250,00');
@@ -558,6 +580,27 @@ describe('NewEntryPage - parcelamento no cartão', () => {
     fixture.detectChanges();
     expect(modeButton(el, 'Valor total').getAttribute('aria-pressed')).toBe('true');
     expect(document.activeElement).toBe(el.querySelector('gef-money-input input'));
+    el.remove();
+  });
+
+  it('devolver o foco ao valor não rola a tela (preventScroll), ao alternar o modo e ao escolher a natureza', async () => {
+    const { fixture, el } = await setup();
+    document.body.appendChild(el);
+    await card10x(fixture, el, '3', '10000');
+    const focus = jest.spyOn(HTMLInputElement.prototype, 'focus');
+
+    modeButton(el, 'Valor total').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    fixture.detectChanges();
+    expect(focus).toHaveBeenLastCalledWith({ preventScroll: true });
+    expect(focus.mock.instances.at(-1)).toBe(el.querySelector('gef-money-input input'));
+
+    focus.mockClear();
+    (el.querySelector('gef-kind-switch') as HTMLElement).dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+
+    focus.mockRestore();
     el.remove();
   });
 
@@ -577,8 +620,139 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   it('os botões de modo e a prévia usam o tom neutro dos campos (sem verde nem azul de foco)', async () => {
     const { fixture, el } = await setup();
     await card10x(fixture, el, '3', '10000');
-    expect(el.querySelector('#installments')?.className).toContain('gef-input');
+    expect(installments(el)?.className).toContain('gef-input');
     expect(el.querySelector('[data-testid="installment-preview"]')?.className).toContain('border-gefinc-border');
     expect(el.innerHTML).not.toContain('safe-area-inset-bottom');
+  });
+
+  it('ordem dos campos: natureza, valor, descrição, categoria, conta, parcelamento, data, resumo e salvar', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    const form = el.querySelector('form') as HTMLFormElement;
+    const order = ['gef-kind-switch', 'gef-money-input', '#description', 'gef-select', 'gef-account-picker', '[data-testid="installment-group"]', '#date', 'gef-installment-summary-card', 'button[type="submit"]'];
+    const nodes = order.map((selector) => form.querySelector(selector) as HTMLElement);
+    nodes.forEach((node, i) => {
+      expect(node).not.toBeNull();
+      if (i > 0) {
+        expect(nodes[i - 1].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      }
+    });
+  });
+
+  it('o seletor "Valor da parcela / Valor total" fica no grupo Parcelamento, fora do campo de valor, com legenda', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    const mode = el.querySelector('gef-amount-mode-switch') as HTMLElement;
+    expect(mode.closest('gef-money-input')).toBeNull();
+    expect(mode.closest('[data-testid="installment-group"]')?.querySelector('legend')?.textContent).toContain('Parcelamento');
+    expect(mode.textContent).toContain('O valor digitado é');
+    expect(mode.contains(el.querySelector('gef-money-input'))).toBe(false);
+  });
+
+  it('os componentes do formulário são de bloco (as margens do espaçamento valem) e a legenda não ganha a margem do grupo', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '10000');
+
+    for (const selector of ['gef-kind-switch', 'gef-money-input', 'gef-account-picker', 'gef-amount-mode-switch', 'gef-installment-summary-card']) {
+      expect((el.querySelector(selector) as HTMLElement).className).toContain('block');
+    }
+    const group = el.querySelector('[data-testid="installment-group"]') as HTMLElement;
+    expect(group.className).not.toContain('space-y');
+    expect(group.querySelector('legend')?.nextElementSibling?.className).toContain('space-y-4');
+  });
+
+  it('o card de resumo só aparece com 2 ou mais parcelas e valor', async () => {
+    const { fixture, el } = await setup();
+    chooseAccount(fixture, el, 2);
+    type(el, 'gef-money-input input', '10000');
+    fixture.detectChanges();
+    expect(el.querySelector('gef-installment-summary-card section')).toBeNull();
+    expect(el.querySelector('gef-amount-mode-switch')).toBeNull();
+
+    pickOption(fixture, 'Parcelas', '3x');
+    fixture.detectChanges();
+    expect(el.querySelector('gef-installment-summary-card section')).not.toBeNull();
+    expect(el.querySelector('gef-installment-summary-card h3')?.textContent).toContain('Resumo do parcelamento');
+  });
+
+  it('o erro de mínimo por parcela aparece no card enquanto se digita, sem esperar o envio', async () => {
+    const { fixture, el } = await setup();
+    await card10x(fixture, el, '10', '5');
+    modeButton(el, 'Valor total').click();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="installment-error"]')?.textContent).toContain('O valor deve ter pelo menos R$ 0,01 por parcela.');
+    expect(el.querySelector('form > p[role="alert"]')).toBeNull(); // o alerta global só vem no envio
+  });
+
+  it('a data fica em largura total, com os atalhos abaixo e a dica ligada ao campo', async () => {
+    const { el } = await setup();
+    const date = el.querySelector('#date') as HTMLInputElement;
+    const hoje = Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Hoje') as HTMLButtonElement;
+
+    const field = el.querySelector('gef-date-field') as HTMLElement;
+    expect(field.className).toContain('block');
+    expect(field.contains(hoje)).toBe(false);
+    expect(field.compareDocumentPosition(hoje) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(date.getAttribute('aria-describedby')).toBe('date-hint');
+    expect(el.querySelector('#date-hint')?.getAttribute('data-testid')).toBe('date-hint');
+  });
+
+  describe('sem conexão', () => {
+    const online = signal(false);
+    async function setupOffline(connected: boolean) {
+      online.set(connected);
+      const ctx = await setup({}, [{ provide: NetworkStatus, useValue: { online } }]);
+      return ctx;
+    }
+
+    it('mostra o aviso compacto de falta de conexão (a tela fica fora da casca, sem a faixa do topo)', async () => {
+      const { el } = await setupOffline(false);
+
+      const banner = el.querySelector('[data-testid="offline-banner"]');
+      expect(banner?.textContent).toContain('Sem conexão');
+      expect(banner?.textContent).toContain('salvo no aparelho');
+    });
+
+    it('com conexão não mostra o aviso', async () => {
+      const { el } = await setupOffline(true);
+
+      expect(el.querySelector('[data-testid="offline-banner"]')).toBeNull();
+    });
+
+    it('salvar sem conexão diz que ficou no aparelho e será enviado, e não que foi registrado', async () => {
+      const { el, http, fixture } = await setupOffline(false);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 202, statusText: 'Accepted' });
+      await fixture.whenStable();
+
+      const messages = TestBed.inject(NoticeService).toasts().map((t) => t.message);
+      expect(messages).toEqual(['Salvo no aparelho; será enviado quando houver conexão.']);
+    });
+
+    it('se a conexão cai no meio do envio e o lançamento vai para a fila, o aviso também é o de "salvo no aparelho"', async () => {
+      const { el, http, fixture } = await setupOffline(true);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      TestBed.inject(OfflineState).queued();
+      post.flush({}, { status: 202, statusText: 'Accepted' });
+      await fixture.whenStable();
+
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Salvo no aparelho; será enviado quando houver conexão.');
+    });
+
+    it('com conexão e envio direto, o aviso continua sendo o de registrado', async () => {
+      const { el, http, fixture } = await setupOffline(true);
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({ id: 3 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada.');
+    });
   });
 });

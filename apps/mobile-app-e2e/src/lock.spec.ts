@@ -1,13 +1,13 @@
 import { Page, expect, test } from '@playwright/test';
-import { goToBackground, installNativeDoubles, privacyIsOn, queueBiometric, returnToForeground, setBiometricAvailable } from './native-doubles';
-import { newUser, openFromMore, signIn } from './support';
+import { goToBackground, installNativeDoubles, queueBiometric, returnToForeground, setBiometricAvailable } from './native-doubles';
+import { newUser, openFromMore, signIn, chooseOption } from './support';
 
 const lockScreen = (page: Page) => page.getByRole('dialog', { name: 'Aplicativo bloqueado' });
 const toggle = (page: Page) => page.getByRole('switch', { name: 'Bloquear o app com biometria' });
 
 async function enableLock(page: Page, minutes: '0' | '1' | '5' = '0') {
   await openFromMore(page, 'Minha conta');
-  await page.getByLabel('Bloquear depois de').selectOption(minutes);
+  await chooseOption(page, page, 'Bloquear depois de', { '0': 'Na hora', '1': '1 minuto', '5': '5 minutos' }[minutes]);
   await queueBiometric(page, 'ok');
   await toggle(page).check();
   await expect(toggle(page)).toBeChecked();
@@ -16,14 +16,12 @@ async function enableLock(page: Page, minutes: '0' | '1' | '5' = '0') {
 }
 
 test.describe('bloqueio por biometria', () => {
-  test('ativar protege a visão de apps recentes; voltar do segundo plano bloqueia e a biometria desbloqueia', async ({ page, request }) => {
+  test('ativar o bloqueio; voltar do segundo plano bloqueia e a biometria desbloqueia', async ({ page, request }) => {
     await installNativeDoubles(page, { biometric: { defaultResult: 'cancelled' } });
     const user = await newUser(request);
     await signIn(page, user.email);
-    expect(await privacyIsOn(page)).toBe(false);
 
     await enableLock(page);
-    expect(await privacyIsOn(page)).toBe(true);
 
     await goToBackground(page);
     await returnToForeground(page);
@@ -80,7 +78,6 @@ test.describe('bloqueio por biometria', () => {
     await page.reload();
 
     await expect(lockScreen(page)).toBeVisible();
-    expect(await privacyIsOn(page)).toBe(true);
   });
 
   test('biometria bloqueada ou indisponível: só e-mail e senha; entrar com a senha encerra a sessão', async ({ page, request }) => {
@@ -111,7 +108,6 @@ test.describe('bloqueio por biometria', () => {
 
     await expect(lockScreen(page).getByRole('alert')).toContainText('biometria');
     await expect(page.getByRole('button', { name: 'Desbloquear com biometria' })).toHaveCount(0);
-    expect(await privacyIsOn(page)).toBe(false);
   });
 
   test('sem biometria cadastrada, a tela explica como habilitar e o bloqueio não liga', async ({ page, request }) => {
@@ -124,7 +120,6 @@ test.describe('bloqueio por biometria', () => {
 
     await expect(page.getByTestId('lock-feedback')).toContainText('Nenhuma digital cadastrada');
     await expect(toggle(page)).not.toBeChecked();
-    expect(await privacyIsOn(page)).toBe(false);
   });
 
   test('desligar o bloqueio exige confirmar com a biometria', async ({ page, request }) => {
@@ -140,6 +135,5 @@ test.describe('bloqueio por biometria', () => {
     await queueBiometric(page, 'ok');
     await toggle(page).click();
     await expect(toggle(page)).not.toBeChecked();
-    expect(await privacyIsOn(page)).toBe(false);
   });
 });

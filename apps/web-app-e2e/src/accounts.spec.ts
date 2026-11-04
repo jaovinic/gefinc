@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createAccount, register, uniqueEmail } from './support';
+import { createAccount, register, uniqueEmail, chooseOption } from './support';
 
 test.describe('contas e cartões', () => {
   test('cadastra conta bancária, cartão vinculado e dinheiro; edita, inativa, reativa e exclui', async ({ page }) => {
@@ -9,9 +9,11 @@ test.describe('contas e cartões', () => {
 
     // sem conta bancária o cartão orienta e oferece o atalho
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await expect(page.getByText('Cadastre uma conta bancária antes de criar um cartão.')).toBeVisible();
     await page.getByRole('button', { name: 'Cadastrar conta bancária' }).click();
+    // o app é zoneless: o formulário só recomeça (como conta bancária) no próximo quadro; preencher antes disso se perde
+    await expect(page.getByLabel('Tipo')).toContainText('Conta bancária');
     await page.getByLabel('Nome').fill('Itaú');
     await page.getByRole('button', { name: 'Salvar' }).click();
     // titular é obrigatório na conta bancária
@@ -21,7 +23,7 @@ test.describe('contas e cartões', () => {
     await expect(page.getByRole('row', { name: /Itaú/ })).toContainText('PF');
 
     await page.getByRole('button', { name: 'Nova conta' }).first().click();
-    await page.getByLabel('Tipo').selectOption('CREDIT_CARD');
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
     await page.getByLabel('Nome').fill('Nubank');
     // cartão sem conta e sem os dias é recusado na própria tela
     await page.getByRole('button', { name: 'Salvar' }).click();

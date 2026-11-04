@@ -1,6 +1,16 @@
 import { APIRequestContext, Locator, Page, expect } from '@playwright/test';
 
-export const API = 'http://localhost:8080/api/v1';
+export const API = process.env['E2E_API_URL'] ?? 'http://localhost:8080/api/v1';
+/** Endereço da API que o app usa (fixo no ambiente de desenvolvimento). */
+export const APP_API = 'http://localhost:8080/api/v1';
+
+/**
+ * Endereço de uma chamada do app na API em uso nos testes: com `E2E_API_URL` apontando para outra instância
+ * (por exemplo, uma recém-compilada em outra porta), os testes que interceptam o envio a consultam por aqui.
+ */
+export function toApi(url: string): string {
+  return url.replace(APP_API, API);
+}
 export const PASSWORD = 'senha-forte-123';
 
 export interface TestUser {
@@ -31,6 +41,8 @@ export async function apiGet(request: APIRequestContext, user: TestUser, path: s
 
 export async function signIn(page: Page, email: string) {
   await page.goto('/login');
+  // espera o formulário ser ligado ao Angular (ng-pristine): preencher antes disso é perdido pela primeira detecção
+  await expect(page.locator('input#email')).toHaveClass(/ng-pristine/);
   await page.getByLabel('E-mail').fill(email);
   await page.getByLabel('Senha', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
@@ -42,10 +54,25 @@ export async function openTab(page: Page, label: string) {
   await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: label }).click();
 }
 
+/** Espera as animações de entrada (painéis sobem e aparecem) terminarem, para medir tamanhos e contraste no estado final. */
+export async function settle(page: Page) {
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+}
+
+/** Abre o menu Mais (painel aberto pelo atalho Minha conta do cabeçalho) e devolve o diálogo. */
+export async function openMore(page: Page): Promise<Locator> {
+  await page.getByTestId('account-chip').click();
+  const dialog = page.getByRole('dialog', { name: 'Mais', exact: true });
+  await expect(dialog).toBeVisible();
+  await settle(page);
+  return dialog;
+}
+
 /** Abre uma área do menu Mais. */
 export async function openFromMore(page: Page, label: string) {
-  await openTab(page, 'Mais');
-  await page.getByRole('main').getByRole('link', { name: label }).click();
+  const dialog = await openMore(page);
+  await dialog.getByRole('link', { name: label }).click();
+  await expect(dialog).toHaveCount(0);
 }
 
 /** Id da categoria inicial pelo nome. */
@@ -73,4 +100,37 @@ export async function chooseAccount(page: Page, scope: Page | Locator, name: str
   await scope.locator('gef-account-picker button[aria-haspopup]').click();
   const exact = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   await page.locator('[role="option"]').filter({ has: page.locator('[data-name]', { hasText: exact }) }).click();
+}
+
+/**
+ * O `gef-select` com o rótulo exato dado (visível ou oculto). O gatilho tem como nome o rótulo mais o valor atual
+ * ("Parcelas 1x"), então nada de `getByRole('button', { name })` com o rótulo: use este campo ou `selectTrigger`.
+ */
+export function selectField(page: Page, scope: Page | Locator, label: string) {
+  return scope.locator('gef-select').filter({ has: page.getByText(label, { exact: true }) });
+}
+
+/** O botão que abre a lista de um `gef-select`, pelo rótulo exato do campo. */
+export function selectTrigger(page: Page, scope: Page | Locator, label: string) {
+  return selectField(page, scope, label).locator('button[aria-haspopup="dialog"]');
+}
+
+/**
+ * Escolhe uma opção num `gef-select` (a lista própria do app, no lugar do `<select>`): acha o campo pelo rótulo
+ * (visível ou oculto, exato), abre a lista e clica na opção pelo texto exato. Espera a lista fechar, o que
+ * garante que a escolha foi aplicada.
+ */
+export async function chooseOption(page: Page, scope: Page | Locator, label: string, optionText: string) {
+  const field = selectField(page, scope, label);
+  await field.locator('button[aria-haspopup="dialog"]').click();
+  const option = field.getByRole('option', { name: optionText, exact: true });
+  await expect(option).toBeVisible();
+  await option.click();
+  await expect(field.getByRole('option')).toHaveCount(0);
+}
+
+/** Preenche um campo de data próprio (`gef-date-field`) com uma data ISO: o campo recebe o texto dd/mm/aaaa, como o usuário digitaria. */
+export async function fillDate(field: Locator, iso: string) {
+  const [year, month, day] = iso.split('-');
+  await field.fill(`${day}/${month}/${year}`);
 }

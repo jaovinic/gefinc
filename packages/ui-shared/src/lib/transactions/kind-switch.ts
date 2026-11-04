@@ -44,7 +44,7 @@ import { Icon } from '../icons/icon';
       </label>
     </div>
   `,
-  host: { '(pointerdown)': 'byPointer = true', '(keydown)': 'byPointer = false' },
+  host: { class: 'block', '(pointerdown)': 'byPointer = true', '(keydown)': 'byPointer = false' },
 })
 export class KindSwitch implements ControlValueAccessor {
   protected readonly value = signal<CategoryType>('EXPENSE');

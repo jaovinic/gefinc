@@ -12,7 +12,7 @@ jest.mock('chart.js', () => {
 });
 
 import { HttpTestingController } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { DeferBlockState, TestBed } from '@angular/core/testing';
 import { NoticeService } from '../api';
 import { APP_PATHS } from '../layout/app-paths';
 import { provideRouter } from '@angular/router';
@@ -44,7 +44,44 @@ const emptyMonth = {
   ...full, totalMonth: '0.00', totalPaid: '0.00', totalToDue: '0.00', overdueTotal: '0.00', totalIncome: '0.00', totalReceived: '0.00', byCategory: [], byCard: [],
 };
 
+/** O jsdom não tem IntersectionObserver: este duplo deixa o teste decidir quando os gráficos entram na tela. */
+class FakeIntersectionObserver {
+  static instances: FakeIntersectionObserver[] = [];
+  static visible = true;
+  private readonly targets = new Set<Element>();
+  constructor(private readonly callback: IntersectionObserverCallback) {
+    FakeIntersectionObserver.instances.push(this);
+  }
+  observe(target: Element): void {
+    this.targets.add(target);
+    if (FakeIntersectionObserver.visible) Promise.resolve().then(() => this.show());
+  }
+  show(): void {
+    const entries = [...this.targets].map((target) => ({ target, isIntersecting: true }) as IntersectionObserverEntry);
+    this.targets.clear();
+    if (entries.length) this.callback(entries, this as unknown as IntersectionObserver);
+  }
+  unobserve(target: Element): void {
+    this.targets.delete(target);
+  }
+  disconnect(): void {
+    this.targets.clear();
+  }
+}
+
 describe('DashboardPage', () => {
+  const realObserver = globalThis.IntersectionObserver;
+  beforeAll(() => {
+    (globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIntersectionObserver;
+  });
+  afterAll(() => {
+    (globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = realObserver;
+  });
+  beforeEach(() => {
+    FakeIntersectionObserver.instances = [];
+    FakeIntersectionObserver.visible = true;
+  });
+
   async function setup(body: object, balancesBody: object = balances) {
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(DashboardPage);
@@ -86,6 +123,48 @@ describe('DashboardPage', () => {
     expect(el.querySelector('[aria-label="Legenda do gráfico por cartão"]')?.textContent).toContain('Nubank');
   });
 
+  it('os gráficos só carregam quando chegam à tela: antes mostram um esqueleto', async () => {
+    FakeIntersectionObserver.visible = false;
+    const { el, fixture } = await setup(full);
+    expect(el.querySelector('gef-category-donut')).toBeNull();
+    expect(el.querySelector('gef-card-bars')).toBeNull();
+    // sem animação infinita: o espaço reservado fica parado até o gráfico entrar na tela
+    expect(el.querySelectorAll('[data-testid="chart-placeholder"][aria-hidden="true"]')).toHaveLength(2);
+    expect(el.querySelector('[data-testid="chart-placeholder"].animate-pulse, .gef-skeleton[data-testid="chart-placeholder"]')).toBeNull();
+    expect(el.querySelector('[data-indicator="paid"]')?.textContent).toContain('R$ 40,00');
+
+    FakeIntersectionObserver.instances.forEach((o) => o.show());
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('gef-category-donut')).not.toBeNull();
+    expect(el.querySelector('gef-card-bars')).not.toBeNull();
+    expect(el.querySelector('[data-testid="chart-placeholder"]')).toBeNull();
+  });
+
+  it('se o trecho de código de um gráfico não carregar, mostra o erro com "Tentar novamente" que recarrega a tela', async () => {
+    // O jsdom não consegue falhar um import() real do @defer: renderiza-se o estado @error pela API de testes do Angular.
+    FakeIntersectionObserver.visible = false;
+    const reload = jest.spyOn(DashboardPage.prototype as unknown as { reloadPage(): void }, 'reloadPage').mockImplementation(() => undefined);
+    const { el, fixture } = await setup(full);
+    const blocks = await fixture.getDeferBlocks();
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) await block.render(DeferBlockState.Error);
+    fixture.detectChanges();
+
+    const alerts = el.querySelectorAll('gef-error [role="alert"]');
+    expect(alerts).toHaveLength(2);
+    alerts.forEach((a) => expect(a.textContent).toContain('Não foi possível carregar o gráfico.'));
+    expect(el.querySelector('[data-testid="chart-placeholder"]')).toBeNull();
+    // sem animação infinita: o erro é estático (sem spinner nem esqueleto pulsando)
+    expect(el.querySelector('gef-error .animate-spin, gef-error .animate-pulse, gef-error .gef-skeleton')).toBeNull();
+
+    const retry = alerts[0].querySelector('button')!;
+    expect(retry.textContent).toContain('Tentar novamente');
+    retry.click();
+    expect(reload).toHaveBeenCalledTimes(1);
+    reload.mockRestore();
+  });
+
   it('não mostra mais o card "Saldo do mês" (o saldo vem das contas)', async () => {
     const { el } = await setup(full);
     expect(el.querySelector('[data-indicator="balance"]')).toBeNull();
@@ -95,6 +174,7 @@ describe('DashboardPage', () => {
   it('mostra o painel de saldo com o saldo geral e uma linha por conta', async () => {
     const { el } = await setup(full);
     const panel = el.querySelector('gef-balance-panel')!;
+    expect(panel.className).toContain('block');
     expect(panel.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 1.300,00');
     expect(panel.querySelectorAll('[data-testid="account-balance"]')).toHaveLength(2);
     expect(panel.textContent).toContain('-R$ 200,00');

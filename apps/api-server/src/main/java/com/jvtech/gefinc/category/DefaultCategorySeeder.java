@@ -9,9 +9,9 @@ import org.springframework.stereotype.Component;
 @Component
 class DefaultCategorySeeder {
 
-  private record Seed(String name, CategoryType type, String color) {}
+  record Seed(String name, CategoryType type, String color) {}
 
-  private static final List<Seed> DEFAULTS =
+  static final List<Seed> DEFAULTS =
       List.of(
           new Seed("Alimentação", CategoryType.EXPENSE, "#F97316"),
           new Seed("Moradia", CategoryType.EXPENSE, "#8B5CF6"),
@@ -20,7 +20,7 @@ class DefaultCategorySeeder {
           new Seed("Lazer", CategoryType.EXPENSE, "#EC4899"),
           new Seed("Educação", CategoryType.EXPENSE, "#14B8A6"),
           new Seed("Serviços", CategoryType.EXPENSE, "#F59E0B"),
-          new Seed("Compras", CategoryType.EXPENSE, "#A855F7"),
+          new Seed("Compras", CategoryType.EXPENSE, "#16A34A"),
           new Seed("Outras despesas", CategoryType.EXPENSE, "#94A3B8"),
           new Seed("Salário", CategoryType.INCOME, "#00E599"),
           new Seed("Outras receitas", CategoryType.INCOME, "#00B4D8"));

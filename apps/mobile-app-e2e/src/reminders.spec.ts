@@ -1,6 +1,6 @@
 import { Page, expect, test } from '@playwright/test';
 import { installNativeDoubles } from './native-doubles';
-import { apiPost, categoryId, newUser, openFromMore, openTab, signIn } from './support';
+import { apiPost, categoryId, newUser, openFromMore, openTab, signIn, chooseOption } from './support';
 
 interface Scheduled {
   id: number;
@@ -39,7 +39,7 @@ async function seed(request: Parameters<typeof newUser>[0]) {
 
 /** O aviso "amanhã" é agendado para hoje no horário escolhido; às 23h evita já ter passado. */
 async function setLateHour(page: Page) {
-  await page.getByLabel('Horário dos lembretes').selectOption('23');
+  await chooseOption(page, page, 'Horário dos lembretes', '23h');
 }
 
 test.describe('lembretes de vencimento', () => {

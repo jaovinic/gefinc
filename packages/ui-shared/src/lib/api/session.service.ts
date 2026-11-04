@@ -1,10 +1,11 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, Injector, inject, signal } from '@angular/core';
 import type { Credentials, TokenResponse } from '@gefinc/core-models';
 import { Observable, catchError, finalize, firstValueFrom, map, of, shareReplay, tap } from 'rxjs';
 import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED, SessionEndReason } from './api.tokens';
 import { CurrentUser } from './current-user';
 import { DraftService } from './draft.service';
+import { ReferenceData } from './reference-data';
 import { TokenStore } from './token-store';
 
 @Injectable({ providedIn: 'root' })
@@ -15,6 +16,7 @@ export class SessionService {
   private readonly store = inject(TokenStore);
   private readonly drafts = inject(DraftService);
   private readonly currentUser = inject(CurrentUser);
+  private readonly injector = inject(Injector);
   private readonly redirect = inject(LOGIN_REDIRECT, { optional: true });
   private readonly sessionEnded = inject(SESSION_ENDED, { optional: true });
 
@@ -111,6 +113,12 @@ export class SessionService {
       // Falha ao limpar dados locais não pode impedir de sair.
     }
     this.currentUser.clear();
+    // Contas e categorias do usuário que saiu não podem aparecer para quem entrar em seguida.
+    try {
+      this.injector.get(ReferenceData).reset();
+    } catch {
+      // Idem: não impede de apagar os tokens e encerrar a sessão.
+    }
     void this.store.clear();
     this.authenticated.set(false);
   }

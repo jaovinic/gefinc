@@ -504,6 +504,8 @@ paths:
     put:
       tags: [Transaction Groups]
       summary: Edita descrição, categoria e conta das ocorrências pendentes (FR-025)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -512,6 +514,8 @@ paths:
       responses:
         '200':
           description: Atualizado
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
@@ -526,12 +530,16 @@ paths:
         `/transaction-groups/{groupId}/impact`. Se a exclusão violar o saldo de uma fatura
         (restante < 0), responde `409 INVOICE_BALANCE_VIOLATION`.
       parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
         - name: confirm
           in: query
           required: true
           schema: { type: boolean }
       responses:
-        '204': { description: Excluído }
+        '204':
+          description: Excluído
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
@@ -555,6 +563,8 @@ paths:
     post:
       tags: [Transaction Groups]
       summary: Altera o valor de um lançamento fixo a partir de um mês (FR-020)
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -568,6 +578,8 @@ paths:
       responses:
         '200':
           description: Ocorrências pendentes a partir do mês foram atualizadas
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
@@ -581,6 +593,8 @@ paths:
       tags: [Transaction Groups]
       summary: Encerra um lançamento fixo (FR-020)
       description: "Destrutivo: as ocorrências pendentes depois de `endMonth` são removidas. O cliente deve pedir confirmação."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -596,6 +610,8 @@ paths:
       responses:
         '200':
           description: Encerrado
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionGroupDetail' }
@@ -661,6 +677,8 @@ paths:
         a já recebida. O status só é reavaliado quando o `dueDate` muda: novo `dueDate` hoje ou
         anterior fica `PAID` (com `paymentDate` = novo `dueDate`) e `dueDate` futuro fica `PENDING`.
         Editar só o valor não altera `status` nem `paymentDate`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -669,6 +687,8 @@ paths:
       responses:
         '200':
           description: Atualizado
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Transaction' }
@@ -939,7 +959,9 @@ components:
       in: header
       required: false
       description: |
-        UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+        UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+        excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+        `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
         mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
         o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
         outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.

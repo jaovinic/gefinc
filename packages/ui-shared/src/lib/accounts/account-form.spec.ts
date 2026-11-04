@@ -4,6 +4,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { Account } from '@gefinc/core-models';
 import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authInterceptor } from '../api';
+import { pickOption } from '../../testing/testbed';
 import { AccountForm } from './account-form';
 
 const API = '/api/v1';
@@ -43,11 +44,8 @@ function setup(configure: (host: Host) => void = () => undefined) {
     input.dispatchEvent(new Event('input'));
     fixture.detectChanges();
   };
-  const selectType = (value: string) => {
-    const select = el.querySelector('#type') as HTMLSelectElement;
-    select.value = value;
-    select.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
+  const selectType = (value: 'CHECKING' | 'CASH' | 'CREDIT_CARD') => {
+    pickOption(fixture, 'Tipo', { CHECKING: 'Conta bancária', CASH: 'Dinheiro', CREDIT_CARD: 'Cartão de crédito' }[value]);
   };
   const submit = () => {
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
@@ -126,6 +124,19 @@ describe('AccountForm', () => {
     submit();
     http.expectNone({ method: 'POST', url: `${API}/accounts` });
     expect(el.textContent).toContain('Escolha a conta bancária do cartão.');
+  });
+
+  it('cartão não avisa dos campos ainda vazios só porque o nome perdeu o foco (o painel não pode crescer sob o clique)', () => {
+    const { fixture, el, type, selectType, submit } = setup();
+    selectType('CREDIT_CARD');
+    type('#name', 'Nubank');
+    (el.querySelector('#name') as HTMLInputElement).dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Escolha a conta bancária do cartão.');
+    expect(el.textContent).not.toContain('Informe um dia entre 1 e 31.');
+    submit();
+    expect(el.textContent).toContain('Escolha a conta bancária do cartão.');
+    expect(el.textContent).toContain('Informe um dia entre 1 e 31.');
   });
 
   it('cartão vinculado envia a conta, os dias e o ícone, e sugere o nome a partir do banco', () => {

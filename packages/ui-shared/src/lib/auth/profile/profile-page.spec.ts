@@ -28,6 +28,15 @@ describe('ProfilePage (Minha conta)', () => {
     expect((el.querySelector('#profile-email-input') as HTMLInputElement).readOnly).toBe(true);
   });
 
+  it('a seção Aparência reúne o tema e o interruptor de desfoque (vidro)', async () => {
+    const { el } = await setup();
+    const section = el.querySelector('section[aria-labelledby="appearance-title"]') as HTMLElement;
+    expect(section.querySelector('[role="radiogroup"]')).not.toBeNull();
+    const glass = section.querySelector('input[role="switch"]') as HTMLInputElement;
+    expect(glass.closest('label')?.textContent).toContain('Desfoque (vidro)');
+    expect(glass.checked).toBe(true);
+  });
+
   it('sem nome cadastrado usa a inicial do e-mail', async () => {
     const { el } = await setup(null);
     expect(el.querySelector('[data-testid="profile-name"]')?.textContent).toContain('Sem nome');

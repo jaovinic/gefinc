@@ -43,7 +43,7 @@ public class IdempotencyService {
   /** Outra requisição com a mesma chave ainda está sendo processada. */
   public record InProgress() implements Outcome {}
 
-  /** A chave já foi usada com outro caminho ou outro corpo. */
+  /** A chave já foi usada com outro verbo, outro caminho ou outro corpo. */
   public record KeyReused() implements Outcome {}
 
   private final JdbcTemplate jdbc;
@@ -79,10 +79,11 @@ public class IdempotencyService {
     }
     List<Outcome> existing =
         jdbc.query(
-            "SELECT path, request_hash, state, response_status, response_body"
+            "SELECT method, path, request_hash, state, response_status, response_body"
                 + " FROM idempotency_keys WHERE user_id = ? AND key = ?::uuid",
             (rs, row) -> {
-              if (!rs.getString("path").equals(path)
+              if (!rs.getString("method").equals(method)
+                  || !rs.getString("path").equals(path)
                   || !rs.getString("request_hash").trim().equals(requestHash)) {
                 return new KeyReused();
               }

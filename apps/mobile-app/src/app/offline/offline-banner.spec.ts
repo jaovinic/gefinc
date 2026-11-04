@@ -93,4 +93,34 @@ describe('OfflineBanner', () => {
     expect(el.querySelector('[data-testid="offline-banner"]')?.textContent).toContain('1 operação recusada');
     expect(el.querySelector('a[href="/pendencias"]')).not.toBeNull();
   });
+
+  describe('versão compacta (tela de novo lançamento, fora da casca)', () => {
+    function renderCompact() {
+      const fixture = TestBed.createComponent(OfflineBanner);
+      fixture.componentRef.setInput('compact', true);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('com conexão fica oculta, mesmo com pendências e dados antigos', () => {
+      pendingCount.set(2);
+      state.markStale(new Date(2026, 10, 9, 20, 5));
+
+      expect(renderCompact().querySelector('[data-testid="offline-banner"]')).toBeNull();
+    });
+
+    it('sem conexão mostra uma só linha dizendo que o lançamento fica salvo no aparelho e será enviado, sem botões', () => {
+      online.set(false);
+      pendingCount.set(2);
+
+      const banner = renderCompact().querySelector('[data-testid="offline-banner"]') as HTMLElement;
+
+      expect(banner.getAttribute('role')).toBe('status');
+      expect(banner.textContent).toContain('Sem conexão');
+      expect(banner.textContent).toContain('salvo no aparelho');
+      expect(banner.textContent).toContain('enviado quando houver conexão');
+      expect(banner.textContent).not.toContain('pendente');
+      expect(banner.querySelector('button, a')).toBeNull();
+    });
+  });
 });

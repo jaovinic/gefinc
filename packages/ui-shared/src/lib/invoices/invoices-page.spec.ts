@@ -1,8 +1,8 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { currentMonth, todayIso } from '@gefinc/utils';
-import { API, CATEGORIES, clickButton, configureHttpTesting, type } from '../../testing/testbed';
+import { currentMonth, monthLabelBR, todayIso } from '@gefinc/utils';
+import { API, CATEGORIES, clickButton, configureHttpTesting, fillDate, type } from '../../testing/testbed';
 import { NoticeService } from '../api';
 import { Viewport } from '../viewport/viewport';
 import { InvoicesPage } from './invoices-page';
@@ -145,6 +145,54 @@ describe('InvoicesPage', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('saldo restante da fatura');
   });
 
+  it('pagar com a data apagada ou incompleta não envia e avisa dentro do painel, junto ao campo', async () => {
+    const { http, el, fixture } = await setup();
+    clickButton(el, 'Quitar fatura');
+    fixture.detectChanges();
+    type(el, '#paidAt', '0511');
+    clickButton(el, 'Confirmar');
+    fixture.detectChanges();
+
+    http.expectNone({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments/settle` });
+    const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+    const alert = dialog.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Informe uma data válida');
+    expect(el.querySelector('#paidAt')?.getAttribute('aria-describedby')).toContain(alert.id);
+    expect(el.querySelectorAll('[role="alert"]')).toHaveLength(1);
+
+    fillDate(el, '#paidAt', '2026-11-05');
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    clickButton(el, 'Confirmar');
+    const post = http.expectOne({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments/settle` });
+    expect(post.request.body).toEqual({ paidAt: '2026-11-05' });
+    post.flush(invoice({ remaining: '0.00' }));
+    reload(http, invoice({ remaining: '0.00', items: [item({ status: 'PAID' })] }));
+  });
+
+  it('pagar parte sem valor avisa dentro do painel; o erro do servidor também fica no painel', async () => {
+    const { http, el, fixture } = await setup(invoice(), true);
+    clickButton(el, 'Pagar parte');
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    fixture.detectChanges();
+    const sheet = el.querySelector('[role="dialog"].gef-sheet') as HTMLElement;
+    expect(sheet.querySelector('[role="alert"]')?.textContent).toContain('Informe o valor do pagamento.');
+    expect(el.querySelectorAll('[role="alert"]')).toHaveLength(1);
+
+    type(el, '[role="dialog"] gef-money-input input', '999999');
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    clickButton(el, 'Confirmar');
+    http.expectOne({ method: 'POST', url: `${API}/accounts/2/invoices/${month}/payments` }).flush(
+      { code: 'INVOICE_BALANCE_VIOLATION', detail: 'O pagamento não pode ser maior que o saldo restante da fatura (R$ 1000.00).' },
+      { status: 409, statusText: 'Conflict' },
+    );
+    fixture.detectChanges();
+    expect(sheet.querySelector('[role="alert"]')?.textContent).toContain('saldo restante da fatura');
+    expect(el.querySelectorAll('[role="alert"]')).toHaveLength(1);
+  });
+
   it('desfazer um pagamento pede confirmação e só então chama a API e recarrega', async () => {
     const { http, el, fixture } = await setup(invoice({ remaining: '700.00', payments: [{ id: 5, amount: '300.00', paidAt: `${month}-10` }] }));
     clickButton(el, 'Desfazer');
@@ -216,7 +264,7 @@ describe('InvoicesPage', () => {
         true,
       );
 
-      expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${month}"]`)).not.toBeNull();
+      expect(el.querySelector(`button[aria-label="Abrir fatura de Nubank em ${monthLabelBR(month)}"]`)).not.toBeNull();
       const undo = el.querySelector('button[aria-label^="Desfazer pagamento"]') as HTMLButtonElement;
       expect(undo).not.toBeNull();
       expect(undo.className).toContain('gef-btn-sm');

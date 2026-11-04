@@ -15,6 +15,15 @@
   --color-gefinc-warning: #f59e0b;
   /* Foco de campo de digitação: neutro (contraste 6:1 sobre a superfície), nunca verde nem ciano. */
   --color-gefinc-focus: #94a3b8;
+  /* Texto e ícones sobre os fundos de marca (botão primário, perigo, avatar): igual nos dois temas. */
+  --color-gefinc-on-accent: #090d16;
+  /* Preenchimento dos botões de marca: fixo nos dois temas (o texto de marca do tema claro é mais escuro). */
+  --color-gefinc-primary-fill: #00e599;
+  --color-gefinc-danger-fill: #f43f5e;
+  /* Variantes semânticas no lugar de hex soltos nos componentes. */
+  --color-gefinc-danger-soft: #fda4af;
+  --color-gefinc-scrim: rgb(0 0 0 / 0.6);
+  --color-gefinc-chart-border: #131b2e;
 
   --font-sans: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, system-ui, sans-serif;
@@ -38,12 +47,186 @@ body {
   background-color: var(--color-gefinc-bg);
   color: var(--color-gefinc-text);
   font-family: var(--font-sans);
-  color-scheme: dark;
 }
 
 :root {
   /* Gradiente de marca Aurora FinTech (manual, seção 3). */
   --gradient-aurora: linear-gradient(135deg, #00e599 0%, #00b4d8 100%);
+
+  /* Liquid Glass (tema escuro): vidro azul-ardósia com desfoque real do fundo (backdrop-filter). O desfoque só é usado
+     em poucas superfícies (ilha, botão flutuante, painéis, barras e avisos); cabeçalho, cartões e listas usam só a cor. */
+  --glass-bg: rgb(19 27 46 / 0.62);
+  --glass-bg-strong: rgb(19 27 46 / 0.74);
+  --glass-border: rgb(148 163 184 / 0.2);
+  --glass-highlight: rgb(255 255 255 / 0.09);
+  --glass-shadow: 0 10px 28px -14px rgb(0 0 0 / 0.65);
+  /* Raio moderado e saturação leve: o efeito vem do desfoque do fundo, não de luzes e reflexos. */
+  --glass-blur: 12px;
+  --glass-saturate: 140%;
+  /* O filtro é uma variável: as superfícies só a leem. Desligar o desfoque (escolha "sólido", sistema pedindo menos
+     transparência ou sem suporte) troca ESTAS variáveis por `none` e os fundos por opacos, nunca a propriedade nas
+     regras (um redeclarar em outro arquivo venceria a lista de seletores). Não há pausa do desfoque na rolagem: medido no
+     celular a 120 Hz, desligá-lo ao rolar (troca de atributo na raiz) custou MAIS quadros lentos que mantê-lo ligado. */
+  --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  --glass-filter-light: blur(calc(var(--glass-blur) * 0.75)) saturate(var(--glass-saturate));
+  /* Véu dos painéis: o desfoque fica no fundo do painel, que cobre a tela (o painel nunca leva filtro). */
+  --glass-filter-scrim: blur(6px);
+  /* Ilha do app móvel: vidro translúcido para o desfoque aparecer; o alfa só desce até onde o rótulo mantém AA
+     (testado com o fundo médio entre o fundo e o texto do tema atrás). O "-solid" é o fundo sem desfoque e é
+     totalmente opaco (alfa 1): nada do conteúdo aparece "fantasma" por trás. */
+  --glass-nav-bg: rgb(19 27 46 / 0.8);
+  --glass-nav-bg-solid: rgb(19 27 46);
+  /* Indicador de vidro da aba ativa (marca em alfa baixo + brilho suave no topo). */
+  --glass-indicator-tint: rgb(0 229 153 / 0.14);
+  --glass-indicator-sheen: rgb(255 255 255 / 0.08);
+  /* Botão flutuante de novo lançamento: gradiente de marca translúcido sobre o desfoque. O alfa não pode descer muito:
+     a ponta ciano com o texto escuro é o limite do AA sobre o fundo mais escuro. O "-solid" é o gradiente sem desfoque,
+     totalmente opaco. Brilho, realce e borda são discretos de propósito: o efeito é o desfoque, não luzes e reflexos. */
+  --glass-fab-start: rgb(0 229 153 / 0.86);
+  --glass-fab-end: rgb(0 180 216 / 0.86);
+  --glass-fab-start-solid: rgb(0 229 153);
+  --glass-fab-end-solid: rgb(0 180 216);
+  --glass-fab-sheen: rgb(255 255 255 / 0.09);
+  --glass-fab-rim: rgb(255 255 255 / 0.25);
+  --glass-fab-border: rgb(255 255 255 / 0.18);
+  --aurora-a: rgb(0 229 153 / 0.1);
+  --aurora-b: rgb(0 180 216 / 0.1);
+  --aurora-c: rgb(124 58 237 / 0.06);
+  color-scheme: dark;
+}
+
+/* Tema claro: as mesmas variáveis do tema, trocadas em tempo de execução pelo atributo `data-theme`
+   (ThemeService e o script do cabeçalho). Marca como texto usa tons mais escuros (contraste AA). */
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-gefinc-bg: #f3f6fb;
+  --color-gefinc-surface: #ffffff;
+  --color-gefinc-border: #d5dce8;
+  --color-gefinc-muted: #475569;
+  --color-gefinc-text: #0b1220;
+  --color-gefinc-primary: #04694b;
+  --color-gefinc-secondary: #0e7490;
+  --color-gefinc-accent: #6d28d9;
+  --color-gefinc-danger: #be123c;
+  --color-gefinc-warning: #92400e;
+  --color-gefinc-focus: #475569;
+  --color-gefinc-danger-soft: #9f1239;
+  --color-gefinc-scrim: rgb(15 23 42 / 0.4);
+  --color-gefinc-chart-border: #ffffff;
+
+  --glass-bg: rgb(255 255 255 / 0.7);
+  --glass-bg-strong: rgb(255 255 255 / 0.8);
+  --glass-border: rgb(71 85 105 / 0.2);
+  --glass-highlight: rgb(255 255 255 / 0.3);
+  --glass-shadow: 0 10px 28px -14px rgb(15 23 42 / 0.25);
+  --glass-nav-bg: rgb(255 255 255 / 0.82);
+  --glass-nav-bg-solid: rgb(255 255 255);
+  --glass-fab-start: rgb(0 229 153 / 0.84);
+  --glass-fab-end: rgb(0 180 216 / 0.84);
+  --glass-indicator-tint: rgb(4 105 75 / 0.14);
+  --glass-indicator-sheen: rgb(255 255 255 / 0.2);
+  --glass-fab-border: rgb(255 255 255 / 0.35);
+  --aurora-a: rgb(0 229 153 / 0.07);
+  --aurora-b: rgb(0 180 216 / 0.07);
+  --aurora-c: rgb(124 58 237 / 0.04);
+}
+
+/* Fundo "aurora" estático e sutil, atrás de tudo (sem `background-attachment: fixed`, caro em celulares).
+   O corpo cria o seu contexto de empilhamento para o fundo ficar acima da cor do corpo e abaixo do conteúdo. */
+body {
+  isolation: isolate;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 8% -10%, var(--aurora-a), transparent 60%),
+    radial-gradient(50rem 36rem at 100% 8%, var(--aurora-b), transparent 60%),
+    radial-gradient(46rem 32rem at 40% 110%, var(--aurora-c), transparent 60%);
+}
+
+/* Sem suporte a desfoque, com pouca transparência pedida ou com contraste alto: sem desfoque e superfícies opacas
+   e legíveis. Mudam só variáveis (`--glass-filter: none` e os fundos); vêm depois do tema claro para vencê-lo
+   (mesma especificidade) e também definem os "-solid", para a escolha "sólido" nunca os enfraquecer. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  html[data-theme] {
+    --glass-bg: var(--color-gefinc-surface);
+    --glass-bg-strong: var(--color-gefinc-surface);
+    --glass-highlight: transparent;
+    --glass-nav-bg: var(--color-gefinc-surface);
+    --glass-nav-bg-solid: var(--color-gefinc-surface);
+    --glass-indicator-sheen: transparent;
+    --glass-fab-start: rgb(0 229 153);
+    --glass-fab-end: rgb(0 180 216);
+    --glass-fab-start-solid: rgb(0 229 153);
+    --glass-fab-end-solid: rgb(0 180 216);
+    --glass-fab-sheen: transparent;
+    --glass-filter: none;
+    --glass-filter-light: none;
+    --glass-filter-scrim: none;
+  }
+  body::before {
+    display: none;
+  }
+}
+@media (prefers-contrast: more) {
+  :root,
+  html[data-theme] {
+    --glass-bg: var(--color-gefinc-surface);
+    --glass-bg-strong: var(--color-gefinc-surface);
+    --glass-border: var(--color-gefinc-muted);
+    --glass-highlight: transparent;
+    --glass-nav-bg: var(--color-gefinc-surface);
+    --glass-nav-bg-solid: var(--color-gefinc-surface);
+    --glass-indicator-sheen: transparent;
+    --glass-fab-start: rgb(0 229 153);
+    --glass-fab-end: rgb(0 180 216);
+    --glass-fab-start-solid: rgb(0 229 153);
+    --glass-fab-end-solid: rgb(0 180 216);
+    --glass-fab-sheen: transparent;
+    --glass-filter: none;
+    --glass-filter-light: none;
+    --glass-filter-scrim: none;
+  }
+  body::before {
+    display: none;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  html[data-theme] {
+    --glass-bg: var(--color-gefinc-surface);
+    --glass-bg-strong: var(--color-gefinc-surface);
+    --glass-nav-bg: var(--color-gefinc-surface);
+    --glass-nav-bg-solid: var(--color-gefinc-surface);
+    --glass-fab-start: rgb(0 229 153);
+    --glass-fab-end: rgb(0 180 216);
+    --glass-fab-start-solid: rgb(0 229 153);
+    --glass-fab-end-solid: rgb(0 180 216);
+    --glass-fab-sheen: transparent;
+    --glass-filter: none;
+    --glass-filter-light: none;
+    --glass-filter-scrim: none;
+  }
+}
+
+/* Escolha "Desfoque (vidro)" desligada (Aparência): o mesmo visual sem desfoque, com os fundos sólidos de antes.
+   Vem por último, fora de camada, e usa os "-solid" (que os fallbacks acima já tornam opacos, então nunca os enfraquece). */
+html[data-glass='flat'] {
+  --glass-filter: none;
+  --glass-filter-light: none;
+  --glass-filter-scrim: none;
+  --glass-bg-strong: var(--color-gefinc-surface);
+  --glass-nav-bg: var(--glass-nav-bg-solid);
+  --glass-fab-start: var(--glass-fab-start-solid);
+  --glass-fab-end: var(--glass-fab-end-solid);
 }
 
 /* Toque: sem o atraso de duplo toque e sem o retângulo cinza do navegador móvel; o retorno é o estado
@@ -79,11 +262,6 @@ textarea:focus-visible,
 .gef-money-field input:not([type='checkbox']):not([type='radio']):focus-visible {
   outline: none;
 }
-/* Seletor de data e demais controles nativos sem tom verde ou ciano. */
-input[type='date'],
-select {
-  accent-color: var(--color-gefinc-focus);
-}
 
 /* Quem pede menos movimento no sistema não vê transições nem animações (FR-034). */
 @media (prefers-reduced-motion: reduce) {
@@ -100,6 +278,12 @@ select {
 @keyframes gef-fade-in {
   from {
     opacity: 0;
+  }
+}
+@keyframes gef-sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
   }
 }
 @keyframes gef-pop-in {
@@ -138,15 +322,53 @@ table td {
 
 /* Componentes reutilizados nas telas (formulários e botões) */
 @layer components {
+  /* Liquid Glass. `.gef-glass` e `.gef-glass-strong` levam desfoque (pela variável `--glass-filter`); `.gef-card` é o vidro
+     leve sem desfoque, próprio para cartões e listas (o desfoque em ancestral prenderia painéis `fixed` e pesa em listas
+     longas). Nunca pôr filtro, transform ou opacidade animada em ancestral de elemento `fixed`. */
+  .gef-glass,
+  .gef-glass-strong,
+  .gef-card {
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      var(--glass-shadow);
+  }
+  .gef-glass {
+    background-color: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-filter-light);
+    backdrop-filter: var(--glass-filter-light);
+  }
+  .gef-card {
+    @apply rounded-xl;
+    background-color: var(--glass-bg);
+  }
+  .gef-glass-strong,
+  .gef-sidenav,
+  .gef-topbar,
+  .gef-toast {
+    background-color: var(--glass-bg-strong);
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+  /* App móvel: o cabeçalho não desfoca (nada rola por trás dele: custo sem benefício). A ilha leva o desfoque no
+     `styles.css` do app, onde ela é definida; aqui só o fundo (translúcido, ou sólido sem desfoque). */
+  .gef-app-header {
+    background-color: var(--glass-bg-strong);
+  }
+  .gef-tabbar {
+    background-color: var(--glass-nav-bg);
+  }
   .gef-wordmark {
     @apply font-extrabold leading-none text-gefinc-text;
     letter-spacing: 0.08em;
   }
   .gef-account-tile {
-    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gefinc-border bg-gefinc-bg;
+    @apply inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gefinc-border;
+    background-color: var(--glass-bg);
   }
   .gef-pill {
     @apply inline-flex shrink-0 items-center rounded-full border border-gefinc-primary/40 px-2 py-px text-micro font-bold text-gefinc-primary;
+    background-color: var(--glass-bg);
   }
   .gef-pill-pj {
     @apply border-gefinc-secondary/40 text-gefinc-secondary;
@@ -157,9 +379,38 @@ table td {
   .gef-icon-option[aria-checked='true'] {
     @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
   }
+  /* Opção das listas próprias (gef-select, calendário): alvo de 44 px; a escolhida leva borda, fundo e a marca de "check". */
+  .gef-option {
+    @apply flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-transparent px-3 py-2 text-left text-body-base text-gefinc-text hover:border-gefinc-primary;
+  }
+  .gef-option[aria-selected='true'] {
+    @apply border-gefinc-primary bg-gefinc-primary/10 font-semibold text-gefinc-primary;
+  }
+  .gef-option[aria-disabled='true'] {
+    @apply cursor-not-allowed opacity-50 hover:border-transparent;
+  }
+  /* Cor da paleta (gef-color-swatch): bolinha de 44 px com borda de contraste; a escolhida leva anel duplo e a marca de "check". */
+  .gef-swatch {
+    @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gefinc-muted disabled:opacity-50;
+  }
+  .gef-swatch[aria-checked='true'] {
+    @apply border-2 border-gefinc-text;
+    box-shadow: 0 0 0 2px var(--color-gefinc-bg);
+  }
+  /* Dia do calendário próprio (gef-date-field): alvo de 44 px; o escolhido leva borda, fundo e negrito, e hoje vai sublinhado. */
+  .gef-day {
+    @apply inline-flex h-11 w-full items-center justify-center rounded-lg border border-transparent text-body-base font-medium text-gefinc-text hover:border-gefinc-primary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent;
+  }
+  .gef-day[aria-current='date'] {
+    @apply font-bold underline underline-offset-4;
+  }
+  [role='gridcell'][aria-selected='true'] > .gef-day {
+    @apply border-gefinc-primary bg-gefinc-primary/10 font-bold text-gefinc-primary;
+  }
   /* Escolha entre poucas opções (PF/PJ, receita/despesa): rádios nativos com aparência de botões. */
   .gef-segment {
     @apply relative flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-gefinc-border px-3 text-body-base font-semibold text-gefinc-muted md:min-h-0;
+    background-color: var(--glass-bg);
   }
   .gef-segment > input[type='radio'] {
     @apply absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0;
@@ -170,6 +421,18 @@ table td {
   .gef-segment:has(input:focus-visible) {
     outline: 2px solid var(--color-gefinc-secondary);
     outline-offset: 2px;
+  }
+  /* Seletor de duas ou três opções em trilho de vidro (ex.: "Valor da parcela" / "Valor total"). */
+  .gef-seg-track {
+    @apply flex gap-1 rounded-xl border border-gefinc-border p-1;
+    background-color: var(--glass-bg);
+  }
+  .gef-seg-btn {
+    @apply inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-body-base font-semibold text-gefinc-muted transition-colors hover:text-gefinc-text active:bg-gefinc-primary/10 md:min-h-9;
+  }
+  .gef-seg-btn[aria-pressed='true'] {
+    @apply bg-gefinc-primary/15 text-gefinc-primary;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-gefinc-primary) 45%, transparent);
   }
   /* Interruptor (caixa de seleção com aparência de chave liga/desliga). */
   .gef-switch-row {
@@ -193,14 +456,16 @@ table td {
   }
   /* 16 px no celular: abaixo disso o iOS dá zoom ao focar o campo e a tela "pula". */
   .gef-input {
-    @apply min-h-11 w-full rounded-lg border border-gefinc-border bg-gefinc-surface px-3 py-2 text-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-focus md:min-h-0 md:text-body-base;
+    @apply min-h-11 w-full rounded-lg border border-gefinc-border px-3 py-2 text-base text-gefinc-text outline-none placeholder:text-gefinc-muted focus:border-gefinc-focus md:min-h-0 md:text-body-base;
+    background-color: var(--glass-bg);
   }
   .gef-input[aria-invalid='true'] {
     @apply border-gefinc-danger;
   }
   /* Invólucro do campo de valor (R$ + número): o contorno neutro aparece quando o campo interno tem foco. */
   .gef-money-field {
-    @apply flex min-h-11 items-stretch rounded-lg border border-gefinc-border bg-gefinc-surface px-3 md:min-h-0;
+    @apply flex min-h-11 items-stretch rounded-lg border border-gefinc-border px-3 md:min-h-0;
+    background-color: var(--glass-bg);
   }
   .gef-money-field:focus-within {
     @apply border-gefinc-focus;
@@ -221,13 +486,14 @@ table td {
   }
   /* Estado pressionado: retorno imediato ao toque (o hover não existe em tela sensível ao toque). */
   .gef-btn-primary {
-    @apply min-h-11 w-full rounded-lg bg-gefinc-primary px-4 py-2.5 text-body-base font-semibold text-gefinc-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-primary-fill px-4 py-2.5 text-body-base font-semibold text-gefinc-on-accent transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
   }
   .gef-btn-danger {
-    @apply min-h-11 w-full rounded-lg bg-gefinc-danger px-4 py-2.5 text-body-base font-semibold text-gefinc-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
+    @apply min-h-11 w-full rounded-lg bg-gefinc-danger-fill px-4 py-2.5 text-body-base font-semibold text-gefinc-on-accent transition-[transform,opacity] hover:opacity-90 active:scale-[0.98] active:opacity-80 disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
   }
   .gef-btn-secondary {
     @apply min-h-11 rounded-lg border border-gefinc-border px-4 py-2.5 text-body-base font-semibold text-gefinc-text transition-[transform,background-color] hover:border-gefinc-primary active:scale-[0.98] active:bg-gefinc-bg disabled:opacity-50 disabled:active:scale-100 md:min-h-0;
+    background-color: var(--glass-bg);
   }
   /* Botão só com ícone (fechar, mês anterior/próximo): alvo de toque de 44 px. */
   .gef-icon-btn {
@@ -239,24 +505,46 @@ table td {
   }
   /* Botões compactos das ações de linha (Pagar, Editar, Excluir…) e botões em forma de link. */
   .gef-btn-sm {
-    @apply inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-gefinc-border bg-gefinc-bg px-3 text-body-base font-semibold text-gefinc-text transition-[transform,background-color] hover:border-gefinc-secondary hover:text-gefinc-secondary active:scale-[0.97] active:bg-gefinc-surface disabled:opacity-50 disabled:active:scale-100 md:min-h-9;
+    @apply inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-gefinc-border px-3 text-body-base font-semibold text-gefinc-text transition-[transform,background-color] hover:border-gefinc-secondary hover:text-gefinc-secondary active:scale-[0.97] active:bg-gefinc-surface disabled:opacity-50 disabled:active:scale-100 md:min-h-9;
+    background-color: var(--glass-bg);
   }
   .gef-btn-sm-primary {
     @apply border-gefinc-primary/50 bg-gefinc-primary/10 text-gefinc-primary hover:border-gefinc-primary hover:text-gefinc-primary;
   }
   .gef-btn-sm-danger {
-    @apply border-gefinc-danger/40 bg-gefinc-danger/10 text-[#fda4af] hover:border-gefinc-danger hover:text-[#fda4af];
+    @apply border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger-soft hover:border-gefinc-danger hover:text-gefinc-danger-soft;
   }
   .gef-link {
     @apply text-gefinc-secondary underline underline-offset-2 hover:no-underline;
   }
+  /* O desfoque fica no fundo (que cobre a tela), nunca no painel: um painel dentro de outro (seletor de conta
+     dentro de um formulário em painel) usa `fixed` e perderia a referência da tela se o painel tivesse filtro. */
   .gef-sheet-backdrop {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4;
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-gefinc-scrim p-4;
+    -webkit-backdrop-filter: var(--glass-filter-scrim);
+    backdrop-filter: var(--glass-filter-scrim);
     animation: gef-fade-in 0.15s ease-out;
   }
   .gef-sheet {
-    @apply max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-gefinc-border bg-gefinc-surface p-4;
+    @apply max-h-[90dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-gefinc-border p-4;
+    background-color: var(--glass-bg-strong);
+    border-color: var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 24px 48px -20px rgb(0 0 0 / 0.55);
     animation: gef-pop-in 0.18s ease-out;
+  }
+  /* Celular: o painel sobe da base, com cantos superiores arredondados e respeitando a barra de gestos. */
+  @media (max-width: 39.999rem) {
+    .gef-sheet-backdrop {
+      @apply items-end p-0;
+    }
+    .gef-sheet-backdrop:not(.gef-sheet-backdrop-left) .gef-sheet {
+      @apply max-h-[85dvh] max-w-none rounded-b-none rounded-t-3xl;
+      padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+      /* sobe da base, sem mudar a escala (os alvos de toque mantêm os 44 px durante a animação) */
+      animation: gef-sheet-up 0.22s ease-out;
+    }
   }
   .gef-sheet-backdrop-left {
     @apply items-stretch justify-start p-0;
@@ -266,7 +554,8 @@ table td {
   }
   /* Menu lateral do web (e a mesma lista dentro da gaveta em tela estreita). */
   .gef-sidenav {
-    @apply sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gefinc-border bg-gefinc-surface lg:flex;
+    @apply sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-gefinc-border lg:flex;
+    border-color: var(--glass-border);
   }
   .gef-sidenav[data-collapsed='true'] {
     @apply w-[4.5rem];
@@ -306,11 +595,13 @@ table td {
   }
   /* Barra do topo: fixa ao rolar; em tela larga leva só o atalho Minha conta, à direita. */
   .gef-topbar {
-    @apply sticky top-0 z-30 flex items-center gap-3 border-b border-gefinc-border bg-gefinc-surface px-4 py-3 lg:px-6;
+    @apply sticky top-0 z-30 flex items-center gap-3 border-b border-gefinc-border px-4 py-3 lg:px-6;
+    border-color: var(--glass-border);
   }
   /* Atalho "Minha conta" (avatar + nome); o nome é cortado com reticências quando falta espaço. */
   .gef-account-chip {
-    @apply inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-full border border-gefinc-border bg-gefinc-bg py-1 pl-1 pr-3 text-body-base font-semibold text-gefinc-text transition-colors hover:border-gefinc-primary active:bg-gefinc-surface max-[359px]:pr-1;
+    @apply inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-full border border-gefinc-border py-1 pl-1 pr-3 text-body-base font-semibold text-gefinc-text transition-colors hover:border-gefinc-primary active:bg-gefinc-surface max-[359px]:pr-1;
+    background-color: var(--glass-bg);
   }
   .gef-account-chip-active {
     @apply border-gefinc-primary bg-gefinc-primary/10 text-gefinc-primary;
@@ -319,21 +610,25 @@ table td {
     @apply max-w-[9rem] truncate sm:max-w-[14rem] max-[359px]:sr-only;
   }
   .gef-avatar {
-    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-body-base font-extrabold text-gefinc-bg;
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-body-base font-extrabold text-gefinc-on-accent;
     background: var(--gradient-aurora);
   }
   .gef-avatar-lg {
     @apply h-14 w-14 text-title-lg;
   }
   .gef-state-icon {
-    @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-gefinc-border bg-gefinc-bg text-gefinc-muted;
+    @apply inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-gefinc-border text-gefinc-muted;
+    background-color: var(--glass-bg);
   }
   .gef-toast-region {
     @apply pointer-events-none fixed left-4 right-4 z-[60] flex flex-col items-center gap-2 md:left-auto md:items-end;
     bottom: calc(env(safe-area-inset-bottom) + var(--gef-tabbar-h, 0px) + 5rem);
   }
   .gef-toast {
-    @apply pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-gefinc-primary/40 bg-gefinc-surface px-4 py-2 text-body-base text-gefinc-text shadow-lg;
+    @apply pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-xl border border-gefinc-primary/40 px-4 py-2 text-body-base text-gefinc-text;
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      var(--glass-shadow);
   }
   /* Ação de linha/cartão com área de toque de pelo menos 44 px. */
   .gef-action {

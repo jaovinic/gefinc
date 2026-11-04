@@ -95,7 +95,11 @@ const iso = (offset) => {
   await step('lembrete "vencem amanhã" agendado no sistema (AlarmManager)', async () => {
     await page.getByRole('navigation', { name: 'Navegação principal' }).getByRole('link', { name: 'Mais' }).click();
     await page.getByRole('main').getByRole('link', { name: 'Minha conta' }).click();
-    await page.getByLabel('Horário dos lembretes').selectOption('23');
+    // lista própria (gef-select): abre o gatilho do campo e escolhe a opção pelo texto exato
+    const hourField = page.locator('gef-select').filter({ has: page.getByText('Horário dos lembretes', { exact: true }) });
+    await hourField.locator('button[aria-haspopup="dialog"]').click();
+    await hourField.getByRole('option', { name: '23h', exact: true }).click();
+    await hourField.getByRole('option').first().waitFor({ state: 'detached', timeout: 5000 });
     await page.getByRole('switch', { name: 'Contas que vencem amanhã' }).check();
     await new Promise((r) => setTimeout(r, 4000));
     const alarms = adb(`shell "dumpsys alarm | grep -c ${PACKAGE} || true"`).trim();

@@ -5,6 +5,7 @@ import { fromCents, isValidMoney, toCents } from '@gefinc/utils';
 import { AccountsApi, messageFor, toProblem } from '../api';
 import { Icon } from '../icons/icon';
 import { MoneyInput } from '../money-input/money-input';
+import { Select, type SelectOption } from '../select/select';
 import { IconPicker } from './icon-picker';
 import { AccountPicker } from './account-picker';
 
@@ -62,7 +63,8 @@ function openingToField(opening: string | undefined): { amount: string | null; s
 
 @Component({
   selector: 'gef-account-form',
-  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput],
+  host: { class: 'block' },
+  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput, Select],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
       @if (error(); as message) {
@@ -70,12 +72,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
       }
       <div class="grid gap-4 sm:grid-cols-2">
         <div>
-          <label class="gef-label" for="type">Tipo</label>
-          <select id="type" class="gef-input" formControlName="type">
-            @for (type of types; track type) {
-              <option [value]="type">{{ labels[type] }}</option>
-            }
-          </select>
+          <gef-select label="Tipo" formControlName="type" [options]="typeOptions" />
         </div>
         <div>
           <label class="gef-label" for="name">Nome</label>
@@ -99,7 +96,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
                 </label>
               }
             </div>
-            @if (form.touched && form.errors?.['holderType']) {
+            @if (submitted() && form.errors?.['holderType']) {
               <p class="gef-field-error">Escolha pessoa física ou jurídica.</p>
             }
             @if (serverErrors()['holderType']; as message) {
@@ -119,7 +116,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
                 <p class="mt-1 text-caption text-gefinc-warning">Este cartão ainda não tem conta: vincule a uma conta bancária.</p>
               }
             }
-            @if (form.touched && form.errors?.['bankAccountId'] && banks().length > 0) {
+            @if (submitted() && form.errors?.['bankAccountId'] && banks().length > 0) {
               <p class="gef-field-error">Escolha a conta bancária do cartão.</p>
             }
             @if (serverErrors()['bankAccountId']; as message) {
@@ -129,14 +126,14 @@ function openingToField(opening: string | undefined): { amount: string | null; s
           <div>
             <label class="gef-label" for="closingDay">Dia de fechamento da fatura</label>
             <input id="closingDay" class="gef-input" type="number" min="1" max="31" formControlName="closingDay" />
-            @if (form.touched && form.errors?.['closingDay']) {
+            @if (submitted() && form.errors?.['closingDay']) {
               <p class="gef-field-error">Informe um dia entre 1 e 31.</p>
             }
           </div>
           <div>
             <label class="gef-label" for="dueDay">Dia de vencimento da fatura</label>
             <input id="dueDay" class="gef-input" type="number" min="1" max="31" formControlName="dueDay" />
-            @if (form.touched && form.errors?.['dueDay']) {
+            @if (submitted() && form.errors?.['dueDay']) {
               <p class="gef-field-error">Informe um dia entre 1 e 31.</p>
             }
           </div>
@@ -208,8 +205,7 @@ export class AccountForm {
   /** O usuário quer cadastrar uma conta bancária antes de criar o cartão. */
   readonly newBankRequested = output<void>();
 
-  protected readonly types = ACCOUNT_TYPES;
-  protected readonly labels = ACCOUNT_TYPE_LABELS;
+  protected readonly typeOptions: SelectOption[] = ACCOUNT_TYPES.map((value) => ({ value, label: ACCOUNT_TYPE_LABELS[value] }));
   protected readonly holders: HolderType[] = ['PF', 'PJ'];
   protected readonly holderLabels = HOLDER_LABELS;
   protected readonly form = this.fb.group(
@@ -231,6 +227,12 @@ export class AccountForm {
   protected readonly error = signal<string | null>(null);
   protected readonly serverErrors = signal<Record<string, string>>({});
   protected readonly busy = signal(false);
+  /**
+   * As regras por tipo (titular, conta do cartão, dias) só mostram erro depois de uma tentativa de salvar:
+   * avisar assim que qualquer campo perde o foco faz o painel (centralizado) crescer no meio do clique e
+   * o clique no seletor de conta se perde.
+   */
+  protected readonly submitted = signal(false);
 
   protected negative(): boolean {
     return this.form.controls.openingSign.value === 'NEGATIVE';
@@ -241,6 +243,7 @@ export class AccountForm {
       const account = this.account();
       this.resetToken();
       const opening = openingToField(account?.openingBalance);
+      this.submitted.set(false);
       this.form.reset({
         name: account?.name ?? '',
         type: account?.type ?? 'CHECKING',
@@ -295,6 +298,7 @@ export class AccountForm {
       return;
     }
     if (this.form.invalid) {
+      this.submitted.set(true);
       this.form.markAllAsTouched();
       return;
     }

@@ -19,12 +19,12 @@ function toneOf(value: string): Tone {
  */
 @Component({
   selector: 'gef-balance-panel',
+  host: { class: 'block' },
   imports: [AccountBadge, Icon, RouterLink],
   template: `
     <section class="space-y-3" aria-label="Saldo das contas" data-testid="balance-panel">
       <div
-        class="gef-kpi rounded-xl border bg-gefinc-surface p-4"
-        [class.border-gefinc-border]="totalTone() !== 'negative'"
+        class="gef-kpi gef-card p-4"
         [class.border-gefinc-danger]="totalTone() === 'negative'"
         data-indicator="balance-total"
       >
@@ -53,12 +53,12 @@ function toneOf(value: string): Tone {
         </div>
       } @else {
         <ul
-          class="divide-y divide-gefinc-border overflow-hidden rounded-xl border border-gefinc-border bg-gefinc-surface sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0 sm:overflow-visible sm:border-0 sm:bg-transparent xl:grid-cols-3"
+          class="divide-y divide-gefinc-border overflow-hidden gef-card sm:grid sm:grid-cols-2 sm:gap-3 sm:divide-y-0 sm:overflow-visible sm:border-0 sm:bg-transparent sm:shadow-none xl:grid-cols-3"
           aria-label="Saldo por conta"
         >
           @for (row of rows(); track row.accountId) {
             <li
-              class="flex items-center justify-between gap-3 p-3 sm:rounded-xl sm:border sm:border-gefinc-border sm:bg-gefinc-surface"
+              class="flex items-center justify-between gap-3 p-3 sm:rounded-xl sm:border sm:border-gefinc-border sm:bg-(--glass-bg)"
               data-testid="account-balance"
               [attr.data-account-id]="row.accountId"
             >

@@ -1,0 +1,18 @@
+{
+  "comment": "Categorias padrão criadas para cada novo usuário. Fonte de verdade compartilhada: o DefaultCategorySeeder (api-server) e default-category-colors.spec.ts (ui-shared) a leem; DefaultCategorySeederTest falha se o semeador divergir deste arquivo.",
+  "expense": [
+    { "name": "Alimentação", "color": "#F97316" },
+    { "name": "Moradia", "color": "#8B5CF6" },
+    { "name": "Transporte", "color": "#3B82F6" },
+    { "name": "Saúde", "color": "#EF4444" },
+    { "name": "Lazer", "color": "#EC4899" },
+    { "name": "Educação", "color": "#14B8A6" },
+    { "name": "Serviços", "color": "#F59E0B" },
+    { "name": "Compras", "color": "#16A34A" },
+    { "name": "Outras despesas", "color": "#94A3B8" }
+  ],
+  "income": [
+    { "name": "Salário", "color": "#00E599" },
+    { "name": "Outras receitas", "color": "#00B4D8" }
+  ]
+}

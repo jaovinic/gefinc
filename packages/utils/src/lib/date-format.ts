@@ -4,6 +4,23 @@ export function isoToBR(iso: string): string {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : iso;
 }
 
+/** "10/12/2026" → "2026-12-10"; devolve `null` quando o texto não é uma data real (inclui 29/02 só em ano bissexto). */
+export function brToIso(br: string): string | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br);
+  if (!match) {
+    return null;
+  }
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  // Date.UTC normaliza o excesso (31/04 vira 01/05): só vale se o dia e o mês voltarem iguais.
+  if (year < 1 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 /** Data local de hoje no formato ISO ("2026-11-10"), sem converter para UTC. */
 export function todayIso(now: Date = new Date()): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');

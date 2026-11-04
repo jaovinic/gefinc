@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import { Icon, ProfilePage } from '@gefinc/ui-shared';
+import { FormsModule } from '@angular/forms';
+import { Icon, ProfilePage, Select, type SelectOption } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
 import { AppLockService } from '../lock/app-lock.service';
 import { DevicePreferences } from '../lock/device-preferences';
@@ -11,10 +12,10 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
  */
 @Component({
   selector: 'gef-settings-page',
-  imports: [Icon, ProfilePage],
+  imports: [FormsModule, Icon, ProfilePage, Select],
   template: `
     <gef-profile-page>
-      <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="lock-title">
+      <section class="space-y-3 gef-card p-4" aria-labelledby="lock-title">
         <h2 id="lock-title" class="flex items-center gap-2 text-title-md font-bold"><gef-icon name="shield" [size]="18" />Bloqueio por biometria</h2>
         <p class="text-body-base text-gefinc-muted">
           Peça a digital ou o rosto para abrir o aplicativo e proteger seus dados financeiros se outra pessoa usar o aparelho.
@@ -30,23 +31,13 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
             (change)="toggleLock($event)"
           />
         </label>
-        <label class="block">
-          <span class="gef-label">Bloquear depois de</span>
-          <select class="gef-input" aria-label="Bloquear depois de" (change)="changeTimeout($event)">
-            <option value="0" [selected]="timeout() === 0">Na hora</option>
-            <option value="1" [selected]="timeout() === 1">1 minuto</option>
-            <option value="5" [selected]="timeout() === 5">5 minutos</option>
-          </select>
-        </label>
+        <gef-select label="Bloquear depois de" [options]="timeoutOptions" [ngModel]="timeout()" (ngModelChange)="changeTimeout($event)" />
         @if (feedback(); as text) {
           <p data-testid="lock-feedback" class="gef-alert-warning" role="status">{{ text }}</p>
         }
-        <p class="text-caption text-gefinc-muted">
-          No Android, enquanto o bloqueio estiver ligado, capturas de tela do aplicativo ficam bloqueadas, e o conteúdo some da lista de aplicativos recentes.
-        </p>
       </section>
 
-      <section class="space-y-3 rounded-xl border border-gefinc-border bg-gefinc-surface p-4" aria-labelledby="reminders-title">
+      <section class="space-y-3 gef-card p-4" aria-labelledby="reminders-title">
         <h2 id="reminders-title" class="text-title-md font-bold">Lembretes de vencimento</h2>
         <p class="text-body-base text-gefinc-muted">
           Avisos no aparelho antes das contas vencerem. O texto mostra só quantidade e tipo, sem valores nem nomes.
@@ -64,14 +55,7 @@ import { ReminderKindKey, RemindersService } from '../reminders/reminders.servic
             />
           </label>
         }
-        <label class="block">
-          <span class="gef-label">Horário dos lembretes</span>
-          <select class="gef-input" aria-label="Horário dos lembretes" (change)="changeHour($event)">
-            @for (hour of hours; track hour) {
-              <option [value]="hour" [selected]="hour === prefs.reminders().hour">{{ hour }}h</option>
-            }
-          </select>
-        </label>
+        <gef-select label="Horário dos lembretes" [options]="hours" [ngModel]="prefs.reminders().hour" (ngModelChange)="changeHour($event)" />
         @if (remindersFeedback(); as text) {
           <p data-testid="reminders-feedback" class="gef-alert-warning" role="status">{{ text }}</p>
         }
@@ -94,7 +78,12 @@ export class SettingsPage {
     { key: 'dueToday', label: 'Contas que vencem hoje' },
     { key: 'overdue', label: 'Contas atrasadas' },
   ];
-  protected readonly hours = Array.from({ length: 24 }, (_, i) => i);
+  protected readonly hours: SelectOption[] = Array.from({ length: 24 }, (_, i) => ({ value: i, label: `${i}h` }));
+  protected readonly timeoutOptions: SelectOption[] = [
+    { value: 0, label: 'Na hora' },
+    { value: 1, label: '1 minuto' },
+    { value: 5, label: '5 minutos' },
+  ];
   protected readonly remindersFeedback = signal<string | null>(null);
 
   protected readonly timeout = signal(this.prefs.lock().timeoutMinutes);
@@ -122,12 +111,12 @@ export class SettingsPage {
     }
   }
 
-  protected changeHour(event: Event): Promise<void> {
-    return this.reminders.setHour(Number((event.target as HTMLSelectElement).value));
+  protected changeHour(hour: number | string | null): Promise<void> {
+    return this.reminders.setHour(Number(hour));
   }
 
-  protected async changeTimeout(event: Event): Promise<void> {
-    const minutes = Number((event.target as HTMLSelectElement).value);
+  protected async changeTimeout(value: number | string | null): Promise<void> {
+    const minutes = Number(value);
     this.timeout.set(minutes);
     if (this.prefs.lock().enabled) {
       await this.prefs.setLock({ timeoutMinutes: minutes });

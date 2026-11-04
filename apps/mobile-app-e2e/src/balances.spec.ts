@@ -52,7 +52,7 @@ test.describe('saldo por conta no celular', () => {
     await expect(page.locator('[data-indicator="balance-total"]')).toContainText('R$ 1.350,00');
 
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
-    await page.getByLabel('Receita').check();
+    await page.getByLabel('Receita', { exact: true }).check();
     await page.keyboard.type('10000'); // R$ 100,00
     await page.getByRole('button', { name: 'Salvar' }).click();
 

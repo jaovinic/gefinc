@@ -50,10 +50,26 @@ export function isPendingRow(tx: Transaction): boolean {
   return tx.id < 0;
 }
 
+type Marked = Transaction & { pendingChange?: true };
+
+/** Linha do servidor (identificador real) com alteração feita sem conexão e ainda não enviada. */
+export function isPendingChange(tx: Transaction): boolean {
+  return (tx as Marked).pendingChange === true;
+}
+
+interface EditBody {
+  amount?: string;
+  dueDate?: string;
+  description?: string;
+  categoryId?: number;
+}
+
 /**
  * Mostra, por cima da lista de lançamentos, o efeito esperado das operações ainda não enviadas:
- * lançamentos novos (parcelas e vencimentos pelas mesmas regras do servidor, em `@gefinc/utils`) e
- * pagamentos feitos ou desfeitos. Operações recusadas não entram. Não altera a página recebida.
+ * lançamentos novos (parcelas e vencimentos pelas mesmas regras do servidor, em `@gefinc/utils`),
+ * pagamentos feitos ou desfeitos, valor e vencimento editados e grupos excluídos. O que mudou (e tem
+ * identificador do servidor) sai marcado como alteração pendente; o excluído sai da lista. Operações
+ * recusadas não entram. Não altera a página recebida.
  */
 export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: OverlayContext, query: OverlayQuery): TransactionPage {
   const live = ops.filter((o) => o.state !== 'REJECTED').sort((a, b) => a.createdAt - b.createdAt);
@@ -61,17 +77,41 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     return page;
   }
   let items: Transaction[] = page.content.map((t) => ({ ...t }));
+  const initial = items.length;
+  const rescheduled = new Set<number>();
+  const mark = (item: Transaction): void => {
+    (item as Marked).pendingChange = true;
+  };
 
   for (const op of live) {
     if (op.kind === 'CREATE_GROUP') {
       continue;
     }
-    const id = Number(/\/transactions\/(\d+)\//.exec(op.path)?.[1]);
+    if (op.kind === 'DELETE_GROUP') {
+      const groupId = op.entity?.id;
+      items = items.filter((t) => t.groupId !== groupId || !removedByDelete(t, ctx));
+      continue;
+    }
+    if (op.kind === 'EDIT_GROUP') {
+      const body = op.body as EditBody;
+      for (const item of items.filter((t) => t.groupId === op.entity?.id)) {
+        item.description = body.description ?? item.description;
+        item.categoryId = body.categoryId ?? item.categoryId;
+        mark(item);
+      }
+      continue;
+    }
+    const id = op.entity?.id ?? Number(/\/transactions\/(\d+)/.exec(op.path)?.[1]);
     const item = items.find((t) => t.id === id);
     if (!item) {
       continue;
     }
-    if (op.kind === 'PAY') {
+    mark(item);
+    if (op.kind === 'EDIT_TX') {
+      if (editTransaction(item, op.body as EditBody, ctx)) {
+        rescheduled.add(item.id);
+      }
+    } else if (op.kind === 'PAY') {
       item.status = 'PAID';
       item.paymentDate = (op.body as { paymentDate?: string } | null)?.paymentDate;
       item.overdue = false;
@@ -83,12 +123,18 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     }
   }
 
+  // Mudou de mês o que foi reagendado: deixa de combinar com o mês da tela e a ordem por vencimento se refaz.
+  if (rescheduled.size > 0) {
+    if (query.month) {
+      items = items.filter((t) => !rescheduled.has(t.id) || t.dueDate.slice(0, 7) === query.month);
+    }
+    items.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+  }
   // Itens que mudaram de status deixam de combinar com o filtro de status da tela.
-  const before = items.length;
   if (query.status) {
     items = items.filter((t) => t.status === query.status);
   }
-  const dropped = before - items.length;
+  const dropped = initial - items.length;
 
   let sequence = 0;
   const created: Transaction[] = [];
@@ -133,6 +179,43 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     items.splice(at === -1 ? items.length : at, 0, tx);
   }
   return { ...page, content: items, totalElements: page.totalElements - dropped + created.length };
+}
+
+/**
+ * Valor e vencimento editados, pelas regras do servidor: no cartão o vencimento vem da fatura; receita fora
+ * de cartão reavalia o status só quando a data muda. Devolve se o vencimento mudou.
+ */
+function editTransaction(item: Transaction, body: EditBody, ctx: OverlayContext): boolean {
+  const card = ctx.accounts.find((a) => a.id === item.accountId)?.type === 'CREDIT_CARD';
+  if (body.amount) {
+    item.amount = body.amount;
+  }
+  if (!body.dueDate || body.dueDate === item.dueDate || card) {
+    return false;
+  }
+  item.dueDate = body.dueDate;
+  if (isIncome(item.categoryId, ctx)) {
+    item.overdue = false;
+    if (item.dueDate > ctx.today) {
+      item.status = 'PENDING';
+      delete item.paymentDate;
+    } else {
+      item.status = 'PAID';
+      item.paymentDate = item.dueDate;
+    }
+  } else {
+    item.overdue = item.status !== 'PAID' && item.dueDate < ctx.today;
+  }
+  return true;
+}
+
+/** O que a exclusão do grupo remove: as pendentes; receita avulsa fora de cartão sai por inteiro, mesmo recebida. */
+function removedByDelete(item: Transaction, ctx: OverlayContext): boolean {
+  const card = ctx.accounts.find((a) => a.id === item.accountId)?.type === 'CREDIT_CARD';
+  if (!card && item.recurrenceType === 'VARIABLE' && isIncome(item.categoryId, ctx)) {
+    return true;
+  }
+  return item.status !== 'PAID';
 }
 
 function isIncome(categoryId: number, ctx: OverlayContext): boolean {

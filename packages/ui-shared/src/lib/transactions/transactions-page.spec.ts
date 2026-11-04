@@ -3,9 +3,9 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
-import { API, clickButton, configureHttpTesting, select } from '../../testing/testbed';
+import { API, clickButton, configureHttpTesting, fillDate, optionLabels, pickOption, type } from '../../testing/testbed';
 import { NoticeService } from '../api';
-import { PENDING_MARKER } from './transactions-page';
+import { OFFLINE_WRITES, PENDING_CHANGE, PENDING_MARKER } from './pending-marker';
 import { Viewport } from '../viewport/viewport';
 import { TransactionsPage } from './transactions-page';
 
@@ -130,6 +130,59 @@ describe('TransactionsPage', () => {
     listRequest(http).flush(page([]));
   });
 
+  it('pagar com a data incompleta não envia e avisa; a data digitada vale no pagamento', async () => {
+    const { http, el, fixture } = await setup();
+    const row = Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes('Mercado')) as HTMLElement;
+    (Array.from(row.querySelectorAll('button')).find((b) => b.textContent === 'Pagar') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    type(el, '#paymentDate', '0511');
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    fixture.detectChanges();
+    http.expectNone({ method: 'POST', url: `${API}/transactions/1/pay` });
+    // o aviso fica dentro do painel, junto ao campo (o da página ficaria atrás do fundo), e o campo o referencia
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Informe uma data válida');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+    expect(el.querySelector('#paymentDate')?.getAttribute('aria-describedby')).toContain(alert.id);
+
+    fillDate(el, '#paymentDate', '2026-11-05');
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    const pay = http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` });
+    expect(pay.request.body).toEqual({ paymentDate: '2026-11-05' });
+    pay.flush({ ...pending, status: 'PAID', paymentDate: '2026-11-05' });
+    listRequest(http).flush(page([]));
+  });
+
+  it('editar com o vencimento apagado não envia e avisa dentro do painel', async () => {
+    const { http, el, fixture } = await setup();
+    (el.querySelector('button[aria-label="Editar Mercado"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    type(el, '#editDue', '');
+    clickButton(el, 'Salvar');
+    fixture.detectChanges();
+    http.expectNone({ method: 'PATCH', url: `${API}/transactions/1` });
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Informe uma data válida');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+  });
+
+  it('erro do servidor ao pagar também aparece dentro do painel aberto', async () => {
+    const { http, el, fixture } = await setup();
+    (el.querySelector('button[aria-label="Pagar Mercado"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    clickButton(el, 'Confirmar');
+    http.expectOne({ method: 'POST', url: `${API}/transactions/1/pay` }).flush({ title: 'Conflito', detail: 'Lançamento já foi pago.' }, { status: 409, statusText: 'Conflict' });
+    fixture.detectChanges();
+    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.textContent).toContain('Lançamento já foi pago.');
+    expect(el.querySelector('[role="dialog"]')?.contains(alert)).toBe(true);
+  });
+
   it('receita aparece com + e despesa com −, com seta e sem depender só da cor', async () => {
     const { el, http } = await setup();
     const expense = el.querySelector('tbody td[data-kind="expense"]') as HTMLElement;
@@ -178,7 +231,7 @@ describe('TransactionsPage', () => {
 
   it('mudar o filtro de status volta à primeira página e consulta de novo', async () => {
     const { http, el, fixture } = await setup();
-    select(el, 'select[aria-label="Status"]', 'PAID');
+    pickOption(fixture, 'Status', 'Pagos');
     fixture.detectChanges();
     const request = listRequest(http);
     expect(request.request.params.get('status')).toBe('PAID');
@@ -188,22 +241,22 @@ describe('TransactionsPage', () => {
 
   it('o filtro de status diz A receber e Recebidas só quando o tipo é Receita', async () => {
     const { http, el, fixture } = await setup();
-    const statusLabels = () => Array.from(el.querySelectorAll('select[aria-label="Status"] option')).map((o) => o.textContent?.trim());
+    const statusLabels = () => optionLabels(fixture, 'Status');
     expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
 
-    select(el, 'select[aria-label="Natureza"]', 'INCOME');
+    pickOption(fixture, 'Natureza', 'Receitas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
     expect(statusLabels()).toEqual(['Todos os status', 'A receber', 'Recebidas']);
 
-    select(el, 'select[aria-label="Natureza"]', 'EXPENSE');
+    pickOption(fixture, 'Natureza', 'Despesas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
     expect(statusLabels()).toEqual(['Todos os status', 'Pendentes', 'Pagos']);
 
-    select(el, 'select[aria-label="Natureza"]', '');
+    pickOption(fixture, 'Natureza', 'Receitas e despesas');
     fixture.detectChanges();
     listRequest(http).flush(page([]));
     fixture.detectChanges();
@@ -328,9 +381,7 @@ describe('TransactionsPage', () => {
     expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Entra na conta na data informada');
 
     const future = dayIso(20);
-    const input = el.querySelector('#editDue') as HTMLInputElement;
-    input.value = future;
-    input.dispatchEvent(new Event('input'));
+    fillDate(el, '#editDue', future);
     fixture.detectChanges();
     expect(el.querySelector('[role="dialog"]')?.textContent).toContain('Fica a receber até');
 
@@ -443,12 +494,12 @@ describe('TransactionsPage', () => {
 
     it('os filtros ficam atrás do botão Filtros e aplicam a consulta', async () => {
       const { http, el, fixture } = await setup(undefined, compact);
-      expect(el.querySelector('select[aria-label="Status"]')).toBeNull();
+      expect(el.querySelector('gef-select')).toBeNull();
 
       clickButton(el, 'Filtros');
       fixture.detectChanges();
       expect(el.querySelector('[role="dialog"][aria-label="Filtros"]')).not.toBeNull();
-      select(el, 'select[aria-label="Status"]', 'PENDING');
+      pickOption(fixture, 'Status', 'Pendentes');
       fixture.detectChanges();
 
       const request = listRequest(http);
@@ -470,6 +521,22 @@ describe('TransactionsPage', () => {
       expect(pay.request.body).toEqual({ paymentDate: todayIso() });
       pay.flush({ ...pending, status: 'PAID', paymentDate: todayIso() });
       listRequest(http).flush(page([]));
+    });
+
+    it('pagar com a data apagada mostra o aviso dentro do painel inferior, junto ao campo', async () => {
+      const { http, el, fixture } = await setup(undefined, compact);
+
+      (el.querySelector('button[aria-label="Pagar Mercado"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      type(el, '#paymentDate', '');
+      clickButton(el, 'Confirmar');
+      fixture.detectChanges();
+
+      http.expectNone({ method: 'POST', url: `${API}/transactions/1/pay` });
+      const sheet = el.querySelector('[role="dialog"].gef-sheet') as HTMLElement;
+      const alert = sheet.querySelector('[role="alert"]') as HTMLElement;
+      expect(alert.textContent).toContain('Informe uma data válida');
+      expect(el.querySelectorAll('[role="alert"]')).toHaveLength(1);
     });
 
     it('Novo lançamento abre o formulário em um painel inferior', async () => {
@@ -570,5 +637,188 @@ describe('TransactionsPage - itens pendentes de envio (app móvel)', () => {
     expect(rows[0].textContent).toContain('Pendente de envio');
     expect(rows[0].querySelectorAll('button')).toHaveLength(0);
     expect(rows[1].querySelector('button')).not.toBeNull();
+  });
+});
+
+describe('TransactionsPage - alterações pendentes de envio e exclusão sem conexão (app móvel)', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    TestBed.inject(HttpTestingController).verify();
+  });
+
+  async function setup(options: { compact?: boolean; offlineWrites?: boolean } = {}) {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Viewport, useValue: { compact: signal(options.compact ?? false) } },
+        { provide: PENDING_CHANGE, useValue: (tx: { id: number }) => tx.id === 2 },
+        { provide: OFFLINE_WRITES, useValue: options.offlineWrites ?? true },
+      ],
+    });
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/transactions`).flush(page([pending, late]));
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { ...ctx, fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  const listRequest = (http: HttpTestingController) => http.expectOne((r) => r.method === 'GET' && r.url === `${API}/transactions`);
+  const offlineError = { status: 0, statusText: 'Offline' };
+  const clickDelete = (el: HTMLElement, description: string) =>
+    (el.querySelector(`button[aria-label="Excluir ${description}"]`) as HTMLButtonElement).click();
+
+  it('item real com alteração pendente mostra o selo e continua com as ações (pagar, editar, excluir)', async () => {
+    const { el } = await setup({ compact: true });
+    const cards = el.querySelectorAll('[data-testid="transaction-card"]');
+
+    expect(cards[0].textContent).not.toContain('Pendente de envio');
+    expect(cards[1].textContent).toContain('Pendente de envio');
+    for (const label of ['Pagar Luz', 'Editar Luz', 'Excluir Luz']) {
+      expect(cards[1].querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+    }
+  });
+
+  it('na tabela também', async () => {
+    const { el } = await setup({ compact: false });
+    const rows = el.querySelectorAll('tbody tr');
+
+    expect(rows[0].textContent).not.toContain('Pendente de envio');
+    expect(rows[1].textContent).toContain('Pendente de envio');
+    expect(rows[1].querySelector('button[aria-label="Editar Luz"]')).not.toBeNull();
+  });
+
+  it('sem conexão, excluir abre a confirmação mesmo sem o impacto, avisando que será aplicado ao reconectar', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ code: 'OFFLINE_REQUIRES_CONNECTION' }, offlineError);
+    fixture.detectChanges();
+
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain('Excluir Mercado?');
+    expect(dialog.querySelector('[data-testid="delete-offline-note"]')?.textContent).toContain('será aplicada quando a conexão voltar');
+    expect(dialog.textContent).not.toContain('NaN');
+    http.expectNone((r) => r.method === 'DELETE');
+
+    clickButton(el, 'Excluir "Mercado"');
+    const del = http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/100`);
+    expect(del.request.params.get('confirm')).toBe('true');
+    del.flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([late]));
+    fixture.detectChanges();
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Exclusão registrada. Será aplicada quando a conexão voltar.');
+  });
+
+  it('com conexão (impacto consultado e exclusão aplicada na hora), o aviso diz que o lançamento foi excluído', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 0, pendingCount: 1, paidAmount: '0.00', pendingAmount: '150.00' });
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/100`).flush(null, { status: 204, statusText: 'No Content' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Lançamento excluído.');
+  });
+
+  it('impacto consultado, mas a exclusão falha por rede e vai para a fila (202): o aviso diz que foi registrada, não excluída', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 0, pendingCount: 1, paidAmount: '0.00', pendingAmount: '150.00' });
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE').flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Exclusão registrada. Será aplicada quando a conexão voltar.');
+  });
+
+  it('sem o impacto mas com a exclusão aplicada na hora (rede lenta que respondeu ao DELETE): o aviso diz que foi excluído', async () => {
+    jest.useFakeTimers();
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` });
+    await jest.advanceTimersByTimeAsync(3_001);
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE').flush(null, { status: 204, statusText: 'No Content' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Lançamento excluído.');
+  });
+
+  it('com conexão, a confirmação continua mostrando o impacto, sem o aviso de reconexão', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 2, pendingCount: 3, paidAmount: '20.00', pendingAmount: '30.00' });
+    fixture.detectChanges();
+
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain('3 lançamento(s)');
+    expect(dialog.querySelector('[data-testid="delete-offline-note"]')).toBeNull();
+  });
+
+  it('rede "conectada" que não responde: o impacto não é esperado para sempre, a confirmação abre depois de alguns segundos', async () => {
+    jest.useFakeTimers();
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    const impact = http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` });
+    await jest.advanceTimersByTimeAsync(2_999);
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    await jest.advanceTimersByTimeAsync(2);
+    fixture.detectChanges();
+
+    expect(impact.cancelled).toBe(true);
+    // rede lenta, não ausente: o aviso não diz "Sem conexão"
+    const note = el.querySelector('[data-testid="delete-offline-note"]')?.textContent ?? '';
+    expect(note).toContain('conexão está lenta');
+    expect(note).not.toContain('Sem conexão');
+  });
+
+  it('erro do servidor ao consultar o impacto continua sendo mostrado como erro, sem abrir a confirmação', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({}, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('erro inesperado');
+  });
+
+  it('no web (sem fila offline), falta de conexão ao consultar o impacto segue sendo um erro, sem confirmação', async () => {
+    const { http, el, fixture } = await setup({ offlineWrites: false });
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({}, offlineError);
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão');
+  });
+
+  it('editar valor e vencimento sem conexão: o envio é aceito, a lista recarrega e o painel fecha', async () => {
+    const { http, el, fixture } = await setup();
+
+    (el.querySelector('button[aria-label="Editar Luz"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    fillDate(el, '#editDue', '2026-11-25');
+    clickButton(el, 'Salvar');
+    const patch = http.expectOne((r) => r.method === 'PATCH' && r.url === `${API}/transactions/2`);
+    expect(patch.request.body).toMatchObject({ dueDate: '2026-11-25', version: 0 });
+    patch.flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([pending, late]));
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
   });
 });

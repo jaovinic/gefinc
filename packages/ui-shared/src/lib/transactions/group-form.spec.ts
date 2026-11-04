@@ -1,7 +1,7 @@
 import { HttpTestingController } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { todayIso } from '@gefinc/utils';
-import { API, chooseAccount, configureHttpTesting, select, type } from '../../testing/testbed';
+import { isoToBR, todayIso } from '@gefinc/utils';
+import { API, chooseAccount, configureHttpTesting, fillDate, optionLabels, pickOption, selectTrigger, type } from '../../testing/testbed';
 import { GroupForm } from './group-form';
 
 describe('GroupForm', () => {
@@ -19,7 +19,7 @@ describe('GroupForm', () => {
   function fill(el: HTMLElement, fixture: { detectChanges(): void }, account: string) {
     type(el, '#description', 'Mercado');
     chooseAccount(fixture, el, account);
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     type(el, 'gef-money-input input', '15000');
     fixture.detectChanges();
   }
@@ -28,18 +28,16 @@ describe('GroupForm', () => {
 
   it('mostra só categorias da natureza escolhida', async () => {
     const { el, fixture } = await setup();
-    expect(el.querySelector('#categoryId')?.textContent).toContain('Alimentação');
-    expect(el.querySelector('#categoryId')?.textContent).not.toContain('Salário');
+    expect(optionLabels(fixture, 'Categoria')).toEqual(['Selecione…', 'Alimentação', 'Lazer']);
 
     (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
     fixture.detectChanges();
-    expect(el.querySelector('#categoryId')?.textContent).toContain('Salário');
-    expect(el.querySelector('#categoryId')?.textContent).not.toContain('Alimentação');
+    expect(optionLabels(fixture, 'Categoria')).toEqual(['Selecione…', 'Salário']);
   });
 
   it('a natureza (receita ou despesa) é o primeiro campo e é um seletor visível', async () => {
     const { el } = await setup();
-    const firstField = el.querySelector('form')!.querySelector('fieldset, label, input, select');
+    const firstField = el.querySelector('form')!.querySelector('fieldset, label, input, select, gef-select');
     expect(firstField?.tagName).toBe('FIELDSET');
     expect(firstField?.textContent).toContain('Natureza');
     const options = Array.from(el.querySelectorAll('[data-field="kind"] label')).map((l) => l.textContent?.trim());
@@ -49,20 +47,20 @@ describe('GroupForm', () => {
 
   it('trocar a natureza zera a categoria escolhida', async () => {
     const { el, fixture } = await setup();
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     fixture.detectChanges();
-    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Alimentação');
     (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
     fixture.detectChanges();
-    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('0');
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Selecione…');
   });
 
   it('fora do cartão pede o vencimento e o envia', async () => {
     const { http, el, fixture } = await setup();
     fill(el, fixture, '1');
     expect(el.querySelector('#firstDueDate')).not.toBeNull();
-    type(el, '#purchaseDate', '2026-11-08');
-    type(el, '#firstDueDate', '2026-11-12');
+    fillDate(el, '#purchaseDate', '2026-11-08');
+    fillDate(el, '#firstDueDate', '2026-11-12');
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
 
     const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
@@ -78,10 +76,28 @@ describe('GroupForm', () => {
     post.flush({}, { status: 201, statusText: 'Created' });
   });
 
+  it('data da compra apagada não é enviada e pede a data; digitada pela metade mostra o aviso do campo', async () => {
+    const { http, el, fixture } = await setup();
+    fill(el, fixture, '1');
+    type(el, '#purchaseDate', '');
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(el.textContent).toContain('Informe a data.');
+
+    type(el, '#purchaseDate', '0811');
+    (el.querySelector('#purchaseDate') as HTMLInputElement).dispatchEvent(new Event('blur'));
+    (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    fixture.detectChanges();
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+    expect(el.textContent).toContain('dd/mm/aaaa');
+    expect(el.textContent).not.toContain('Informe a data.');
+  });
+
   it('no cartão esconde o vencimento, mostra a prévia pela fatura e não envia firstDueDate', async () => {
     const { http, el, fixture } = await setup();
     fill(el, fixture, '2');
-    type(el, '#purchaseDate', '2026-11-12'); // após o fechamento (dia 10)
+    fillDate(el, '#purchaseDate', '2026-11-12'); // após o fechamento (dia 10)
     fixture.detectChanges();
 
     expect(el.querySelector('#firstDueDate')).toBeNull();
@@ -92,6 +108,95 @@ describe('GroupForm', () => {
     expect(post.request.body).not.toHaveProperty('firstDueDate');
     expect(post.request.body.accountId).toBe(2);
     post.flush({}, { status: 201, statusText: 'Created' });
+  });
+
+  describe('vencimento digitado pela metade e depois oculto', () => {
+    const submit = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+
+    it('trocar para o cartão descarta o vencimento incompleto e o envio acontece', async () => {
+      const { http, el, fixture } = await setup();
+      type(el, '#firstDueDate', '3101');
+      (el.querySelector('#firstDueDate') as HTMLInputElement).dispatchEvent(new Event('blur'));
+      fixture.detectChanges();
+      expect(el.textContent).toContain('dd/mm/aaaa');
+
+      fill(el, fixture, '2'); // o cartão tira o campo do DOM
+      fixture.detectChanges();
+      expect(el.querySelector('#firstDueDate')).toBeNull();
+
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.accountId).toBe(2);
+      expect(post.request.body).not.toHaveProperty('firstDueDate');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('trocar para receita descarta o vencimento incompleto e o envio acontece', async () => {
+      const { http, el, fixture } = await setup();
+      chooseAccount(fixture, el, '1');
+      type(el, '#firstDueDate', '3101');
+      fixture.detectChanges();
+
+      (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+      fixture.detectChanges();
+      expect(el.querySelector('#firstDueDate')).toBeNull();
+      type(el, '#description', 'Salário');
+      pickOption(fixture, 'Categoria', 'Salário');
+      type(el, 'gef-money-input input', '500000');
+      fixture.detectChanges();
+
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.categoryId).toBe(20);
+      expect(post.request.body.firstDueDate).toBe(post.request.body.purchaseDate);
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('a data principal, que troca de campo entre despesa e receita, também não guarda erro velho', async () => {
+      const { http, el, fixture } = await setup();
+      type(el, '#purchaseDate', '0811');
+      (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+      fixture.detectChanges();
+      type(el, '#description', 'Salário');
+      chooseAccount(fixture, el, '1');
+      pickOption(fixture, 'Categoria', 'Salário');
+      type(el, 'gef-money-input input', '500000');
+      fillDate(el, '#purchaseDate', '2026-11-05');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.purchaseDate).toBe('2026-11-05');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('voltar para a conta bancária mostra o campo limpo, com data padrão e validando de novo', async () => {
+      const { http, el, fixture } = await setup();
+      chooseAccount(fixture, el, '1');
+      type(el, '#firstDueDate', '3101');
+      chooseAccount(fixture, el, '2');
+      expect(el.querySelector('#firstDueDate')).toBeNull();
+
+      chooseAccount(fixture, el, '1');
+      const field = el.querySelector('#firstDueDate') as HTMLInputElement;
+      expect(field.value).toBe(isoToBR(todayIso()));
+      expect(field.getAttribute('aria-invalid')).toBeNull();
+
+      // a validação do campo voltou: data incompleta bloqueia o envio e mostra o aviso
+      type(el, '#firstDueDate', '3101');
+      (el.querySelector('#firstDueDate') as HTMLInputElement).dispatchEvent(new Event('blur'));
+      fill(el, fixture, '1');
+      submit(el);
+      fixture.detectChanges();
+      http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+      expect((el.querySelector('#firstDueDate') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
+      expect(el.textContent).toContain('dd/mm/aaaa');
+
+      // corrigida a data, o envio acontece
+      fillDate(el, '#firstDueDate', '2026-11-12');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.firstDueDate).toBe('2026-11-12');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
   });
 
   it('não envia com campos obrigatórios vazios', async () => {
@@ -109,10 +214,10 @@ describe('GroupForm', () => {
     type(el, '#description', 'Padaria');
     chooseAccount(fixture, el, '1');
     fixture.detectChanges();
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     type(el, 'gef-money-input input', '0');
-    type(el, '#purchaseDate', '2026-11-08');
-    type(el, '#firstDueDate', '2026-11-12');
+    fillDate(el, '#purchaseDate', '2026-11-08');
+    fillDate(el, '#firstDueDate', '2026-11-12');
     fixture.detectChanges();
 
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
@@ -133,7 +238,7 @@ describe('GroupForm parcelado', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    select(el, '#recurrenceType', 'INSTALLMENT');
+    pickOption(fixture, 'Tipo', 'Parcelado');
     fixture.detectChanges();
     return { ...ctx, fixture, el };
   }
@@ -143,7 +248,7 @@ describe('GroupForm parcelado', () => {
   it('mostra a quantidade de parcelas e a prévia com vencimentos pela fatura do cartão', async () => {
     const { el, fixture } = await setupInstallment();
     chooseAccount(fixture, el, '2'); // Nubank: fecha dia 10, vence dia 17
-    type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
+    fillDate(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
     type(el, 'gef-money-input input', '10000'); // R$ 100,00
     type(el, '#totalInstallments', '3');
     fixture.detectChanges();
@@ -162,11 +267,11 @@ describe('GroupForm parcelado', () => {
     type(el, '#description', 'Carnê');
     chooseAccount(fixture, el, '1');
     fixture.detectChanges();
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     type(el, 'gef-money-input input', '30000');
     type(el, '#totalInstallments', '3');
-    type(el, '#purchaseDate', '2026-11-01');
-    type(el, '#firstDueDate', '2026-11-10');
+    fillDate(el, '#purchaseDate', '2026-11-01');
+    fillDate(el, '#firstDueDate', '2026-11-10');
     fixture.detectChanges();
     expect((el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement).textContent).toContain('10/12/2026');
 
@@ -191,7 +296,7 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const el = fixture.nativeElement as HTMLElement;
-    select(el, '#recurrenceType', 'INSTALLMENT');
+    pickOption(fixture, 'Tipo', 'Parcelado');
     fixture.detectChanges();
     return { ...ctx, fixture, el };
   }
@@ -201,8 +306,8 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
   const fillCard = (el: HTMLElement, fixture: { detectChanges(): void }) => {
     type(el, '#description', 'Geladeira');
     chooseAccount(fixture, el, '2'); // Nubank: fecha dia 10, vence dia 17
-    select(el, '#categoryId', '10');
-    type(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
+    pickOption(fixture, 'Categoria', 'Alimentação');
+    fillDate(el, '#purchaseDate', '2026-11-12'); // depois do fechamento
     fixture.detectChanges();
   };
 
@@ -214,7 +319,7 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     expect(modeButton(el, 'Valor da parcela').getAttribute('aria-pressed')).toBe('false');
     expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor total');
 
-    select(el, '#recurrenceType', 'VARIABLE');
+    pickOption(fixture, 'Tipo', 'Avulso');
     fixture.detectChanges();
     expect(el.querySelector('[aria-label="Forma de informar"]')).toBeNull();
     expect(el.querySelector('gef-money-input')?.textContent).toContain('Valor');
@@ -283,12 +388,12 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     const { http, el, fixture } = await setupInstallment();
     type(el, '#description', 'Carnê');
     chooseAccount(fixture, el, '1');
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     modeButton(el, 'Valor da parcela').click();
     type(el, 'gef-money-input input', '10000');
     type(el, '#totalInstallments', '3');
-    type(el, '#purchaseDate', '2026-11-01');
-    type(el, '#firstDueDate', '2026-11-10');
+    fillDate(el, '#purchaseDate', '2026-11-01');
+    fillDate(el, '#firstDueDate', '2026-11-10');
     fixture.detectChanges();
 
     const preview = el.querySelector('[aria-label="Prévia das parcelas"]') as HTMLElement;
@@ -401,7 +506,7 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     const fillOther = (el: HTMLElement, fixture: { detectChanges(): void }) => {
       type(el, '#description', 'Carnê');
       chooseAccount(fixture, el, '1');
-      select(el, '#categoryId', '10');
+      pickOption(fixture, 'Categoria', 'Alimentação');
       type(el, 'gef-money-input input', '30000');
       fixture.detectChanges();
     };
@@ -412,7 +517,7 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     ])('parcelado com quantidade %j trocado para %s envia sem totalInstallments', async (value, target) => {
       const { http, el, fixture } = await setupInstallment();
       type(el, '#totalInstallments', value);
-      select(el, '#recurrenceType', target);
+      pickOption(fixture, 'Tipo', { FIXED: 'Fixo mensal', VARIABLE: 'Avulso' }[target as 'FIXED' | 'VARIABLE']);
       fixture.detectChanges();
       expect(el.querySelector('#totalInstallments')).toBeNull();
       fillOther(el, fixture);
@@ -448,10 +553,10 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     it('voltar para Parcelado com a quantidade inválida volta a bloquear e mostrar o erro', async () => {
       const { http, el, fixture } = await setupInstallment();
       type(el, '#totalInstallments', '0');
-      select(el, '#recurrenceType', 'VARIABLE');
+      pickOption(fixture, 'Tipo', 'Avulso');
       fixture.detectChanges();
       fillOther(el, fixture);
-      select(el, '#recurrenceType', 'INSTALLMENT');
+      pickOption(fixture, 'Tipo', 'Parcelado');
       fixture.detectChanges();
 
       submitForm(el);
@@ -477,10 +582,10 @@ describe('GroupForm - falha de conexão e toque duplo', () => {
     type(el, '#description', 'Mercado');
     chooseAccount(fixture, el, '1');
     fixture.detectChanges();
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     type(el, 'gef-money-input input', '15000');
-    type(el, '#purchaseDate', '2026-11-08');
-    type(el, '#firstDueDate', '2026-11-12');
+    fillDate(el, '#purchaseDate', '2026-11-08');
+    fillDate(el, '#firstDueDate', '2026-11-12');
     fixture.detectChanges();
     return { ...ctx, fixture, el };
   }
@@ -496,7 +601,7 @@ describe('GroupForm - falha de conexão e toque duplo', () => {
 
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão');
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
-    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');
+    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe(isoToBR('2026-11-12'));
     // tentar de novo funciona
     submitForm(el);
     http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({}, { status: 201, statusText: 'Created' });
@@ -529,9 +634,9 @@ describe('GroupForm - preenchimento inicial (corrigir uma operação recusada)',
 
     expect((el.querySelector('#description') as HTMLInputElement).value).toBe('Mercado');
     expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
-    expect((el.querySelector('#categoryId') as HTMLSelectElement).value).toBe('10');
+    expect(selectTrigger(el, 'Categoria').textContent).toContain('Alimentação');
     expect((el.querySelector('gef-money-input input') as HTMLInputElement).value).toBe('150,00');
-    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe('2026-11-12');
+    expect((el.querySelector('#firstDueDate') as HTMLInputElement).value).toBe(isoToBR('2026-11-12'));
   });
 });
 
@@ -607,7 +712,7 @@ describe('GroupForm - receita entra na conta', () => {
   it('o recebimento fixo chama a data de "Primeiro recebimento"', async () => {
     const { el, fixture } = await setup();
     income(el, fixture);
-    select(el, '#recurrenceType', 'FIXED');
+    pickOption(fixture, 'Tipo', 'Fixo mensal');
     fixture.detectChanges();
     expect(el.querySelector('label[for="purchaseDate"]')?.textContent).toContain('Primeiro recebimento');
   });
@@ -618,15 +723,15 @@ describe('GroupForm - receita entra na conta', () => {
     const hint = () => el.querySelector('[data-testid="income-hint"]')?.textContent?.trim();
     expect(hint()).toBe('Entra na conta hoje');
 
-    type(el, '#purchaseDate', '2999-12-25');
+    fillDate(el, '#purchaseDate', '2999-12-25');
     fixture.detectChanges();
     expect(hint()).toBe('Fica a receber até 25/12/2999');
 
-    type(el, '#purchaseDate', '2020-01-02');
+    fillDate(el, '#purchaseDate', '2020-01-02');
     fixture.detectChanges();
     expect(hint()).toBe('Entra na conta na data informada');
 
-    type(el, '#purchaseDate', todayIso());
+    fillDate(el, '#purchaseDate', todayIso());
     fixture.detectChanges();
     expect(hint()).toBe('Entra na conta hoje');
   });
@@ -636,9 +741,9 @@ describe('GroupForm - receita entra na conta', () => {
     income(el, fixture);
     type(el, '#description', 'Salário');
     chooseAccount(fixture, el, '1');
-    select(el, '#categoryId', '20');
+    pickOption(fixture, 'Categoria', 'Salário');
     type(el, 'gef-money-input input', '500000');
-    type(el, '#purchaseDate', '2026-11-05');
+    fillDate(el, '#purchaseDate', '2026-11-05');
     fixture.detectChanges();
 
     submitForm(el);
@@ -660,7 +765,7 @@ describe('GroupForm - receita entra na conta', () => {
     const { http, el, fixture } = await setup();
     type(el, '#description', 'Mercado');
     chooseAccount(fixture, el, '1');
-    select(el, '#categoryId', '10');
+    pickOption(fixture, 'Categoria', 'Alimentação');
     type(el, 'gef-money-input input', '1000');
     fixture.detectChanges();
     submitForm(el);
@@ -674,7 +779,7 @@ describe('GroupForm - receita entra na conta', () => {
     income(el, fixture);
     type(el, '#description', 'Salário');
     chooseAccount(fixture, el, '1');
-    select(el, '#categoryId', '20');
+    pickOption(fixture, 'Categoria', 'Salário');
     type(el, 'gef-money-input input', '500000');
     fixture.detectChanges();
     submitForm(el);
@@ -707,6 +812,6 @@ describe('GroupForm - receita entra na conta', () => {
 
     expect(el.querySelector('gef-account-picker button[aria-haspopup]')?.textContent).toContain('Itaú');
     expect(el.querySelector('[data-testid="account-notice"]')?.textContent).toContain('conta trocada para Itaú');
-    expect((el.querySelector('#purchaseDate') as HTMLInputElement).value).toBe('2026-11-05');
+    expect((el.querySelector('#purchaseDate') as HTMLInputElement).value).toBe(isoToBR('2026-11-05'));
   });
 });

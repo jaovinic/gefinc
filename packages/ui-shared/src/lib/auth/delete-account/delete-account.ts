@@ -7,6 +7,7 @@ import { isoToBR } from '@gefinc/utils';
 /** Exclusão da conta: agenda o apagamento definitivo para 30 dias, com possibilidade de desistir. */
 @Component({
   selector: 'gef-delete-account',
+  host: { class: 'block' },
   imports: [ReactiveFormsModule],
   template: `
     <section class="mx-auto max-w-lg space-y-4">

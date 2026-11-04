@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { BIOMETRIC_PORT, BiometricFailure, BiometricPort, PRIVACY_PORT, PrivacyPort } from '../native/native-ports';
+import { BIOMETRIC_PORT, BiometricFailure, BiometricPort } from '../native/native-ports';
 import { DevicePreferences } from './device-preferences';
 import { AppLockService } from './app-lock.service';
 
@@ -12,7 +12,6 @@ describe('AppLockService (bloqueio por biometria)', () => {
     setLock: jest.fn(async (patch: Partial<{ enabled: boolean; timeoutMinutes: number }>) => lock.update((l) => ({ ...l, ...patch }))),
   };
   const biometric = { check: jest.fn(), authenticate: jest.fn() } satisfies Record<keyof BiometricPort, jest.Mock>;
-  const privacy = { enable: jest.fn(async () => undefined), disable: jest.fn(async () => undefined) } satisfies Record<keyof PrivacyPort, jest.Mock>;
   let now: number;
   let service: AppLockService;
 
@@ -22,8 +21,6 @@ describe('AppLockService (bloqueio por biometria)', () => {
     prefs.setLock.mockClear();
     biometric.check.mockReset().mockResolvedValue({ available: true });
     biometric.authenticate.mockReset().mockResolvedValue(undefined);
-    privacy.enable.mockClear();
-    privacy.disable.mockClear();
     now = 1_000_000;
     jest.spyOn(Date, 'now').mockImplementation(() => now);
     TestBed.resetTestingModule();
@@ -31,28 +28,25 @@ describe('AppLockService (bloqueio por biometria)', () => {
       providers: [
         { provide: DevicePreferences, useValue: prefs },
         { provide: BIOMETRIC_PORT, useValue: biometric },
-        { provide: PRIVACY_PORT, useValue: privacy },
       ],
     });
     service = TestBed.inject(AppLockService);
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it('desligado por padrão: o app abre desbloqueado e a visão de apps recentes não é protegida', async () => {
+  it('desligado por padrão: o app abre desbloqueado', async () => {
     await service.start();
 
     expect(service.locked()).toBe(false);
-    expect(privacy.enable).not.toHaveBeenCalled();
   });
 
   describe('ativar', () => {
-    it('confirma com a biometria, liga o bloqueio e protege a visão de apps recentes', async () => {
+    it('confirma com a biometria, liga o bloqueio', async () => {
       const result = await service.enable(5);
 
       expect(result).toEqual({ ok: true });
       expect(biometric.authenticate).toHaveBeenCalledTimes(1);
       expect(prefs.setLock).toHaveBeenCalledWith({ enabled: true, timeoutMinutes: 5 });
-      expect(privacy.enable).toHaveBeenCalled();
     });
 
     it('sem biometria cadastrada explica o motivo e não liga', async () => {
@@ -76,11 +70,10 @@ describe('AppLockService (bloqueio por biometria)', () => {
   describe('bloquear e desbloquear', () => {
     beforeEach(() => lock.set({ enabled: true, timeoutMinutes: 1 }));
 
-    it('abre bloqueado (início do app) e protege a visão de apps recentes', async () => {
+    it('abre bloqueado (início do app)', async () => {
       await service.start();
 
       expect(service.locked()).toBe(true);
-      expect(privacy.enable).toHaveBeenCalled();
     });
 
     it('desbloqueia com a biometria', async () => {
@@ -178,7 +171,6 @@ describe('AppLockService (bloqueio por biometria)', () => {
       await service.onForegrounded();
 
       expect(prefs.setLock).toHaveBeenCalledWith({ enabled: false });
-      expect(privacy.disable).toHaveBeenCalled();
       expect(service.passwordRequired()).toBe(true);
       expect(service.message()).toContain('biometria');
     });
@@ -196,7 +188,6 @@ describe('AppLockService (bloqueio por biometria)', () => {
 
       expect(result).toEqual({ ok: true });
       expect(prefs.setLock).toHaveBeenCalledWith({ enabled: false });
-      expect(privacy.disable).toHaveBeenCalled();
     });
 
     it('sem confirmação, continua ligado', async () => {
@@ -206,7 +197,6 @@ describe('AppLockService (bloqueio por biometria)', () => {
 
       expect(result).toMatchObject({ ok: false });
       expect(lock().enabled).toBe(true);
-      expect(privacy.disable).not.toHaveBeenCalled();
     });
   });
 });

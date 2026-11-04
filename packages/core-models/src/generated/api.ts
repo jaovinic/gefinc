@@ -948,7 +948,9 @@ export interface paths {
                 query?: never;
                 header?: {
                     /**
-                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
                      *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
@@ -1023,7 +1025,17 @@ export interface paths {
         put: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     groupId: components["parameters"]["GroupId"];
                 };
@@ -1038,6 +1050,7 @@ export interface paths {
                 /** @description Atualizado */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -1061,7 +1074,17 @@ export interface paths {
                 query: {
                     confirm: boolean;
                 };
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     groupId: components["parameters"]["GroupId"];
                 };
@@ -1072,6 +1095,7 @@ export interface paths {
                 /** @description Excluído */
                 204: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content?: never;
@@ -1141,7 +1165,17 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     groupId: components["parameters"]["GroupId"];
                 };
@@ -1159,6 +1193,7 @@ export interface paths {
                 /** @description Ocorrências pendentes a partir do mês foram atualizadas */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -1193,7 +1228,17 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     groupId: components["parameters"]["GroupId"];
                 };
@@ -1211,6 +1256,7 @@ export interface paths {
                 /** @description Encerrado */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -1321,7 +1367,17 @@ export interface paths {
         patch: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
                 path: {
                     transactionId: components["parameters"]["TransactionId"];
                 };
@@ -1336,6 +1392,7 @@ export interface paths {
                 /** @description Atualizado */
                 200: {
                     headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -1370,7 +1427,9 @@ export interface paths {
                 query?: never;
                 header?: {
                     /**
-                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
                      *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
@@ -1434,7 +1493,9 @@ export interface paths {
                 query?: never;
                 header?: {
                     /**
-                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
                      *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
@@ -2344,7 +2405,9 @@ export interface components {
         /** @description `web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo */
         ClientHeader: "web";
         /**
-         * @description UUID gerado pelo cliente (operações feitas offline no aplicativo). Repetir a mesma chave, com o
+         * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+         *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+         *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
          *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
          *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
          *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.

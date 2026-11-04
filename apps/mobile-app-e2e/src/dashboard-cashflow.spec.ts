@@ -6,6 +6,12 @@ const currentMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+/** "2026-11" -> "nov/2026", no mesmo formato do app. */
+const monthLabel = (iso: string) => {
+  const [year, month] = iso.split('-');
+  return `${['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(month) - 1]}/${year}`;
+};
+
 /** "1380.50" -> "R$ 1.380,50", no mesmo formato do app. */
 const brl = (value: string) => {
   const negative = value.startsWith('-');
@@ -40,11 +46,14 @@ test.describe('painel e fluxo de caixa no celular', () => {
     await expect(indicator(page, 'paid')).toContainText(brl(api.totalPaid));
     await expect(indicator(page, 'overdue')).toContainText(brl(api.overdueTotal));
 
+    // os gráficos só carregam quando chegam à tela (@defer on viewport): rola até cada um
+    await page.getByRole('heading', { name: 'Gastos por categoria' }).scrollIntoViewIfNeeded();
     const categories = page.getByLabel('Legenda do gráfico por categoria');
     for (const c of api.byCategory as { name: string; amount: string }[]) {
       await expect(categories).toContainText(c.name);
       await expect(categories).toContainText(brl(c.amount));
     }
+    await page.getByRole('heading', { name: 'Distribuição por cartão' }).scrollIntoViewIfNeeded();
     const cards = page.getByLabel('Legenda do gráfico por cartão');
     for (const c of api.byCard as { name: string; amount: string }[]) {
       await expect(cards).toContainText(c.name);
@@ -98,7 +107,7 @@ test.describe('painel e fluxo de caixa no celular', () => {
       month: string; expectedIncome: string; expectedExpense: string; residual: string;
     }[];
     const first = page.getByTestId('cashflow-card').first();
-    await expect(first).toContainText(api[0].month);
+    await expect(first).toContainText(monthLabel(api[0].month));
     await expect(first).toContainText(brl(api[0].expectedExpense));
     await expect(first).toContainText(brl(api[0].residual));
   });

@@ -17,8 +17,8 @@ describe('PendingListPage (pendências de envio)', () => {
   };
   const flush = jest.fn(async () => ({ sent: 0, rejected: 0, stopped: null }));
 
-  const pending: PendingOp = { id: 'a', kind: 'CREATE_GROUP', path: '/transaction-groups', body: { description: 'Mercado' }, createdAt: 1, state: 'PENDING', label: 'Mercado' };
-  const rejected: PendingOp = { id: 'b', kind: 'PAY', path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' }, createdAt: 2, state: 'REJECTED', label: 'Pagamento do lançamento 9', error: 'Este lançamento já está pago.' };
+  const pending: PendingOp = { id: 'a', kind: 'CREATE_GROUP', method: 'POST', schema: 2, path: '/transaction-groups', body: { description: 'Mercado' }, createdAt: 1, state: 'PENDING', label: 'Mercado' };
+  const rejected: PendingOp = { id: 'b', kind: 'PAY', method: 'POST', schema: 2, path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' }, createdAt: 2, state: 'REJECTED', label: 'Pagamento do lançamento 9', error: 'Este lançamento já está pago.' };
 
   function render() {
     const fixture = TestBed.createComponent(PendingListPage);
@@ -107,6 +107,77 @@ describe('PendingListPage (pendências de envio)', () => {
 
     expect(queue.retry).toHaveBeenCalledWith('b');
     expect(flush).toHaveBeenCalled();
+  });
+
+  describe('edições e exclusões (fase B)', () => {
+    const edit: PendingOp = {
+      id: 'e', kind: 'EDIT_TX', method: 'PATCH', schema: 2, path: '/transactions/9', body: { amount: '20.00', version: 3 }, createdAt: Date.now(), state: 'PENDING',
+      label: 'Editar lançamento 9 (valor R$ 20,00)', entity: { type: 'TRANSACTION', id: 9 },
+    };
+    const del: PendingOp = {
+      id: 'd', kind: 'DELETE_GROUP', method: 'DELETE', schema: 2, path: '/transaction-groups/4?confirm=true', body: null, createdAt: Date.now(), state: 'PENDING',
+      label: 'Excluir lançamento do grupo 4', entity: { type: 'GROUP', id: 4 },
+    };
+
+    it('mostra as operações novas na fila de espera, com o rótulo de cada uma', () => {
+      ops.set([edit, del]);
+      const { el } = render();
+
+      const waiting = el.querySelector('[data-testid="waiting"]') as HTMLElement;
+      expect(waiting.textContent).toContain('Editar lançamento 9 (valor R$ 20,00)');
+      expect(waiting.textContent).toContain('Excluir lançamento do grupo 4');
+      expect(waiting.textContent).toContain('Será enviado quando houver conexão.');
+      expect(waiting.textContent).not.toContain('há mais de 6 dias');
+    });
+
+    it('edição recusada mostra o motivo, oferece Tentar de novo e Descartar, mas não Corrigir', () => {
+      ops.set([{ ...edit, state: 'REJECTED', error: 'Este registro foi alterado em outro dispositivo. Recarregue para ver a versão atual.' }]);
+      const { el } = render();
+
+      const recused = el.querySelector('[data-testid="rejected"]') as HTMLElement;
+      expect(recused.textContent).toContain('alterado em outro dispositivo');
+      expect(recused.textContent).toContain('descarte e repita a ação na lista atualizada');
+      expect(el.querySelector('button[aria-label="Tentar de novo Editar lançamento 9 (valor R$ 20,00)"]')).not.toBeNull();
+      expect(el.querySelector('button[aria-label="Descartar Editar lançamento 9 (valor R$ 20,00)"]')).not.toBeNull();
+      expect(recused.textContent).not.toContain('Corrigir');
+    });
+
+    it('exclusão recusada também só oferece Tentar de novo e Descartar, e descartar remove da fila', async () => {
+      ops.set([{ ...del, state: 'REJECTED', error: 'O saldo da fatura ficaria negativo.' }]);
+      const { fixture, el } = render();
+
+      expect(el.textContent).not.toContain('Corrigir');
+      (el.querySelector('button[aria-label="Descartar Excluir lançamento do grupo 4"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(el.querySelector('[role="alertdialog"]')?.textContent).toContain('A operação ainda não enviada será perdida.');
+      (el.querySelector('[data-testid="confirm-confirm"]') as HTMLButtonElement).click();
+      await fixture.whenStable();
+
+      expect(queue.remove).toHaveBeenCalledWith('d');
+    });
+
+    it('tentar de novo uma edição recusada volta à fila e envia', async () => {
+      ops.set([{ ...edit, state: 'REJECTED', error: 'x' }]);
+      const { el } = render();
+
+      (el.querySelector('button[aria-label="Tentar de novo Editar lançamento 9 (valor R$ 20,00)"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(queue.retry).toHaveBeenCalledWith('e');
+      expect(flush).toHaveBeenCalled();
+    });
+
+    it('operação esperando há mais de 6 dias avisa para conferir o resultado (o servidor só reconhece repetições por 7 dias)', () => {
+      const old = Date.now() - 6.5 * 86_400_000;
+      ops.set([{ ...edit, createdAt: old }, { ...del, createdAt: Date.now() - 2 * 86_400_000 }]);
+      const { el } = render();
+
+      const items = el.querySelectorAll('[data-testid="waiting"] li');
+      expect(items[0].textContent).toContain('Na fila há mais de 6 dias');
+      expect(items[0].textContent).toContain('confira');
+      expect(items[1].textContent).not.toContain('há mais de 6 dias');
+    });
   });
 
   it('sem pendências mostra o estado vazio', () => {

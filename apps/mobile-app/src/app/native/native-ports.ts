@@ -1,7 +1,10 @@
 import { InjectionToken, isDevMode } from '@angular/core';
 import { BiometricAuth, BiometryError } from '@aparajita/capacitor-biometric-auth';
-import { PrivacyScreen } from '@capacitor-community/privacy-screen';
+import { App } from '@capacitor/app';
+import { SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Network } from '@capacitor/network';
+import type { ThemeChrome } from '@gefinc/ui-shared';
 
 export type BiometricFailureCode = 'cancelled' | 'failed' | 'lockout' | 'unavailable';
 
@@ -19,20 +22,31 @@ export interface BiometricPort {
   authenticate(reason: string): Promise<void>;
 }
 
-export interface PrivacyPort {
-  /** Oculta o conteúdo na visão de apps recentes (no Android, também bloqueia capturas de tela). */
-  enable(): Promise<void>;
-  disable(): Promise<void>;
-}
-
 /**
  * Dublês dos plugins nativos para os testes de ponta a ponta no navegador. Só valem em build de
  * desenvolvimento (`isDevMode`); no build de produção são ignorados.
  */
 interface NativeDoubles {
   biometric?: { available: boolean; reason?: string; results: string[]; defaultResult?: string };
-  privacy?: { enable(): void; disable(): void };
   notifications?: NotificationDoubles;
+  /** Estilos de barras de sistema pedidos, na ordem (`'Dark'` = ícones claros, para o tema escuro). */
+  systemBars?: string[];
+  back?: BackDoubles;
+  network?: NetworkDoubles;
+}
+
+/** Forma do dublê da conexão do aparelho: o teste muda `connected` e avisa os `listeners`. */
+export interface NetworkDoubles {
+  connected: boolean;
+  listeners: ((connected: boolean) => void)[];
+}
+
+/** Forma do dublê do botão Voltar do Android. */
+export interface BackDoubles {
+  /** Simula o toque no Voltar; `canGoBack` é o que o WebView informaria. */
+  listeners: ((event: { canGoBack: boolean }) => void)[];
+  /** Quantas vezes o app foi mandado para o segundo plano. */
+  minimized: number;
 }
 
 /** Forma dos dublês de notificação (usada na história de lembretes). */
@@ -89,19 +103,7 @@ export function biometricPort(): BiometricPort {
   };
 }
 
-export function privacyPort(): PrivacyPort {
-  const double = nativeDoubles()?.privacy;
-  if (double) {
-    return { enable: async () => double.enable(), disable: async () => double.disable() };
-  }
-  return {
-    enable: () => PrivacyScreen.enable(),
-    disable: () => PrivacyScreen.disable(),
-  };
-}
-
 export const BIOMETRIC_PORT = new InjectionToken<BiometricPort>('BIOMETRIC_PORT', { providedIn: 'root', factory: () => biometricPort() });
-export const PRIVACY_PORT = new InjectionToken<PrivacyPort>('PRIVACY_PORT', { providedIn: 'root', factory: () => privacyPort() });
 
 export type NotificationPermission = 'granted' | 'denied' | 'prompt';
 
@@ -186,3 +188,68 @@ export function notificationsPort(): NotificationsPort {
 }
 
 export const NOTIFICATIONS_PORT = new InjectionToken<NotificationsPort>('NOTIFICATIONS_PORT', { providedIn: 'root', factory: () => notificationsPort() });
+
+/**
+ * Cor dos ícones das barras de status e de gestos conforme o tema do app (e não o do sistema): no tema
+ * escuro, ícones claros; no claro, ícones escuros. Sem o parâmetro `bar`, vale para as duas barras.
+ */
+export function systemBarsChrome(): ThemeChrome {
+  const doubles = nativeDoubles();
+  if (doubles) {
+    return { sync: (theme) => void (doubles.systemBars ??= []).push(theme === 'dark' ? 'Dark' : 'Light') };
+  }
+  return { sync: (theme) => SystemBars.setStyle({ style: theme === 'dark' ? SystemBarsStyle.Dark : SystemBarsStyle.Light }) };
+}
+
+export interface BackButtonPort {
+  /** Registra o ouvinte do botão Voltar do Android (gesto de borda ou tecla). Com ouvinte, o padrão do Capacitor é desligado. */
+  onBack(listener: (event: { canGoBack: boolean }) => void): Promise<void>;
+  /** Manda o app para o segundo plano mantendo a sessão (`exitApp` encerraria o processo). */
+  minimize(): Promise<void>;
+}
+
+export function backButtonPort(): BackButtonPort {
+  const double = nativeDoubles()?.back;
+  if (double) {
+    return {
+      onBack: async (listener) => void double.listeners.push(listener),
+      minimize: async () => void (double.minimized += 1),
+    };
+  }
+  return {
+    onBack: async (listener) => {
+      await App.addListener('backButton', (event) => listener({ canGoBack: event.canGoBack }));
+    },
+    minimize: () => App.minimizeApp(),
+  };
+}
+
+export const BACK_BUTTON_PORT = new InjectionToken<BackButtonPort>('BACK_BUTTON_PORT', { providedIn: 'root', factory: () => backButtonPort() });
+
+export interface NetworkPort {
+  /** Estado conhecido de imediato (só o dublê sabe); `null` quando é preciso perguntar ao plugin. */
+  initial(): boolean | null;
+  status(): Promise<boolean>;
+  /** Chamado quando o aparelho conecta ou desconecta. */
+  onChange(listener: (connected: boolean) => void): Promise<void>;
+}
+
+export function networkPort(): NetworkPort {
+  const double = nativeDoubles()?.network;
+  if (double) {
+    return {
+      initial: () => double.connected,
+      status: async () => double.connected,
+      onChange: async (listener) => void double.listeners.push(listener),
+    };
+  }
+  return {
+    initial: () => null,
+    status: async () => (await Network.getStatus()).connected,
+    onChange: async (listener) => {
+      await Network.addListener('networkStatusChange', (status) => listener(status.connected));
+    },
+  };
+}
+
+export const NETWORK_PORT = new InjectionToken<NetworkPort>('NETWORK_PORT', { providedIn: 'root', factory: () => networkPort() });

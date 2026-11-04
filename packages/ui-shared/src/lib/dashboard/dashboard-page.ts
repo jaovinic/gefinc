@@ -1,7 +1,8 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Balances, Dashboard } from '@gefinc/core-models';
-import { BalancesApi, DashboardApi, NoticeService, ReferenceData, messageFor, toProblem } from '../api';
+import { BalancesApi, DATA_FRESHNESS, DashboardApi, NoticeService, ReferenceData, formatSyncedAt, isOfflineProblem, messageFor, toProblem } from '../api';
 import { BalancePanel } from '../balances/balance-panel';
 import { CardBars } from '../charts/card-bars';
 import { Icon } from '../icons/icon';
@@ -43,27 +44,27 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
         @if (loading()) {
           <gef-loading variant="cards" message="Carregando o painel…" />
         } @else if (error()) {
-          <gef-error [message]="error()!" (retry)="load()" />
+          <gef-error [message]="error()!" [variant]="offline() ? 'offline' : 'error'" (retry)="load()" />
         } @else if (data(); as d) {
           @if (isEmpty(d)) {
-            <gef-empty icon="dashboard" title="Sem lançamentos neste mês" hint="Cadastre uma receita ou despesa para ver os indicadores e os gráficos.">
+            <gef-empty icon="dashboard" [title]="emptyTitle()" [hint]="emptyHint()">
               <a class="gef-btn-secondary inline-block" [routerLink]="paths.transactions">Ir para lançamentos</a>
             </gef-empty>
           } @else {
             <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="to-due">
+              <div class="gef-kpi gef-card p-3" data-indicator="to-due">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="clock" [size]="14" />A pagar</p>
                 <p class="financial-value text-title-md font-extrabold text-gefinc-warning">{{ money(d.totalToDue) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="paid">
+              <div class="gef-kpi gef-card p-3" data-indicator="paid">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="check" [size]="14" />Pago</p>
                 <p class="financial-value text-title-md font-extrabold text-gefinc-primary">{{ money(d.totalPaid) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" [class.border-gefinc-danger]="d.overdueTotal !== '0.00'" data-indicator="overdue">
+              <div class="gef-kpi gef-card p-3" [class.border-gefinc-danger]="d.overdueTotal !== '0.00'" data-indicator="overdue">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="alert" [size]="14" />Atrasado</p>
                 <p class="financial-value text-title-md font-extrabold" [class.text-gefinc-danger]="d.overdueTotal !== '0.00'">{{ money(d.overdueTotal) }}</p>
               </div>
-              <div class="gef-kpi rounded-xl border border-gefinc-border bg-gefinc-surface p-3" data-indicator="to-receive">
+              <div class="gef-kpi gef-card p-3" data-indicator="to-receive">
                 <p class="flex items-center gap-1.5 text-caption text-gefinc-muted"><gef-icon name="arrow-up" [size]="14" />A receber</p>
                 <p class="financial-value text-title-md font-extrabold">{{ money(toReceive(d)) }}</p>
               </div>
@@ -73,16 +74,28 @@ const CARD_COLORS = ['#00b4d8', '#7c3aed', '#00e599', '#f59e0b', '#f43f5e'];
             </p>
 
               <div class="grid gap-6 lg:grid-cols-2">
-                <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+                <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Gastos por categoria</h2>
                   @if (categorySlices().length > 0) {
-                    <gef-category-donut [slices]="categorySlices()" />
+                    @defer (on viewport) {
+                      <gef-category-donut [slices]="categorySlices()" />
+                    } @placeholder {
+                      <div class="h-48 rounded-lg bg-gefinc-border/70" data-testid="chart-placeholder" aria-hidden="true"></div>
+                    } @error {
+                      <gef-error message="Não foi possível carregar o gráfico." (retry)="reloadPage()" />
+                    }
                   }
                 </div>
-                <div class="rounded-xl border border-gefinc-border bg-gefinc-surface p-4">
+                <div class="gef-card p-4">
                   <h2 class="mb-3 text-title-md font-semibold">Distribuição por cartão</h2>
                   @if (cardSlices().length > 0) {
-                    <gef-card-bars [slices]="cardSlices()" />
+                    @defer (on viewport) {
+                      <gef-card-bars [slices]="cardSlices()" />
+                    } @placeholder {
+                      <div class="h-32 rounded-lg bg-gefinc-border/70" data-testid="chart-placeholder" aria-hidden="true"></div>
+                    } @error {
+                      <gef-error message="Não foi possível carregar o gráfico." (retry)="reloadPage()" />
+                    }
                   } @else {
                     <p class="text-body-base text-gefinc-muted">Nenhum gasto em cartão neste mês.</p>
                   }
@@ -99,12 +112,27 @@ export class DashboardPage {
   private readonly balancesApi = inject(BalancesApi);
   private readonly notices = inject(NoticeService);
   private readonly reference = inject(ReferenceData);
+  private readonly freshness = inject(DATA_FRESHNESS);
+  private readonly document = inject(DOCUMENT);
   protected readonly paths = inject(APP_PATHS);
 
   protected readonly month = signal(currentMonth());
   protected readonly data = signal<Dashboard | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+  /** O erro é falta de conexão (e não uma falha do servidor): a tela mostra o aviso de "Sem conexão". */
+  protected readonly offline = signal(false);
+  /** De quando são os dados do mês, se vieram da cópia local do aparelho (`null`: do servidor). */
+  private readonly staleAt = signal<Date | null>(null);
+  protected readonly emptyTitle = computed(() => {
+    const since = this.staleAt();
+    return since ? `Sem lançamentos na última sincronização (${formatSyncedAt(since)})` : 'Sem lançamentos neste mês';
+  });
+  protected readonly emptyHint = computed(() =>
+    this.staleAt()
+      ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.'
+      : 'Cadastre uma receita ou despesa para ver os indicadores e os gráficos.',
+  );
 
   /** Saldo das contas: carga própria, para a falha dele não apagar o painel do mês (e vice-versa). */
   protected readonly balances = signal<Balances | null>(null);
@@ -163,13 +191,25 @@ export class DashboardPage {
     this.api.dashboard(this.month()).subscribe({
       next: (data) => {
         this.data.set(data);
+        this.staleAt.set(this.freshness());
         this.loading.set(false);
       },
       error: (e: unknown) => {
-        this.error.set(messageFor(toProblem(e)));
+        const problem = toProblem(e);
+        this.error.set(messageFor(problem));
+        this.offline.set(isOfflineProblem(problem));
         this.loading.set(false);
       },
     });
+  }
+
+  /**
+   * "Tentar novamente" dos gráficos: o Angular guarda a falha do `@defer` por template (não por instância), então
+   * recriar o bloco não refaz o carregamento. Recarregar a tela é o caminho seguro: refaz o pedido do trecho de
+   * código e os dados vêm do servidor (a fila de pendências do app móvel fica em armazenamento persistente).
+   */
+  protected reloadPage(): void {
+    this.document.defaultView?.location.reload();
   }
 
   protected isEmpty(d: Dashboard): boolean {

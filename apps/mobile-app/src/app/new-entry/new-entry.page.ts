@@ -5,24 +5,32 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { CategoryType, TransactionGroupInput } from '@gefinc/core-models';
 import {
   AccountPicker,
+  AmountModeSwitch,
   type AmountMode,
+  DateField,
   DraftService,
   Icon,
+  InstallmentSummaryCard,
   KindSwitch,
+  MIN_PER_INSTALLMENT_MESSAGE,
   MoneyInput,
   NoticeService,
   ReferenceData,
+  Select,
+  type SelectOption,
   TransactionsApi,
   accountsFor,
   belowMinimumPerInstallment,
   effectiveTotal,
   incomeDateHint,
-  installmentSummary,
   messageFor,
   reconcileAccount,
   toProblem,
 } from '@gefinc/ui-shared';
-import { formatBRL, invoiceDueDate, isoToBR, monthLabelBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+import { invoiceDueDate, isoToBR, scheduleInstallments, todayIso } from '@gefinc/utils';
+import { NetworkStatus } from '../offline/network-status';
+import { OfflineBanner } from '../offline/offline-banner';
+import { OfflineState } from '../offline/offline-state';
 import { QuickExpenseDefaults, type QuickKind } from '../quick-expense/quick-expense-defaults.service';
 
 /** Chave única do rascunho: guarda também a natureza escolhida. */
@@ -42,8 +50,10 @@ interface Draft {
 
 /** Máximo de parcelas oferecido na tela rápida (o servidor aceita até 120, no cadastro completo). */
 const MAX_QUICK_INSTALLMENTS = 24;
-const INSTALLMENT_OPTIONS = Array.from({ length: MAX_QUICK_INSTALLMENTS }, (_, i) => i + 1);
-const MIN_PER_INSTALLMENT_MESSAGE = 'O valor deve ter pelo menos R$ 0,01 por parcela.';
+const INSTALLMENT_OPTIONS: SelectOption[] = Array.from({ length: MAX_QUICK_INSTALLMENTS }, (_, i) => ({
+  value: i + 1,
+  label: i === 0 ? 'À vista (1x)' : `${i + 1}x`,
+}));
 
 const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'income' : 'expense');
 
@@ -58,7 +68,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
  */
 @Component({
   selector: 'gef-new-entry-page',
-  imports: [AccountPicker, Icon, KindSwitch, ReactiveFormsModule, MoneyInput, RouterLink],
+  imports: [AccountPicker, AmountModeSwitch, DateField, Icon, InstallmentSummaryCard, KindSwitch, OfflineBanner, ReactiveFormsModule, MoneyInput, RouterLink, Select],
   template: `
     <div class="gef-screen">
       <header class="gef-app-header">
@@ -66,6 +76,7 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
         <h1 class="whitespace-nowrap text-title-md font-bold">Novo lançamento</h1>
         <span class="w-11" aria-hidden="true"></span>
       </header>
+      <gef-offline-banner [compact]="true" />
       <form [formGroup]="form" (ngSubmit)="save()" class="space-y-5 p-4 pb-10" novalidate>
         @if (error(); as message) {
           <p class="gef-alert-error" role="alert">{{ message }}</p>
@@ -81,29 +92,6 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
         @if (serverErrors()['totalAmount']; as message) {
           <p class="gef-field-error">{{ message }}</p>
         }
-        @if (parcelado()) {
-          <div class="space-y-2">
-            <div class="flex gap-2" role="group" aria-label="Forma de informar">
-              <button
-                type="button"
-                class="gef-btn-sm flex-1"
-                [class.gef-btn-sm-primary]="amountMode() === 'INSTALLMENT'"
-                [attr.aria-pressed]="amountMode() === 'INSTALLMENT'"
-                (click)="setAmountMode('INSTALLMENT', $event)"
-              >Valor da parcela</button>
-              <button
-                type="button"
-                class="gef-btn-sm flex-1"
-                [class.gef-btn-sm-primary]="amountMode() === 'TOTAL'"
-                [attr.aria-pressed]="amountMode() === 'TOTAL'"
-                (click)="setAmountMode('TOTAL', $event)"
-              >Valor total</button>
-            </div>
-            @if (summary(); as text) {
-              <p class="financial-value text-center text-body-base font-semibold" aria-live="polite" data-testid="installment-summary">{{ text }}</p>
-            }
-          </div>
-        }
         <div>
           <label class="gef-label" for="description">Descrição (opcional)</label>
           <input
@@ -118,12 +106,13 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
           />
         </div>
         <div>
-          <label class="gef-label" for="categoryId">Categoria</label>
-          <select id="categoryId" class="gef-input" formControlName="categoryId">
-            @for (category of categories(); track category.id) {
-              <option [value]="category.id">{{ category.name }}</option>
-            }
-          </select>
+          <gef-select
+            label="Categoria"
+            placeholder="Escolha a categoria"
+            emptyMessage="Nenhuma categoria disponível."
+            formControlName="categoryId"
+            [options]="categoryOptions()"
+          />
         </div>
         <div>
           <gef-account-picker
@@ -138,63 +127,48 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
           <p class="mt-1 text-caption text-gefinc-warning" aria-live="polite" data-testid="account-notice">{{ accountNotice() }}</p>
         </div>
         @if (showInstallments()) {
-          <div>
-            <label class="gef-label" for="installments">Parcelas</label>
-            <select id="installments" class="gef-input" formControlName="installments">
-              @for (option of installmentOptions; track option) {
-                <option [value]="option">{{ option === 1 ? 'À vista (1x)' : option + 'x' }}</option>
+          <fieldset class="gef-card p-4 pt-2" data-testid="installment-group">
+            <legend class="gef-label px-1">Parcelamento</legend>
+            <div class="space-y-4" data-testid="installment-body">
+              <div>
+                <gef-select label="Parcelas" formControlName="installments" [options]="installmentOptions" />
+                @if (serverErrors()['totalInstallments']; as message) {
+                  <p class="gef-field-error">{{ message }}</p>
+                }
+              </div>
+              @if (parcelado()) {
+                <gef-amount-mode-switch [value]="amountMode()" [count]="installments()" (changed)="onAmountModeChanged($event)" />
               }
-            </select>
-            @if (serverErrors()['totalInstallments']; as message) {
-              <p class="gef-field-error">{{ message }}</p>
-            }
-          </div>
+            </div>
+          </fieldset>
         }
-        <div>
-          <label class="gef-label" for="date">{{ isIncome() ? 'Data do recebimento' : 'Data' }}</label>
-          <div class="flex items-center gap-2">
-            <input id="date" class="gef-input min-w-0 flex-1" type="date" formControlName="date" />
+        <div class="space-y-2">
+          <gef-date-field inputId="date" [label]="isIncome() ? 'Data do recebimento' : 'Data'" describedBy="date-hint" formControlName="date" />
+          <div class="flex gap-2">
             <button
               type="button"
-              class="gef-btn-sm"
+              class="gef-btn-sm flex-1"
               [class.gef-btn-sm-primary]="date() === today"
               [attr.aria-pressed]="date() === today"
               (click)="setDay(0)"
             >Hoje</button>
             <button
               type="button"
-              class="gef-btn-sm"
+              class="gef-btn-sm flex-1"
               [class.gef-btn-sm-primary]="date() === yesterday"
               [attr.aria-pressed]="date() === yesterday"
               (click)="setDay(-1)"
             >Ontem</button>
           </div>
-          <p class="mt-1 text-caption text-gefinc-muted" aria-live="polite" data-testid="date-hint">{{ hint() }}</p>
+          <p class="flex items-start gap-2 text-caption text-gefinc-muted" aria-live="polite">
+            @if (hint()) {
+              <gef-icon name="info" [size]="14" class="mt-0.5 shrink-0" />
+            }
+            <span id="date-hint" data-testid="date-hint">{{ hint() }}</span>
+          </p>
         </div>
-        @if (previewRows(); as rows) {
-          @if (rows.length > 0) {
-            <div class="rounded-lg border border-gefinc-border p-3 text-caption text-gefinc-muted" data-testid="installment-preview">
-              <ul class="space-y-1">
-                <li class="financial-value">{{ rows[0].text }}</li>
-                @if (rows.length > 2) {
-                  <li>
-                    <details>
-                      <summary class="cursor-pointer text-gefinc-secondary">Ver todas as parcelas</summary>
-                      <ul class="mt-1 space-y-1">
-                        @for (row of rows.slice(1, -1); track row.number) {
-                          <li class="financial-value">{{ row.text }}</li>
-                        }
-                      </ul>
-                    </details>
-                  </li>
-                }
-                <li class="financial-value">{{ rows[rows.length - 1].text }}</li>
-              </ul>
-              @if (hasOverdue()) {
-                <p class="mt-2 text-gefinc-warning" data-testid="installment-overdue">Há parcelas com vencimento no passado: elas já nascem vencidas.</p>
-              }
-            </div>
-          }
+        @if (parcelado() && total()) {
+          <gef-installment-summary-card [total]="total()" [count]="installments()" [schedule]="plan()" [today]="today" />
         }
         <button type="submit" class="gef-btn-primary" [disabled]="busy()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
       </form>
@@ -209,6 +183,8 @@ export class NewEntryPage implements OnInit, OnDestroy {
   private readonly defaults = inject(QuickExpenseDefaults);
   private readonly route = inject(ActivatedRoute);
   private readonly notices = inject(NoticeService);
+  private readonly network = inject(NetworkStatus);
+  private readonly offline = inject(OfflineState);
   protected readonly reference = inject(ReferenceData);
   private readonly amountField = viewChild(MoneyInput);
 
@@ -243,7 +219,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
   private readonly isCard = computed(() => this.selectedAccount()?.type === 'CREDIT_CARD');
   /** Parcelas só para despesa em cartão; receita, conta bancária e dinheiro são sempre à vista. */
   protected readonly showInstallments = computed(() => !this.isIncome() && this.isCard());
-  private readonly installments = computed(() => (this.showInstallments() ? this.count() : 1));
+  protected readonly installments = computed(() => (this.showInstallments() ? this.count() : 1));
   protected readonly parcelado = computed(() => this.installments() >= 2);
   protected readonly moneyLabel = computed(() => {
     if (!this.parcelado()) {
@@ -252,12 +228,8 @@ export class NewEntryPage implements OnInit, OnDestroy {
     return this.amountMode() === 'INSTALLMENT' ? 'Valor da parcela' : 'Valor total';
   });
   /** Total efetivo: no modo parcela, valor × parcelas (centavos em bigint); no modo total, como digitado. */
-  private readonly total = computed(() => (this.parcelado() ? effectiveTotal(this.amount(), this.installments(), this.amountMode()) : this.amount()));
-  protected readonly summary = computed(() => {
-    const total = this.total();
-    return this.parcelado() && total ? installmentSummary(total, this.installments()) : '';
-  });
-  private readonly plan = computed(() => {
+  protected readonly total = computed(() => (this.parcelado() ? effectiveTotal(this.amount(), this.installments(), this.amountMode()) : this.amount()));
+  protected readonly plan = computed(() => {
     const account = this.selectedAccount();
     const total = this.total();
     if (!this.parcelado() || !account?.closingDay || !account.dueDay || !total || !this.date()) {
@@ -275,15 +247,6 @@ export class NewEntryPage implements OnInit, OnDestroy {
       return [];
     }
   });
-  protected readonly previewRows = computed(() => {
-    const count = this.installments();
-    return this.plan().map((item) => ({
-      number: item.number,
-      text: `${item.number}/${count} · fatura de ${monthLabelBR(item.dueDate)} · vence ${isoToBR(item.dueDate).slice(0, 5)} · ${formatBRL(item.amount)}`,
-    }));
-  });
-  protected readonly hasOverdue = computed(() => this.plan().some((item) => item.dueDate < this.today));
-
   /** Contas que a natureza aceita (receita nunca lista cartão); a inativa só fica se já estiver escolhida. */
   protected readonly pickerAccounts = computed(() =>
     accountsFor(
@@ -292,6 +255,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
     ),
   );
   protected readonly categories = computed(() => this.reference.categories().filter((c) => c.type === this.kind()));
+  protected readonly categoryOptions = computed<SelectOption[]>(() => this.categories().map((c) => ({ value: c.id, label: c.name })));
 
   /** Dica sob a data, por natureza: quando o valor entra na conta ou quando vence. */
   protected readonly hint = computed(() => {
@@ -380,19 +344,20 @@ export class NewEntryPage implements OnInit, OnDestroy {
    */
   protected onKindPicked(source: 'pointer' | 'keyboard'): void {
     if (source === 'pointer') {
-      this.amountField()?.focus();
+      // `preventScroll`: devolver o foco não pode rolar a tela (o resumo e o Salvar ficam à vista).
+      this.amountField()?.focus({ preventScroll: true });
     }
   }
 
   /**
    * Alternar o modo não converte o número digitado. O foco volta ao valor (para o teclado numérico
-   * seguir aberto) só quando o acionamento veio de toque ou mouse (`detail > 0`); por Enter/Espaço ou
-   * leitor de tela (`detail === 0`) o foco fica no botão.
+   * seguir aberto) só quando o acionamento veio de toque ou mouse; por Enter/Espaço ou leitor de tela
+   * o foco fica no botão.
    */
-  protected setAmountMode(mode: AmountMode, event: MouseEvent): void {
-    this.amountMode.set(mode);
-    if (event.detail > 0) {
-      this.amountField()?.focus();
+  protected onAmountModeChanged(change: { mode: AmountMode; byPointer: boolean }): void {
+    this.amountMode.set(change.mode);
+    if (change.byPointer) {
+      this.amountField()?.focus({ preventScroll: true });
     }
   }
 
@@ -437,6 +402,10 @@ export class NewEntryPage implements OnInit, OnDestroy {
       this.error.set(income ? 'Informe o valor da receita.' : 'Informe o valor da despesa.');
       return;
     }
+    if (!value.date) {
+      this.error.set(income ? 'Informe a data do recebimento (dd/mm/aaaa).' : 'Informe a data da despesa (dd/mm/aaaa).');
+      return;
+    }
     if (accountId === 0 || categoryId === 0) {
       this.error.set(`Cadastre uma conta e escolha a categoria para lançar a ${income ? 'receita' : 'despesa'}.`);
       return;
@@ -465,11 +434,18 @@ export class NewEntryPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.serverErrors.set({});
     this.busy.set(true);
+    const queuedBefore = this.offline.queuedCount();
     this.api.createGroup(input).subscribe({
       next: () => {
         this.busy.set(false);
         void this.defaults.remember(accountId, categoryId, quickKind(value.kind));
-        this.notices.toast(income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : 'Despesa registrada.');
+        // Sem conexão (ou com a rede caindo no meio do envio) o lançamento só foi para a fila do aparelho.
+        const savedOnDevice = !this.network.online() || this.offline.queuedCount() > queuedBefore;
+        this.notices.toast(
+          savedOnDevice
+            ? 'Salvo no aparelho; será enviado quando houver conexão.'
+            : income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : 'Despesa registrada.',
+        );
         void Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined);
         void this.router.navigate(['/']);
       },
