@@ -64,10 +64,12 @@ test.describe('uso sem internet', () => {
     await expect(banner(page)).toContainText('2 operações pendentes de envio');
     await expect(banner(page)).toContainText('Painel, faturas e fluxo de caixa ainda não incluem');
 
-    // ação que exige conexão: avisa e não perde nada
+    // excluir sem conexão é aceito: a confirmação avisa que será aplicado ao reconectar e o item sai da lista
     await page.getByRole('button', { name: 'Excluir Luz' }).click();
-    await expect(page.getByRole('alert')).toContainText('precisa de conexão');
-    await expect(card(page, 'Luz')).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toContainText('será aplicada quando a conexão voltar');
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Excluir "Luz"' }).click();
+    await expect(card(page, 'Luz')).toHaveCount(0);
+    await expect(banner(page)).toContainText('3 operações pendentes de envio');
 
     // item ainda não enviado não oferece ações
     await expect(card(page, 'Padaria').getByRole('button')).toHaveCount(0);
@@ -79,6 +81,7 @@ test.describe('uso sem internet', () => {
     await expect(card(page, 'Mercado')).toContainText('Pago');
 
     expect(await countOf(request, user, 'Padaria')).toBe(1);
+    expect(await countOf(request, user, 'Luz')).toBe(0);
     const mercado = ((await apiGet(request, user, `/transactions?month=${todayIso().slice(0, 7)}&size=100`)) as { content: { description: string; status: string }[] }).content.find((t) => t.description === 'Mercado');
     expect(mercado?.status).toBe('PAID');
   });

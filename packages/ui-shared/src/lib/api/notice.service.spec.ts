@@ -1,15 +1,59 @@
 import { TestBed } from '@angular/core/testing';
-import { NoticeService } from './notice.service';
+import { DATA_CHANGED_COALESCE_MS, NoticeService } from './notice.service';
 
 describe('NoticeService', () => {
-  it('avisa as telas que os dados mudaram (ex.: operações pendentes foram enviadas)', () => {
-    const notices = TestBed.inject(NoticeService);
-    expect(notices.dataChangedCount()).toBe(0);
+  describe('dataChanged (dados mudaram por fora da tela)', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
 
-    notices.dataChanged();
-    notices.dataChanged();
+    it('o primeiro aviso é imediato (nenhum atraso para as telas recarregarem)', () => {
+      const notices = TestBed.inject(NoticeService);
+      expect(notices.dataChangedCount()).toBe(0);
 
-    expect(notices.dataChangedCount()).toBe(2);
+      notices.dataChanged();
+
+      expect(notices.dataChangedCount()).toBe(1);
+    });
+
+    it('uma rajada de avisos (aquecimento, leituras tardias, envio da fila) vira um aviso agora e um só no fim da janela', () => {
+      const notices = TestBed.inject(NoticeService);
+
+      notices.dataChanged();
+      for (let i = 0; i < 20; i++) {
+        jest.advanceTimersByTime(50);
+        notices.dataChanged();
+      }
+      expect(notices.dataChangedCount()).toBe(1);
+
+      jest.advanceTimersByTime(DATA_CHANGED_COALESCE_MS);
+      expect(notices.dataChangedCount()).toBe(2);
+
+      // sem novos avisos, nada mais acontece
+      jest.advanceTimersByTime(DATA_CHANGED_COALESCE_MS * 3);
+      expect(notices.dataChangedCount()).toBe(2);
+    });
+
+    it('depois de um período calmo, o aviso seguinte volta a ser imediato', () => {
+      const notices = TestBed.inject(NoticeService);
+      notices.dataChanged();
+      jest.advanceTimersByTime(DATA_CHANGED_COALESCE_MS);
+
+      notices.dataChanged();
+
+      expect(notices.dataChangedCount()).toBe(2);
+    });
+
+    it('uma rajada contínua gera no máximo um aviso por janela', () => {
+      const notices = TestBed.inject(NoticeService);
+
+      for (let t = 0; t < 10_000; t += 100) {
+        notices.dataChanged();
+        jest.advanceTimersByTime(100);
+      }
+
+      expect(notices.dataChangedCount()).toBeLessThanOrEqual(Math.ceil(10_000 / DATA_CHANGED_COALESCE_MS) + 1);
+      expect(notices.dataChangedCount()).toBeGreaterThan(3);
+    });
   });
 
   describe('toast (confirmação discreta)', () => {

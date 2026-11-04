@@ -2,7 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import type { Observable } from 'rxjs';
+import { type Observable, TimeoutError, timeout } from 'rxjs';
 import type {
   CategoryType,
   GroupImpact,
@@ -23,17 +23,26 @@ import { Viewport } from '../viewport/viewport';
 import { currentMonth, formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 import { GroupForm } from './group-form';
 import { incomeDateHint } from './income-hint';
-import { PENDING_MARKER } from './pending-marker';
+import { OFFLINE_WRITES, PENDING_CHANGE, PENDING_MARKER } from './pending-marker';
 
 type Panel =
   | { kind: 'pay'; tx: Transaction }
   | { kind: 'edit'; tx: Transaction }
   | { kind: 'amount'; tx: Transaction };
 
-/** Ações destrutivas que pedem confirmação num diálogo modal (nos dois formatos de tela). */
-type Confirming = { kind: 'delete'; tx: Transaction; impact: GroupImpact } | { kind: 'end'; tx: Transaction };
+/**
+ * Ações destrutivas que pedem confirmação num diálogo modal (nos dois formatos de tela). `impact` é nulo quando
+ * não deu para consultá-lo: `offline` (sem conexão: a exclusão fica guardada para ser enviada depois) ou `slow`
+ * (rede conectada que não respondeu a tempo: a exclusão é enviada agora e, se a rede falhar, guardada).
+ */
+type Confirming =
+  | { kind: 'delete'; tx: Transaction; impact: GroupImpact | null; unavailable?: 'offline' | 'slow' }
+  | { kind: 'end'; tx: Transaction };
 
 const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
+
+/** Quanto esperar o impacto da exclusão no app móvel antes de seguir sem ele (rede "conectada" que não responde). */
+export const IMPACT_WAIT_MS = 3_000;
 
 /** Tabela analítica de lançamentos por mês de vencimento, com filtros e ações (FR-018 a FR-027). */
 @Component({
@@ -197,10 +206,24 @@ const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
                 A receita ainda não entrou no saldo e será removida.
               }
             </p>
-          } @else {
+          } @else if (c.impact) {
             <p>
               Excluir <strong>{{ c.tx.description }}</strong>? Serão removidos {{ c.impact.pendingCount }} lançamento(s) pendente(s); {{ c.impact.paidCount }} já
               {{ isIncome(c.tx) ? 'recebido(s)' : 'pago(s)' }} serão preservados.
+            </p>
+          } @else {
+            <p>
+              Excluir <strong>{{ c.tx.description }}</strong>? Os lançamentos pendentes serão removidos; os já {{ isIncome(c.tx) ? 'recebidos' : 'pagos' }} serão preservados.
+            </p>
+          }
+          @if (c.kind === 'delete' && !c.impact) {
+            <p class="mt-2 text-caption text-gefinc-warning" data-testid="delete-offline-note">
+              @if (c.unavailable === 'slow') {
+                A conexão está lenta e não deu para calcular quantos lançamentos serão removidos. A exclusão será enviada agora; se a conexão falhar, será
+                aplicada quando ela voltar.
+              } @else {
+                Sem conexão: não dá para calcular quantos lançamentos serão removidos. A exclusão será aplicada quando a conexão voltar.
+              }
             </p>
           }
         }
@@ -243,7 +266,10 @@ const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
               @if (isLocal(tx)) {
                 <p class="mt-2 border-t border-gefinc-border pt-2 text-caption text-gefinc-warning">Pendente de envio</p>
               } @else {
-                <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
+                <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-gefinc-border pt-2">
+                  @if (hasPendingChange(tx)) {
+                    <ng-container *ngTemplateOutlet="pendingChangeTpl" />
+                  }
                   <ng-container *ngTemplateOutlet="actionsTpl; context: { $implicit: tx }" />
                 </div>
               }
@@ -289,6 +315,9 @@ const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
                     @if (isLocal(tx)) {
                       <span class="text-caption text-gefinc-warning">Pendente de envio</span>
                     } @else {
+                      @if (hasPendingChange(tx)) {
+                        <ng-container *ngTemplateOutlet="pendingChangeTpl" />
+                      }
                       <ng-container *ngTemplateOutlet="actionsTpl; context: { $implicit: tx }" />
                     }
                   </div></td>
@@ -299,6 +328,9 @@ const PAGE_SIZE = TRANSACTIONS_PAGE_SIZE;
         </div>
         <ng-container *ngTemplateOutlet="paginationTpl" />
       }
+      <ng-template #pendingChangeTpl>
+        <span class="inline-flex items-center gap-1 text-caption text-gefinc-warning" data-testid="pending-change"><gef-icon name="clock" [size]="12" />Pendente de envio</span>
+      </ng-template>
       <ng-template #actionsTpl let-tx>
         @if (tx.status === 'PENDING') {
           <button type="button" class="gef-btn-sm gef-btn-sm-primary" [attr.aria-label]="payLabel(tx) + ' ' + tx.description" (click)="openPay(tx)">{{ payLabel(tx) }}</button>
@@ -333,6 +365,8 @@ export class TransactionsPage implements OnInit {
   protected readonly reference = inject(ReferenceData);
   protected readonly viewport = inject(Viewport);
   protected readonly isLocal = inject(PENDING_MARKER);
+  protected readonly hasPendingChange = inject(PENDING_CHANGE);
+  private readonly offlineWrites = inject(OFFLINE_WRITES);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly freshness = inject(DATA_FRESHNESS);
 
@@ -570,12 +604,22 @@ export class TransactionsPage implements OnInit {
   }
 
   protected openDelete(tx: Transaction): void {
-    this.api.groupImpact(tx.groupId).subscribe({
+    const impact$ = this.offlineWrites ? this.api.groupImpact(tx.groupId).pipe(timeout({ first: IMPACT_WAIT_MS })) : this.api.groupImpact(tx.groupId);
+    impact$.subscribe({
       next: (impact) => {
         this.confirmError.set(null);
         this.confirming.set({ kind: 'delete', tx, impact });
       },
-      error: (e: unknown) => this.message.set(messageFor(toProblem(e))),
+      error: (e: unknown) => {
+        // App móvel: sem conexão (ou rede que não responde) a exclusão ainda é possível, sem o impacto calculado;
+        // fica guardada e o servidor a aplica ao reconectar, preservando o que já foi pago.
+        if (this.offlineWrites && (e instanceof TimeoutError || isOfflineProblem(toProblem(e)))) {
+          this.confirmError.set(null);
+          this.confirming.set({ kind: 'delete', tx, impact: null, unavailable: e instanceof TimeoutError ? 'slow' : 'offline' });
+          return;
+        }
+        this.message.set(messageFor(toProblem(e)));
+      },
     });
   }
 
@@ -652,11 +696,18 @@ export class TransactionsPage implements OnInit {
     this.confirmError.set(null);
     const request: Observable<unknown> = c.kind === 'end' ? this.api.endGroup(c.tx.groupId, c.tx.dueDate.slice(0, 7)) : this.api.deleteGroup(c.tx.groupId);
     request.subscribe({
-      next: () => {
+      next: (result) => {
         this.acting.set(false);
         this.confirming.set(null);
         this.load();
-        this.notices.toast(c.kind === 'end' ? 'Lançamento encerrado.' : 'Lançamento excluído.');
+        // `true` na exclusão: só foi guardada (sem conexão); o texto diz o que de fato aconteceu.
+        this.notices.toast(
+          c.kind === 'end'
+            ? 'Lançamento encerrado.'
+            : result === true
+              ? 'Exclusão registrada. Será aplicada quando a conexão voltar.'
+              : 'Lançamento excluído.',
+        );
       },
       error: (e: unknown) => {
         this.acting.set(false);

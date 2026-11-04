@@ -35,6 +35,16 @@ export class OfflineBootstrap {
         untracked(() => void this.engine.flush());
       }
     });
+    // Escrita enfileirada por falha de rede com o aparelho "conectado": nada mais avisaria, então o envio sai na
+    // hora. Só a operação nova (queuedCount) dispara; o envio que falha reagenda a si mesmo com espera crescente.
+    effect(() => {
+      const queued = this.state.queuedCount();
+      untracked(() => {
+        if (queued > 0 && this.session.authenticated() && this.network.online()) {
+          void this.engine.flush();
+        }
+      });
+    });
     // A conexão voltou com dados antigos na tela: as telas recarregam e o aviso de "dados de ..." some.
     effect(() => {
       const online = this.network.online();

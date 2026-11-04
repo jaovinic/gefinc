@@ -1,6 +1,16 @@
 import { APIRequestContext, Locator, Page, expect } from '@playwright/test';
 
-export const API = 'http://localhost:8080/api/v1';
+export const API = process.env['E2E_API_URL'] ?? 'http://localhost:8080/api/v1';
+/** Endereço da API que o app usa (fixo no ambiente de desenvolvimento). */
+export const APP_API = 'http://localhost:8080/api/v1';
+
+/**
+ * Endereço de uma chamada do app na API em uso nos testes: com `E2E_API_URL` apontando para outra instância
+ * (por exemplo, uma recém-compilada em outra porta), os testes que interceptam o envio a consultam por aqui.
+ */
+export function toApi(url: string): string {
+  return url.replace(APP_API, API);
+}
 export const PASSWORD = 'senha-forte-123';
 
 export interface TestUser {

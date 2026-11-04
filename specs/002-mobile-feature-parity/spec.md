@@ -139,7 +139,7 @@ A pessoa abre o aplicativo sem conexão (metrô, avião, sinal fraco), consulta 
 2. **Given** o aplicativo sem conexão, **When** o usuário registra um lançamento (avulso, fixo ou parcelado) ou marca/desfaz o pagamento de um item, **Then** a operação é guardada no aparelho e aparece como "pendente de envio" na lista de lançamentos, que já reflete o efeito esperado; painel, faturas e fluxo de caixa mostram o aviso de que não incluem as operações pendentes até o envio.
 3. **Given** operações pendentes, **When** a conexão volta, **Then** o aplicativo as envia sozinho, na ordem em que foram feitas, e cada uma é registrada exatamente uma vez, mesmo se o envio for interrompido e repetido.
 4. **Given** uma operação pendente que o servidor recusa (por exemplo, o item já foi pago no web, a conta foi inativada ou o valor ficou inválido), **When** o envio ocorre, **Then** o aplicativo avisa qual operação falhou e por quê, mantém o que foi digitado e permite corrigir ou descartar.
-5. **Given** o aplicativo sem conexão, **When** o usuário tenta uma ação que exige conexão (editar ou excluir lançamentos, contas, categorias, pagar fatura, excluir conta, recuperar senha), **Then** o aplicativo explica que precisa de conexão e não perde nada.
+5. **Given** o aplicativo sem conexão, **When** o usuário tenta uma ação que exige conexão (contas, categorias, pagar fatura, excluir conta, recuperar senha), **Then** o aplicativo explica que precisa de conexão e não perde nada.
 6. **Given** operações pendentes, **When** o usuário sai da conta, **Then** o aplicativo avisa que há operações não enviadas e pede confirmação antes de descartá-las.
 
 ---
@@ -249,10 +249,10 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 **Uso sem internet**
 
 - **FR-028**: O aplicativo MUST guardar no aparelho, de forma protegida, os dados da última sincronização (painel, lançamentos do período consultado, faturas, projeção, fluxo de caixa, contas, cartões e categorias) e MUST exibi-los sem conexão com a indicação da data e hora da última atualização.
-- **FR-029**: Sem conexão, o aplicativo MUST permitir registrar lançamentos (avulso, fixo e parcelado) e marcar ou desfazer o pagamento de itens, guardando cada operação em uma fila no aparelho, visível como pendente de envio.
+- **FR-029**: Sem conexão, o aplicativo MUST permitir registrar lançamentos (avulso, fixo e parcelado), marcar ou desfazer o pagamento de itens e, para lançamentos que já existem no servidor, editar valor e vencimento e excluir, guardando cada operação em uma fila no aparelho, visível como pendente de envio (o item alterado aparece marcado; o excluído sai da lista). Editar ou excluir um lançamento criado sem conexão e ainda não enviado fica para depois do envio.
 - **FR-030**: Ao recuperar a conexão, o aplicativo MUST enviar as operações pendentes na ordem em que foram feitas, e cada operação MUST ser registrada exatamente uma vez, mesmo com envios repetidos ou interrompidos.
 - **FR-031**: Quando o servidor recusar uma operação pendente, o aplicativo MUST informar qual foi, o motivo, preservar os dados digitados e permitir corrigir ou descartar; o aplicativo MUST NOT sobrescrever dados do servidor em silêncio.
-- **FR-032**: Ações que não estão na fila offline (editar ou excluir lançamentos, gerenciar contas e categorias, pagar fatura, exclusão de conta e recuperação de senha) MUST informar que exigem conexão sem perder o que o usuário digitou.
+- **FR-032**: Ações que não estão na fila offline (gerenciar contas e categorias, pagar fatura, alterar valor a partir de um mês e encerrar lançamento fixo, exclusão de conta e recuperação de senha) MUST informar que exigem conexão sem perder o que o usuário digitou.
 - **FR-033**: Ao sair da conta ou excluí-la, os dados guardados no aparelho e a fila de operações MUST ser removidos, depois de avisar sobre operações ainda não enviadas. Se a sessão se perder sem o usuário sair (expirada ou revogada), a cópia local dos dados MUST ser removida, mas as operações ainda não enviadas MUST ser mantidas para o mesmo usuário continuar ao entrar de novo, para não perder o que ele registrou. Os dados locais MUST NOT ser acessíveis a outros usuários do aparelho nem legíveis fora do aplicativo.
 
 **Biometria**
@@ -307,7 +307,7 @@ Esta feature não cria entidades novas; ela expõe no celular as entidades da fe
 
 - A API e as regras de negócio já existentes são reaproveitadas; esta feature não muda o cálculo de parcelas, faturas, painel nem as regras de segurança. Ajustes de API só ocorrem se alguma função do web não estiver disponível para o celular.
 - O público são pessoas com Android 7 ou superior e iOS 15 ou superior, em celulares; tablets devem funcionar, mas não têm layout dedicado nesta versão.
-- O uso sem internet cobre consulta aos dados já sincronizados e o registro de lançamentos e pagamentos; as demais ações exigem conexão (FR-032). Não há resolução automática de conflitos: o servidor valida cada operação e o usuário decide o que fazer com as recusadas.
+- O uso sem internet cobre consulta aos dados já sincronizados, o registro de lançamentos, pagamentos, a edição de valor e vencimento e a exclusão de lançamentos já enviados; as demais ações exigem conexão (FR-032). Não há resolução automática de conflitos: o servidor valida cada operação e o usuário decide o que fazer com as recusadas.
 - Os lembretes são locais, agendados no próprio aparelho a partir dos dados sincronizados. Notificações enviadas pelo servidor (push remoto) dependem de contas externas (Firebase e Apple) que o projeto ainda não tem e ficam fora desta versão; por isso, um lembrete só é atualizado quando o aplicativo sincroniza.
 - A biometria usa o que o aparelho oferece (digital ou rosto); o aplicativo nunca vê nem guarda a biometria. Aparelhos sem biometria cadastrada continuam usando só e-mail e senha.
 - Widgets e publicação nas lojas de aplicativos ficam fora do escopo.

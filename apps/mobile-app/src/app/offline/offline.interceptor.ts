@@ -2,7 +2,7 @@ import { HttpErrorResponse, HttpEvent, HttpInterceptorFn, HttpRequest, HttpRespo
 import { inject } from '@angular/core';
 import type { CategoryType, RecurrenceType, TransactionPage, TransactionStatus } from '@gefinc/core-models';
 import { API_BASE_URL, NoticeService, ReferenceData } from '@gefinc/ui-shared';
-import { todayIso } from '@gefinc/utils';
+import { formatBRL, isoToBR, todayIso } from '@gefinc/utils';
 import { EMPTY, Observable, catchError, filter, from, of, switchMap, tap, throwError, timer } from 'rxjs';
 import { BackgroundReads } from './background-reads';
 import { CacheStore } from './cache-store';
@@ -15,23 +15,61 @@ import { UserScope } from './user-scope';
 
 /** Operações que podem ser feitas sem conexão e enviadas depois (FR-029). */
 function queueable(req: HttpRequest<unknown>, base: string): NewPendingOp | null {
-  if (req.method !== 'POST') {
+  const path = req.url.slice(base.length).split('?')[0];
+  if (req.method === 'POST') {
+    if (path === '/transaction-groups') {
+      const body = (req.body ?? {}) as { description?: string; totalInstallments?: number };
+      const label = body.description ?? 'Lançamento';
+      const installments = body.totalInstallments ?? 1;
+      return { kind: 'CREATE_GROUP', method: 'POST', path, body: req.body, label: installments > 1 ? `${label} · ${installments}x` : label };
+    }
+    const match = /^\/transactions\/(\d+)\/(pay|unpay)$/.exec(path);
+    if (match) {
+      return {
+        kind: match[2] === 'pay' ? 'PAY' : 'UNPAY',
+        method: 'POST',
+        path,
+        body: req.body ?? null,
+        label: match[2] === 'pay' ? `Pagamento do lançamento ${match[1]}` : `Desfazer pagamento do lançamento ${match[1]}`,
+        entity: { type: 'TRANSACTION', id: Number(match[1]) },
+      };
+    }
     return null;
   }
-  const path = req.url.slice(base.length).split('?')[0];
-  if (path === '/transaction-groups') {
-    const body = (req.body ?? {}) as { description?: string; totalInstallments?: number };
-    const label = body.description ?? 'Lançamento';
-    const installments = body.totalInstallments ?? 1;
-    return { kind: 'CREATE_GROUP', path, body: req.body, label: installments > 1 ? `${label} · ${installments}x` : label };
-  }
-  const match = /^\/transactions\/(\d+)\/(pay|unpay)$/.exec(path);
-  if (match) {
+  const tx = /^\/transactions\/(\d+)$/.exec(path);
+  if (req.method === 'PATCH' && tx) {
+    const body = (req.body ?? {}) as { amount?: string; dueDate?: string };
+    const parts = [body.amount ? `valor ${formatBRL(body.amount)}` : null, body.dueDate ? `vencimento ${isoToBR(body.dueDate)}` : null].filter(Boolean);
     return {
-      kind: match[2] === 'pay' ? 'PAY' : 'UNPAY',
+      kind: 'EDIT_TX',
+      method: 'PATCH',
       path,
-      body: req.body ?? null,
-      label: match[2] === 'pay' ? `Pagamento do lançamento ${match[1]}` : `Desfazer pagamento do lançamento ${match[1]}`,
+      body: req.body,
+      label: `Editar lançamento ${tx[1]}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`,
+      entity: { type: 'TRANSACTION', id: Number(tx[1]) },
+    };
+  }
+  const group = /^\/transaction-groups\/(\d+)$/.exec(path);
+  if (req.method === 'PUT' && group) {
+    const description = (req.body as { description?: string } | null)?.description;
+    return {
+      kind: 'EDIT_GROUP',
+      method: 'PUT',
+      path,
+      body: req.body,
+      label: description ? `Editar "${description}"` : `Editar lançamento do grupo ${group[1]}`,
+      entity: { type: 'GROUP', id: Number(group[1]) },
+    };
+  }
+  if (req.method === 'DELETE' && group) {
+    // O `?confirm=true` exigido pelo servidor segue no caminho que será enviado.
+    return {
+      kind: 'DELETE_GROUP',
+      method: 'DELETE',
+      path: req.urlWithParams.slice(base.length),
+      body: null,
+      label: `Excluir lançamento do grupo ${group[1]}`,
+      entity: { type: 'GROUP', id: Number(group[1]) },
     };
   }
   return null;
@@ -54,8 +92,8 @@ function queryOf(req: HttpRequest<unknown>): OverlayQuery {
 
 /**
  * Modo offline do app: guarda as respostas de leitura (cópia local cifrada) e as usa sem conexão;
- * enfileira criar lançamento, pagar e desfazer; e recusa com um aviso as demais alterações. A lista de
- * lançamentos mostra por cima o efeito das operações ainda não enviadas.
+ * enfileira criar, editar e excluir lançamento, pagar e desfazer; e recusa com um aviso as demais alterações.
+ * A lista de lançamentos mostra por cima o efeito das operações ainda não enviadas.
  */
 export const offlineInterceptor: HttpInterceptorFn = (req, next) => {
   const base = inject(API_BASE_URL);
@@ -94,21 +132,23 @@ export const offlineInterceptor: HttpInterceptorFn = (req, next) => {
   // A chave nasce já na primeira tentativa: se a resposta se perder com o servidor tendo registrado, o
   // reenvio da fila leva a mesma chave e o servidor devolve o resultado original, sem duplicar.
   const key = crypto.randomUUID();
-  const enqueue = (): Observable<HttpEvent<unknown>> =>
-    from(queue.enqueue({ ...op, id: key })).pipe(switchMap(() => of(new HttpResponse({ status: 202, body: {} }))));
-  const enqueueAndNotify = (): Observable<HttpEvent<unknown>> =>
-    enqueue().pipe(
+  const enqueue = (attempted: boolean): Observable<HttpEvent<unknown>> =>
+    from(queue.enqueue({ ...op, id: key, ...(attempted ? { attempted: true } : {}) })).pipe(switchMap(() => of(new HttpResponse({ status: 202, body: {} }))));
+  const enqueueAndNotify = (attempted: boolean): Observable<HttpEvent<unknown>> =>
+    enqueue(attempted).pipe(
       tap(() => {
         state.queued();
         state.mutated();
       }),
     );
-  if (!network.online()) {
-    return enqueueAndNotify();
+  // Com operação do mesmo registro ainda na fila, a nova entra atrás dela (mesmo com conexão): enviar direto a
+  // faria passar na frente e a mais antiga chegaria depois com a `version` velha.
+  if (!network.online() || (op.entity !== undefined && queue.hasLive(op.entity))) {
+    return enqueueAndNotify(false);
   }
   return next(req.clone({ setHeaders: { 'Idempotency-Key': key } })).pipe(
     tap((event) => event instanceof HttpResponse && state.mutated()),
-    catchError((error: unknown) => (isNetworkError(error) ? enqueueAndNotify() : throwError(() => error))),
+    catchError((error: unknown) => (isNetworkError(error) ? enqueueAndNotify(true) : throwError(() => error))),
   );
 };
 

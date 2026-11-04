@@ -8,6 +8,13 @@ export interface Toast {
 }
 
 const TOAST_MS = 6000;
+
+/**
+ * Janela de coalescência de `dataChanged()`: o primeiro aviso passa na hora; os que chegam dentro da janela
+ * viram um só ao final dela. Evita recargas em cascata (aquecimento da cópia local, leituras tardias, envio da
+ * fila) sem atrasar a atualização depois de uma ação do usuário, que recarrega a tela direto.
+ */
+export const DATA_CHANGED_COALESCE_MS = 1500;
 const MAX_TOASTS = 3;
 
 /** Avisos globais da interface (ex.: conflito de edição entre dispositivos). */
@@ -41,8 +48,23 @@ export class NoticeService {
     toast?.undo?.();
   }
 
+  private coalescing = false;
+  private changedWhileCoalescing = false;
+
   dataChanged(): void {
+    if (this.coalescing) {
+      this.changedWhileCoalescing = true;
+      return;
+    }
     this.dataChangedCount.update((n) => n + 1);
+    this.coalescing = true;
+    setTimeout(() => {
+      this.coalescing = false;
+      if (this.changedWhileCoalescing) {
+        this.changedWhileCoalescing = false;
+        this.dataChanged();
+      }
+    }, DATA_CHANGED_COALESCE_MS);
   }
 
   staleVersion(): void {

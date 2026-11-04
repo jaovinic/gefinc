@@ -20,11 +20,14 @@ describe('offlineInterceptor', () => {
   const cache = { put: jest.fn(async () => undefined), get: jest.fn(async (): Promise<{ value: unknown; syncedAt: Date } | null> => null) };
   const queue = {
     ops,
-    enqueue: jest.fn(async (input: Omit<PendingOp, 'id' | 'state' | 'createdAt'>) => {
-      const op = { ...input, id: 'op-1', state: 'PENDING' as const, createdAt: 1 };
+    enqueue: jest.fn(async (input: Omit<PendingOp, 'id' | 'state' | 'createdAt' | 'method' | 'schema'> & { method?: PendingOp['method'] }) => {
+      const op = { ...input, method: input.method ?? 'POST', schema: 2, id: 'op-1', state: 'PENDING' as const, createdAt: 1 } as PendingOp;
       ops.update((list) => [...list, op]);
       return op;
     }),
+    hasLive: jest.fn((entity: { type: string; id: number }) =>
+      ops().some((o) => o.state !== 'REJECTED' && o.entity?.type === entity.type && o.entity.id === entity.id),
+    ),
   };
   const reference = {
     accounts: signal([{ id: 1, name: 'Itaú', type: 'CHECKING', active: true, version: 0 }]),
@@ -42,6 +45,7 @@ describe('offlineInterceptor', () => {
     cache.put.mockClear();
     cache.get.mockReset().mockResolvedValue(null);
     queue.enqueue.mockClear();
+    queue.hasLive.mockClear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -362,7 +366,7 @@ describe('offlineInterceptor', () => {
 
       backend.expectNone(`${API}/transaction-groups`);
       expect(queue.enqueue).toHaveBeenCalledWith({
-        id: expect.stringMatching(/^[0-9a-f-]{36}$/), kind: 'CREATE_GROUP', path: '/transaction-groups',
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/), kind: 'CREATE_GROUP', method: 'POST', path: '/transaction-groups',
         body: { description: 'Mercado', totalAmount: '10.00' }, label: 'Mercado',
       });
       expect(result).toMatchObject({ status: 202 });
@@ -382,7 +386,10 @@ describe('offlineInterceptor', () => {
       http.post(`${API}/transactions/9/unpay`, null).subscribe();
       await new Promise((r) => setTimeout(r, 0));
 
-      expect(queue.enqueue).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: 'PAY', path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' } }));
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ kind: 'PAY', path: '/transactions/9/pay', body: { paymentDate: '2026-11-10' }, entity: { type: 'TRANSACTION', id: 9 } }),
+      );
       expect(queue.enqueue).toHaveBeenNthCalledWith(2, expect.objectContaining({ kind: 'UNPAY', path: '/transactions/9/unpay', body: null }));
     });
 
@@ -431,11 +438,16 @@ describe('offlineInterceptor', () => {
   it('as demais alterações sem conexão avisam que precisam de conexão, sem enviar nada', async () => {
     online.set(false);
     for (const call of [
-      () => http.patch(`${API}/transactions/9`, {}),
       () => http.put(`${API}/accounts/1`, {}),
-      () => http.delete(`${API}/transaction-groups/3`),
+      () => http.patch(`${API}/accounts/1`, {}),
+      () => http.delete(`${API}/accounts/1`),
+      () => http.delete(`${API}/categories/2`),
       () => http.post(`${API}/accounts/2/invoices/2026-11/payments`, {}),
       () => http.post(`${API}/categories`, {}),
+      () => http.post(`${API}/transaction-groups/3/amount-changes`, {}),
+      () => http.post(`${API}/transaction-groups/3/end`, {}),
+      () => http.patch(`${API}/transactions/9/other`, {}),
+      () => http.delete(`${API}/transactions/9`),
     ]) {
       const error = await new Promise<{ status: number; error: { code: string } }>((resolve) =>
         call().subscribe({ error: resolve }),
@@ -446,9 +458,114 @@ describe('offlineInterceptor', () => {
     expect(queue.enqueue).not.toHaveBeenCalled();
   });
 
+  describe('editar e excluir (fase B)', () => {
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+
+    it('editar lançamento sem conexão entra na fila como PATCH, com a entidade, e responde como aceito', async () => {
+      online.set(false);
+      const result = await new Promise<unknown>((resolve) =>
+        http.patch(`${API}/transactions/9`, { amount: '175.50', dueDate: '2026-12-02', version: 3 }, { observe: 'response' }).subscribe(resolve),
+      );
+
+      backend.expectNone(`${API}/transactions/9`);
+      expect(queue.enqueue).toHaveBeenCalledWith({
+        id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+        kind: 'EDIT_TX',
+        method: 'PATCH',
+        path: '/transactions/9',
+        body: { amount: '175.50', dueDate: '2026-12-02', version: 3 },
+        entity: { type: 'TRANSACTION', id: 9 },
+        label: expect.stringContaining('Editar lançamento 9'),
+      });
+      expect(queue.enqueue.mock.calls[0][0].label).toContain('175,50');
+      expect(queue.enqueue.mock.calls[0][0].label).toContain('02/12/2026');
+      expect(result).toMatchObject({ status: 202 });
+    });
+
+    it('editar o grupo (PUT) e excluir o grupo (DELETE) sem conexão entram na fila; o ?confirm=true segue no caminho enviado', async () => {
+      online.set(false);
+      http.put(`${API}/transaction-groups/4`, { description: 'Supermercado', categoryId: 10, version: 1 }).subscribe();
+      http.delete(`${API}/transaction-groups/4`, { params: { confirm: true } }).subscribe();
+      await settle();
+
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ kind: 'EDIT_GROUP', method: 'PUT', path: '/transaction-groups/4', entity: { type: 'GROUP', id: 4 } }),
+      );
+      expect(queue.enqueue).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ kind: 'DELETE_GROUP', method: 'DELETE', path: '/transaction-groups/4?confirm=true', body: null, entity: { type: 'GROUP', id: 4 } }),
+      );
+    });
+
+    it('com conexão envia normalmente com a chave de idempotência (PATCH, PUT e DELETE)', async () => {
+      http.patch(`${API}/transactions/9`, { amount: '1.00', version: 0 }).subscribe();
+      http.put(`${API}/transaction-groups/4`, { description: 'x', categoryId: 1, version: 0 }).subscribe();
+      http.delete(`${API}/transaction-groups/4`, { params: { confirm: true } }).subscribe();
+
+      const patch = backend.expectOne(`${API}/transactions/9`);
+      const put = backend.expectOne(`${API}/transaction-groups/4`);
+      const del = backend.expectOne(`${API}/transaction-groups/4?confirm=true`);
+      for (const request of [patch, put, del]) {
+        expect(request.request.headers.get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/);
+        request.flush({});
+      }
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('se a rede cair no meio da edição, enfileira com a MESMA chave e marcada como já tentada (a resposta pode ter se perdido)', async () => {
+      const dropped = new Promise((resolve) => http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }, { observe: 'response' }).subscribe(resolve));
+      const request = backend.expectOne(`${API}/transactions/9`);
+      const key = request.request.headers.get('Idempotency-Key');
+      request.error(new ProgressEvent('error'), { status: 0 });
+
+      expect(await dropped).toMatchObject({ status: 202 });
+      expect(queue.enqueue).toHaveBeenCalledWith(expect.objectContaining({ id: key, kind: 'EDIT_TX', attempted: true }));
+    });
+
+    it('já havendo operação do mesmo lançamento esperando na fila, a nova não passa na frente pela rede: entra na fila mesmo com conexão', async () => {
+      ops.set([
+        { id: 'p', kind: 'PAY', method: 'POST', path: '/transactions/9/pay', body: {}, createdAt: 1, state: 'PENDING', label: 'Pagar', entity: { type: 'TRANSACTION', id: 9 }, schema: 2 },
+      ]);
+      const queuedBefore = state.queuedCount();
+
+      const result = await new Promise<unknown>((resolve) => http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }, { observe: 'response' }).subscribe(resolve));
+
+      backend.expectNone(`${API}/transactions/9`);
+      expect(result).toMatchObject({ status: 202 });
+      expect(queue.enqueue).toHaveBeenCalledTimes(1);
+      expect(state.queuedCount()).toBe(queuedBefore + 1);
+    });
+
+    it('editar outro lançamento não é afetado por operações de um diferente', async () => {
+      ops.set([
+        { id: 'p', kind: 'PAY', method: 'POST', path: '/transactions/8/pay', body: {}, createdAt: 1, state: 'PENDING', label: 'Pagar', entity: { type: 'TRANSACTION', id: 8 }, schema: 2 },
+      ]);
+
+      http.patch(`${API}/transactions/9`, { amount: '1.00', version: 3 }).subscribe();
+
+      backend.expectOne(`${API}/transactions/9`).flush({});
+    });
+
+    it('a edição enfileirada aparece na lista por cima da cópia local, marcada como pendente', async () => {
+      online.set(false);
+      ops.set([
+        { id: 'e', kind: 'EDIT_TX', method: 'PATCH', path: '/transactions/5', body: { amount: '99.00', dueDate: '2026-11-20', version: 0 }, createdAt: 1, state: 'PENDING', label: 'Editar', entity: { type: 'TRANSACTION', id: 5 }, schema: 2 },
+      ]);
+      cache.get.mockResolvedValue({
+        value: { content: [{ id: 5, groupId: 50, accountId: 1, categoryId: 10, description: 'Luz', recurrenceType: 'VARIABLE', installmentNumber: 1, totalInstallments: 1, amount: '90.50', dueDate: '2026-11-15', status: 'PENDING', overdue: false, version: 0 }], page: 0, size: 25, totalElements: 1 },
+        syncedAt: new Date(),
+      });
+
+      const page = await new Promise<{ content: { amount: string; dueDate: string }[] }>((resolve) => http.get<never>(`${API}/transactions?month=2026-11`).subscribe(resolve as never));
+
+      expect(page.content[0]).toMatchObject({ amount: '99.00', dueDate: '2026-11-20' });
+    });
+  });
+
   describe('lista de lançamentos com operações pendentes', () => {
     const op: PendingOp = {
-      id: 'op-1', kind: 'CREATE_GROUP', path: '/transaction-groups', createdAt: 1, state: 'PENDING', label: 'Mercado',
+      id: 'op-1', kind: 'CREATE_GROUP', method: 'POST', schema: 2, path: '/transaction-groups', createdAt: 1, state: 'PENDING', label: 'Mercado',
       body: { description: 'Mercado', recurrenceType: 'VARIABLE', totalAmount: '10.00', accountId: 1, categoryId: 10, purchaseDate: '2026-11-08', firstDueDate: '2026-11-12' },
     };
 

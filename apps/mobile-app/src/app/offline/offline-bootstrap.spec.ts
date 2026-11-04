@@ -52,4 +52,63 @@ describe('OfflineBootstrap', () => {
 
     expect(notices.dataChangedCount()).toBe(0);
   });
+  describe('envio imediato de uma escrita enfileirada por falha de rede', () => {
+    it('com o aparelho conectado, cada operação nova na fila dispara o envio na hora', () => {
+      const state = TestBed.inject(OfflineState);
+      online.set(true);
+      TestBed.inject(OfflineBootstrap);
+      TestBed.tick();
+      flush.mockClear();
+
+      state.queued();
+      TestBed.tick();
+      expect(flush).toHaveBeenCalledTimes(1);
+
+      state.queued();
+      TestBed.tick();
+      expect(flush).toHaveBeenCalledTimes(2);
+    });
+
+    it('sem conexão não tenta enviar (a volta da conexão é que dispara)', () => {
+      const state = TestBed.inject(OfflineState);
+      TestBed.inject(OfflineBootstrap);
+      TestBed.tick();
+      flush.mockClear();
+
+      state.queued();
+      TestBed.tick();
+
+      expect(flush).not.toHaveBeenCalled();
+    });
+
+    it('sem sessão não envia', () => {
+      const state = TestBed.inject(OfflineState);
+      online.set(true);
+      authenticated.set(false);
+      TestBed.inject(OfflineBootstrap);
+      TestBed.tick();
+      flush.mockClear();
+
+      state.queued();
+      TestBed.tick();
+
+      expect(flush).not.toHaveBeenCalled();
+    });
+
+    it('não entra em laço: o envio em si (ou a conexão oscilando) não conta como operação nova', () => {
+      const state = TestBed.inject(OfflineState);
+      online.set(true);
+      TestBed.inject(OfflineBootstrap);
+      TestBed.tick();
+      state.queued();
+      TestBed.tick();
+      flush.mockClear();
+
+      TestBed.tick();
+      TestBed.tick();
+
+      expect(flush).not.toHaveBeenCalled();
+      expect(state.queuedCount()).toBe(1);
+    });
+  });
 });

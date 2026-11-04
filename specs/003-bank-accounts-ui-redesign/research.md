@@ -77,6 +77,11 @@ Decisões técnicas (D1–D15) que resolvem as incógnitas do plano.
 - **Racional**: a cópia local pode ter sido gravada antes da atualização do app.
 - **Telas sem conexão**: estado vazio vindo da cópia local diz "na última sincronização (dd/MM HH:mm)" e a falta de cópia mostra o aviso "Sem conexão" (`OFFLINE_NO_DATA`); a cópia é aquecida com a rede (detalhes em `docs/operations.md`).
 
+## D13b. Editar e excluir lançamentos sem conexão (fase B do offline)
+
+- **Decisão**: a fila do app passa a guardar `PATCH /transactions/{id}`, `PUT` e `DELETE /transaction-groups/{id}` (além de criar, pagar e desfazer). O servidor estende a `Idempotency-Key` a esses verbos (e a `amount-changes` e `end`), sem migração: a tabela já guarda o verbo, que agora também entra na comparação. Edições seguidas do mesmo registro, ainda não enviadas, são unidas; a `version` devolvida pelo servidor passa às edições seguintes; excluir sem conexão dispensa o impacto (a confirmação avisa que será aplicado ao reconectar); 404 numa exclusão conta como feito; 409/4xx definitivos vão para as pendências com o motivo (sem conflito elaborado). Contas e categorias seguem só leitura. Cada tentativa de envio tem limite de 30 s e uma escrita enfileirada com o aparelho "conectado" é enviada na hora.
+- **Racional**: reenviar um PATCH/PUT já aplicado com a mesma `version` daria `409 STALE_VERSION` falso; com a chave o servidor devolve a resposta original. A resolução de conflitos e a edição de itens criados offline ficam para um próximo passo.
+
 ## D14. Contrato e tipos
 
 - **Decisão**: o OpenAPI de `packages/core-models` ganha os enums `HolderType` e `AccountIcon` e os campos novos de `Account`, `AccountInput` e `AccountUpdate`; os tipos TypeScript são regenerados no mesmo PR (constituição).

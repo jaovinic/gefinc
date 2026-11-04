@@ -1,11 +1,11 @@
 import { EnvironmentProviders, Injector, Provider, inject, provideAppInitializer } from '@angular/core';
-import { DATA_FRESHNESS, PENDING_MARKER, SESSION_ENDED, SessionEndReason } from '@gefinc/ui-shared';
+import { DATA_FRESHNESS, OFFLINE_WRITES, PENDING_CHANGE, PENDING_MARKER, SESSION_ENDED, SessionEndReason } from '@gefinc/ui-shared';
 import { BackgroundReads } from './background-reads';
 import { LocalDataWipe } from './local-data-wipe';
 import { OfflineBootstrap } from './offline-bootstrap';
 import { OfflineState } from './offline-state';
 import { OfflineWarmup } from './offline-warmup';
-import { isPendingRow } from './overlay';
+import { isPendingChange, isPendingRow } from './overlay';
 
 /** De quando são os dados mostrados: as telas dizem "na última sincronização" quando vêm da cópia local. */
 export const DATA_FRESHNESS_PROVIDER: Provider = { provide: DATA_FRESHNESS, useFactory: () => inject(OfflineState).staleSince };
@@ -18,6 +18,8 @@ export const DATA_FRESHNESS_PROVIDER: Provider = { provide: DATA_FRESHNESS, useF
 export function provideOffline(): (Provider | EnvironmentProviders)[] {
   return [
     { provide: PENDING_MARKER, useValue: isPendingRow },
+    { provide: PENDING_CHANGE, useValue: isPendingChange },
+    { provide: OFFLINE_WRITES, useValue: true },
     DATA_FRESHNESS_PROVIDER,
     {
       provide: SESSION_ENDED,

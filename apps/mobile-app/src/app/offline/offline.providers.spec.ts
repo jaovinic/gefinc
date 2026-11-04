@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { SESSION_ENDED } from '@gefinc/ui-shared';
+import { OFFLINE_WRITES, PENDING_CHANGE, PENDING_MARKER, SESSION_ENDED } from '@gefinc/ui-shared';
 import { BackgroundReads } from './background-reads';
 import { LocalDataWipe } from './local-data-wipe';
 import { OfflineBootstrap } from './offline-bootstrap';
@@ -35,6 +35,28 @@ describe('provideOffline (fim da sessão)', () => {
     expect(state.staleSince()).toBeNull();
     expect(background.cancelAll).toHaveBeenCalled();
     expect(wipe.onSessionEnded).toHaveBeenCalledWith(reason);
+  });
+});
+
+describe('provideOffline (itens do app móvel na lista)', () => {
+  it('liga a marcação de itens locais e de alterações pendentes, e a exclusão sem conexão', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideOffline(),
+        { provide: OfflineBootstrap, useValue: { start: jest.fn(async () => undefined) } },
+        { provide: OfflineWarmup, useValue: { start: jest.fn(async () => undefined) } },
+      ],
+    });
+
+    const isLocal = TestBed.inject(PENDING_MARKER);
+    const hasChange = TestBed.inject(PENDING_CHANGE);
+
+    expect(isLocal({ id: -1 } as never)).toBe(true);
+    expect(isLocal({ id: 5 } as never)).toBe(false);
+    expect(hasChange({ id: 5, pendingChange: true } as never)).toBe(true);
+    expect(hasChange({ id: 5 } as never)).toBe(false);
+    expect(TestBed.inject(OFFLINE_WRITES)).toBe(true);
   });
 });
 

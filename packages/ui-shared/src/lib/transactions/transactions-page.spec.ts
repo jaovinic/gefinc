@@ -5,7 +5,7 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { currentMonth, todayIso } from '@gefinc/utils';
 import { API, clickButton, configureHttpTesting, fillDate, optionLabels, pickOption, type } from '../../testing/testbed';
 import { NoticeService } from '../api';
-import { PENDING_MARKER } from './pending-marker';
+import { OFFLINE_WRITES, PENDING_CHANGE, PENDING_MARKER } from './pending-marker';
 import { Viewport } from '../viewport/viewport';
 import { TransactionsPage } from './transactions-page';
 
@@ -637,5 +637,188 @@ describe('TransactionsPage - itens pendentes de envio (app móvel)', () => {
     expect(rows[0].textContent).toContain('Pendente de envio');
     expect(rows[0].querySelectorAll('button')).toHaveLength(0);
     expect(rows[1].querySelector('button')).not.toBeNull();
+  });
+});
+
+describe('TransactionsPage - alterações pendentes de envio e exclusão sem conexão (app móvel)', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    TestBed.inject(HttpTestingController).verify();
+  });
+
+  async function setup(options: { compact?: boolean; offlineWrites?: boolean } = {}) {
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: Viewport, useValue: { compact: signal(options.compact ?? false) } },
+        { provide: PENDING_CHANGE, useValue: (tx: { id: number }) => tx.id === 2 },
+        { provide: OFFLINE_WRITES, useValue: options.offlineWrites ?? true },
+      ],
+    });
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(TransactionsPage);
+    fixture.detectChanges();
+    ctx.http.expectOne((r) => r.url === `${API}/transactions`).flush(page([pending, late]));
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { ...ctx, fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  const listRequest = (http: HttpTestingController) => http.expectOne((r) => r.method === 'GET' && r.url === `${API}/transactions`);
+  const offlineError = { status: 0, statusText: 'Offline' };
+  const clickDelete = (el: HTMLElement, description: string) =>
+    (el.querySelector(`button[aria-label="Excluir ${description}"]`) as HTMLButtonElement).click();
+
+  it('item real com alteração pendente mostra o selo e continua com as ações (pagar, editar, excluir)', async () => {
+    const { el } = await setup({ compact: true });
+    const cards = el.querySelectorAll('[data-testid="transaction-card"]');
+
+    expect(cards[0].textContent).not.toContain('Pendente de envio');
+    expect(cards[1].textContent).toContain('Pendente de envio');
+    for (const label of ['Pagar Luz', 'Editar Luz', 'Excluir Luz']) {
+      expect(cards[1].querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+    }
+  });
+
+  it('na tabela também', async () => {
+    const { el } = await setup({ compact: false });
+    const rows = el.querySelectorAll('tbody tr');
+
+    expect(rows[0].textContent).not.toContain('Pendente de envio');
+    expect(rows[1].textContent).toContain('Pendente de envio');
+    expect(rows[1].querySelector('button[aria-label="Editar Luz"]')).not.toBeNull();
+  });
+
+  it('sem conexão, excluir abre a confirmação mesmo sem o impacto, avisando que será aplicado ao reconectar', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ code: 'OFFLINE_REQUIRES_CONNECTION' }, offlineError);
+    fixture.detectChanges();
+
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain('Excluir Mercado?');
+    expect(dialog.querySelector('[data-testid="delete-offline-note"]')?.textContent).toContain('será aplicada quando a conexão voltar');
+    expect(dialog.textContent).not.toContain('NaN');
+    http.expectNone((r) => r.method === 'DELETE');
+
+    clickButton(el, 'Excluir "Mercado"');
+    const del = http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/100`);
+    expect(del.request.params.get('confirm')).toBe('true');
+    del.flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([late]));
+    fixture.detectChanges();
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Exclusão registrada. Será aplicada quando a conexão voltar.');
+  });
+
+  it('com conexão (impacto consultado e exclusão aplicada na hora), o aviso diz que o lançamento foi excluído', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 0, pendingCount: 1, paidAmount: '0.00', pendingAmount: '150.00' });
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transaction-groups/100`).flush(null, { status: 204, statusText: 'No Content' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Lançamento excluído.');
+  });
+
+  it('impacto consultado, mas a exclusão falha por rede e vai para a fila (202): o aviso diz que foi registrada, não excluída', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 0, pendingCount: 1, paidAmount: '0.00', pendingAmount: '150.00' });
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE').flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Exclusão registrada. Será aplicada quando a conexão voltar.');
+  });
+
+  it('sem o impacto mas com a exclusão aplicada na hora (rede lenta que respondeu ao DELETE): o aviso diz que foi excluído', async () => {
+    jest.useFakeTimers();
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` });
+    await jest.advanceTimersByTimeAsync(3_001);
+    fixture.detectChanges();
+    clickButton(el, 'Excluir "Mercado"');
+    http.expectOne((r) => r.method === 'DELETE').flush(null, { status: 204, statusText: 'No Content' });
+    listRequest(http).flush(page([late]));
+
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Lançamento excluído.');
+  });
+
+  it('com conexão, a confirmação continua mostrando o impacto, sem o aviso de reconexão', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({ paidCount: 2, pendingCount: 3, paidAmount: '20.00', pendingAmount: '30.00' });
+    fixture.detectChanges();
+
+    const dialog = el.querySelector('[role="alertdialog"]') as HTMLElement;
+    expect(dialog.textContent).toContain('3 lançamento(s)');
+    expect(dialog.querySelector('[data-testid="delete-offline-note"]')).toBeNull();
+  });
+
+  it('rede "conectada" que não responde: o impacto não é esperado para sempre, a confirmação abre depois de alguns segundos', async () => {
+    jest.useFakeTimers();
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    const impact = http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` });
+    await jest.advanceTimersByTimeAsync(2_999);
+    fixture.detectChanges();
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    await jest.advanceTimersByTimeAsync(2);
+    fixture.detectChanges();
+
+    expect(impact.cancelled).toBe(true);
+    // rede lenta, não ausente: o aviso não diz "Sem conexão"
+    const note = el.querySelector('[data-testid="delete-offline-note"]')?.textContent ?? '';
+    expect(note).toContain('conexão está lenta');
+    expect(note).not.toContain('Sem conexão');
+  });
+
+  it('erro do servidor ao consultar o impacto continua sendo mostrado como erro, sem abrir a confirmação', async () => {
+    const { http, el, fixture } = await setup();
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({}, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('erro inesperado');
+  });
+
+  it('no web (sem fila offline), falta de conexão ao consultar o impacto segue sendo um erro, sem confirmação', async () => {
+    const { http, el, fixture } = await setup({ offlineWrites: false });
+
+    clickDelete(el, 'Mercado');
+    http.expectOne({ method: 'GET', url: `${API}/transaction-groups/100/impact` }).flush({}, offlineError);
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Sem conexão');
+  });
+
+  it('editar valor e vencimento sem conexão: o envio é aceito, a lista recarrega e o painel fecha', async () => {
+    const { http, el, fixture } = await setup();
+
+    (el.querySelector('button[aria-label="Editar Luz"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    fillDate(el, '#editDue', '2026-11-25');
+    clickButton(el, 'Salvar');
+    const patch = http.expectOne((r) => r.method === 'PATCH' && r.url === `${API}/transactions/2`);
+    expect(patch.request.body).toMatchObject({ dueDate: '2026-11-25', version: 0 });
+    patch.flush({}, { status: 202, statusText: 'Accepted' });
+    listRequest(http).flush(page([pending, late]));
+    fixture.detectChanges();
+
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
   });
 });
