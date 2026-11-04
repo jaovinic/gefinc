@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -53,8 +54,14 @@ class IdempotencyIT extends IntegrationTestBase {
   }
 
   private ResultActions post(TestUser user, String path, String key, Object body) throws Exception {
+    return send(HttpMethod.POST, user, path, key, body);
+  }
+
+  private ResultActions send(HttpMethod method, TestUser user, String path, String key, Object body)
+      throws Exception {
     MockHttpServletRequestBuilder builder =
-        MockMvcRequestBuilders.post(path).header(HttpHeaders.AUTHORIZATION, user.bearer());
+        MockMvcRequestBuilders.request(method, path)
+            .header(HttpHeaders.AUTHORIZATION, user.bearer());
     if (key != null) {
       builder.header("Idempotency-Key", key);
     }
@@ -280,6 +287,251 @@ class IdempotencyIT extends IntegrationTestBase {
 
     jdbc.update("DELETE FROM users WHERE id = ?", ana.id());
 
+    assertThat(count("idempotency_keys")).isZero();
+  }
+
+  private Map<String, Object> patchBody(JsonNode tx, String amount) {
+    return Map.of("amount", amount, "version", tx.get("version").asLong());
+  }
+
+  private JsonNode firstTransaction(TestUser user, Map<String, Object> body) throws Exception {
+    return api.createGroup(user, body).get("transactions").get(0);
+  }
+
+  @Test
+  void reenviarOPatchJaAplicadoDevolveARespostaOriginalSemConflitoFalsoDeVersao() throws Exception {
+    JsonNode tx = firstTransaction(ana, mercado("150.00"));
+    long id = tx.get("id").asLong();
+    String key = UUID.randomUUID().toString();
+    Map<String, Object> body = patchBody(tx, "175.50");
+
+    String first =
+        send(HttpMethod.PATCH, ana, "/transactions/" + id, key, body)
+            .andExpect(status().isOk())
+            .andExpect(matchesContract())
+            .andExpect(header().doesNotExist("Idempotent-Replayed"))
+            .andExpect(jsonPath("$.amount").value("175.50"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    // resposta perdida: o app reenvia a mesma operação, ainda com a versão antiga
+    String second =
+        send(HttpMethod.PATCH, ana, "/transactions/" + id, key, body)
+            .andExpect(status().isOk())
+            .andExpect(matchesContract())
+            .andExpect(header().string("Idempotent-Replayed", "true"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    assertThat(objectMapper.readTree(second)).isEqualTo(objectMapper.readTree(first));
+    assertThat(api.get(ana, "/transactions/" + id).get("version").asLong())
+        .isEqualTo(tx.get("version").asLong() + 1);
+    // sem a chave, o mesmo reenvio é um conflito de versão
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, null, body)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("STALE_VERSION"));
+  }
+
+  @Test
+  void reenviarOPutDoGrupoDevolveARespostaOriginal() throws Exception {
+    JsonNode created = api.createGroup(ana, mercado("150.00"));
+    long id = created.get("id").asLong();
+    Map<String, Object> body =
+        Map.of(
+            "description", "Supermercado", "categoryId", food, "version", created.get("version"));
+    String key = UUID.randomUUID().toString();
+
+    send(HttpMethod.PUT, ana, "/transaction-groups/" + id, key, body)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.description").value("Supermercado"));
+    send(HttpMethod.PUT, ana, "/transaction-groups/" + id, key, body)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(header().string("Idempotent-Replayed", "true"))
+        .andExpect(jsonPath("$.description").value("Supermercado"));
+    send(HttpMethod.PUT, ana, "/transaction-groups/" + id, null, body)
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void reenviarAExclusaoDoGrupoDevolve204EmVezDe404() throws Exception {
+    long id = api.createGroup(ana, mercado("150.00")).get("id").asLong();
+    String key = UUID.randomUUID().toString();
+    String url = "/transaction-groups/" + id + "?confirm=true";
+
+    send(HttpMethod.DELETE, ana, url, key, null)
+        .andExpect(status().isNoContent())
+        .andExpect(header().doesNotExist("Idempotent-Replayed"));
+    send(HttpMethod.DELETE, ana, url, key, null)
+        .andExpect(status().isNoContent())
+        .andExpect(header().string("Idempotent-Replayed", "true"));
+
+    assertThat(count("transaction_groups")).isZero();
+    // sem a chave, o mesmo reenvio é um 404
+    send(HttpMethod.DELETE, ana, url, null, null).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void reenviarMudancaDeValorEEncerramentoDevolveARespostaOriginal() throws Exception {
+    long id =
+        api.createGroup(
+                ana, api.fixedBody("Aluguel", "99.90", checking, food, "2026-11-01", "2026-11-05"))
+            .get("id")
+            .asLong();
+    String amountKey = UUID.randomUUID().toString();
+    Map<String, Object> amountBody = Map.of("fromMonth", "2027-02", "amount", "120.00");
+    String endKey = UUID.randomUUID().toString();
+    Map<String, Object> endBody = Map.of("endMonth", "2027-04");
+
+    post(ana, "/transaction-groups/" + id + "/amount-changes", amountKey, amountBody)
+        .andExpect(status().isOk());
+    post(ana, "/transaction-groups/" + id + "/amount-changes", amountKey, amountBody)
+        .andExpect(status().isOk())
+        .andExpect(header().string("Idempotent-Replayed", "true"));
+    post(ana, "/transaction-groups/" + id + "/end", endKey, endBody).andExpect(status().isOk());
+    post(ana, "/transaction-groups/" + id + "/end", endKey, endBody)
+        .andExpect(status().isOk())
+        .andExpect(header().string("Idempotent-Replayed", "true"));
+    assertThat(count("idempotency_keys")).isEqualTo(2);
+  }
+
+  @Test
+  void chaveReutilizadaComOutroCorpoOutroCaminhoOuOutroVerboERecusada() throws Exception {
+    JsonNode tx = firstTransaction(ana, mercado("150.00"));
+    long id = tx.get("id").asLong();
+    long other = firstTransaction(ana, mercado("20.00")).get("id").asLong();
+    String key = UUID.randomUUID().toString();
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, key, patchBody(tx, "160.00"))
+        .andExpect(status().isOk());
+
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, key, patchBody(tx, "161.00"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+    send(HttpMethod.PATCH, ana, "/transactions/" + other, key, patchBody(tx, "160.00"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+    assertThat(api.get(ana, "/transactions/" + id).get("amount").asText()).isEqualTo("160.00");
+  }
+
+  @Test
+  void chaveReutilizadaEmOutroVerboNoMesmoCaminhoERecusada() throws Exception {
+    long id = api.createGroup(ana, mercado("150.00")).get("id").asLong();
+    String key = UUID.randomUUID().toString();
+    send(HttpMethod.DELETE, ana, "/transaction-groups/" + id + "?confirm=true", key, null)
+        .andExpect(status().isNoContent());
+
+    // mesmo caminho e mesmo corpo (vazio), só o verbo muda: é outra operação, não uma repetição
+    send(HttpMethod.PUT, ana, "/transaction-groups/" + id, key, null)
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+  }
+
+  @Test
+  void chaveDeEdicaoEmProcessamentoResponde409SemAlterarNada() throws Exception {
+    JsonNode tx = firstTransaction(ana, mercado("150.00"));
+    long id = tx.get("id").asLong();
+    Map<String, Object> body = patchBody(tx, "175.50");
+    String key = UUID.randomUUID().toString();
+    jdbc.update(
+        "INSERT INTO idempotency_keys (user_id, key, method, path, request_hash, state, created_at)"
+            + " VALUES (?, ?::uuid, 'PATCH', ?, ?, 'IN_PROGRESS', ?)",
+        ana.id(),
+        key,
+        "/transactions/" + id,
+        IdempotencyService.hash(objectMapper.writeValueAsBytes(body)),
+        java.sql.Timestamp.from(clock.instant()));
+
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, key, body)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("IDEMPOTENCY_IN_PROGRESS"));
+    assertThat(api.get(ana, "/transactions/" + id).get("amount").asText()).isEqualTo("150.00");
+  }
+
+  @Test
+  void edicoesSimultaneasComAMesmaChaveAplicamUmaSoVez() throws Exception {
+    JsonNode tx = firstTransaction(ana, mercado("150.00"));
+    long id = tx.get("id").asLong();
+    Map<String, Object> body = patchBody(tx, "175.50");
+    String key = UUID.randomUUID().toString();
+    int threads = 6;
+    CountDownLatch start = new CountDownLatch(1);
+    ExecutorService pool = Executors.newFixedThreadPool(threads);
+    List<Future<Integer>> results = new ArrayList<>();
+    for (int i = 0; i < threads; i++) {
+      Callable<Integer> call =
+          () -> {
+            start.await();
+            return send(HttpMethod.PATCH, ana, "/transactions/" + id, key, body)
+                .andReturn()
+                .getResponse()
+                .getStatus();
+          };
+      results.add(pool.submit(call));
+    }
+    start.countDown();
+    List<Integer> statuses = new ArrayList<>();
+    for (Future<Integer> result : results) {
+      statuses.add(result.get());
+    }
+    pool.shutdown();
+
+    assertThat(statuses).contains(200).allMatch(s -> s == 200 || s == 409);
+    assertThat(api.get(ana, "/transactions/" + id).get("version").asLong())
+        .isEqualTo(tx.get("version").asLong() + 1);
+  }
+
+  @Test
+  void chavesDeEdicaoSaoIsoladasPorUsuario() throws Exception {
+    TestUser bruno = new TestUsers(mockMvc, objectMapper).registerAndLogin("bruno@example.com");
+    long brunoChecking = api.checking(bruno, "Nubank");
+    long brunoFood = api.category(bruno, "Alimentação");
+    JsonNode anas = firstTransaction(ana, mercado("150.00"));
+    JsonNode brunos =
+        firstTransaction(
+            bruno,
+            api.variableBody(
+                "Padaria", "9.00", brunoChecking, brunoFood, "2026-11-08", "2026-11-15"));
+    String key = UUID.randomUUID().toString();
+
+    send(
+            HttpMethod.PATCH,
+            ana,
+            "/transactions/" + anas.get("id").asLong(),
+            key,
+            patchBody(anas, "160.00"))
+        .andExpect(status().isOk());
+    send(
+            HttpMethod.PATCH,
+            bruno,
+            "/transactions/" + brunos.get("id").asLong(),
+            key,
+            patchBody(brunos, "10.00"))
+        .andExpect(status().isOk())
+        .andExpect(header().doesNotExist("Idempotent-Replayed"))
+        .andExpect(jsonPath("$.amount").value("10.00"));
+    // a chave de Ana não dá acesso ao lançamento dela para Bruno
+    send(
+            HttpMethod.PATCH,
+            bruno,
+            "/transactions/" + anas.get("id").asLong(),
+            UUID.randomUUID().toString(),
+            patchBody(anas, "1.00"))
+        .andExpect(status().isNotFound());
+    assertThat(count("idempotency_keys")).isEqualTo(3);
+  }
+
+  @Test
+  void edicaoEExclusaoSemCabecalhoNaoMudam() throws Exception {
+    JsonNode tx = firstTransaction(ana, mercado("150.00"));
+    long id = tx.get("id").asLong();
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, null, patchBody(tx, "151.00"))
+        .andExpect(status().isOk());
+    send(HttpMethod.PATCH, ana, "/transactions/" + id, "nao-e-uuid", patchBody(tx, "152.00"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     assertThat(count("idempotency_keys")).isZero();
   }
 }
