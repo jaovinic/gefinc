@@ -7,7 +7,6 @@ import { filter, map } from 'rxjs';
 import { LogoutAction } from '../core/logout';
 import { OfflineBanner } from '../offline/offline-banner';
 import { MoreMenu } from './more-menu';
-import { ScrollGlass } from './scroll-glass';
 
 interface Tab {
   path: string;
@@ -35,7 +34,7 @@ const TABS: Tab[] = [
  */
 @Component({
   selector: 'gef-mobile-shell',
-  imports: [AccountChip, Icon, Logo, MoreMenu, OfflineBanner, RouterOutlet, RouterLink, RouterLinkActive, ScrollGlass, Sheet],
+  imports: [AccountChip, Icon, Logo, MoreMenu, OfflineBanner, RouterOutlet, RouterLink, RouterLinkActive, Sheet],
   template: `
     <div class="gef-shell">
       <header class="gef-app-header">
@@ -49,7 +48,7 @@ const TABS: Tab[] = [
         />
       </header>
       <gef-offline-banner />
-      <main class="gef-shell-main gef-page" gefScrollGlass><router-outlet /></main>
+      <main class="gef-shell-main gef-page"><router-outlet /></main>
       <nav
         class="gef-tabbar"
         aria-label="Navegação principal"

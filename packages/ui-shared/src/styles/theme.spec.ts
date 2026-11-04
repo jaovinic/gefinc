@@ -369,12 +369,43 @@ describe('theme.css - ilha, botão flutuante e desempenho do vidro no celular', 
     expect(body).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 
-  it('os fundos sólidos (modo sólido e rolagem) são quase opacos nos dois temas', () => {
+  it('os fundos sólidos (modo sólido) são totalmente opacos nos dois temas: nada do conteúdo aparece por trás', () => {
     for (const scope of [':root', "html[data-theme='light']"]) {
       for (const name of ['--glass-nav-bg-solid', '--glass-fab-start-solid', '--glass-fab-end-solid']) {
-        expect(pick(scope, name)[3]).toBeGreaterThanOrEqual(0.9);
+        expect(pick(scope, name)[3]).toBe(1);
       }
     }
+  });
+
+  it('o modo sólido deixa opacos a ilha, o botão flutuante, o cabeçalho e o vidro forte (alfa 1 nas variáveis que eles leem)', () => {
+    const flat = block("html[data-glass='flat']");
+    expect(flat).toContain('--glass-bg-strong: var(--color-gefinc-surface)');
+    expect(flat).toContain('--glass-nav-bg: var(--glass-nav-bg-solid)');
+    expect(flat).toContain('--glass-fab-start: var(--glass-fab-start-solid)');
+    expect(flat).toContain('--glass-fab-end: var(--glass-fab-end-solid)');
+    for (const scope of [':root', "html[data-theme='light']"]) {
+      expect(themeColor(scope, '--color-gefinc-surface')[3]).toBe(1);
+    }
+  });
+
+  it('o vidro é discreto: sem luzes e reflexos no botão flutuante nem brilho forte na ilha', () => {
+    const fab = (name: string, scope: string) => pick(scope, name)[3];
+    for (const scope of [':root', "html[data-theme='light']"]) {
+      expect(fab('--glass-fab-sheen', scope)).toBeLessThanOrEqual(0.1);
+      expect(fab('--glass-fab-rim', scope)).toBeLessThanOrEqual(0.25);
+      expect(fab('--glass-highlight', scope)).toBeLessThanOrEqual(0.35);
+      expect(fab('--glass-indicator-sheen', scope)).toBeLessThanOrEqual(0.25);
+    }
+    expect(fab('--glass-fab-border', ':root')).toBeLessThanOrEqual(0.2);
+    expect(fab('--glass-fab-border', "html[data-theme='light']")).toBeLessThanOrEqual(0.35);
+    // o indicador ativo continua distinto: tinta própria mantida
+    for (const scope of [':root', "html[data-theme='light']"]) {
+      expect(fab('--glass-indicator-tint', scope)).toBeGreaterThanOrEqual(0.14);
+    }
+  });
+
+  it('não há pausa do desfoque na rolagem: nada no tema lê data-scrolling', () => {
+    expect(css).not.toContain('data-scrolling');
   });
 
   describe.each(scopes)('tema %s', (_label, scope) => {
@@ -411,7 +442,7 @@ describe('theme.css - ilha, botão flutuante e desempenho do vidro no celular', 
       expect(contrast(primary, worst)).toBeGreaterThanOrEqual(4.5);
     });
 
-    it('o rótulo comum passa em AA sobre a ilha sólida (rolagem e modo sólido)', () => {
+    it('o rótulo comum passa em AA sobre a ilha sólida (modo sólido)', () => {
       expect(contrast(themeColor(scope, '--color-gefinc-muted'), solid)).toBeGreaterThanOrEqual(4.5);
     });
 

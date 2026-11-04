@@ -51,19 +51,8 @@
     backdrop-filter: var(--glass-filter);
     box-shadow:
       inset 0 1px 0 var(--glass-fab-rim),
-      inset 0 -8px 14px -10px rgb(255 255 255 / 0.35),
       0 12px 28px -12px rgb(0 180 216 / 0.55);
   }
-}
-
-/* Rolagem do conteúdo (ScrollGlass marca a raiz com `data-scrolling` enquanto rola): sem desfoque e com fundos mais
-   opacos, para o conteúdo em movimento não pagar o custo do `backdrop-filter`; ao parar o desfoque real volta. Só
-   variáveis mudam. Os "-solid" já são opacos nos fallbacks do sistema, então esta regra nunca os enfraquece. */
-html[data-scrolling] {
-  --glass-filter: none;
-  --glass-nav-bg: var(--glass-nav-bg-solid);
-  --glass-fab-start: var(--glass-fab-start-solid);
-  --glass-fab-end: var(--glass-fab-end-solid);
 }
 
 /* Casca do app: cabeçalho, conteúdo rolável e a ilha de navegação flutuante. */
@@ -81,10 +70,12 @@ html[data-scrolling] {
 }
 @layer components {
   /* Ilha: pílula de vidro flutuante, centralizada sem `transform`, acima da barra de gestos, com desfoque real do fundo
-     (`--glass-filter`, que vira `none` na escolha "sólido", nos fallbacks do sistema e durante a rolagem). Decisões de
-     desempenho (a 120 Hz o desfoque sob superfície fixa sobre conteúdo que rola custou ~8 pontos de quadros lentos): o
-     desfoque existe SÓ na ilha e no botão flutuante, nunca empilhado com outro, nunca em cartões nem listas; `isolation`
-     sem `transform`/`filter`/opacidade animada em ancestrais (viram "raiz do fundo" e quebram ou encarecem o desfoque). */
+     (`--glass-filter`, que vira `none` na escolha "sólido" e nos fallbacks do sistema). O desfoque fica SEMPRE ligado no modo
+     padrão, sem pausa na rolagem: medido no celular a 120 Hz (Galaxy S21, Painel), pausar o desfoque ao rolar (troca de
+     atributo na raiz, que invalida os estilos da página) deu mais quadros lentos que não pausar (escuro: 6,56% contra 2,48%;
+     sem desfoque: 1,35%). Decisões de desempenho: o desfoque existe SÓ na ilha e no botão flutuante, nunca empilhado com
+     outro, nunca em cartões nem listas; `isolation` sem `transform`/`filter`/opacidade animada em ancestrais (viram "raiz
+     do fundo" e quebram ou encarecem o desfoque); sem `will-change`. */
   .gef-tabbar {
     @apply fixed z-40 flex gap-0.5 rounded-full p-1.5;
     inset-inline: 0;
@@ -95,8 +86,6 @@ html[data-scrolling] {
     border: 1px solid var(--glass-border);
     -webkit-backdrop-filter: var(--glass-filter);
     backdrop-filter: var(--glass-filter);
-    /* Ao entrar na rolagem só a cor do fundo transiciona; filtro e transform nunca animam. */
-    transition: background-color 0.15s ease-out;
     box-shadow:
       inset 0 1px 0 var(--glass-highlight),
       0 14px 32px -12px rgb(0 0 0 / 0.55);

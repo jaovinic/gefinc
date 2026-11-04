@@ -271,18 +271,11 @@ describe('shell do app móvel', () => {
     expect(more(el)).toBeNull();
   });
 
-  it('rolar o conteúdo marca a raiz com data-scrolling (desfoque desligado durante a rolagem)', async () => {
-    jest.useFakeTimers();
-    try {
-      const { el } = await open('/');
-      const main = el.querySelector('main.gef-shell-main') as HTMLElement;
-      main.dispatchEvent(new Event('scroll'));
-      expect(document.documentElement.hasAttribute('data-scrolling')).toBe(true);
-      jest.advanceTimersByTime(1000);
-      expect(document.documentElement.hasAttribute('data-scrolling')).toBe(false);
-    } finally {
-      jest.useRealTimers();
-    }
+  it('rolar o conteúdo não marca a raiz: o desfoque não pausa na rolagem', async () => {
+    const { el } = await open('/');
+    const main = el.querySelector('main.gef-shell-main') as HTMLElement;
+    main.dispatchEvent(new Event('scroll'));
+    expect(document.documentElement.hasAttribute('data-scrolling')).toBe(false);
   });
 
   it('escolher um destino do menu navega e fecha o painel', async () => {

@@ -22,9 +22,8 @@ describe('styles.css do app móvel - desfoque da ilha e do botão flutuante', ()
     expect(island).not.toContain('will-change');
   });
 
-  it('só a cor do fundo da ilha transiciona: nunca filtro nem transform', () => {
+  it('a ilha nunca anima filtro nem transform', () => {
     const island = rule('.gef-tabbar');
-    expect(island).toMatch(/transition:\s*background-color [\d.]+s/);
     expect(island).not.toMatch(/transition:[^;]*(filter|transform)/);
   });
 
@@ -44,14 +43,16 @@ describe('styles.css do app móvel - desfoque da ilha e do botão flutuante', ()
     }
   });
 
-  it('a rolagem (data-scrolling) muda só variáveis: filtro none e fundos sólidos; nada de transform nem de propriedade de filtro', () => {
-    const start = css.indexOf('html[data-scrolling] {');
-    expect(start).toBeGreaterThan(-1);
-    const body = css.slice(start, css.indexOf('\n}', start));
-    expect(body).toContain('--glass-filter: none');
-    expect(body).toContain('--glass-nav-bg: var(--glass-nav-bg-solid)');
-    expect(body).toContain('--glass-fab-start: var(--glass-fab-start-solid)');
-    expect(body).toContain('--glass-fab-end: var(--glass-fab-end-solid)');
-    expect(body).not.toMatch(/^\s*(-webkit-)?backdrop-filter:|transform|#[0-9a-fA-F]{3,8}\b/m);
+  it('não há pausa do desfoque na rolagem: nenhuma regra de data-scrolling nem variável trocada por rolagem', () => {
+    expect(css).not.toContain('data-scrolling');
+    expect(css).not.toContain('html[data-scrolling]');
+  });
+
+  it('o botão flutuante não tem reflexo inferior nem will-change; sombra externa e realce fino continuam', () => {
+    const action = rule('.gef-quick-action');
+    expect(action).not.toMatch(/inset 0 -\d+px/);
+    expect(action).not.toContain('will-change');
+    expect(action).toContain('inset 0 1px 0 var(--glass-fab-rim)');
+    expect(action).toMatch(/0 12px 28px -12px rgb\(0 180 216/);
   });
 });

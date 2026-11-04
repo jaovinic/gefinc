@@ -244,7 +244,13 @@ test.describe('ilha de navegação e contraste (app)', () => {
     await expect(more).toHaveCount(0);
     expect(await backdrop(nav(page))).toBe('none');
     expect(await backdrop(fab(page))).toBe('none');
-    await expect.poll(() => nav(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(19, 27, 46, 0.95)');
+    // totalmente opaco: o conteúdo não aparece "fantasma" por trás da ilha nem do botão
+    await expect.poll(() => nav(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(rgb(19, 27, 46));
+    const fabColors = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return ['--glass-fab-start', '--glass-fab-end'].map((name) => style.getPropertyValue(name).trim());
+    });
+    expect(fabColors).toEqual(['rgb(0 229 153)', 'rgb(0 180 216)']);
     expect(await nav(page).evaluate((el) => getComputedStyle(el).transform)).toBe('none');
 
     await page.reload();
@@ -322,53 +328,36 @@ test.describe('ilha de navegação e contraste (app)', () => {
     await expect.poll(() => backdrop(page.locator('.gef-sheet-backdrop'))).toBe('none');
   });
 
-  test('ao rolar o conteúdo o desfoque desliga e a ilha fica mais opaca; ao parar o desfoque volta', async ({ page, request }) => {
+  test('ao rolar o conteúdo o desfoque continua ligado: não há pausa na rolagem nem marca na raiz', async ({ page, request }) => {
     const user = await newUser(request);
     await signIn(page, user.email);
-    await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const main = document.querySelector('main.gef-shell-main') as HTMLElement;
       const filler = document.createElement('div');
       filler.style.height = '4000px';
       main.appendChild(filler);
-      const samples: { scrolling: boolean; filter: string; bg: string }[] = [];
-      (window as unknown as { __samples: typeof samples }).__samples = samples;
+      const island = document.querySelector('nav.gef-tabbar')!;
+      const action = document.querySelector('a.gef-quick-action');
+      const samples: { marked: boolean; filter: string; actionFilter: string; bg: string }[] = [];
       main.addEventListener('scroll', () => {
-        const island = document.querySelector('nav.gef-tabbar')!;
-        const style = getComputedStyle(island);
-        samples.push({ scrolling: document.documentElement.hasAttribute('data-scrolling'), filter: style.backdropFilter, bg: style.backgroundColor });
+        samples.push({
+          marked: document.documentElement.hasAttribute('data-scrolling'),
+          filter: getComputedStyle(island).backdropFilter,
+          actionFilter: action ? getComputedStyle(action).backdropFilter : 'blur',
+          bg: getComputedStyle(island).backgroundColor,
+        });
       }, { passive: true });
       main.scrollTop = 600;
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      return samples;
     });
-    const samples = () => page.evaluate(() => (window as unknown as { __samples: { scrolling: boolean; filter: string; bg: string }[] }).__samples);
-    await expect.poll(async () => (await samples()).length).toBeGreaterThan(0);
-    const first = (await samples())[0];
-    expect(first.scrolling).toBe(true);
-    expect(first.filter).toBe('none');
-    // a cor do fundo transiciona (150 ms) até o sólido; o alvo final é checado depois
-    await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute('data-scrolling'))).toBe(false);
-    expect(await backdrop(nav(page))).toContain('blur');
-    expect(await backdrop(fab(page))).toContain('blur');
-    await expect.poll(() => nav(page).evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(19, 27, 46, 0.8)');
-  });
-
-  test('rolar com o desfoque desligado não marca a raiz', async ({ page, request }) => {
-    const user = await newUser(request);
-    await page.addInitScript((key) => localStorage.setItem(key, 'flat'), GLASS_KEY);
-    await signIn(page, user.email);
-    const marked = await page.evaluate(async () => {
-      const main = document.querySelector('main.gef-shell-main') as HTMLElement;
-      const filler = document.createElement('div');
-      filler.style.height = '4000px';
-      main.appendChild(filler);
-      let seen = false;
-      main.addEventListener('scroll', () => {
-        seen ||= document.documentElement.hasAttribute('data-scrolling');
-      });
-      main.scrollTop = 600;
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      return seen;
-    });
-    expect(marked).toBe(false);
+    expect(result.length).toBeGreaterThan(0);
+    for (const sample of result) {
+      expect(sample.marked).toBe(false);
+      expect(sample.filter).toContain('blur(12px)');
+      expect(sample.actionFilter).toContain('blur');
+      expect(sample.bg).toBe('rgba(19, 27, 46, 0.8)');
+    }
   });
 
   for (const scheme of ['light', 'dark'] as const) {

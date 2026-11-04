@@ -66,6 +66,12 @@ Decisões técnicas (D1–D15) que resolvem as incógnitas do plano.
 - **Decisão**: receita e despesa passam a ter **sinal (+/−), ícone de seta e cor**; status ganha ícone (pago ✓, pendente relógio, atrasado alerta) além do texto e da cor; tokens de texto sobre superfície validados em AA (a auditoria axe existente cobre as telas novas).
 - **Racional**: FR-031 e FR-034; o E2E de conforto já existe e é estendido.
 
+## D11b. Vidro (Liquid Glass) no app móvel: desfoque sempre ligado, sem pausa na rolagem
+
+- **Decisão**: no modo padrão (`blur`) a ilha e o botão "Novo lançamento" mantêm o `backdrop-filter` (12 px, saturação 140%) **o tempo todo**, inclusive durante a rolagem. Não existe pausa do desfoque ao rolar (a diretiva `gefScrollGlass` e o atributo `data-scrolling` foram removidos). Fallbacks mantidos: `prefers-reduced-transparency`, `prefers-contrast: more`, `@supports not` e a escolha "Desfoque (vidro)" desligada (`data-glass='flat'`), todos com fundos totalmente opacos (alfa 1) e sem desfoque.
+- **Medição** (Galaxy S21, 120 Hz, tela Painel, 5 rodadas por modo, 20 deslizes de 600 px em 300 ms; `dumpsys gfxinfo`): quadros lentos, claro/escuro: desfoque desligado 1,35% / 1,35%; desfoque sempre ligado 2,54% / 2,48%; desfoque com pausa na rolagem 4,02% / 6,56%. Critério (modo escolhido no máximo 3 pontos percentuais acima do desligado e até 10%): o desfoque sempre ligado passa nos dois temas (+1,19 e +1,13 pp); a pausa falha no escuro (+5,21 pp).
+- **Racional**: trocar `data-scrolling` na raiz invalida os estilos da página inteira e cria picos de 25 a 92 ms no início e no fim da rolagem, pior que o custo do desfoque. O efeito desejado é o desfoque, não luzes e reflexos: brilho, realce e borda do botão e da ilha foram reduzidos (o botão perdeu o reflexo inferior).
+
 ## D12. Migração dos dados existentes
 
 - **Decisão**: V7 acrescenta as colunas, preenche `holder_type = 'PF'` nas contas `CHECKING` existentes e deixa `icon` e `bank_account_id` nulos. O ícone padrão é resolvido na **resposta da API** (não gravado), então mudar o padrão não exige migração. Um teste usa a API do Flyway para migrar até V6, inserir dados legados e migrar até a última.

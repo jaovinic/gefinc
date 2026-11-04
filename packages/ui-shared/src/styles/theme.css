@@ -64,28 +64,31 @@ body {
   --glass-blur: 12px;
   --glass-saturate: 140%;
   /* O filtro é uma variável: as superfícies só a leem. Desligar o desfoque (escolha "sólido", sistema pedindo menos
-     transparência, sem suporte ou rolagem no app móvel) troca ESTAS variáveis por `none` e os fundos por opacos, nunca
-     a propriedade nas regras (um redeclarar em outro arquivo venceria a lista de seletores). */
+     transparência ou sem suporte) troca ESTAS variáveis por `none` e os fundos por opacos, nunca a propriedade nas
+     regras (um redeclarar em outro arquivo venceria a lista de seletores). Não há pausa do desfoque na rolagem: medido no
+     celular a 120 Hz, desligá-lo ao rolar (troca de atributo na raiz) custou MAIS quadros lentos que mantê-lo ligado. */
   --glass-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   --glass-filter-light: blur(calc(var(--glass-blur) * 0.75)) saturate(var(--glass-saturate));
   /* Véu dos painéis: o desfoque fica no fundo do painel, que cobre a tela (o painel nunca leva filtro). */
   --glass-filter-scrim: blur(6px);
   /* Ilha do app móvel: vidro translúcido para o desfoque aparecer; o alfa só desce até onde o rótulo mantém AA
-     (testado com o fundo médio entre o fundo e o texto do tema atrás). O "-solid" é o fundo sem desfoque. */
+     (testado com o fundo médio entre o fundo e o texto do tema atrás). O "-solid" é o fundo sem desfoque e é
+     totalmente opaco (alfa 1): nada do conteúdo aparece "fantasma" por trás. */
   --glass-nav-bg: rgb(19 27 46 / 0.8);
-  --glass-nav-bg-solid: rgb(19 27 46 / 0.95);
+  --glass-nav-bg-solid: rgb(19 27 46);
   /* Indicador de vidro da aba ativa (marca em alfa baixo + brilho suave no topo). */
   --glass-indicator-tint: rgb(0 229 153 / 0.14);
   --glass-indicator-sheen: rgb(255 255 255 / 0.08);
   /* Botão flutuante de novo lançamento: gradiente de marca translúcido sobre o desfoque. O alfa não pode descer muito:
-     a ponta ciano com o texto escuro é o limite do AA sobre o fundo mais escuro. O "-solid" é o gradiente sem desfoque. */
+     a ponta ciano com o texto escuro é o limite do AA sobre o fundo mais escuro. O "-solid" é o gradiente sem desfoque,
+     totalmente opaco. Brilho, realce e borda são discretos de propósito: o efeito é o desfoque, não luzes e reflexos. */
   --glass-fab-start: rgb(0 229 153 / 0.86);
   --glass-fab-end: rgb(0 180 216 / 0.86);
-  --glass-fab-start-solid: rgb(0 229 153 / 0.95);
-  --glass-fab-end-solid: rgb(0 180 216 / 0.93);
-  --glass-fab-sheen: rgb(255 255 255 / 0.2);
-  --glass-fab-rim: rgb(255 255 255 / 0.5);
-  --glass-fab-border: rgb(255 255 255 / 0.28);
+  --glass-fab-start-solid: rgb(0 229 153);
+  --glass-fab-end-solid: rgb(0 180 216);
+  --glass-fab-sheen: rgb(255 255 255 / 0.09);
+  --glass-fab-rim: rgb(255 255 255 / 0.25);
+  --glass-fab-border: rgb(255 255 255 / 0.18);
   --aurora-a: rgb(0 229 153 / 0.1);
   --aurora-b: rgb(0 180 216 / 0.1);
   --aurora-c: rgb(124 58 237 / 0.06);
@@ -117,15 +120,15 @@ html[data-theme='light'] {
   --glass-bg: rgb(255 255 255 / 0.7);
   --glass-bg-strong: rgb(255 255 255 / 0.8);
   --glass-border: rgb(71 85 105 / 0.2);
-  --glass-highlight: rgb(255 255 255 / 0.85);
+  --glass-highlight: rgb(255 255 255 / 0.3);
   --glass-shadow: 0 10px 28px -14px rgb(15 23 42 / 0.25);
   --glass-nav-bg: rgb(255 255 255 / 0.82);
-  --glass-nav-bg-solid: rgb(255 255 255 / 0.94);
+  --glass-nav-bg-solid: rgb(255 255 255);
   --glass-fab-start: rgb(0 229 153 / 0.84);
   --glass-fab-end: rgb(0 180 216 / 0.84);
   --glass-indicator-tint: rgb(4 105 75 / 0.14);
-  --glass-indicator-sheen: rgb(255 255 255 / 0.55);
-  --glass-fab-border: rgb(255 255 255 / 0.65);
+  --glass-indicator-sheen: rgb(255 255 255 / 0.2);
+  --glass-fab-border: rgb(255 255 255 / 0.35);
   --aurora-a: rgb(0 229 153 / 0.07);
   --aurora-b: rgb(0 180 216 / 0.07);
   --aurora-c: rgb(124 58 237 / 0.04);
@@ -150,7 +153,7 @@ body::before {
 
 /* Sem suporte a desfoque, com pouca transparência pedida ou com contraste alto: sem desfoque e superfícies opacas
    e legíveis. Mudam só variáveis (`--glass-filter: none` e os fundos); vêm depois do tema claro para vencê-lo
-   (mesma especificidade) e também definem os "-solid", para a escolha "sólido" e a rolagem nunca os enfraquecerem. */
+   (mesma especificidade) e também definem os "-solid", para a escolha "sólido" nunca os enfraquecer. */
 @media (prefers-reduced-transparency: reduce) {
   :root,
   html[data-theme] {
