@@ -314,7 +314,7 @@ docker compose -f docker-compose.oracle.yml logs -f api-server
 Com a API remota rodando sob HTTPS com certificado válido, você pode compilar o app mobile na sua máquina de desenvolvimento local e instalá-lo no celular físico.
 
 ### 6.1. Alterando o Endpoint da API no Mobile
-Edite o arquivo [apps/mobile-app/src/environments/environment.ts](file:///home/xiriu/Projetos/jvtech/gefinc/apps/mobile-app/src/environments/environment.ts):
+Edite o arquivo `apps/mobile-app/src/environments/environment.prod.ts`:
 
 ```typescript
 export const environment = {
@@ -323,15 +323,17 @@ export const environment = {
 };
 ```
 
-> O mobile não tem `environment.prod`: o valor de `environment.ts` vai direto para o APK. O build antigo em `apps/mobile-app/android/app/src/main/assets/public` persiste até um novo sync.
+> O build de produção troca `environment.ts` (desenvolvimento) por `environment.prod.ts`, e é esse valor que vai para o APK. O build antigo em `apps/mobile-app/android/app/src/main/assets/public` persiste até um novo sync.
 
 ### 6.2. Fluxo de Build e Sincronização do Capacitor
 No seu computador local, execute os comandos do Nx e Capacitor:
 
 ```bash
-# Build do frontend móvel + cap sync (com o diretório correto, apps/mobile-app)
+# Build de produção do frontend móvel (usa environment.prod.ts) + cap sync (com o diretório correto, apps/mobile-app)
 npx nx run mobile-app:sync
 ```
+
+O `sync` já é de produção; o build de dev (`npx nx build mobile-app --configuration=development`) só serve para a API local.
 
 Qualquer comando `cap` executado diretamente precisa de `cd apps/mobile-app` antes.
 

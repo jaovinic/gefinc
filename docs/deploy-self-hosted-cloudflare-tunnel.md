@@ -446,9 +446,9 @@ No Cloudflare Pages, vá na aba **Custom domains** do projeto e configure seu su
 
 O aplicativo móvel compilado com **Capacitor** roda nativamente no smartphone (Android/iOS) sob o esquema local (`https://localhost` no Android, padrão do Capacitor 8, e `capacitor://localhost` no iOS). Assim como o web, ele consome diretamente o endpoint público HTTPS do Cloudflare Tunnel.
 
-### 7.1. Configuração do Endpoint no Código
+### 7.1. Configuração do Endpoint de Produção
 
-Edite o arquivo `apps/mobile-app/src/environments/environment.ts`:
+Edite o arquivo `apps/mobile-app/src/environments/environment.prod.ts`:
 
 ```typescript
 export const environment = {
@@ -458,16 +458,25 @@ export const environment = {
 ```
 
 > [!WARNING]
-> A URL da API deve ser `https://`. O mobile **não** tem `environment.prod`: o valor de `environment.ts` vai direto para o APK. Um build antigo permanece em `apps/mobile-app/android/app/src/main/assets/public` até que um novo `sync` seja executado; depois de alterar o endereço, sincronize novamente antes de gerar o APK.
+> A URL da API deve ser `https://`. O build de produção troca `environment.ts` (desenvolvimento, `http://localhost:8080`) por `environment.prod.ts` (fileReplacements), e é esse valor que vai para o APK. Um build antigo permanece em `apps/mobile-app/android/app/src/main/assets/public` até que um novo `sync` seja executado; depois de alterar o endereço, sincronize novamente antes de gerar o APK.
 
 ### 7.2. Compilação e Sincronização do Capacitor
 
 No seu computador de desenvolvimento, na raiz do repositório:
 
 ```bash
-# Build do frontend móvel + cap sync (já executa com o diretório correto, apps/mobile-app)
+# Build de produção do frontend móvel (usa environment.prod.ts) + cap sync (já executa com o diretório correto, apps/mobile-app)
 npx nx run mobile-app:sync
 ```
+
+O `sync` já é de produção. Para desenvolver contra a API local (com `adb reverse tcp:8080 tcp:8080`), use o build de dev:
+
+```bash
+npx nx build mobile-app --configuration=development
+cd apps/mobile-app && npx cap sync android
+```
+
+Depois de um build de dev, rode `npx nx run mobile-app:sync --skip-nx-cache` para voltar o asset local ao de produção antes de gerar o APK para o celular.
 
 > [!NOTE]
 > Qualquer comando `cap` executado diretamente (ex.: `npx cap sync android`) precisa ser rodado dentro de `apps/mobile-app` (`cd apps/mobile-app`), onde está o `capacitor.config.ts`.
@@ -502,7 +511,7 @@ O APK fica em `apps/mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
 > A tarefa `assembleRelease` não tem `signingConfigs` configurado: o APK de release sai sem assinatura e não instala. Para testes, use `assembleDebug`.
 
 > [!TIP]
-> Ao usar flags do Nx como `--skip-nx-cache`, passe-as **sem** `--` (ex.: `npx nx run mobile-app:sync --skip-nx-cache`); com `--` a flag é repassada ao `cap sync` e o comando falha. Para validar o bundle sincronizado, o comando abaixo deve imprimir `0` para cada arquivo:
+> Ao usar flags do Nx como `--skip-nx-cache`, passe-as **sem** `--` (ex.: `npx nx run mobile-app:sync --skip-nx-cache`); com `--` a flag é repassada ao `cap sync` e o comando falha. Para validar o bundle sincronizado, o comando abaixo deve imprimir `0` para cada arquivo. O script `tools/check-prod-bundle.mjs` faz a verificação completa do build (`node tools/check-prod-bundle.mjs --dist dist/apps/mobile-app/browser --env apps/mobile-app/src/environments/environment.prod.ts`):
 >
 > ```bash
 > grep -c "localhost:8080" apps/mobile-app/android/app/src/main/assets/public/main-*.js

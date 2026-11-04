@@ -144,18 +144,21 @@ O app tem as **mesmas funções do web**, em telas pensadas para o celular (barr
 Gerar e instalar o app Android (precisa do Android SDK; `ANDROID_HOME`):
 
 ```bash
-npx nx run mobile-app:sync                                   # build do web + sincroniza os projetos nativos
+npx nx run mobile-app:sync                                   # build de produção (URL pública via environment.prod.ts) + sincroniza os projetos nativos
 cd apps/mobile-app/android && ./gradlew assembleDebug        # gera app/build/outputs/apk/debug/app-debug.apk
 adb reverse tcp:8080 tcp:8080 && adb install -r app/build/outputs/apk/debug/app-debug.apk
 node apps/mobile-app-e2e/device/android-smoke.cjs <serial>   # roteiro de fumaça no aparelho (adb devices)
 ```
 
-Ajuste `apps/mobile-app/src/environments/environment.ts` para a API desejada antes de gerar o build: API pública
-(`https://api.gefinc.tech/api/v1` no deploy atual) ou API local (`http://10.0.2.2:8080/api/v1` no emulador Android, ou
-`http://localhost:8080/api/v1` com `adb reverse` em um aparelho por USB; o build de debug libera HTTP só para
-`localhost`). Não há `environment.prod` no mobile: o valor desse arquivo vai direto para o APK, então confira o bundle
-antes de instalar (`grep -c "localhost:8080" apps/mobile-app/android/app/src/main/assets/public/main-*.js` deve dar 0
-para build de produção).
+O build de produção (incluindo `npx nx run mobile-app:sync`) usa `apps/mobile-app/src/environments/environment.prod.ts`
+automaticamente, com a API pública (`https://api.gefinc.tech/api/v1` no deploy atual); para outro domínio, edite esse
+arquivo. Para desenvolver contra a API local, gere o build de desenvolvimento
+(`npx nx build mobile-app --configuration=development` e depois `cd apps/mobile-app && npx cap sync android`) e use
+`adb reverse tcp:8080 tcp:8080`: o build de debug libera HTTP só para `localhost` (o `10.0.2.2` é bloqueado). Depois de
+um build de dev, volte o asset local ao de produção (`npx nx run mobile-app:sync --skip-nx-cache`) antes de gerar o APK
+para o celular. Confira o bundle antes de instalar:
+`node tools/check-prod-bundle.mjs --dist dist/apps/mobile-app/browser --env apps/mobile-app/src/environments/environment.prod.ts`
+(ou `grep -c "https://api.gefinc.tech/api/v1" apps/mobile-app/android/app/src/main/assets/public/main-*.js`, que deve dar 1).
 
 O build do **iOS** precisa de um Mac com Xcode (`npx nx run mobile-app:open -- ios`); o projeto já está sincronizado.
 
