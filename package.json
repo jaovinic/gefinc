@@ -9,7 +9,8 @@
     "build": "nx run-many -t build",
     "lint": "nx run-many -t lint",
     "brand:generate": "node tools/brand/generate-assets.mjs",
-    "brand:test": "node --test tools/brand/ico.test.mjs"
+    "brand:test": "node --test tools/brand/ico.test.mjs",
+    "tools:test": "node --test tools/check-prod-bundle.test.mjs"
   },
   "devDependencies": {
     "@angular-devkit/core": "~22.2.0",

@@ -32,6 +32,12 @@
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/mobile-app/src/environments/environment.ts",
+              "with": "apps/mobile-app/src/environments/environment.prod.ts"
+            }
+          ],
           "budgets": [
             {
               "type": "initial",
@@ -96,6 +102,16 @@
       "options": {
         "cwd": "apps/mobile-app",
         "command": "npx cap sync"
+      }
+    },
+    "check-prod-bundle": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false,
+      "options": {
+        "command": "node tools/check-prod-bundle.mjs --dist dist/apps/mobile-app/browser --env apps/mobile-app/src/environments/environment.prod.ts"
       }
     },
     "open": {
