@@ -239,7 +239,7 @@ lançamentos.
 | e-mail único e válido; senha dentro da política | FR-001 | serviço + índice único |
 | `closing_day`/`due_day` 1–31, obrigatórios só no cartão | FR-012 | `CHECK` + serviço |
 | valores > 0 com 2 casas decimais; datas válidas | FR-026 | `CHECK` + Bean Validation |
-| soma das parcelas = `total_amount` (resto na última) | FR-024 | `InstallmentScheduler` + teste |
+| soma das parcelas = `total_amount` (resto na primeira) | FR-024 | `InstallmentScheduler` + teste |
 | vencimento no cartão conforme fechamento (parcela, avulso e fixo) | FR-022 | `DueDateCalculator` |
 | vencimento mensal fora do cartão | FR-023 | `InstallmentScheduler` |
 | pagamento de fatura ≤ restante; restante ≥ 0 | FR-034, FR-038 | serviço (transação com `FOR UPDATE`) |

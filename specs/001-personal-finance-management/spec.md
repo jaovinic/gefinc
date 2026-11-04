@@ -98,7 +98,7 @@ O usuário registra uma compra ou obrigação dividida em N parcelas, em um cart
 
 1. **Given** um cartão com fechamento no dia 10 e vencimento no dia 17, **When** o usuário registra uma compra de R$ 100,00 em 4 parcelas no dia 5, **Then** são geradas 4 parcelas de R$ 25,00, a primeira na fatura que vence no dia 17 do mesmo mês.
 2. **Given** o mesmo cartão, **When** a compra ocorre no dia 12 (após o fechamento), **Then** a primeira parcela vai para a fatura que vence no mês seguinte.
-3. **Given** uma compra de R$ 100,00 em 3 parcelas, **When** as parcelas são geradas, **Then** a soma é exatamente R$ 100,00 (por exemplo 33,33 + 33,33 + 33,34), com a diferença de centavos aplicada na última parcela.
+3. **Given** uma compra de R$ 100,00 em 3 parcelas, **When** as parcelas são geradas, **Then** a soma é exatamente R$ 100,00 (por exemplo 33,34 + 33,33 + 33,33), com a diferença de centavos aplicada na primeira parcela.
 4. **Given** uma compra parcelada com parcelas já pagas, **When** o usuário marca a parcela 2 como paga, **Then** apenas essa parcela muda de status e as demais permanecem pendentes.
 5. **Given** uma compra parcelada, **When** o usuário a exclui, **Then** o sistema pede confirmação e remove as parcelas pendentes, preservando as já pagas ou informando claramente o que será removido.
 6. **Given** uma compra com 1 parcela, **When** registrada, **Then** é tratada como uma parcela única sem erro.
@@ -171,7 +171,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - Compra feita exatamente no dia de fechamento: regra definida e consistente (a compra do dia de fechamento entra na fatura corrente, conforme Assumptions).
 - Dia de vencimento anterior ao dia de fechamento (ex.: fecha dia 25, vence dia 5): o vencimento ocorre no mês seguinte ao fechamento.
 - Parcelas que atravessam a virada de ano: as datas continuam corretas.
-- Divisão com resto de centavos: a soma das parcelas é sempre exatamente o valor total.
+- Divisão com resto de centavos: a soma das parcelas é sempre exatamente o valor total; todo o resto fica na primeira parcela.
 - Alteração de valor ou exclusão de uma compra parcelada com parcelas já pagas.
 - Lançamento fixo que precisa ser encerrado ou ter o valor alterado em determinado mês.
 - Lançamento fixo em cartão com data de compra depois do dia de fechamento: a ocorrência vai para a fatura do mês seguinte.
@@ -230,7 +230,7 @@ No aplicativo móvel, o usuário registra uma despesa do dia a dia em poucos toq
 - **FR-021**: Para compras parceladas, o sistema MUST gerar automaticamente todas as parcelas, uma por mês, até a quitação.
 - **FR-022**: Para cartões de crédito, o sistema MUST calcular a data de vencimento de cada lançamento (parcela, compra avulsa ou ocorrência de lançamento fixo) a partir do dia de fechamento e do dia de vencimento, sem que o usuário informe o vencimento: compras feitas após o fechamento entram na fatura seguinte, e cada ocorrência fixa é tratada como compra na data de compra do mês correspondente.
 - **FR-023**: O sistema MUST permitir parcelamento em qualquer conta ou cartão; fora do cartão de crédito, as parcelas MUST vencer mensalmente a partir da data de vencimento informada, usando o último dia do mês quando o dia não existir.
-- **FR-024**: A soma das parcelas MUST ser exatamente igual ao valor total da compra, com o resto de centavos aplicado à última parcela.
+- **FR-024**: A soma das parcelas MUST ser exatamente igual ao valor total da compra, com o resto de centavos aplicado à primeira parcela.
 - **FR-025**: Usuários MUST poder editar e excluir lançamentos; ao alterar ou excluir uma compra parcelada, o sistema MUST informar o efeito sobre as parcelas já pagas e pedir confirmação.
 - **FR-026**: O sistema MUST validar os dados dos lançamentos (valor maior que zero, datas válidas, campos obrigatórios) e apresentar mensagens claras em português.
 - **FR-027**: Usuários MUST poder listar e filtrar lançamentos por mês, conta/cartão, categoria, tipo e status.
