@@ -102,14 +102,16 @@ opening_balance = 0)`. `openingBalance` (dinheiro, opcional, pode ser negativo) 
 ### `GET /balances`
 
 `Balances { asOf, total, accounts[], unlinkedCardPayments }`; `AccountBalance { accountId, name, type
-(CHECKING|CASH), active, balance, openingBalance }`. Para cada conta que não é cartão (ativa ou inativa):
+(CHECKING|CASH), active, balance, openingBalance }`. `accounts[]` traz cada conta que não é cartão (ativa ou inativa), com o saldo real e a flag `active`:
 
 `balance = openingBalance + receitas PAID (paymentDate <= hoje) − despesas PAID da própria conta − saídas dos cartões vinculados`
 
 As saídas de um cartão vinculado (`bank_account_id` = conta) são as despesas de cartão pagas individualmente
 (`settled_by_payment_id` nulo, `paymentDate <= hoje`) mais os pagamentos de fatura (`paid_at <= hoje`). Itens
 quitados por pagamento de fatura não entram (o pagamento já os cobre). Saídas de cartão sem vínculo somam em
-`unlinkedCardPayments` e não debitam conta. `total` é a soma dos saldos das contas.
+`unlinkedCardPayments` e não debitam conta. `total` é a soma dos saldos apenas das contas **ativas**: conta
+inativa continua em `accounts[]` (a tela de Contas lê o saldo dali), mas não entra no total; reativar volta a somar
+(o saldo é derivado a cada chamada, sem estado gravado).
 
 ### Removido do contrato
 
@@ -118,7 +120,7 @@ quitados por pagamento de fatura não entram (o pagamento já os cobre). Saídas
 ## Interface do saldo e do novo lançamento
 
 - Painel: o seletor de mês é o primeiro elemento do conteúdo (acima do saldo); `gef-balance-panel` (saldo geral em
-  destaque, uma linha por conta, conta inativa com saldo zero oculta, aviso de `unlinkedCardPayments`; sem o atalho
+  destaque, uma linha por conta, toda conta inativa oculta (mesmo com saldo), estado "Nenhuma conta ativa" quando todas estão inativas, aviso de `unlinkedCardPayments`; sem o atalho
   "Gerenciar contas", removido em round 3) é carregado de `GET /balances` em separado do painel do mês, e trocar o
   mês recarrega só o painel do mês; o card "Saldo do mês"
   deixou de existir. Indicadores do mês: A pagar, Pago, Atrasado e A receber (`data-indicator="to-receive"`, sempre

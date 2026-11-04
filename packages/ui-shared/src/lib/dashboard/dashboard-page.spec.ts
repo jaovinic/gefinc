@@ -180,6 +180,21 @@ describe('DashboardPage', () => {
     expect(panel.textContent).toContain('-R$ 200,00');
   });
 
+  it('não mostra conta inativa no painel, mesmo com saldo, e o saldo geral é o total do servidor', async () => {
+    const withInactive = {
+      ...balances,
+      accounts: [
+        ...balances.accounts,
+        { accountId: 9, name: 'Conta encerrada', type: 'CHECKING', active: false, balance: '800.00', openingBalance: '0.00' },
+      ],
+    };
+    const { el } = await setup(full, withInactive);
+    const panel = el.querySelector('gef-balance-panel')!;
+    expect(panel.querySelectorAll('[data-testid="account-balance"]')).toHaveLength(2);
+    expect(panel.textContent).not.toContain('Conta encerrada');
+    expect(panel.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 1.300,00');
+  });
+
   it('o seletor de mês vem antes do painel de saldo e do "Neste mês"', async () => {
     const { el } = await setup(full);
     const order = (selector: string) => Array.from(el.querySelectorAll('*')).indexOf(el.querySelector(selector)!);

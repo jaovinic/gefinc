@@ -545,6 +545,30 @@ describe('AccountsPage', () => {
       expect(el.querySelector('[data-testid="balances-error"]')).toBeNull();
     });
 
+    it('conta inativa com saldo diferente de zero mostra o saldo real e o botão Reativar', () => {
+      const { el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush([itau]);
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+
+      const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement;
+      checkbox.checked = true;
+      checkbox.dispatchEvent(new Event('change'));
+      expectList(true).flush([itau, { ...carteira, active: false }]);
+      expectBalances().flush({
+        ...withBalances,
+        total: '1500.00',
+        accounts: [
+          withBalances.accounts[0],
+          { accountId: 2, name: 'Carteira', type: 'CASH', active: false, balance: '300.00', openingBalance: '0.00' },
+        ],
+      });
+      fixture.detectChanges();
+
+      expect(balanceCells(el).map((c) => c.textContent)).toEqual([expect.stringContaining('R$ 1.500,00'), expect.stringContaining('R$ 300,00')]);
+      expect(Array.from(el.querySelectorAll('button')).some((b) => b.textContent?.trim() === 'Reativar')).toBe(true);
+    });
+
     it('conta inativa sem saldo na resposta mostra R$ 0,00', () => {
       const { el, fixture, expectList, expectBalances } = setup();
       expectList(false).flush([{ ...carteira, active: false }]);

@@ -24,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  * mais receitas recebidas, menos despesas pagas da própria conta, menos as saídas dos cartões
  * vinculados (despesas de cartão pagas individualmente e pagamentos de fatura). Itens quitados por
  * pagamento de fatura não entram de novo; receita legada em cartão é ignorada. Saídas de cartão sem
- * conta vinculada não debitam conta alguma e aparecem à parte.
+ * conta vinculada não debitam conta alguma e aparecem à parte. Todas as contas voltam com o saldo
+ * real e a flag {@code active}, mas o total soma apenas as ativas: conta inativa não entra no Saldo
+ * Geral, mesmo com saldo.
  */
 @Service
 public class BalanceService {
@@ -121,7 +123,10 @@ public class BalanceService {
                         scale(a.getOpeningBalance())))
             .toList();
     BigDecimal total =
-        list.stream().map(AccountBalance::balance).reduce(BigDecimal.ZERO, BigDecimal::add);
+        list.stream()
+            .filter(AccountBalance::active)
+            .map(AccountBalance::balance)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     return new Balances(today, scale(total), list, scale(unlinked));
   }
 

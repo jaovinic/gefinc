@@ -14,7 +14,8 @@ function toneOf(value: string): Tone {
 }
 
 /**
- * Saldo por conta e saldo geral (soma das contas) até hoje. Apresentação pura: quem carrega o
+ * Saldo por conta e saldo geral (soma das contas ativas, calculada pelo servidor) até hoje. Conta
+ * inativa não aparece aqui nem entra no total, mesmo com saldo. Apresentação pura: quem carrega o
  * `GET /balances` é a tela. Sinal e ícone reforçam positivo/negativo além da cor.
  */
 @Component({
@@ -47,9 +48,15 @@ function toneOf(value: string): Tone {
 
       @if (rows().length === 0) {
         <div class="rounded-xl border border-dashed border-gefinc-border p-4 text-center" data-testid="balance-empty">
-          <p class="text-body-base font-medium">Nenhuma conta cadastrada</p>
-          <p class="text-caption text-gefinc-muted">Cadastre uma conta para acompanhar o saldo de cada uma.</p>
-          <a class="gef-btn-secondary mt-3 inline-block" [routerLink]="paths.accounts">Cadastrar conta</a>
+          @if (allInactive()) {
+            <p class="text-body-base font-medium">Nenhuma conta ativa</p>
+            <p class="text-caption text-gefinc-muted">Reative uma conta para ela voltar a aparecer e somar no saldo.</p>
+            <a class="gef-btn-secondary mt-3 inline-block" [routerLink]="paths.accounts">Ver contas</a>
+          } @else {
+            <p class="text-body-base font-medium">Nenhuma conta cadastrada</p>
+            <p class="text-caption text-gefinc-muted">Cadastre uma conta para acompanhar o saldo de cada uma.</p>
+            <a class="gef-btn-secondary mt-3 inline-block" [routerLink]="paths.accounts">Cadastrar conta</a>
+          }
         </div>
       } @else {
         <ul
@@ -95,11 +102,14 @@ export class BalancePanel {
   protected readonly asOfLabel = computed(() => isoToBR(this.data().asOf).slice(0, 5));
   protected readonly hasUnlinked = computed(() => toCents(this.data().unlinkedCardPayments) > 0n);
 
-  /** Uma linha por conta; conta inativa com saldo zero fica oculta. */
+  /** Existem contas, mas nenhuma está ativa. */
+  protected readonly allInactive = computed(() => this.data().accounts.length > 0 && this.rows().length === 0);
+
+  /** Uma linha por conta ativa; conta inativa fica oculta, mesmo com saldo (e não soma no total). */
   protected readonly rows = computed(() => {
     const known = new Map(this.accounts().map((a) => [a.id, a]));
     return this.data()
-      .accounts.filter((a) => a.active || toCents(a.balance) !== 0n)
+      .accounts.filter((a) => a.active)
       .map((a) => {
         const full = known.get(a.accountId);
         const account: AccountLike = full ?? { name: a.name, type: a.type };
