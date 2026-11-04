@@ -5,12 +5,24 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
 /** Corpos de requisição e resposta de {@code /accounts}, conforme o contrato OpenAPI. */
 public final class AccountDtos {
+
+  /**
+   * {@code #RRGGBB}, obrigatoriamente (no {@code POST} a cor é omitida ou válida; vazio é
+   * recusado).
+   */
+  static final String COLOR_REGEX = "^#[0-9A-Fa-f]{6}$";
+
+  /** {@code #RRGGBB} ou a string vazia, que em {@code PUT} significa "remover a cor". */
+  static final String COLOR_UPDATE_REGEX = "^(#[0-9A-Fa-f]{6})?$";
+
+  static final String COLOR_MESSAGE = "Use uma cor no formato #RRGGBB.";
 
   private AccountDtos() {}
 
@@ -27,6 +39,7 @@ public final class AccountDtos {
       HolderType holderType,
       AccountIcon icon,
       Long bankAccountId,
+      @Pattern(regexp = COLOR_REGEX, message = COLOR_MESSAGE) String colorHex,
       @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
           BigDecimal openingBalance) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
@@ -49,6 +62,7 @@ public final class AccountDtos {
       HolderType holderType,
       AccountIcon icon,
       Long bankAccountId,
+      @Pattern(regexp = COLOR_UPDATE_REGEX, message = COLOR_MESSAGE) String colorHex,
       @Digits(integer = 15, fraction = 2, message = "Valor fora do limite permitido.")
           BigDecimal openingBalance,
       @NotNull(message = "Informe se a conta está ativa.") Boolean active,
@@ -70,6 +84,7 @@ public final class AccountDtos {
       AccountIcon icon,
       Long bankAccountId,
       String bankAccountName,
+      String colorHex,
       BigDecimal openingBalance,
       boolean active,
       long version) {
@@ -92,6 +107,7 @@ public final class AccountDtos {
           icon,
           a.getBankAccountId(),
           bank != null ? bank.getName() : null,
+          a.getColorHex(),
           a.getOpeningBalance(),
           a.isActive(),
           a.getVersion());

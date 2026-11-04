@@ -1,0 +1,16 @@
+{
+  "colors": [
+    { "name": "Azul", "hex": "#2563EB" },
+    { "name": "Ciano", "hex": "#0891B2" },
+    { "name": "Turquesa", "hex": "#0D9488" },
+    { "name": "Verde", "hex": "#16A34A" },
+    { "name": "Oliva", "hex": "#4D7C0F" },
+    { "name": "Ocre", "hex": "#A16207" },
+    { "name": "Laranja", "hex": "#EA580C" },
+    { "name": "Carmim", "hex": "#E11D48" },
+    { "name": "Rosa", "hex": "#DB2777" },
+    { "name": "Magenta", "hex": "#C026D3" },
+    { "name": "Violeta", "hex": "#7C3AED" },
+    { "name": "Cinza", "hex": "#6B7280" }
+  ]
+}
