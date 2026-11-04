@@ -1,0 +1,2 @@
+/api/*  https://api.gefinc.tech/api/:splat  200
+/*      /index.html                         200

@@ -158,9 +158,11 @@ Antes de subir os containers no computador local, crie o túnel na Cloudflare:
 3. Selecione o tipo de conector **Cloudflare (`cloudflared`)** e clique em **Next**.
 4. Dê um nome ao túnel (exemplo: `gefinc-selfhost-tunnel`).
 5. Na tela seguinte (*Install and run a connector*), localize a seção **Docker**. Você verá um comando contendo um token longo:
+
    ```bash
    docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token <SEU_TUNNEL_TOKEN>
    ```
+
    **Copie apenas o token** (a sequência alfanumérica longa após `--token`). Guarde-o para o arquivo `.env`.
 6. Na aba **Public Hostnames** do túnel:
    - Clique em **Add a public hostname**.
@@ -193,17 +195,18 @@ Antes de executar a compilação dos containers, certifique-se de que o arquivo 
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /workspace
 
-# Copiar arquivos de dependências do Maven
-COPY apps/api-server/.mvn .mvn
-COPY apps/api-server/mvnw .
+# Instalar Maven nativo para evitar timeouts do wrapper
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
+
+# Copiar apenas o descritor de dependências primeiro (otimização de cache)
 COPY apps/api-server/pom.xml .
 
-# Baixar dependências para cache
-RUN ./mvnw dependency:go-offline -B
+# Baixar dependências
+RUN mvn dependency:go-offline -B
 
-# Copiar o código fonte e gerar o pacote
+# Copiar o código-fonte e compilar o .jar
 COPY apps/api-server/src src
-RUN ./mvnw clean package -DskipTests -B
+RUN mvn clean package -DskipTests -B
 
 # Estágio 2: Imagem final enxuta com JRE 21
 FROM eclipse-temurin:21-jre-jammy
@@ -212,7 +215,7 @@ WORKDIR /app
 # Usuário de sistema não privilegiado
 RUN groupadd -r gefinc && useradd -r -g gefinc gefinc
 
-COPY --from=builder /workspace/target/gefinc-api-server-*.jar app.jar
+COPY --from=builder /workspace/target/*.jar app.jar
 RUN chown -R gefinc:gefinc /app
 
 USER gefinc
@@ -466,6 +469,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Hospedar em um computador sobressalente exige precaução contra danos de hardware no disco rígido local, oscilações severas de energia ou perdas físicas. Um backup offsite é obrigatório.
 
 Conforme estabelecido na política de governança de dados do GEFINC (`docs/operations.md`):
+
 - A exclusão de contas tem 30 dias de carência antes do expurgo permanente.
 - Para assegurar que nenhum dado de usuário excluído persista indefinidamente, **a retenção máxima dos backups do banco deve ser de 35 dias**.
 
@@ -603,6 +607,7 @@ Execute este checklist prático para assegurar que todo o ecossistema está oper
 
 - [ ] **1. Teste de Acesso Externo à API (Cloudflare Tunnel):**
   De um dispositivo fora da rede Wi-Fi local (ex: via dados 4G/5G do celular):
+
   ```bash
   curl -i https://api.meudominio.com/api/v1/actuator/health
   # Deve retornar: HTTP/2 200 com {"status":"UP"}
@@ -635,12 +640,14 @@ Execute este checklist prático para assegurar que todo o ecossistema está oper
    - Embora o computador ligue sozinho após a volta da energia, desligamentos abruptos frequentes podem corromper blocos no sistema de arquivos do PostgreSQL. Um no-break simples de 600VA oferece 15 a 30 minutos de autonomia para que o servidor atravesse oscilações rápidas sem interrupções.
 2. **Atualizações Automáticas de Segurança do SO:**
    - Habilite o pacote `unattended-upgrades` no Ubuntu/Debian para instalar patches críticos de segurança do kernel e pacotes de rede sem necessidade de manutenção manual frequente:
+
      ```bash
      sudo apt install -y unattended-upgrades
      sudo dpkg-reconfigure --priority=low unattended-upgrades
      ```
 3. **Monitoramento de Saúde do Disco (`smartctl`):**
    - Computadores sobressalentes antigos podem possuir discos rígidos ou SSDs com muitas horas de uso. Instale o pacote `smartmontools` e agende verificações periódicas para antecipar falhas de hardware:
+
      ```bash
      sudo apt install -y smartmontools
      sudo smartctl -H /dev/sda
