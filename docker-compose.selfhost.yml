@@ -1,0 +1,65 @@
+name: gefinc-selfhost
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gefinc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gefinc}
+      POSTGRES_USER: ${DB_USER:-gefinc}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - gefinc-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U ${DB_USER:-gefinc} -d ${POSTGRES_DB:-gefinc}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - gefinc-net
+
+  api-server:
+    build:
+      context: .
+      dockerfile: apps/api-server/Dockerfile
+    container_name: gefinc-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-gefinc}
+      DB_USER: ${DB_USER:-gefinc}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      APP_BASE_URL: ${APP_BASE_URL}
+      FORWARD_HEADERS_STRATEGY: native
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@meudominio.com}
+      JAVA_TOOL_OPTIONS: '-Xms512m -Xmx1536m -XX:+UseG1GC'
+    expose:
+      - '8080'
+    networks:
+      - gefinc-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: gefinc-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - api-server
+    networks:
+      - gefinc-net
+
+volumes:
+  gefinc-pgdata:
+
+networks:
+  gefinc-net:
+    driver: bridge
