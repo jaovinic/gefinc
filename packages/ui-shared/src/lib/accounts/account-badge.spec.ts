@@ -81,4 +81,48 @@ describe('gef-account-badge', () => {
     expect(name.className).toContain('truncate');
     expect(name.getAttribute('title')).toBe(long);
   });
+
+  describe('cor personalizada', () => {
+    const tile = (el: HTMLElement) => el.querySelector('.gef-account-tile') as HTMLElement;
+
+    it('com colorHex o tile é preenchido com a cor e o ícone usa a cor de contraste', () => {
+      const dark = tile(render((h) => (h.account = { ...pf, colorHex: '#2563EB' })));
+      expect(dark.style.backgroundColor).toBe('rgb(37, 99, 235)');
+      expect(dark.style.color).toBe('rgb(255, 255, 255)');
+      const light = tile(render((h) => (h.account = { ...pf, colorHex: '#EA580C' })));
+      expect(light.style.backgroundColor).toBe('rgb(234, 88, 12)');
+      expect(light.style.color).toBe('rgb(9, 13, 22)');
+    });
+
+    it('com cor não aplica o tom do tipo e mantém o nome em texto e o ícone decorativo', () => {
+      const el = render((h) => (h.account = { ...card, colorHex: '#16A34A' }));
+      const t = tile(el);
+      expect(t.className).not.toMatch(/text-gefinc-/);
+      expect(t.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+      expect(el.textContent).toContain('Nubank Roxinho');
+    });
+
+    it('aceita minúsculas e normaliza para a mesma cor', () => {
+      expect(tile(render((h) => (h.account = { ...pf, colorHex: '#2563eb' }))).dataset['color']).toBe('#2563EB');
+    });
+
+    it.each([
+      ['cartão', card, 'text-gefinc-accent'],
+      ['dinheiro', { name: 'Carteira', type: 'CASH' }, 'text-gefinc-warning'],
+      ['conta PJ', pj, 'text-gefinc-secondary'],
+      ['conta PF', pf, 'text-gefinc-primary'],
+    ])('sem cor (%s) mantém o visual padrão por tipo/titular', (_name, account, tone) => {
+      const t = tile(render((h) => (h.account = account)));
+      expect(t.classList.contains(tone)).toBe(true);
+      expect(t.style.backgroundColor).toBe('');
+    });
+
+    it('colorHex nulo, vazio ou malformado (cópia local antiga) cai no visual padrão sem quebrar', () => {
+      for (const colorHex of [undefined, null, '', 'azul', '#12345']) {
+        const t = tile(render((h) => (h.account = { ...pf, colorHex })));
+        expect(t.classList.contains('text-gefinc-primary')).toBe(true);
+        expect(t.style.backgroundColor).toBe('');
+      }
+    });
+  });
 });

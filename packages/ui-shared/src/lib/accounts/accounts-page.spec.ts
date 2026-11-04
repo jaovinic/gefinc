@@ -155,6 +155,28 @@ describe('AccountsPage', () => {
     expectList(false).flush([]);
   });
 
+  it('inativar repassa a cor da conta no PUT (e conta sem cor não envia o campo)', async () => {
+    const { http, el, fixture, expectList } = setup();
+    expectList(false).flush([{ ...carteira, colorHex: '#16A34A' }]);
+    fixture.detectChanges();
+    click(el, 'Inativar');
+    const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/2` });
+    expect(put.request.body).toMatchObject({ active: false, version: 3, colorHex: '#16A34A' });
+    put.flush({ ...carteira, colorHex: '#16A34A', active: false, version: 4 });
+    expectList(false).flush([]);
+  });
+
+  it('inativar conta sem cor (ou de cópia local antiga) não envia colorHex', async () => {
+    const { http, el, fixture, expectList } = setup();
+    expectList(false).flush([carteira]);
+    fixture.detectChanges();
+    click(el, 'Inativar');
+    const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/2` });
+    expect(put.request.body).not.toHaveProperty('colorHex');
+    put.flush({ ...carteira, active: false, version: 4 });
+    expectList(false).flush([]);
+  });
+
   describe('excluir conta (confirmação e guarda de integridade)', () => {
     const free = { canDelete: true, transactionCount: 0, invoicePaymentCount: 0, linkedCards: [], openingBalance: '0.00' };
     const used = { canDelete: false, transactionCount: 12, invoicePaymentCount: 2, linkedCards: [{ id: 1, name: 'Nubank' }], openingBalance: '0.00' };

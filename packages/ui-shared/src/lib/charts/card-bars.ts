@@ -1,5 +1,7 @@
 import { Component, computed, input } from '@angular/core';
 import { formatBRL } from '@gefinc/utils';
+import { accountColor } from '../accounts/account-colors';
+import { markColor } from '../color-swatch/mark-color';
 import { Icon } from '../icons/icon';
 import { ChartSlice } from './chart-slice';
 
@@ -18,7 +20,15 @@ import { ChartSlice } from './chart-slice';
         <li data-testid="card-share-row">
           <div class="mb-1.5 flex items-center justify-between gap-3">
             <span class="flex min-w-0 items-center gap-2">
-              <span class="gef-account-tile text-gefinc-accent"><gef-icon [name]="row.icon" [size]="18" /></span>
+              <span
+                class="gef-account-tile"
+                [class.text-gefinc-accent]="!row.tile"
+                [attr.data-color]="row.tile"
+                [style.background-color]="row.tile"
+                [style.color]="row.mark"
+              >
+                <gef-icon [name]="row.icon" [size]="18" />
+              </span>
               <span class="truncate font-medium" [attr.title]="row.label">{{ row.label }}</span>
             </span>
             <span class="financial-value shrink-0 font-semibold">{{ row.money }}</span>
@@ -54,10 +64,14 @@ export class CardBars {
     const sum = this.sum();
     return this.slices().map((s) => {
       const share = sum > 0 ? (Number(s.value) / sum) * 100 : 0;
+      const tile = accountColor(s.colorHex);
       return {
         label: s.label,
         icon: s.icon ?? 'card',
-        color: s.color,
+        /** Cor personalizada da conta (ou `null`: tile no visual padrão). */
+        tile,
+        mark: tile ? markColor(tile) : null,
+        color: tile ?? s.color,
         money: formatBRL(s.value),
         percent: Math.round(share),
         // barras muito pequenas continuam visíveis

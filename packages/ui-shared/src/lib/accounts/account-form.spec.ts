@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import type { Account } from '@gefinc/core-models';
 import { API_BASE_URL, CLIENT_KIND, MemoryTokenStore, TokenStore, authInterceptor } from '../api';
 import { pickOption } from '../../testing/testbed';
+import { ACCOUNT_COLORS } from './account-colors';
 import { AccountForm } from './account-form';
 
 const API = '/api/v1';
@@ -59,6 +60,14 @@ function setup(configure: (host: Host) => void = () => undefined) {
     (el.querySelector(`[data-icon="${key}"]`) as HTMLElement).click();
     fixture.detectChanges();
   };
+  const pickColor = (hex: string) => {
+    (el.querySelector(`[data-field="colorHex"] [data-color="${hex}"]`) as HTMLElement).click();
+    fixture.detectChanges();
+  };
+  const useDefaultColor = () => {
+    (el.querySelector('[data-field="colorHex"] [data-default-color]') as HTMLElement).click();
+    fixture.detectChanges();
+  };
   const pickBank = (name: string) => {
     (el.querySelector('[data-field="bankAccountId"] button[aria-haspopup]') as HTMLButtonElement).click();
     fixture.detectChanges();
@@ -66,7 +75,7 @@ function setup(configure: (host: Host) => void = () => undefined) {
     option.click();
     fixture.detectChanges();
   };
-  return { fixture, host: fixture.componentInstance, el, http, type, selectType, submit, holder, pickIcon, pickBank };
+  return { fixture, host: fixture.componentInstance, el, http, type, selectType, submit, holder, pickIcon, pickColor, useDefaultColor, pickBank };
 }
 
 describe('AccountForm', () => {
@@ -101,6 +110,121 @@ describe('AccountForm', () => {
     const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
     expect(post.request.body).toEqual({ name: 'Inter empresa', type: 'CHECKING', holderType: 'PJ' });
     post.flush({ ...inter }, { status: 201, statusText: 'Created' });
+  });
+
+  describe('cor da conta', () => {
+    it('oferece a paleta de contas com o rótulo "Cor da conta" e nenhuma cor marcada por padrão', () => {
+      const { el } = setup();
+      const field = el.querySelector('[data-field="colorHex"]') as HTMLElement;
+      expect(field.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Cor da conta');
+      expect(Array.from(field.querySelectorAll('[role="radio"]')).map((r) => r.getAttribute('data-color'))).toEqual(ACCOUNT_COLORS.map((c) => c.hex));
+      expect(field.querySelector('[aria-checked="true"]')).toBeNull();
+      expect(field.querySelector('[data-default-color]')).toBeNull();
+    });
+
+    it('envia a cor escolhida ao criar', () => {
+      const { http, type, submit, holder, pickColor } = setup();
+      type('#name', 'Itaú pessoal');
+      holder('PF');
+      pickColor('#2563EB');
+      submit();
+      const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+      expect(post.request.body).toEqual({ name: 'Itaú pessoal', type: 'CHECKING', holderType: 'PF', colorHex: '#2563EB' });
+      post.flush({ ...itau, colorHex: '#2563EB' }, { status: 201, statusText: 'Created' });
+    });
+
+    it('cartão também envia a cor escolhida', () => {
+      const { http, type, selectType, submit, pickBank, pickColor } = setup();
+      selectType('CREDIT_CARD');
+      pickBank('Itaú');
+      type('#closingDay', '10');
+      type('#dueDay', '17');
+      pickColor('#7C3AED');
+      submit();
+      const post = http.expectOne({ method: 'POST', url: `${API}/accounts` });
+      expect(post.request.body.colorHex).toBe('#7C3AED');
+      post.flush({ id: 7 }, { status: 201, statusText: 'Created' });
+    });
+
+    it('sem cor nunca escolhida não envia o campo (criar e editar uma conta que nunca teve cor)', () => {
+      const created = setup();
+      created.type('#name', 'Inter');
+      created.holder('PJ');
+      created.submit();
+      const post = created.http.expectOne({ method: 'POST', url: `${API}/accounts` });
+      expect(post.request.body).not.toHaveProperty('colorHex');
+      post.flush({ ...inter }, { status: 201, statusText: 'Created' });
+      TestBed.resetTestingModule();
+
+      const edited = setup((h) => h.account.set(itau));
+      edited.holder('PJ');
+      edited.submit();
+      const put = edited.http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(put.request.body).not.toHaveProperty('colorHex');
+      put.flush({ ...itau, holderType: 'PJ' });
+    });
+
+    it('ao editar mostra a cor atual marcada e a reenvia sem mexer (o servidor mantém, mas o corpo fica coerente)', () => {
+      const { http, el, submit } = setup((h) => h.account.set({ ...itau, colorHex: '#16A34A' } as Account));
+      expect(el.querySelector('[data-field="colorHex"] [aria-checked="true"]')?.getAttribute('data-color')).toBe('#16A34A');
+      submit();
+      const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(put.request.body.colorHex).toBe('#16A34A');
+      put.flush({ ...itau });
+    });
+
+    it('troca a cor de uma conta que já tinha', () => {
+      const { http, submit, pickColor } = setup((h) => h.account.set({ ...itau, colorHex: '#16A34A' } as Account));
+      pickColor('#E11D48');
+      submit();
+      const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(put.request.body.colorHex).toBe('#E11D48');
+      put.flush({ ...itau });
+    });
+
+    it('"Usar a cor padrão" numa conta que tinha cor envia "" (remove); sem cor antes, não envia nada', () => {
+      const { http, el, submit, useDefaultColor } = setup((h) => h.account.set({ ...itau, colorHex: '#16A34A' } as Account));
+      useDefaultColor();
+      expect(el.querySelector('[data-field="colorHex"] [aria-checked="true"]')).toBeNull();
+      expect(el.querySelector('[data-field="colorHex"] [data-default-color]')).toBeNull();
+      submit();
+      const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(put.request.body.colorHex).toBe('');
+      put.flush({ ...itau });
+      TestBed.resetTestingModule();
+
+      const fresh = setup((h) => h.account.set(itau));
+      fresh.pickColor('#2563EB');
+      fresh.useDefaultColor();
+      fresh.submit();
+      const second = fresh.http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(second.request.body).not.toHaveProperty('colorHex');
+      second.flush({ ...itau });
+    });
+
+    it('conta de cópia local antiga, sem colorHex, abre sem cor e não quebra', () => {
+      const { http, el, submit } = setup((h) => h.account.set({ ...itau, colorHex: undefined } as Account));
+      expect(el.querySelector('[data-field="colorHex"] [aria-checked="true"]')).toBeNull();
+      submit();
+      const put = http.expectOne({ method: 'PUT', url: `${API}/accounts/1` });
+      expect(put.request.body).not.toHaveProperty('colorHex');
+      put.flush({ ...itau });
+    });
+
+    it('mostra o erro do servidor no campo da cor', () => {
+      const { fixture, http, el, type, submit, holder } = setup();
+      type('#name', 'Itaú');
+      holder('PF');
+      submit();
+      http
+        .expectOne({ method: 'POST', url: `${API}/accounts` })
+        .flush(
+          { code: 'VALIDATION_ERROR', message: 'Há campos inválidos.', errors: [{ field: 'colorHex', message: 'Use uma cor no formato #RRGGBB.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+      fixture.detectChanges();
+      expect(el.querySelector('[data-field="colorHex"]')?.textContent).toContain('Use uma cor no formato #RRGGBB.');
+    });
   });
 
   it('dinheiro não pede titular nem vínculo', () => {

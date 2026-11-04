@@ -1,11 +1,13 @@
 import { Component, computed, input } from '@angular/core';
 import type { Account } from '@gefinc/core-models';
 import { defaultIconFor } from '@gefinc/utils';
+import { markColor } from '../color-swatch/mark-color';
 import { Icon } from '../icons/icon';
+import { accountColor } from './account-colors';
 
 /** Dados mínimos de uma conta para exibi-la; cópias locais antigas podem não ter os campos novos. */
 export type AccountLike = Pick<Account, 'name' | 'type'> &
-  Partial<Pick<Account, 'holderType' | 'icon' | 'bankAccountId' | 'bankAccountName'>>;
+  Partial<Pick<Account, 'holderType' | 'icon' | 'bankAccountId' | 'bankAccountName' | 'colorHex'>>;
 
 /**
  * Identificação visual de uma conta ou cartão: ícone, nome e, se pedido, o selo PF/PJ e a conta
@@ -16,7 +18,15 @@ export type AccountLike = Pick<Account, 'name' | 'type'> &
   imports: [Icon],
   template: `
     <span class="flex min-w-0 items-center gap-2">
-      <span class="gef-account-tile" [class]="tone()"><gef-icon [name]="iconName()" [size]="18" /></span>
+      <span
+        class="gef-account-tile"
+        [class]="tone()"
+        [attr.data-color]="color()"
+        [style.background-color]="color()"
+        [style.color]="markFor(color())"
+      >
+        <gef-icon [name]="iconName()" [size]="18" />
+      </span>
       <span class="flex min-w-0 flex-1 flex-col">
         <span class="flex min-w-0 items-center gap-2">
           <span class="truncate font-medium" data-name [attr.title]="account().name">{{ account().name }}</span>
@@ -46,7 +56,19 @@ export class AccountBadge {
     return a.icon ?? defaultIconFor(a.type, a.holderType);
   });
 
+  /** Cor personalizada válida da conta; sem ela, o tile segue o visual padrão do tipo (`tone`). */
+  protected readonly color = computed(() => accountColor(this.account().colorHex));
+
+  /** Cor do ícone sobre o preenchimento (a de maior contraste); `null` sem cor personalizada. */
+  protected markFor(hex: string | null): string | null {
+    return hex ? markColor(hex) : null;
+  }
+
+  /** Visual padrão (sem cor personalizada): token de tema por tipo e titular. */
   protected readonly tone = computed(() => {
+    if (this.color()) {
+      return '';
+    }
     const a = this.account();
     if (a.type === 'CREDIT_CARD') {
       return 'text-gefinc-accent';

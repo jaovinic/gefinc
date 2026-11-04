@@ -5,4 +5,6 @@ export interface ChartSlice {
   color: string;
   /** Ícone opcional (chave do catálogo) mostrado na legenda, como o do cartão. */
   icon?: string;
+  /** Cor personalizada da conta (`#RRGGBB`), quando existe: pinta o tile do ícone e a barra no lugar de `color`. */
+  colorHex?: string | null;
 }

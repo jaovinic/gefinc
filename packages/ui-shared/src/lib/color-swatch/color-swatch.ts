@@ -1,6 +1,7 @@
-import { Component, computed, forwardRef, input, signal } from '@angular/core';
+import { Component, ElementRef, computed, forwardRef, input, signal, viewChild } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { Icon } from '../icons/icon';
+import { markColor } from './mark-color';
 
 export interface SwatchColor {
   /** `#RRGGBB` em maiúsculas (o servidor aceita `^#[0-9A-Fa-f]{6}$`). */
@@ -33,29 +34,11 @@ export const CATEGORY_COLORS: readonly SwatchColor[] = [
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 
-const MARK_DARK = '#090D16';
-const MARK_LIGHT = '#FFFFFF';
-
-function relativeLuminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => {
-    const channel = parseInt(hex.slice(i, i + 2), 16) / 255;
-    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/** Cor da marca de "selecionado" sobre a cor: a de maior contraste entre o texto escuro do tema e o branco. */
-function markColor(hex: string): string {
-  const background = relativeLuminance(hex) + 0.05;
-  const dark = background / (relativeLuminance(MARK_DARK) + 0.05);
-  const light = (relativeLuminance(MARK_LIGHT) + 0.05) / background;
-  return dark >= light ? MARK_DARK : MARK_LIGHT;
-}
-
 /**
  * Escolha da cor por paleta (grupo de opções com nome acessível), no lugar do seletor de cor do sistema. Setas movem a
  * escolha. Se o valor recebido não é da paleta (cor antiga, escolhida em outro lugar), ele aparece como "Cor atual" e
- * continua selecionável: nenhum dado se perde. Valor do formulário: `#RRGGBB`.
+ * continua selecionável: nenhum dado se perde. Valor do formulário: `#RRGGBB` (ou `null`, quando `defaultLabel` oferece
+ * a opção de voltar à cor padrão). A paleta padrão é a das categorias; outras telas passam a sua em `palette`.
  */
 @Component({
   selector: 'gef-color-swatch',
@@ -63,7 +46,7 @@ function markColor(hex: string): string {
   imports: [Icon],
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => ColorSwatch), multi: true }],
   template: `
-    <div class="flex flex-wrap gap-2" role="radiogroup" [attr.aria-label]="label()">
+    <div #group class="flex flex-wrap gap-2" role="radiogroup" [attr.aria-label]="label()">
       @for (color of colors(); track color.hex; let i = $index) {
         <button
           type="button"
@@ -86,31 +69,47 @@ function markColor(hex: string): string {
         </button>
       }
     </div>
+    @if (defaultLabel(); as label) {
+      @if (value() && !disabled()) {
+        <button type="button" class="gef-btn-sm mt-2" data-default-color (click)="useDefault()">{{ label }}</button>
+      }
+    }
   `,
 })
 export class ColorSwatch implements ControlValueAccessor {
   readonly label = input('Cor');
+  /** Cores oferecidas, cada uma com nome em português para o leitor de tela. */
+  readonly palette = input<readonly SwatchColor[]>(CATEGORY_COLORS);
+  /** Com texto, mostra o botão que limpa a escolha (grava `null`); sem texto, a cor é sempre obrigatória. */
+  readonly defaultLabel = input<string | null>(null);
+
+  private readonly group = viewChild.required<ElementRef<HTMLElement>>('group');
 
   protected readonly value = signal<string | null>(null);
   protected readonly disabled = signal(false);
   /** Cor recebida que não está na paleta; fica na lista para poder voltar a ela. */
-  private readonly current = signal<string | null>(null);
+  private readonly current = computed(() => {
+    const hex = this.received();
+    return hex && !this.palette().some((c) => c.hex === hex) ? hex : null;
+  });
+  /** Última cor recebida de fora (`writeValue`); escolhas do usuário não a trocam, para "Cor atual" continuar na lista. */
+  private readonly received = signal<string | null>(null);
 
   protected readonly colors = computed<SwatchColor[]>(() => {
     const current = this.current();
-    return current ? [{ hex: current, name: 'Cor atual' }, ...CATEGORY_COLORS] : [...CATEGORY_COLORS];
+    return current ? [{ hex: current, name: 'Cor atual' }, ...this.palette()] : [...this.palette()];
   });
 
-  private onChange: (value: string) => void = () => undefined;
+  private onChange: (value: string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;
 
   writeValue(value: string | null | undefined): void {
     const hex = value && HEX.test(value) ? value.toUpperCase() : null;
     this.value.set(hex);
-    this.current.set(hex && !CATEGORY_COLORS.some((c) => c.hex === hex) ? hex : null);
+    this.received.set(hex);
   }
 
-  registerOnChange(fn: (value: string) => void): void {
+  registerOnChange(fn: (value: string | null) => void): void {
     this.onChange = fn;
   }
 
@@ -132,13 +131,22 @@ export class ColorSwatch implements ControlValueAccessor {
     return (selected === -1 ? index === 0 : index === selected) ? 0 : -1;
   }
 
-  protected choose(hex: string): void {
+  protected choose(hex: string | null): void {
     if (this.disabled()) {
       return;
     }
     this.value.set(hex);
     this.onChange(hex);
     this.onTouched();
+  }
+
+  /**
+   * Limpa a escolha. O botão sai da tela ao limpar, então o foco vai antes para a opção que passa a ser a do Tab (a
+   * primeira, sem cor marcada), em vez de cair no `body` (WCAG 2.4.3).
+   */
+  protected useDefault(): void {
+    this.group().nativeElement.querySelector<HTMLElement>('[role="radio"]')?.focus();
+    this.choose(null);
   }
 
   protected onKeydown(event: KeyboardEvent, index: number): void {

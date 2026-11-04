@@ -144,12 +144,16 @@ export class DashboardPage {
     (this.data()?.byCategory ?? []).map((c) => ({ label: c.name, value: c.amount, color: c.colorHex })),
   );
   protected readonly cardSlices = computed<ChartSlice[]>(() =>
-    (this.data()?.byCard ?? []).map((c, i) => ({
-      label: c.name,
-      value: c.amount,
-      color: CARD_COLORS[i % CARD_COLORS.length],
-      icon: this.reference.account(c.accountId)?.icon ?? 'card',
-    })),
+    (this.data()?.byCard ?? []).map((c, i) => {
+      const account = this.reference.account(c.accountId);
+      return {
+        label: c.name,
+        value: c.amount,
+        color: CARD_COLORS[i % CARD_COLORS.length],
+        icon: account?.icon ?? 'card',
+        colorHex: account?.colorHex ?? null,
+      };
+    }),
   );
 
   constructor() {
