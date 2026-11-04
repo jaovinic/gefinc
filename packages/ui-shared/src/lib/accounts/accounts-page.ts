@@ -383,6 +383,7 @@ export class AccountsPage implements OnInit {
         dueDay: account.dueDay,
         ...(account.type === 'CHECKING' && account.holderType ? { holderType: account.holderType } : {}),
         ...(account.icon ? { icon: account.icon } : {}),
+        ...(account.colorHex ? { colorHex: account.colorHex } : {}),
         ...(account.type === 'CREDIT_CARD' && account.bankAccountId ? { bankAccountId: account.bankAccountId } : {}),
         active: !account.active,
         version: account.version,

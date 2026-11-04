@@ -1183,6 +1183,10 @@ components:
           description: "Sempre presente: o escolhido ou o padrão do tipo."
         bankAccountId: { type: integer, format: int64, description: "Somente em cartão vinculado." }
         bankAccountName: { type: string, description: "Nome da conta bancária do cartão." }
+        colorHex:
+          type: string
+          pattern: '^#[0-9A-F]{6}$'
+          description: "Cor personalizada do ícone, em maiúsculas. Ausente quando a conta usa o visual padrão do tipo."
         openingBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1200,6 +1204,10 @@ components:
         holderType: { $ref: '#/components/schemas/HolderType' }
         icon: { $ref: '#/components/schemas/AccountIcon' }
         bankAccountId: { type: integer, format: int64 }
+        colorHex:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: "Cor personalizada do ícone (`#RRGGBB`; o servidor guarda em maiúsculas). Opcional: ausente usa o visual padrão do tipo. Texto vazio ou fora do formato responde `422` com erro no campo `colorHex`."
         openingBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1216,6 +1224,10 @@ components:
         holderType: { $ref: '#/components/schemas/HolderType' }
         icon: { $ref: '#/components/schemas/AccountIcon' }
         bankAccountId: { type: integer, format: int64 }
+        colorHex:
+          type: string
+          pattern: '^(#[0-9A-Fa-f]{6})?$'
+          description: "Cor personalizada do ícone (`#RRGGBB`; o servidor guarda em maiúsculas). Ausente mantém a cor atual (assim um cliente antigo não apaga cores); a string vazia `\"\"` remove a cor e volta ao visual padrão do tipo. Formato inválido responde `422` com erro no campo `colorHex`."
         openingBalance:
           allOf:
             - $ref: '#/components/schemas/Money'

@@ -142,6 +142,34 @@ describe('distribuição por cartão (barras em HTML)', () => {
     expect(bars[0].style.width).toBe('75%');
   });
 
+  it('com a cor da conta, o tile é preenchido com ela (ícone na cor de contraste) e a barra a usa no lugar da cor da série', () => {
+    const el = render([
+      { label: 'Nubank', value: '300.00', color: '#00b4d8', colorHex: '#7c3aed' },
+      { label: 'Inter', value: '100.00', color: '#7c3aed', colorHex: '#EA580C' },
+      { label: 'Sem cor', value: '50.00', color: '#00e599', colorHex: null },
+    ]);
+    const tiles = Array.from(el.querySelectorAll<HTMLElement>('.gef-account-tile'));
+    expect(tiles[0].dataset['color']).toBe('#7C3AED');
+    expect(tiles[0].style.backgroundColor).toBe('rgb(124, 58, 237)');
+    expect(tiles[0].style.color).toBe('rgb(255, 255, 255)');
+    expect(tiles[0].classList.contains('text-gefinc-accent')).toBe(false);
+    // laranja: o ícone escuro é o de maior contraste
+    expect(tiles[1].style.color).toBe('rgb(9, 13, 22)');
+    expect(tiles[2].classList.contains('text-gefinc-accent')).toBe(true);
+    expect(tiles[2].style.backgroundColor).toBe('');
+    const bars = el.querySelectorAll<HTMLElement>('li [role="img"] > div');
+    expect(bars[0].style.background).toBe('rgb(124, 58, 237)');
+    expect(bars[1].style.background).toBe('rgb(234, 88, 12)');
+    expect(bars[2].style.background).toBe('rgb(0, 229, 153)');
+  });
+
+  it('colorHex malformado é ignorado (visual padrão)', () => {
+    const el = render([{ label: 'Nubank', value: '10.00', color: '#7c3aed', colorHex: 'roxo' }]);
+    const tile = el.querySelector('.gef-account-tile') as HTMLElement;
+    expect(tile.classList.contains('text-gefinc-accent')).toBe(true);
+    expect(tile.style.backgroundColor).toBe('');
+  });
+
   it('cada barra tem descrição para leitores de tela', () => {
     const el = render([{ label: 'Nubank', value: '10.00', color: '#7c3aed' }]);
     expect(el.querySelector('li [role="img"]')?.getAttribute('aria-label')).toBe('Nubank: 100% do total em cartões');

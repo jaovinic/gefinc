@@ -69,6 +69,7 @@ public class AccountService {
     try {
       Account account = new Account(userId, name, input.type(), input.closingDay(), input.dueDay());
       account.changeProfile(input.holderType(), input.icon(), input.bankAccountId());
+      account.changeColor(normalizeColor(input.colorHex()));
       if (input.openingBalance() != null) {
         account.setOpeningBalance(input.openingBalance());
       }
@@ -93,6 +94,9 @@ public class AccountService {
     String name = input.name().strip();
     validateDays(account.getType(), input.closingDay(), input.dueDay());
     validateOpeningBalance(account.getType(), input.openingBalance());
+    // Cor ausente mantém a atual; "" remove; qualquer outro valor (#RRGGBB) substitui.
+    String color =
+        input.colorHex() == null ? account.getColorHex() : normalizeColor(input.colorHex());
     boolean onlyActiveChanged =
         account.isCreditCard()
             && account.getBankAccountId() == null
@@ -100,6 +104,7 @@ public class AccountService {
             && name.equals(account.getName())
             && Objects.equals(account.getClosingDay(), input.closingDay())
             && Objects.equals(account.getDueDay(), input.dueDay())
+            && Objects.equals(account.getColorHex(), color)
             && (input.icon() == null
                 || input.icon() == AccountIcon.defaultFor(account.getType(), null)
                 || input.icon() == account.getIcon());
@@ -122,6 +127,7 @@ public class AccountService {
     account.changeDays(input.closingDay(), input.dueDay());
     if (!onlyActiveChanged) {
       account.changeProfile(input.holderType(), input.icon(), input.bankAccountId());
+      account.changeColor(color);
     }
     if (input.openingBalance() != null) {
       account.setOpeningBalance(input.openingBalance());
@@ -313,6 +319,11 @@ public class AccountService {
             .withFieldError("bankAccountId", "A conta bancária escolhida está inativa.");
       }
     }
+  }
+
+  /** {@code #RRGGBB} em maiúsculas; ausente ou vazio vira {@code null} (sem cor personalizada). */
+  private static String normalizeColor(String colorHex) {
+    return colorHex == null || colorHex.isEmpty() ? null : colorHex.toUpperCase(Locale.ROOT);
   }
 
   private void validateDays(AccountType type, Integer closingDay, Integer dueDay) {

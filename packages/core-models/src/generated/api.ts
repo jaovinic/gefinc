@@ -2082,6 +2082,8 @@ export interface components {
             bankAccountId?: number;
             /** @description Nome da conta bancária do cartão. */
             bankAccountName?: string;
+            /** @description Cor personalizada do ícone, em maiúsculas. Ausente quando a conta usa o visual padrão do tipo. */
+            colorHex?: string;
             /** @description Saldo inicial da conta (parte do saldo de `GET /balances`). Sempre devolvido; `0.00` quando nunca informado e sempre `0.00` em cartão de crédito. */
             openingBalance: components["schemas"]["Money"];
             active: boolean;
@@ -2098,6 +2100,8 @@ export interface components {
             icon?: components["schemas"]["AccountIcon"];
             /** Format: int64 */
             bankAccountId?: number;
+            /** @description Cor personalizada do ícone (`#RRGGBB`; o servidor guarda em maiúsculas). Opcional: ausente usa o visual padrão do tipo. Texto vazio ou fora do formato responde `422` com erro no campo `colorHex`. */
+            colorHex?: string;
             /** @description Saldo inicial da conta, pode ser negativo. Opcional: ausente vale `0.00`. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`. */
             openingBalance?: components["schemas"]["Money"];
         };
@@ -2111,6 +2115,8 @@ export interface components {
             icon?: components["schemas"]["AccountIcon"];
             /** Format: int64 */
             bankAccountId?: number;
+            /** @description Cor personalizada do ícone (`#RRGGBB`; o servidor guarda em maiúsculas). Ausente mantém a cor atual (assim um cliente antigo não apaga cores); a string vazia `""` remove a cor e volta ao visual padrão do tipo. Formato inválido responde `422` com erro no campo `colorHex`. */
+            colorHex?: string;
             /** @description Saldo inicial da conta. Opcional: ausente mantém o valor atual. Valor diferente de zero em CREDIT_CARD responde `422` com erro no campo `openingBalance`. */
             openingBalance?: components["schemas"]["Money"];
             active: boolean;

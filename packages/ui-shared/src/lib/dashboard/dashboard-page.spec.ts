@@ -279,6 +279,42 @@ describe('DashboardPage', () => {
     expect(el.textContent).toContain('Nenhum gasto em cartão neste mês.');
   });
 
+  describe('cor da conta nos cartões', () => {
+    async function withAccounts(accounts: object[]) {
+      const ctx = configureHttpTesting();
+      const fixture = TestBed.createComponent(DashboardPage);
+      fixture.detectChanges();
+      ctx.http.expectOne((r) => r.url === `${API}/accounts`).flush(accounts);
+      ctx.http.expectOne((r) => r.url === `${API}/categories`).flush([]);
+      ctx.http.expectOne((r) => r.url === `${API}/dashboard`).flush(full);
+      ctx.http.expectOne((r) => r.method === 'GET' && r.url === `${API}/balances`).flush(balances);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+    const nubank = { id: 2, name: 'Nubank', type: 'CREDIT_CARD', closingDay: 10, dueDay: 17, icon: 'card', bankAccountId: 1, active: true, version: 0 };
+
+    it('tile e barra do cartão usam a cor personalizada da conta, com o ícone na cor de contraste', async () => {
+      const el = await withAccounts([{ ...nubank, colorHex: '#7C3AED' }]);
+      const tile = el.querySelector('[data-testid="card-share-row"] .gef-account-tile') as HTMLElement;
+      expect(tile.dataset['color']).toBe('#7C3AED');
+      expect(tile.style.backgroundColor).toBe('rgb(124, 58, 237)');
+      expect(tile.style.color).toBe('rgb(255, 255, 255)');
+      const bar = el.querySelector('[data-testid="card-share-row"] [role="img"] > div') as HTMLElement;
+      expect(bar.style.background).toBe('rgb(124, 58, 237)');
+    });
+
+    it('cartão sem cor (ou cópia local antiga sem colorHex) mantém o visual padrão e a cor da série', async () => {
+      const el = await withAccounts([nubank]);
+      const tile = el.querySelector('[data-testid="card-share-row"] .gef-account-tile') as HTMLElement;
+      expect(tile.classList.contains('text-gefinc-accent')).toBe(true);
+      expect(tile.style.backgroundColor).toBe('');
+      const bar = el.querySelector('[data-testid="card-share-row"] [role="img"] > div') as HTMLElement;
+      expect(bar.style.background).toBe('rgb(0, 180, 216)');
+    });
+  });
+
   it('erro mostra a mensagem com nova tentativa', async () => {
     const ctx = configureHttpTesting();
     const fixture = TestBed.createComponent(DashboardPage);

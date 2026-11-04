@@ -3,9 +3,11 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { ACCOUNT_TYPES, type Account, type AccountIcon, type AccountType, type HolderType } from '@gefinc/core-models';
 import { fromCents, isValidMoney, toCents } from '@gefinc/utils';
 import { AccountsApi, messageFor, toProblem } from '../api';
+import { ColorSwatch } from '../color-swatch/color-swatch';
 import { Icon } from '../icons/icon';
 import { MoneyInput } from '../money-input/money-input';
 import { Select, type SelectOption } from '../select/select';
+import { ACCOUNT_COLORS, accountColor } from './account-colors';
 import { IconPicker } from './icon-picker';
 import { AccountPicker } from './account-picker';
 
@@ -64,7 +66,7 @@ function openingToField(opening: string | undefined): { amount: string | null; s
 @Component({
   selector: 'gef-account-form',
   host: { class: 'block' },
-  imports: [ReactiveFormsModule, Icon, IconPicker, AccountPicker, MoneyInput, Select],
+  imports: [ReactiveFormsModule, ColorSwatch, Icon, IconPicker, AccountPicker, MoneyInput, Select],
   template: `
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
       @if (error(); as message) {
@@ -177,6 +179,14 @@ function openingToField(opening: string | undefined): { amount: string | null; s
           <gef-icon-picker label="Ícone" formControlName="icon" />
         </div>
 
+        <div class="sm:col-span-2" data-field="colorHex">
+          <span class="gef-label" aria-hidden="true">Cor da conta</span>
+          <gef-color-swatch label="Cor da conta" formControlName="colorHex" [palette]="colors" defaultLabel="Usar a cor padrão" />
+          @if (serverErrors()['colorHex']; as message) {
+            <p class="gef-field-error">{{ message }}</p>
+          }
+        </div>
+
         @if (account()?.type === 'CREDIT_CARD') {
           <p class="text-caption text-gefinc-muted sm:col-span-2" data-testid="card-days-notice">
             Ao mudar os dias, só as ocorrências de lançamentos fixos pendentes e com vencimento futuro serão
@@ -208,12 +218,15 @@ export class AccountForm {
   protected readonly typeOptions: SelectOption[] = ACCOUNT_TYPES.map((value) => ({ value, label: ACCOUNT_TYPE_LABELS[value] }));
   protected readonly holders: HolderType[] = ['PF', 'PJ'];
   protected readonly holderLabels = HOLDER_LABELS;
+  protected readonly colors = ACCOUNT_COLORS;
   protected readonly form = this.fb.group(
     {
       name: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(80)]),
       type: this.fb.nonNullable.control<AccountType>('CHECKING'),
       holderType: this.fb.control<HolderType | null>(null),
       icon: this.fb.control<AccountIcon | null>(null),
+      /** Cor do ícone (`#RRGGBB`); `null`: visual padrão do tipo. */
+      colorHex: this.fb.control<string | null>(null),
       /** Valor absoluto do saldo inicial: o campo de valor (`gef-money-input`) não aceita sinal. */
       openingBalance: this.fb.control<string | null>(null),
       /** Sentido do saldo inicial: positivo ou negativo (conta que já começa devendo). */
@@ -249,6 +262,7 @@ export class AccountForm {
         type: account?.type ?? 'CHECKING',
         holderType: account?.type === 'CHECKING' ? (account.holderType ?? 'PF') : null,
         icon: account?.icon ?? null,
+        colorHex: accountColor(account?.colorHex),
         openingBalance: opening.amount,
         openingSign: opening.sign,
         bankAccountId: account?.bankAccountId ?? null,
@@ -293,6 +307,17 @@ export class AccountForm {
     return touched ? { openingBalance: this.signedOpening(raw) } : {};
   }
 
+  /**
+   * Cor da conta no corpo. Escolhida: `#RRGGBB`. Sem cor: omitida (no `PUT`, ausente mantém a cor atual no servidor), exceto
+   * quando a conta tinha cor e o usuário voltou ao padrão: aí vai `""`, o sinal explícito de "remover a cor".
+   */
+  private colorPart(colorHex: string | null): { colorHex?: string } {
+    if (colorHex) {
+      return { colorHex };
+    }
+    return accountColor(this.account()?.colorHex) ? { colorHex: '' } : {};
+  }
+
   protected submit(): void {
     if (this.busy()) {
       return;
@@ -311,6 +336,7 @@ export class AccountForm {
         ? { closingDay: raw.closingDay ?? undefined, dueDay: raw.dueDay ?? undefined, bankAccountId: raw.bankAccountId ?? undefined }
         : {}),
       ...(raw.icon ? { icon: raw.icon } : {}),
+      ...this.colorPart(raw.colorHex),
       ...this.openingPart(raw),
     };
     const account = this.account();

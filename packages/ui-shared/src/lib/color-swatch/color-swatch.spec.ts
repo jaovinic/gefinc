@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { CATEGORY_COLORS, ColorSwatch } from './color-swatch';
+import { CATEGORY_COLORS, ColorSwatch, type SwatchColor } from './color-swatch';
 
 /** Mesma fonte das cores padrão que o api-server usa: todas precisam estar na paleta. */
 const defaults: { expense: { name: string; color: string }[]; income: { name: string; color: string }[] } = JSON.parse(
@@ -24,6 +24,21 @@ class ReactiveHost {
 })
 class ModelHost {
   value = '#16A34A';
+}
+
+const MINI_PALETTE: SwatchColor[] = [
+  { hex: '#2563EB', name: 'Azul' },
+  { hex: '#16A34A', name: 'Verde' },
+  { hex: '#E11D48', name: 'Carmim' },
+];
+
+@Component({
+  imports: [ColorSwatch, ReactiveFormsModule],
+  template: `<gef-color-swatch label="Cor da conta" [formControl]="control" [palette]="palette" defaultLabel="Usar a cor padrão" />`,
+})
+class PaletteHost {
+  palette = MINI_PALETTE;
+  control = new FormControl<string | null>(null);
 }
 
 function key(target: Element, name: string) {
@@ -243,5 +258,112 @@ describe('gef-color-swatch', () => {
   it('é um bloco (o host de componente Angular é inline por padrão)', async () => {
     const { el } = await render();
     expect(el.querySelector('gef-color-swatch')?.classList.contains('block')).toBe(true);
+  });
+
+  describe('paleta própria e cor padrão', () => {
+    async function renderPalette(initial: string | null = null) {
+      const fixture = TestBed.createComponent(PaletteHost);
+      fixture.componentInstance.control.setValue(initial);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const radios = () => Array.from(el.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+      const checked = () => radios().filter((r) => r.getAttribute('aria-checked') === 'true');
+      const defaultButton = () => el.querySelector<HTMLButtonElement>('[data-default-color]');
+      const flush = async () => {
+        fixture.detectChanges();
+        await fixture.whenStable();
+        fixture.detectChanges();
+      };
+      return { host: fixture.componentInstance, el, radios, checked, defaultButton, flush };
+    }
+
+    it('mostra só as cores da paleta recebida, com nome acessível e rótulo do grupo', async () => {
+      const { el, radios } = await renderPalette();
+      expect(el.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Cor da conta');
+      expect(radios().map((r) => r.getAttribute('aria-label'))).toEqual(['Azul (#2563EB)', 'Verde (#16A34A)', 'Carmim (#E11D48)']);
+      expect(radios().every((r) => r.style.backgroundColor !== '')).toBe(true);
+    });
+
+    it('sem valor nada fica marcado, o botão da cor padrão não aparece e a primeira cor entra no Tab', async () => {
+      const { radios, checked, defaultButton } = await renderPalette();
+      expect(checked()).toHaveLength(0);
+      expect(defaultButton()).toBeNull();
+      expect(radios().map((r) => r.tabIndex)).toEqual([0, -1, -1]);
+    });
+
+    it('escolher uma cor grava #RRGGBB e passa a oferecer "Usar a cor padrão"', async () => {
+      const { host, radios, checked, defaultButton, flush } = await renderPalette();
+      radios()[1].click();
+      await flush();
+      expect(host.control.value).toBe('#16A34A');
+      expect(checked().map((r) => r.dataset['color'])).toEqual(['#16A34A']);
+      expect(defaultButton()?.textContent?.trim()).toBe('Usar a cor padrão');
+    });
+
+    it('"Usar a cor padrão" grava null, desmarca tudo e some', async () => {
+      const { host, checked, defaultButton, flush } = await renderPalette('#2563EB');
+      expect(checked()).toHaveLength(1);
+      defaultButton()!.click();
+      await flush();
+      expect(host.control.value).toBeNull();
+      expect(host.control.dirty).toBe(true);
+      expect(checked()).toHaveLength(0);
+      expect(defaultButton()).toBeNull();
+    });
+
+    it('"Usar a cor padrão" devolve o foco ao grupo (primeira opção, a do Tab), não ao body', async () => {
+      const { host, el, radios, defaultButton, flush } = await renderPalette('#16A34A');
+      document.body.appendChild(el);
+      try {
+        defaultButton()!.focus();
+        expect(document.activeElement).toBe(defaultButton());
+        defaultButton()!.click();
+        await flush();
+        expect(host.control.value).toBeNull();
+        expect(defaultButton()).toBeNull();
+        expect(document.activeElement).not.toBe(document.body);
+        expect(document.activeElement).toBe(radios()[0]);
+        expect(radios()[0].tabIndex).toBe(0);
+        expect(el.querySelector('[role="radiogroup"]')?.contains(document.activeElement)).toBe(true);
+      } finally {
+        el.remove();
+      }
+    });
+
+    it('cor fora da paleta aparece como "Cor atual" sem perder o dado', async () => {
+      const { host, radios, checked } = await renderPalette('#123abc');
+      expect(radios()).toHaveLength(MINI_PALETTE.length + 1);
+      expect(checked()[0].getAttribute('aria-label')).toBe('Cor atual (#123ABC)');
+      expect(host.control.value).toBe('#123abc');
+    });
+
+    it('setas movem a escolha e o foco dentro da paleta, dando a volta', async () => {
+      const { host, radios, checked, flush } = await renderPalette('#E11D48');
+      key(radios()[2], 'ArrowRight');
+      await flush();
+      expect(checked()[0]).toBe(radios()[0]);
+      expect(host.control.value).toBe('#2563EB');
+      expect(document.activeElement).toBe(radios()[0]);
+      key(radios()[0], 'ArrowLeft');
+      await flush();
+      expect(host.control.value).toBe('#E11D48');
+    });
+
+    it('desabilitado, esconde o botão da cor padrão e ignora cliques', async () => {
+      const { host, radios, defaultButton, flush } = await renderPalette('#2563EB');
+      host.control.disable();
+      await flush();
+      expect(defaultButton()).toBeNull();
+      radios()[1].click();
+      expect(host.control.value).toBe('#2563EB');
+    });
+
+    it('a paleta das categorias continua sendo a padrão, sem botão de cor padrão', async () => {
+      const { el, radios } = await render();
+      expect(radios()).toHaveLength(CATEGORY_COLORS.length);
+      expect(el.querySelector('[data-default-color]')).toBeNull();
+    });
   });
 });

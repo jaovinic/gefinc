@@ -51,6 +51,9 @@ public class Account {
   @Column(name = "bank_account_id")
   private Long bankAccountId;
 
+  @Column(name = "color_hex", length = 7)
+  private String colorHex;
+
   @Column(name = "opening_balance", nullable = false, precision = 19, scale = 2)
   private BigDecimal openingBalance = BigDecimal.ZERO.setScale(2);
 
@@ -105,6 +108,10 @@ public class Account {
     return bankAccountId;
   }
 
+  public String getColorHex() {
+    return colorHex;
+  }
+
   public BigDecimal getOpeningBalance() {
     return openingBalance;
   }
@@ -134,6 +141,11 @@ public class Account {
     this.holderType = holderType;
     this.icon = icon;
     this.bankAccountId = bankAccountId;
+  }
+
+  /** Cor do ícone em {@code #RRGGBB} maiúsculo; {@code null} volta ao visual padrão do tipo. */
+  public void changeColor(String colorHex) {
+    this.colorHex = colorHex;
   }
 
   public void setOpeningBalance(BigDecimal openingBalance) {

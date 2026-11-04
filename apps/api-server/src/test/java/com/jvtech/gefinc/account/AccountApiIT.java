@@ -378,6 +378,157 @@ class AccountApiIT extends IntegrationTestBase {
         .andExpect(status().isNotFound());
   }
 
+  private JsonNode fetch(long id) throws Exception {
+    return objectMapper.readTree(
+        mockMvc
+            .perform(get("/accounts/" + id).header(HttpHeaders.AUTHORIZATION, ana.bearer()))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+  }
+
+  @Test
+  void contaSemCorNaoDevolveColorHex() throws Exception {
+    create(body("Itaú", "CHECKING", null, null))
+        .andExpect(status().isCreated())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.colorHex").doesNotExist());
+  }
+
+  @Test
+  void cadastraContaEmCartaoComCorENormalizaParaMaiusculas() throws Exception {
+    Map<String, Object> bank = body("Itaú", "CHECKING", null, null);
+    bank.put("colorHex", "#2563eb");
+    create(bank)
+        .andExpect(status().isCreated())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.colorHex").value("#2563EB"));
+
+    Map<String, Object> card = body("Nubank", "CREDIT_CARD", 10, 17);
+    card.put("colorHex", "#7C3AED");
+    JsonNode created =
+        objectMapper.readTree(
+            create(card)
+                .andExpect(status().isCreated())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.colorHex").value("#7C3AED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(fetch(created.get("id").asLong()).get("colorHex").asText()).isEqualTo("#7C3AED");
+  }
+
+  @Test
+  void corForaDoFormatoERecusadaNoCampoColorHex() throws Exception {
+    for (String invalid :
+        new String[] {"red", "#12345", "#GGGGGG", "123456", "#1234567", " ", ""}) {
+      Map<String, Object> input = body("Conta " + invalid.hashCode(), "CHECKING", null, null);
+      input.put("colorHex", invalid);
+      create(input)
+          .andExpect(status().isUnprocessableEntity())
+          .andExpect(jsonPath("$.errors[?(@.field=='colorHex')]").exists());
+    }
+    JsonNode account = createOk(body("Itaú", "CHECKING", null, null));
+    update(account.get("id").asLong(), updateBody(account, Map.of("colorHex", "#GGGGGG")))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.errors[?(@.field=='colorHex')]").exists());
+  }
+
+  @Test
+  void editaACorEAusenciaMantemEVaziaRemove() throws Exception {
+    Map<String, Object> input = body("Itaú", "CHECKING", null, null);
+    input.put("colorHex", "#2563EB");
+    JsonNode account = createOk(input);
+    long id = account.get("id").asLong();
+
+    // trocar a cor, em minúsculas
+    JsonNode changed =
+        objectMapper.readTree(
+            update(id, updateBody(account, Map.of("colorHex", "#dc2626")))
+                .andExpect(status().isOk())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.colorHex").value("#DC2626"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    // ausente (cliente antigo): mantém a cor
+    JsonNode renamed =
+        objectMapper.readTree(
+            update(id, updateBody(changed, Map.of("name", "Itaú PF")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.colorHex").value("#DC2626"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    // "" remove a cor
+    JsonNode cleared =
+        objectMapper.readTree(
+            update(id, updateBody(renamed, Map.of("colorHex", "")))
+                .andExpect(status().isOk())
+                .andExpect(matchesContract())
+                .andExpect(jsonPath("$.colorHex").doesNotExist())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertThat(fetch(id).has("colorHex")).isFalse();
+    assertThat(cleared.has("colorHex")).isFalse();
+    assertThat(jdbc.queryForObject("select color_hex from accounts where id = ?", String.class, id))
+        .isNull();
+  }
+
+  @Test
+  void inativarSemEnviarColorHexPreservaACor() throws Exception {
+    Map<String, Object> input = body("Nubank", "CREDIT_CARD", 10, 17);
+    input.put("colorHex", "#7C3AED");
+    JsonNode card = createOk(input);
+
+    update(card.get("id").asLong(), updateBody(card, Map.of("active", false)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active").value(false))
+        .andExpect(jsonPath("$.colorHex").value("#7C3AED"));
+  }
+
+  @Test
+  void cartaoAntigoSemVinculoMantemACorAoSerInativadoEExigeVinculoParaTrocala() throws Exception {
+    Map<String, Object> input = body("Antigo", "CREDIT_CARD", 10, 17);
+    input.put("colorHex", "#7C3AED");
+    JsonNode card = createOk(input);
+    long id = card.get("id").asLong();
+    jdbc.update("update accounts set bank_account_id = null where id = ?", id);
+    JsonNode legacy = fetch(id);
+    assertThat(legacy.path("bankAccountId").isMissingNode()).isTrue();
+
+    // só ativar/inativar: não exige vínculo e não perde a cor, enviando-a ou não
+    JsonNode inactive =
+        objectMapper.readTree(
+            update(id, updateBody(legacy, Map.of("active", false, "colorHex", "#7c3aed")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.colorHex").value("#7C3AED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    JsonNode reactivated =
+        objectMapper.readTree(
+            update(id, updateBody(inactive, Map.of("active", true)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.colorHex").value("#7C3AED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+
+    // trocar a cor deixa de ser "só ativar/inativar": o vínculo passa a ser exigido e a cor fica
+    update(id, updateBody(reactivated, Map.of("colorHex", "#DC2626")))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.errors[?(@.field=='bankAccountId')]").exists());
+    assertThat(fetch(id).get("colorHex").asText()).isEqualTo("#7C3AED");
+    update(id, updateBody(reactivated, Map.of("colorHex", "#DC2626", "bankAccountId", bankId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.colorHex").value("#DC2626"));
+  }
+
   @Test
   void exigeAutenticacao() throws Exception {
     mockMvc.perform(get("/accounts")).andExpect(status().isUnauthorized());
