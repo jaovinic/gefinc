@@ -31,7 +31,7 @@ scaffolding, usando a última versão estável compatível com a faixa exigida p
     Dias 29–31 são limitados ao último dia do mês.
   - Demais contas: parcela *k* vence no mês do primeiro vencimento + (*k*−1), limitada ao
     último dia do mês, preservando o dia original como referência (31/01 → 28/02 → 31/03).
-  - Valor: `floor(total/n, 2)` em cada parcela; o resto de centavos vai para a última.
+  - Valor: `floor(total/n, 2)` em cada parcela, a partir da segunda; todo o resto de centavos vai para a primeira (convenção das adquirentes: 134,30 em 4x = 33,59 + 3 × 33,57).
   - Quando `due_day == closing_day`, o vencimento cai no mês seguinte ao fechamento (a regra é
     `due_day > closing_day` para o mesmo mês).
   - A regra do cartão vale para **toda** ocorrência: parcela, compra avulsa e cada mês de um

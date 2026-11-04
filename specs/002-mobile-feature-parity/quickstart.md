@@ -33,7 +33,7 @@ adb -s <serial> install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 1. **Paridade (US1 a US4)**: criar conta bancária, cartão e categoria; cadastrar despesa avulsa,
-   fixa e parcelada no cartão (prévia 33,33 / 33,33 / 33,34); pagar e desfazer; pagar parte da
+   fixa e parcelada no cartão (prévia 33,34 / 33,33 / 33,33); pagar e desfazer; pagar parte da
    fatura (R$ 30 de R$ 100) e recusar R$ 80; abrir painel, projeção e fluxo de caixa. Conferir os
    mesmos valores no web.
 2. **Conta (US5)**: pedir recuperação de senha; solicitar exclusão com senha e cancelar ao entrar.

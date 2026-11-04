@@ -257,8 +257,11 @@ describe('GroupForm parcelado', () => {
     expect(preview.textContent).toContain('1/3');
     expect(preview.textContent).toContain('17/12/2026');
     expect(preview.textContent).toContain('17/01/2027');
-    expect(preview.textContent).toContain('R$ 33,33');
-    expect(preview.textContent).toContain('R$ 33,34'); // resto na última
+    const rows = Array.from(preview.querySelectorAll('tbody tr')).map((tr) => tr.textContent ?? '');
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain('R$ 33,34'); // resto na primeira
+    expect(rows[1]).toContain('R$ 33,33');
+    expect(rows[2]).toContain('R$ 33,33');
     expect(el.textContent).toContain('Valor total');
   });
 
@@ -358,14 +361,14 @@ describe('GroupForm parcelado - valor da parcela ou total', () => {
     post.flush({}, { status: 201, statusText: 'Created' });
   });
 
-  it('no modo total com resto o resumo separa a última parcela e o total é o digitado', async () => {
+  it('no modo total com resto o resumo separa a primeira parcela e o total é o digitado', async () => {
     const { http, el, fixture } = await setupInstallment();
     fillCard(el, fixture);
     type(el, 'gef-money-input input', '10000'); // total R$ 100,00
     type(el, '#totalInstallments', '3');
     fixture.detectChanges();
 
-    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('2 × R$ 33,33 + 1 × R$ 33,34');
+    expect(el.querySelector('[data-testid="installment-summary"]')?.textContent?.trim()).toBe('1 × R$ 33,34 + 2 × R$ 33,33');
 
     submitForm(el);
     const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });

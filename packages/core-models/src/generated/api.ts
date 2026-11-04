@@ -939,7 +939,7 @@ export interface paths {
          *     (FR-022); `firstDueDate` é ignorado e pode ser omitido. Nas demais contas,
          *     `firstDueDate` é obrigatório (`422` se ausente). Conta inativa responde `422` (`ACCOUNT_INACTIVE`).
          *     - `VARIABLE`: 1 ocorrência.
-         *     - `INSTALLMENT`: N parcelas, uma por mês. Soma = `totalAmount` (resto na última parcela).
+         *     - `INSTALLMENT`: N parcelas, uma por mês. Soma = `totalAmount` (resto na primeira parcela).
          *     - `FIXED`: ocorrências mensais para os próximos 12 meses; no cartão, cada mês é tratado
          *       como compra no dia de `purchaseDate` daquele mês (limitado ao último dia do mês).
          */

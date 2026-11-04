@@ -1,6 +1,13 @@
 <!--
 Sync Impact Report
-- Version change: 1.1.0 → 1.2.0 (MINOR: Princípio VI ampliado — lançamento rápido de despesa **e de
+- Version change: 1.2.0 → 1.3.0 (MINOR: Princípio II — o resíduo de arredondamento das parcelas passa a ser
+  atribuído à **primeira** parcela, e não mais à última, seguindo a convenção das adquirentes; exemplo:
+  134,30 em 4x = 33,59/33,57/33,57/33,57. Mudança material de regra normativa, não mera redação; o
+  determinismo e a soma exata = `total_amount` permanecem. Migração documentada (Princípio INEGOCIÁVEL):
+  regra única em `InstallmentScheduler.split` e `splitMoney`, com fixture compartilhada
+  `packages/core-models/fixtures/installments.json`; compras já gravadas NÃO são alteradas (só novos
+  lançamentos). Origem: branch `fix/installment-remainder-first`, TASK-INSTALLMENT-REMAINDER)
+- 1.1.0 → 1.2.0 (MINOR: Princípio VI ampliado — lançamento rápido de despesa **e de
   receita** em até 3 toques no mobile e navegação lateral com ícones no web)
 - 1.0.0 → 1.1.0 (MINOR: nova regra "Commits limpos" em Fluxo de Desenvolvimento,
   sem co-autoria nem menção a Claude/IA em commits e PRs)
@@ -15,8 +22,9 @@ Sync Impact Report
   - VII. Simplicidade
 - Seções adicionadas: Restrições Tecnológicas, Fluxo de Desenvolvimento, Governança
 - Seções removidas: nenhuma
-- Templates:
-  - ✅ .specify/templates/plan-template.md (Constitution Check com portões concretos)
+- Templates (reverificados na emenda 1.3.0, nenhuma alteração necessária):
+  - ✅ .specify/templates/plan-template.md (Constitution Check com portões concretos; "installments sum
+    exactly to total" continua válido)
   - ✅ .specify/templates/tasks-template.md (testes obrigatórios para lógica financeira e segurança)
   - ✅ .specify/templates/spec-template.md (sem alterações necessárias)
   - ✅ .specify/templates/checklist-template.md (sem alterações necessárias)
@@ -46,7 +54,9 @@ Valores monetários são o núcleo do produto e MUST ser tratados com precisão 
 - Valores MUST usar `BigDecimal` no backend e `NUMERIC(19,2)` no PostgreSQL; `float`/`double` são proibidos.
   No frontend, aritmética monetária MUST passar pelas funções de `utils`, nunca por `number` ad hoc.
 - A soma das parcelas de um lançamento parcelado MUST ser exatamente igual ao `total_amount`; o
-  resíduo de arredondamento MUST ser atribuído de forma determinística (última parcela).
+  resíduo de arredondamento MUST ser atribuído de forma determinística à primeira parcela (convenção das
+  adquirentes): `base = centavos / n` e a parcela 1 recebe `base` mais todo o resto (ex.: 134,30 em 4x =
+  33,59 / 33,57 / 33,57 / 33,57).
 - Datas de vencimento de parcelas MUST respeitar o dia de fechamento (`closing_day`) e o dia de
   vencimento (`due_day`) do cartão, inclusive em meses curtos e virada de ano.
 - Projeções de fatura e saldo residual (`Receitas Previstas − Despesas Previstas`) MUST ser
@@ -150,4 +160,4 @@ Esta constituição prevalece sobre quaisquer outras práticas do projeto.
 - **Orientação em execução**: o plano da funcionalidade corrente (referenciado em `CLAUDE.md`) e o `README.md`
   fornecem contexto operacional; em conflito, esta constituição prevalece.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-10-22
+**Version**: 1.3.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-11-04

@@ -36,7 +36,7 @@ derivadas; só os pagamentos de fatura são persistidos.
 Verify against `.specify/memory/constitution.md` (versão vigente):
 
 - [x] **I. Monorepo**: `apps/api-server`, `apps/web-app`, `apps/mobile-app`, `packages/core-models|ui-shared|utils`; sem importação entre apps; DTOs gerados do OpenAPI em `core-models`; cálculo de parcelas e dinheiro em `utils`
-- [x] **II. Financial integrity**: `BigDecimal` + `NUMERIC(19,2)`; dinheiro como string decimal na API; `InstallmentScheduler` com resto de centavos na última parcela; regras de fechamento/vencimento e meses curtos cobertas por vetores de teste (D1, D2)
+- [x] **II. Financial integrity**: `BigDecimal` + `NUMERIC(19,2)`; dinheiro como string decimal na API; `InstallmentScheduler` com resto de centavos na primeira parcela; regras de fechamento/vencimento e meses curtos cobertas por vetores de teste (D1, D2)
 - [x] **III. Data isolation & auth**: `user_id` em todas as tabelas de domínio e FKs compostas; `userId` vem do token; JWT 15 min + refresh rotativo; mobile em secure storage, web em cookie HttpOnly; logs sem dados sensíveis (D5, D9, D16)
 - [x] **IV. Test-first**: testes unitários dos cálculos e de pagamento de fatura, integração com Testcontainers/PostgreSQL e testes de isolamento entre usuários por recurso, escritos antes da implementação (D14)
 - [x] **V. Schema**: tudo por migrações Flyway; `CHECK`, FKs e índices no banco; `ddl-auto=validate`. Pendência: atualizar `spec-genfic.md` §5 com as colunas/tabelas novas (tarefa T-DOC)

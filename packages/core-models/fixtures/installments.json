@@ -37,21 +37,21 @@
       ]
     },
     {
-      "name": "cartão: R$ 100,00 em 3 parcelas deixa o resto de centavos na última",
+      "name": "cartão: R$ 100,00 em 3 parcelas deixa o resto de centavos na primeira",
       "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "100.00", "count": 3,
       "expected": [
-        { "number": 1, "amount": "33.33", "dueDate": "2026-11-17" },
+        { "number": 1, "amount": "33.34", "dueDate": "2026-11-17" },
         { "number": 2, "amount": "33.33", "dueDate": "2026-12-17" },
-        { "number": 3, "amount": "33.34", "dueDate": "2027-01-17" }
+        { "number": 3, "amount": "33.33", "dueDate": "2027-01-17" }
       ]
     },
     {
-      "name": "cartão: R$ 0,10 em 3 parcelas",
+      "name": "cartão: R$ 0,10 em 3 parcelas (resto na primeira)",
       "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "0.10", "count": 3,
       "expected": [
-        { "number": 1, "amount": "0.03", "dueDate": "2026-11-17" },
+        { "number": 1, "amount": "0.04", "dueDate": "2026-11-17" },
         { "number": 2, "amount": "0.03", "dueDate": "2026-12-17" },
-        { "number": 3, "amount": "0.04", "dueDate": "2027-01-17" }
+        { "number": 3, "amount": "0.03", "dueDate": "2027-01-17" }
       ]
     },
     {
@@ -132,10 +132,46 @@
       "name": "conta corrente: R$ 100,00 em 3 parcelas",
       "kind": "account", "purchaseDate": "2026-11-01", "firstDueDate": "2026-11-10", "total": "100.00", "count": 3,
       "expected": [
-        { "number": 1, "amount": "33.33", "dueDate": "2026-11-10" },
+        { "number": 1, "amount": "33.34", "dueDate": "2026-11-10" },
         { "number": 2, "amount": "33.33", "dueDate": "2026-12-10" },
-        { "number": 3, "amount": "33.34", "dueDate": "2027-01-10" }
+        { "number": 3, "amount": "33.33", "dueDate": "2027-01-10" }
+      ]
+    },
+    {
+      "name": "conta corrente: R$ 134,30 em 4 parcelas deixa os 2 centavos de resto na primeira",
+      "kind": "account", "purchaseDate": "2026-11-01", "firstDueDate": "2026-11-10", "total": "134.30", "count": 4,
+      "expected": [
+        { "number": 1, "amount": "33.59", "dueDate": "2026-11-10" },
+        { "number": 2, "amount": "33.57", "dueDate": "2026-12-10" },
+        { "number": 3, "amount": "33.57", "dueDate": "2027-01-10" },
+        { "number": 4, "amount": "33.57", "dueDate": "2027-02-10" }
+      ]
+    },
+    {
+      "name": "cartão: R$ 134,30 em 4 parcelas deixa os 2 centavos de resto na primeira",
+      "kind": "card", "closingDay": 10, "dueDay": 17, "purchaseDate": "2026-11-05", "total": "134.30", "count": 4,
+      "expected": [
+        { "number": 1, "amount": "33.59", "dueDate": "2026-11-17" },
+        { "number": 2, "amount": "33.57", "dueDate": "2026-12-17" },
+        { "number": 3, "amount": "33.57", "dueDate": "2027-01-17" },
+        { "number": 4, "amount": "33.57", "dueDate": "2027-02-17" }
       ]
     }
+  ],
+  "split": [
+    { "name": "100,00 em 3", "total": "100.00", "count": 3, "expected": ["33.34", "33.33", "33.33"] },
+    { "name": "134,30 em 4", "total": "134.30", "count": 4, "expected": ["33.59", "33.57", "33.57", "33.57"] },
+    { "name": "0,03 em 2", "total": "0.03", "count": 2, "expected": ["0.02", "0.01"] },
+    { "name": "0,10 em 3", "total": "0.10", "count": 3, "expected": ["0.04", "0.03", "0.03"] },
+    { "name": "10,00 em 12: 0,87 + 11 x 0,83", "total": "10.00", "count": 12, "expected": ["0.87", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83", "0.83"] },
+    { "name": "100,00 em 4 (exato)", "total": "100.00", "count": 4, "expected": ["25.00", "25.00", "25.00", "25.00"] },
+    { "name": "59,90 em 1 (parcela única)", "total": "59.90", "count": 1, "expected": ["59.90"] },
+    { "name": "Valor da parcela: 33,59 x 4 = 134,36 sem resto", "total": "134.36", "count": 4, "expected": ["33.59", "33.59", "33.59", "33.59"] },
+    { "name": "1.234.567,89 em 7: 176.366,85 + 6 x 176.366,84", "total": "1234567.89", "count": 7, "expected": ["176366.85", "176366.84", "176366.84", "176366.84", "176366.84", "176366.84", "176366.84"] },
+    { "name": "limite @Digits(15,2): 999.999.999.999.999,99 em 12", "total": "999999999999999.99", "count": 12, "expected": ["83333333333333.36", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33", "83333333333333.33"] }
+  ],
+  "splitInvalid": [
+    { "name": "0,01 em 3 (menos de 1 centavo por parcela)", "total": "0.01", "count": 3 },
+    { "name": "0,01 em 2", "total": "0.01", "count": 2 }
   ]
 }
