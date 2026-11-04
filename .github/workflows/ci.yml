@@ -33,5 +33,8 @@ jobs:
 
       - uses: nrwl/nx-set-shas@v4
 
+      # Mudanças em tools/ não marcam web/mobile como afetados; o teste do verificador roda sempre.
+      - run: node --test tools/check-prod-bundle.test.mjs
+
       # O Docker já está disponível no runner; o Testcontainers sobe o PostgreSQL 16 dos testes de integração.
-      - run: npx nx affected -t lint test build
+      - run: npx nx affected -t lint test build check-prod-bundle
