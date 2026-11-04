@@ -8,15 +8,17 @@ import {
   SessionService,
   TokenStore,
 } from '@gefinc/ui-shared';
+import { environment } from '../../environments/environment';
 
 /**
  * Sessão do web: token de acesso só em memória e refresh token em cookie HttpOnly (entregue pela API
- * quando o cabeçalho `X-Client: web` está presente). A API é acessada pelo mesmo endereço do site;
- * em desenvolvimento, `proxy.conf.json` encaminha `/api` para o backend.
+ * quando o cabeçalho `X-Client: web` está presente). Em produção a API é acessada diretamente em
+ * `api.gefinc.tech` (origem diferente, mas do mesmo site), com CORS e cookie via `withCredentials`;
+ * em desenvolvimento, `proxy.conf.json` encaminha `/api` para o backend e o endereço continua `/api/v1`.
  */
 export function provideSession(): (Provider | EnvironmentProviders)[] {
   return [
-    { provide: API_BASE_URL, useValue: '/api/v1' },
+    { provide: API_BASE_URL, useValue: environment.apiUrl },
     { provide: CLIENT_KIND, useValue: 'web' },
     { provide: TokenStore, useClass: MemoryTokenStore },
     {

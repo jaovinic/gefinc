@@ -318,21 +318,22 @@ Edite o arquivo [apps/mobile-app/src/environments/environment.ts](file:///home/x
 
 ```typescript
 export const environment = {
-  // Aponte para o subdomínio HTTPS com o context-path da API
+  // Exemplo: aponte para o seu subdomínio HTTPS com o context-path da API
   apiUrl: 'https://gefinc-api.duckdns.org/api/v1',
 };
 ```
+
+> O mobile não tem `environment.prod`: o valor de `environment.ts` vai direto para o APK. O build antigo em `apps/mobile-app/android/app/src/main/assets/public` persiste até um novo sync.
 
 ### 6.2. Fluxo de Build e Sincronização do Capacitor
 No seu computador local, execute os comandos do Nx e Capacitor:
 
 ```bash
-# 1. Compilar o frontend Angular do aplicativo móvel
-npx nx build mobile-app --configuration=production
-
-# 2. Copiar os artefatos compilados para a pasta nativa do Android
-npx cap sync android
+# Build do frontend móvel + cap sync (com o diretório correto, apps/mobile-app)
+npx nx run mobile-app:sync
 ```
+
+Qualquer comando `cap` executado diretamente precisa de `cd apps/mobile-app` antes.
 
 ### 6.3. Compilação do APK de Debug e Instalação via ADB
 
@@ -356,7 +357,9 @@ cd apps/mobile-app/android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-*(Como alternativa, você pode rodar a partir da raiz: `npx cap run android`)*.
+*(Como alternativa: `cd apps/mobile-app && npx cap run android`)*.
+
+O `assembleRelease` não tem assinatura configurada (o APK não instala); para testes use `assembleDebug`.
 
 ---
 
