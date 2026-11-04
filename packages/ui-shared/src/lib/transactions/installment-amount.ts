@@ -28,29 +28,30 @@ export function belowMinimumPerInstallment(total: string, count: number): boolea
 
 /**
  * Resumo do parcelamento: "10 × R$ 100,00 = R$ 1.000,00"; quando o total não divide exatamente, o resto
- * fica na última parcela: "9 × R$ 33,33 + 1 × R$ 33,34". Vazio se o total não pode ser dividido.
+ * fica na primeira parcela: "1 × R$ 33,59 + 3 × R$ 33,57". Vazio se o total não pode ser dividido.
  */
 export function installmentSummary(total: string, count: number): string {
   try {
     const parts = splitMoney(total, count);
-    const last = parts[parts.length - 1];
     const first = parts[0];
-    if (last === first) {
+    const others = parts[parts.length - 1];
+    if (first === others) {
       return `${count} × ${formatBRL(first)} = ${formatBRL(total)}`;
     }
-    return `${count - 1} × ${formatBRL(first)} + 1 × ${formatBRL(last)}`;
+    return `1 × ${formatBRL(first)} + ${count - 1} × ${formatBRL(others)}`;
   } catch {
     return '';
   }
 }
 
-/** Panorama do parcelamento para o resumo: valor da primeira e da última parcela (o resto fica na última). */
+/** Panorama do parcelamento para o resumo: valor da 1ª parcela e das demais (o resto fica na primeira). */
 export interface InstallmentOverview {
   count: number;
-  /** Valor das parcelas 1 a count-1 (e da última, quando não há resto). */
+  /** Valor da 1ª parcela (inclui o resto de centavos). */
   first: string;
-  last: string;
-  /** Verdadeiro quando a última parcela difere das demais (o total não divide exatamente). */
+  /** Valor de cada uma das demais parcelas (2 a count); igual a `first` quando não há resto. */
+  others: string;
+  /** Verdadeiro quando a 1ª parcela difere das demais (o total não divide exatamente). */
   hasRemainder: boolean;
   total: string;
 }
@@ -60,8 +61,8 @@ export function installmentOverview(total: string, count: number): InstallmentOv
   try {
     const parts = splitMoney(total, count);
     const first = parts[0];
-    const last = parts[parts.length - 1];
-    return { count, first, last, hasRemainder: first !== last, total };
+    const others = parts[parts.length - 1];
+    return { count, first, others, hasRemainder: first !== others, total };
   } catch {
     return null;
   }

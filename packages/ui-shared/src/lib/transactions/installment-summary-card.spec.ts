@@ -35,15 +35,24 @@ describe('InstallmentSummaryCard', () => {
     expect(text('installment-hero')).toBe('10× de R$ 100,00');
     expect(el.textContent).toContain('R$ 1.000,00');
     expect(text('installment-summary')).toBe('10 × R$ 100,00 = R$ 1.000,00');
-    expect(el.querySelector('[data-testid="installment-last"]')).toBeNull();
+    expect(el.querySelector('[data-testid="installment-others"]')).toBeNull();
   });
 
-  it('com resto: 9 parcelas iguais e a última maior, nas duas formas de texto', () => {
-    const { text } = render('333.31', 10, plan('333.31', 10));
+  it('com resto: a 1ª parcela maior e as 9 demais iguais, nas duas formas de texto', () => {
+    const { el, text } = render('333.31', 10, plan('333.31', 10));
 
-    expect(text('installment-hero')).toBe('9× de R$ 33,33');
-    expect(text('installment-last')).toBe('+ 1× de R$ 33,34 (última parcela)');
-    expect(text('installment-summary')).toBe('9 × R$ 33,33 + 1 × R$ 33,34');
+    expect(text('installment-hero')).toBe('1ª parcela de R$ 33,34');
+    expect(text('installment-others')).toBe('9× de R$ 33,33');
+    expect(text('installment-summary')).toBe('1 × R$ 33,34 + 9 × R$ 33,33');
+    expect(el.textContent).not.toContain('última parcela');
+  });
+
+  it('134,30 em 4x: "1ª parcela de R$ 33,59" e "3× de R$ 33,57"', () => {
+    const { text } = render('134.30', 4, plan('134.30', 4));
+
+    expect(text('installment-hero')).toBe('1ª parcela de R$ 33,59');
+    expect(text('installment-others')).toBe('3× de R$ 33,57');
+    expect(text('installment-summary')).toBe('1 × R$ 33,59 + 3 × R$ 33,57');
   });
 
   it('mostra o 1º vencimento com a fatura, a prévia e "Ver todas" só com mais de duas parcelas', () => {

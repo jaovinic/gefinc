@@ -79,15 +79,27 @@ class TransactionGroupInstallmentIT extends IntegrationTestBase {
   }
 
   @Test
-  void restoDeCentavosFicaNaUltimaParcelaESomaEExata() throws Exception {
+  void restoDeCentavosFicaNaPrimeiraParcelaESomaEExata() throws Exception {
     JsonNode group = api.createGroup(ana, installments(card, "100.00", 3, "2026-11-05", null));
 
-    assertThat(field(group, "amount")).containsExactly("33.33", "33.33", "33.34");
+    assertThat(field(group, "amount")).containsExactly("33.34", "33.33", "33.33");
     BigDecimal sum =
         group.get("transactions").findValues("amount").stream()
             .map(n -> new BigDecimal(n.asText()))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     assertThat(sum).isEqualByComparingTo("100.00");
+  }
+
+  @Test
+  void restoDe134Reais30EmQuatroVaiTodoParaAPrimeiraParcela() throws Exception {
+    JsonNode group = api.createGroup(ana, installments(card, "134.30", 4, "2026-11-05", null));
+
+    assertThat(field(group, "amount")).containsExactly("33.59", "33.57", "33.57", "33.57");
+    BigDecimal sum =
+        group.get("transactions").findValues("amount").stream()
+            .map(n -> new BigDecimal(n.asText()))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    assertThat(sum).isEqualByComparingTo("134.30");
   }
 
   @Test

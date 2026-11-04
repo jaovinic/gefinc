@@ -144,7 +144,7 @@ quitados por pagamento de fatura não entram (o pagamento já os cobre). Saídas
   `recurrenceType=INSTALLMENT` e `totalInstallments` (1 a 120). Cada parcela tem `dueDate` pela regra da fatura (compra
   até o dia de fechamento, inclusive, entra na fatura que fecha no mês; depois, na do mês seguinte; as demais parcelas
   vencem a cada mês seguinte) e `referenceMonth` = mês do vencimento; a fatura é a visão derivada por esse mês.
-  O resto de centavos fica na última parcela. O contrato não aceita "valor da parcela".
+  O resto de centavos fica todo na primeira parcela. O contrato não aceita "valor da parcela".
 - A interface recebe o valor da parcela (padrão na tela rápida) ou o total e envia sempre o total: no modo parcela,
   `totalAmount = valor × N` em centavos com `bigint` (`multiplyMoney`, `@gefinc/utils`), sem `firstDueDate` no cartão.
   No formulário completo o padrão continua sendo o total (`amountMode`: `TOTAL` | `INSTALLMENT`).

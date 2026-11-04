@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,78 @@ class InstallmentSchedulerTest {
     }
     assertThat(tests).hasSizeGreaterThanOrEqualTo(9);
     return tests;
+  }
+
+  @TestFactory
+  List<DynamicTest> divisaoCompartilhada() throws IOException {
+    JsonNode root = new ObjectMapper().readTree(FIXTURES.toFile());
+    List<DynamicTest> tests = new ArrayList<>();
+    for (JsonNode vector : root.get("split")) {
+      tests.add(
+          DynamicTest.dynamicTest(
+              vector.get("name").asText(),
+              () -> {
+                long cents =
+                    new BigDecimal(vector.get("total").asText()).movePointRight(2).longValueExact();
+                long[] parts = InstallmentScheduler.split(cents, vector.get("count").asInt());
+                JsonNode expected = vector.get("expected");
+                assertThat(parts).hasSize(expected.size());
+                for (int i = 0; i < parts.length; i++) {
+                  assertThat(BigDecimal.valueOf(parts[i], 2))
+                      .isEqualByComparingTo(expected.get(i).asText());
+                }
+                assertThat(Arrays.stream(parts).sum()).isEqualTo(cents);
+              }));
+    }
+    assertThat(tests).hasSizeGreaterThanOrEqualTo(10);
+    return tests;
+  }
+
+  @TestFactory
+  List<DynamicTest> divisaoInvalidaCompartilhada() throws IOException {
+    JsonNode root = new ObjectMapper().readTree(FIXTURES.toFile());
+    List<DynamicTest> tests = new ArrayList<>();
+    for (JsonNode vector : root.get("splitInvalid")) {
+      tests.add(
+          DynamicTest.dynamicTest(
+              vector.get("name").asText(),
+              () ->
+                  assertThatThrownBy(
+                          () ->
+                              InstallmentScheduler.schedule(
+                                  null,
+                                  null,
+                                  LocalDate.of(2026, 1, 1),
+                                  LocalDate.of(2026, 1, 31),
+                                  new BigDecimal(vector.get("total").asText()),
+                                  vector.get("count").asInt()))
+                      .isInstanceOf(IllegalArgumentException.class)));
+    }
+    assertThat(tests).isNotEmpty();
+    return tests;
+  }
+
+  @Test
+  void propriedadesDaDivisao() {
+    long[] totais = {
+      1, 3, 7, 99, 100, 10_000, 13_430, 99_999, 123_456_789L, 99_999_999_999_999_999L
+    };
+    for (long cents : totais) {
+      for (int count = 1; count <= 120; count++) {
+        if (cents < count) {
+          continue;
+        }
+        long[] parts = InstallmentScheduler.split(cents, count);
+        assertThat(parts).as("%d em %d", cents, count).hasSize(count);
+        assertThat(Arrays.stream(parts).sum()).isEqualTo(cents);
+        for (int i = 1; i < count; i++) {
+          assertThat(parts[i]).isEqualTo(parts[1]);
+          assertThat(parts[0]).isGreaterThanOrEqualTo(parts[i]);
+          assertThat(parts[0] - parts[i]).isLessThanOrEqualTo(count - 1);
+        }
+        assertThat(parts[count - 1]).isGreaterThanOrEqualTo(1);
+      }
+    }
   }
 
   private void check(JsonNode vector) {

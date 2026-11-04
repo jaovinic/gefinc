@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -15,8 +16,9 @@ import java.util.List;
  *       demais vencem no mesmo dia dos meses seguintes.
  *   <li>Demais contas: parcelas mensais a partir do primeiro vencimento informado, preservando o
  *       dia original (31/01 → 28/02 → 31/03).
- *   <li>O valor é dividido em centavos inteiros e o resto fica na última parcela, de modo que a
- *       soma é exatamente o total.
+ *   <li>O valor é dividido em centavos inteiros e o resto da divisão fica todo na primeira parcela
+ *       (convenção das adquirentes: 134,30 em 4x = 33,59 + 3 x 33,57), de modo que a soma é
+ *       exatamente o total.
  * </ul>
  */
 public final class InstallmentScheduler {
@@ -24,6 +26,22 @@ public final class InstallmentScheduler {
   private InstallmentScheduler() {}
 
   public record Installment(int number, BigDecimal amount, LocalDate dueDate) {}
+
+  /**
+   * Divide {@code cents} em {@code count} parcelas: {@code base = cents / count}; a primeira recebe
+   * {@code base + resto} e as demais, {@code base}. A soma é sempre {@code cents}.
+   */
+  public static long[] split(long cents, int count) {
+    if (count < 1 || cents < count) {
+      throw new IllegalArgumentException(
+          "O total de " + cents + " centavos não pode ser dividido em " + count + " parcelas");
+    }
+    long base = cents / count;
+    long[] parts = new long[count];
+    Arrays.fill(parts, base);
+    parts[0] = cents - base * (count - 1);
+    return parts;
+  }
 
   /**
    * @param closingDay dia de fechamento do cartão, ou {@code null} fora do cartão
@@ -55,10 +73,9 @@ public final class InstallmentScheduler {
       firstDue = firstDueDate;
       anchorDay = firstDueDate.getDayOfMonth();
     }
-    long base = cents / count;
+    long[] parts = split(cents, count);
     List<Installment> installments = new ArrayList<>(count);
     for (int index = 0; index < count; index++) {
-      long amountCents = index == count - 1 ? cents - base * (count - 1) : base;
       LocalDate due =
           index == 0
               ? firstDue
@@ -67,7 +84,7 @@ public final class InstallmentScheduler {
                   .atDay(
                       Math.min(
                           anchorDay, YearMonth.from(firstDue).plusMonths(index).lengthOfMonth()));
-      installments.add(new Installment(index + 1, BigDecimal.valueOf(amountCents, 2), due));
+      installments.add(new Installment(index + 1, BigDecimal.valueOf(parts[index], 2), due));
     }
     return installments;
   }

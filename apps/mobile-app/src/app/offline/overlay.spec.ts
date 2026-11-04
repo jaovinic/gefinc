@@ -53,14 +53,14 @@ describe('applyPending (lista de lançamentos com as operações ainda não envi
     expect(applyPending(empty(), [op], ctx, { month: '2026-12' }).content).toHaveLength(0);
   });
 
-  it('parcelado gera as parcelas pelas regras do pacote utils (resto de centavos na última)', () => {
+  it('parcelado gera as parcelas pelas regras do pacote utils (resto de centavos na primeira)', () => {
     const op = create({ ...base, recurrenceType: 'INSTALLMENT', totalAmount: '100.00', totalInstallments: 3, firstDueDate: '2026-11-12' });
 
     const nov = applyPending(empty(), [op], ctx, { month: '2026-11' }).content;
     const dec = applyPending(empty(), [op], ctx, { month: '2026-12' }).content;
     const jan = applyPending(empty(), [op], ctx, { month: '2027-01' }).content;
 
-    expect([nov[0].amount, dec[0].amount, jan[0].amount]).toEqual(['33.33', '33.33', '33.34']);
+    expect([nov[0].amount, dec[0].amount, jan[0].amount]).toEqual(['33.34', '33.33', '33.33']);
     expect([nov[0].installmentNumber, dec[0].installmentNumber, jan[0].installmentNumber]).toEqual([1, 2, 3]);
     expect(jan[0]).toMatchObject({ totalInstallments: 3, dueDate: '2027-01-12' });
   });

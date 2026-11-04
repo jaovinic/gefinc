@@ -64,7 +64,7 @@ No emulador Android, a API local é acessada por `http://10.0.2.2:8080/api/v1`.
    (despesa fixa). Marque um item como pago e desfaça. No Nubank, cadastre a assinatura fixa "Streaming"
    e altere o dia de vencimento do cartão: as próximas ocorrências pendentes passam a vencer no novo dia.
 4. **Parcelado (P4)**: no Nubank, registre R$ 100,00 em 3 parcelas com compra no dia 12.
-   Esperado: parcelas de 33,33 / 33,33 / 33,34, a primeira vencendo no dia 17 do mês seguinte.
+   Esperado: parcelas de 33,34 / 33,33 / 33,33, a primeira vencendo no dia 17 do mês seguinte.
    Registre também um carnê de R$ 300,00 em 3 parcelas na conta corrente.
 5. **Faturas (P5)**: abra a projeção de faturas do Nubank. Pague R$ 30,00 da fatura (restante
    R$ 70,00); tente pagar R$ 80,00 (deve ser recusado); use "pagar fatura" pelo restante e

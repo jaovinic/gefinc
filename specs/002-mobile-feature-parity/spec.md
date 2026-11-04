@@ -220,7 +220,7 @@ A pessoa recebe lembretes no aparelho para contas que vencem em breve ou estão 
 **Lançamentos**
 
 - **FR-008**: O aplicativo MUST permitir registrar receitas e despesas dos tipos avulso, fixo e parcelado, com todos os campos do cadastro web: descrição ou loja, categoria, conta ou cartão, valor, quantidade de parcelas, data da compra e vencimento.
-- **FR-009**: O aplicativo MUST mostrar, antes de salvar uma compra parcelada, a prévia de todas as parcelas com vencimento e valor, e a soma das parcelas MUST ser igual ao total, com o resto de centavos na última parcela.
+- **FR-009**: O aplicativo MUST mostrar, antes de salvar uma compra parcelada, a prévia de todas as parcelas com vencimento e valor, e a soma das parcelas MUST ser igual ao total, com o resto de centavos na primeira parcela.
 - **FR-010**: O aplicativo MUST listar e filtrar lançamentos por mês, conta ou cartão, categoria, tipo e status.
 - **FR-011**: O aplicativo MUST permitir editar e excluir lançamentos, informando o efeito sobre parcelas já pagas e pedindo confirmação antes de excluir.
 - **FR-012**: O aplicativo MUST permitir marcar ocorrências como pagas com data de pagamento e desfazer o pagamento, inclusive itens de cartão, respeitando as regras de itens quitados por pagamento de fatura.

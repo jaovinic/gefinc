@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   addMoney,
   compareMoney,
@@ -10,6 +12,17 @@ import {
   sumMoney,
   toCents,
 } from './money';
+
+interface SplitVector {
+  name: string;
+  total: string;
+  count: number;
+  expected: string[];
+}
+
+const fixtures = JSON.parse(
+  readFileSync(resolve(__dirname, '../../../core-models/fixtures/installments.json'), 'utf-8'),
+) as { split: SplitVector[]; splitInvalid: Omit<SplitVector, 'expected'>[] };
 
 describe('Money', () => {
   describe('toCents / fromCents', () => {
@@ -53,9 +66,37 @@ describe('Money', () => {
       expect(splitMoney('100.00', 4)).toEqual(['25.00', '25.00', '25.00', '25.00']);
     });
 
-    it('deixa o resto de centavos na última parcela', () => {
-      expect(splitMoney('100.00', 3)).toEqual(['33.33', '33.33', '33.34']);
-      expect(splitMoney('0.10', 3)).toEqual(['0.03', '0.03', '0.04']);
+    it('deixa todo o resto de centavos na primeira parcela', () => {
+      expect(splitMoney('100.00', 3)).toEqual(['33.34', '33.33', '33.33']);
+      expect(splitMoney('0.10', 3)).toEqual(['0.04', '0.03', '0.03']);
+      expect(splitMoney('134.30', 4)).toEqual(['33.59', '33.57', '33.57', '33.57']);
+    });
+
+    it.each(fixtures.split)('vetor compartilhado: $name', (vector) => {
+      expect(splitMoney(vector.total, vector.count)).toEqual(vector.expected);
+    });
+
+    it.each(fixtures.splitInvalid)('vetor compartilhado inválido: $name', (vector) => {
+      expect(() => splitMoney(vector.total, vector.count)).toThrow();
+    });
+
+    it('propriedades: soma = total, primeira >= demais, diferença <= n-1 centavos, demais iguais', () => {
+      for (const cents of [1n, 3n, 7n, 99n, 100n, 10000n, 13430n, 99999n, 123456789n, 99999999999999999n]) {
+        for (let n = 1; n <= 120; n++) {
+          if (cents < BigInt(n)) {
+            continue;
+          }
+          const parts = splitMoney(fromCents(cents), n).map(toCents);
+          expect(parts).toHaveLength(n);
+          expect(parts.reduce((a, b) => a + b, 0n)).toBe(cents);
+          for (let i = 1; i < n; i++) {
+            expect(parts[i]).toBe(parts[1]);
+            expect(parts[0] >= parts[i]).toBe(true);
+            expect(parts[0] - parts[i] <= BigInt(n - 1)).toBe(true);
+          }
+          expect(parts[n - 1] >= 1n).toBe(true);
+        }
+      }
     });
 
     it('trata a parcela única', () => {
