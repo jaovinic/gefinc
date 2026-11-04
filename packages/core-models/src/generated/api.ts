@@ -1819,6 +1819,8 @@ export interface paths {
          * @description Para cada conta `CHECKING` ou `CASH` (ativas e inativas): saldo inicial + receitas recebidas
          *     (`PAID` com pagamento até hoje) − despesas pagas da própria conta − saídas dos cartões vinculados
          *     (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje).
+         *     A lista traz todas as contas com o saldo real e a flag `active`, mas o `total` soma apenas as
+         *     contas ativas: conta inativa não entra no Saldo Geral, mesmo com saldo.
          *     Saídas de cartão sem conta vinculada não debitam nenhuma conta e somam em `unlinkedCardPayments`.
          *     Itens de cartão quitados por pagamento de fatura não são contados de novo.
          */
@@ -2319,6 +2321,7 @@ export interface components {
             name: string;
             /** @enum {string} */
             type: "CHECKING" | "CASH";
+            /** @description Conta inativa não entra em `Balances.total` e o painel não a exibe */
             active: boolean;
             /** @description Saldo acumulado até hoje (pode ser negativo) */
             balance: components["schemas"]["Money"];
@@ -2330,7 +2333,7 @@ export interface components {
              * @description Data de referência do saldo (hoje
              */
             asOf: string;
-            /** @description Soma dos saldos de todas as contas (inclusive inativas com saldo diferente de zero) */
+            /** @description Soma dos saldos das contas ativas. Contas inativas aparecem em `accounts` com `active=false` e saldo real, mas não entram no total. */
             total: components["schemas"]["Money"];
             accounts: components["schemas"]["AccountBalance"][];
             /** @description Saídas de cartões sem conta vinculada, que não debitam nenhuma conta */

@@ -69,17 +69,50 @@ describe('BalancePanel', () => {
     expect(rows[1].querySelector('[data-balance]')?.className).toContain('text-gefinc-danger');
   });
 
-  it('esconde conta inativa com saldo zero, mas mostra a inativa com saldo', () => {
+  it('esconde toda conta inativa, mesmo com saldo diferente de zero', () => {
     const { el } = setup({
       ...balances,
       accounts: [
         ...balances.accounts,
         { accountId: 10, name: 'Antiga com saldo', type: 'CHECKING', active: false, balance: '5.00', openingBalance: '0.00' },
+        { accountId: 11, name: 'Antiga devedora', type: 'CHECKING', active: false, balance: '-40.00', openingBalance: '0.00' },
       ],
     });
     const text = el.textContent ?? '';
     expect(text).not.toContain('Conta antiga');
-    expect(text).toContain('Antiga com saldo');
+    expect(text).not.toContain('Antiga com saldo');
+    expect(text).not.toContain('Antiga devedora');
+    expect(el.querySelectorAll('[data-testid="account-balance"]')).toHaveLength(2);
+  });
+
+  it('o saldo geral exibe o total do servidor, sem somar as inativas no cliente', () => {
+    const { el } = setup({
+      ...balances,
+      total: '1300.00',
+      accounts: [
+        ...balances.accounts,
+        { accountId: 10, name: 'Antiga com saldo', type: 'CHECKING', active: false, balance: '5000.00', openingBalance: '0.00' },
+      ],
+    });
+    expect(el.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 1.300,00');
+  });
+
+  it('com contas cadastradas mas todas inativas mostra "Nenhuma conta ativa" e não "Nenhuma conta cadastrada"', () => {
+    const { el } = setup({
+      ...balances,
+      total: '0.00',
+      accounts: [
+        { accountId: 1, name: 'Itaú', type: 'CHECKING', active: false, balance: '1500.00', openingBalance: '0.00' },
+        { accountId: 3, name: 'Carteira', type: 'CASH', active: false, balance: '0.00', openingBalance: '0.00' },
+      ],
+    });
+    const empty = el.querySelector('[data-testid="balance-empty"]')!;
+    expect(empty.textContent).toContain('Nenhuma conta ativa');
+    expect(empty.textContent).not.toContain('Nenhuma conta cadastrada');
+    expect(empty.querySelector('a')?.getAttribute('href')).toBe('/accounts');
+    expect(el.querySelector('[data-testid="account-balance"]')).toBeNull();
+    expect(el.textContent).not.toContain('Itaú');
+    expect(el.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 0,00');
   });
 
   it('no celular as contas ficam num único cartão com divisores e no web viram grade', () => {
@@ -110,6 +143,7 @@ describe('BalancePanel', () => {
   it('sem nenhuma conta mostra o estado vazio com chamada para cadastrar', () => {
     const { el } = setup({ ...balances, total: '0.00', accounts: [] });
     expect(el.querySelector('[data-testid="balance-empty"]')?.textContent).toContain('Nenhuma conta cadastrada');
+    expect(el.querySelector('[data-testid="balance-empty"]')?.textContent).not.toContain('Nenhuma conta ativa');
     expect(el.querySelector('[data-testid="balance-empty"] a')?.getAttribute('href')).toBe('/accounts');
     expect(el.querySelector('[data-indicator="balance-total"] .financial-value')?.textContent).toContain('R$ 0,00');
   });

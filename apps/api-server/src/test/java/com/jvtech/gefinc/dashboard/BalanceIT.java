@@ -329,20 +329,121 @@ class BalanceIT extends IntegrationTestBase {
     assertThat(b.get("unlinkedCardPayments").asText()).isEqualTo("0.00");
   }
 
+  private static boolean activeOf(JsonNode balances, long accountId) {
+    for (JsonNode a : balances.get("accounts")) {
+      if (a.get("accountId").asLong() == accountId) {
+        return a.get("active").asBoolean();
+      }
+    }
+    throw new IllegalStateException("Conta fora do saldo: " + accountId);
+  }
+
+  private void setActive(TestUser user, long accountId, boolean active) throws Exception {
+    api.updateAccount(user, accountId, Map.of("active", active)).andExpect(status().isOk());
+  }
+
   @Test
-  void contaInativaComSaldoDiferenteDeZeroEntraNoTotal() throws Exception {
+  void contaInativaNaoSomaNoTotalMasMantemSaldoRealEFlag() throws Exception {
     income(wallet, "300.00", "2026-11-05");
-    api.updateAccount(ana, wallet, Map.of("active", false)).andExpect(status().isOk());
+    income(itau, "100.00", "2026-11-05");
+    setActive(ana, wallet, false);
 
     JsonNode b = balances();
 
+    assertThat(b.get("total").asText()).isEqualTo("100.00");
+    assertThat(b.get("accounts")).hasSize(2);
     assertThat(of(b, wallet)).isEqualTo("300.00");
-    assertThat(b.get("total").asText()).isEqualTo("300.00");
-    for (JsonNode a : b.get("accounts")) {
-      if (a.get("accountId").asLong() == wallet) {
-        assertThat(a.get("active").asBoolean()).isFalse();
-      }
-    }
+    assertThat(activeOf(b, wallet)).isFalse();
+    assertThat(of(b, itau)).isEqualTo("100.00");
+    assertThat(activeOf(b, itau)).isTrue();
+  }
+
+  @Test
+  void reativarContaVoltaASomarNoTotal() throws Exception {
+    income(wallet, "300.00", "2026-11-05");
+    income(itau, "100.00", "2026-11-05");
+    setActive(ana, wallet, false);
+    assertThat(balances().get("total").asText()).isEqualTo("100.00");
+
+    setActive(ana, wallet, true);
+
+    JsonNode b = balances();
+    assertThat(b.get("total").asText()).isEqualTo("400.00");
+    assertThat(of(b, wallet)).isEqualTo("300.00");
+    assertThat(activeOf(b, wallet)).isTrue();
+  }
+
+  @Test
+  void totalEhASomaApenasDasAtivas() throws Exception {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("name", "Conta devedora");
+    body.put("type", "CHECKING");
+    body.put("holderType", "PF");
+    body.put("openingBalance", "-300.00");
+    long debtor = api.postAccount(ana, body).get("id").asLong();
+    income(itau, "1000.00", "2026-11-05");
+    income(wallet, "50.00", "2026-11-05");
+    setActive(ana, debtor, false);
+
+    JsonNode b = balances();
+
+    assertThat(of(b, debtor)).isEqualTo("-300.00");
+    assertThat(activeOf(b, debtor)).isFalse();
+    assertThat(b.get("total").asText()).isEqualTo("1050.00");
+
+    setActive(ana, wallet, false);
+    assertThat(balances().get("total").asText()).isEqualTo("1000.00");
+  }
+
+  @Test
+  void todasInativasTotalZero() throws Exception {
+    income(itau, "1000.00", "2026-11-05");
+    income(wallet, "50.00", "2026-11-05");
+    setActive(ana, itau, false);
+    setActive(ana, wallet, false);
+
+    JsonNode b = balances();
+
+    assertThat(b.get("total").asText()).isEqualTo("0.00");
+    assertThat(b.get("accounts")).hasSize(2);
+    assertThat(of(b, itau)).isEqualTo("1000.00");
+    assertThat(of(b, wallet)).isEqualTo("50.00");
+    assertThat(activeOf(b, itau)).isFalse();
+    assertThat(activeOf(b, wallet)).isFalse();
+  }
+
+  @Test
+  void cartaoInativoVinculadoAContaAtivaContinuaDebitando() throws Exception {
+    income(itau, "2000.00", "2026-11-05");
+    api.decemberPurchase(ana, nubank, shopping, "Notebook", "600.00");
+    api.payInvoice(ana, nubank, "2026-12", "600.00", "2026-11-10").andExpect(status().isCreated());
+    JsonNode antes = balances();
+    assertThat(of(antes, itau)).isEqualTo("1400.00");
+    assertThat(antes.get("total").asText()).isEqualTo("1400.00");
+
+    setActive(ana, nubank, false);
+
+    JsonNode depois = balances();
+    assertThat(of(depois, itau)).isEqualTo("1400.00");
+    assertThat(depois.get("total").asText()).isEqualTo("1400.00");
+    assertThat(depois.get("unlinkedCardPayments").asText()).isEqualTo("0.00");
+  }
+
+  @Test
+  void contaBancariaInativaComCartaoAtivo() throws Exception {
+    income(itau, "2000.00", "2026-11-05");
+    income(wallet, "100.00", "2026-11-05");
+    api.decemberPurchase(ana, nubank, shopping, "Notebook", "600.00");
+    api.payInvoice(ana, nubank, "2026-12", "600.00", "2026-11-10").andExpect(status().isCreated());
+
+    setActive(ana, itau, false);
+
+    JsonNode b = balances();
+    // O débito do cartão segue na linha do banco inativo, que fica fora do total.
+    assertThat(of(b, itau)).isEqualTo("1400.00");
+    assertThat(activeOf(b, itau)).isFalse();
+    assertThat(b.get("total").asText()).isEqualTo("100.00");
+    assertThat(b.get("unlinkedCardPayments").asText()).isEqualTo("0.00");
   }
 
   @Test
@@ -366,6 +467,32 @@ class BalanceIT extends IntegrationTestBase {
     assertThat(of(b, biaChecking)).isEqualTo("70.00");
     assertThat(b.get("total").asText()).isEqualTo("70.00");
     assertThat(of(balances(), itau)).isEqualTo("5000.00");
+  }
+
+  @Test
+  void contaInativaDeOutroUsuarioNaoAlteraOTotalDoUsuario() throws Exception {
+    income(itau, "5000.00", "2026-11-05");
+    TestUser bia = new TestUsers(mockMvc, objectMapper).registerAndLogin("bia@example.com");
+    long biaChecking = api.checking(bia, "Conta da Bia");
+    api.createGroup(
+        bia,
+        api.variableBody(
+            "Salário",
+            "70.00",
+            biaChecking,
+            api.category(bia, "Salário"),
+            "2026-11-01",
+            "2026-11-05"));
+    setActive(bia, biaChecking, false);
+
+    JsonNode anaBalances = balances();
+    JsonNode biaBalances = balances(bia);
+
+    assertThat(anaBalances.get("total").asText()).isEqualTo("5000.00");
+    assertThat(of(anaBalances, itau)).isEqualTo("5000.00");
+    assertThat(biaBalances.get("total").asText()).isEqualTo("0.00");
+    assertThat(of(biaBalances, biaChecking)).isEqualTo("70.00");
+    assertThat(activeOf(biaBalances, biaChecking)).isFalse();
   }
 
   @Test
