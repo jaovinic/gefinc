@@ -280,7 +280,7 @@ function get(
 /** Leituras que só existem para preparar uma alteração (confirmar exclusão, abrir a edição): sem conexão, a ação é que não cabe. */
 function readsForAction(req: HttpRequest<unknown>, base: string): boolean {
   const path = req.url.slice(base.length).split('?')[0];
-  return /\/(impact|usage)$/.test(path) || /^\/(transaction-groups|transactions)\/\d+$/.test(path);
+  return /\/(impact|usage)$/.test(path) || /^\/(transaction-groups|transactions|transfers)\/\d+$/.test(path);
 }
 
 function isTransactionList(req: HttpRequest<unknown>, base: string): boolean {

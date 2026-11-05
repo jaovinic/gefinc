@@ -7,6 +7,7 @@ import com.jvtech.gefinc.category.CategoryType;
 import com.jvtech.gefinc.invoice.InvoicePaymentRepository;
 import com.jvtech.gefinc.transaction.IncomeSettlement;
 import com.jvtech.gefinc.transaction.TransactionStatus;
+import com.jvtech.gefinc.transfer.TransferRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
@@ -22,11 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Saldo acumulado até hoje de cada conta bancária e de dinheiro (ativas e inativas): saldo inicial,
  * mais receitas recebidas, menos despesas pagas da própria conta, menos as saídas dos cartões
- * vinculados (despesas de cartão pagas individualmente e pagamentos de fatura). Itens quitados por
- * pagamento de fatura não entram de novo; receita legada em cartão é ignorada. Saídas de cartão sem
- * conta vinculada não debitam conta alguma e aparecem à parte. Todas as contas voltam com o saldo
- * real e a flag {@code active}, mas o total soma apenas as ativas: conta inativa não entra no Saldo
- * Geral, mesmo com saldo.
+ * vinculados (despesas de cartão pagas individualmente e pagamentos de fatura), mais as
+ * transferências recebidas e menos as enviadas, com data até hoje (transferência de data futura só
+ * conta a partir dela). A transferência entre duas contas move saldo sem alterar a soma das duas.
+ * Itens quitados por pagamento de fatura não entram de novo; receita legada em cartão é ignorada.
+ * Saídas de cartão sem conta vinculada não debitam conta alguma e aparecem à parte. Todas as contas
+ * voltam com o saldo real e a flag {@code active}, mas o total soma apenas as ativas: conta inativa
+ * não entra no Saldo Geral, mesmo com saldo.
  */
 @Service
 public class BalanceService {
@@ -61,16 +64,19 @@ public class BalanceService {
 
   private final AccountRepository accounts;
   private final InvoicePaymentRepository payments;
+  private final TransferRepository transfers;
   private final IncomeSettlement incomeSettlement;
   private final Clock clock;
 
   BalanceService(
       AccountRepository accounts,
       InvoicePaymentRepository payments,
+      TransferRepository transfers,
       IncomeSettlement incomeSettlement,
       Clock clock) {
     this.accounts = accounts;
     this.payments = payments;
+    this.transfers = transfers;
     this.incomeSettlement = incomeSettlement;
     this.clock = clock;
   }
@@ -103,6 +109,14 @@ public class BalanceService {
         balance.merge(
             account.getId(), kind == CategoryType.INCOME ? sum : sum.negate(), BigDecimal::add);
       }
+    }
+    // Só contas que não são cartão têm saldo; transferência nunca envolve cartão (guarda do mapa).
+    for (Object[] row : transfers.receivedUntil(userId, today)) {
+      balance.computeIfPresent((Long) row[0], (id, current) -> current.add((BigDecimal) row[1]));
+    }
+    for (Object[] row : transfers.sentUntil(userId, today)) {
+      balance.computeIfPresent(
+          (Long) row[0], (id, current) -> current.subtract((BigDecimal) row[1]));
     }
     for (Object[] row : payments.sumsPaidUntil(userId, today)) {
       Account card = byId.get((Long) row[0]);

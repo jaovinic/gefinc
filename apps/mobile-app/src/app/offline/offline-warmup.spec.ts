@@ -91,6 +91,7 @@ describe('OfflineWarmup (aquece a cópia local com a rede)', () => {
     '/balances',
     `/dashboard?month=${month}`,
     `/transactions?month=${month}&page=0&size=25`,
+    `/transfers?month=${month}&page=0&size=25`,
     `/cashflow?from=${month}&months=12`,
     `/accounts/2/invoices/${month}`,
     `/invoices/projection?from=${month}&months=12&accountId=2`,

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 
 /** FR-003: e-mail, senha, tokens e valores financeiros nunca aparecem nos logs, nem nos de erro. */
@@ -35,6 +36,8 @@ class LogRedactionIT extends IntegrationTestBase {
   private static final String EMAIL = "privacidade.logs@example.com";
   private static final String PASSWORD = "senha-secreta-987";
   private static final String AMOUNT = "7654.32";
+  private static final String TRANSFER_AMOUNT = "3210.98";
+  private static final String TRANSFER_NOTE = "Reserva confidencial do mes";
 
   private ListAppender<ILoggingEvent> appender;
   private Logger root;
@@ -92,6 +95,20 @@ class LogRedactionIT extends IntegrationTestBase {
         user,
         api.variableBody("Compra grande", AMOUNT, checking, category, "2026-11-08", "2026-11-15"));
 
+    // transferência entre contas: valor e descrição também não podem aparecer, nem nos erros
+    long wallet = api.cash(user, "Carteira");
+    Map<String, Object> transfer =
+        api.transferBody(checking, wallet, TRANSFER_AMOUNT, "2026-11-09");
+    transfer.put("description", TRANSFER_NOTE);
+    api.call(user, HttpMethod.POST, "/transfers", transfer);
+    api.call(
+        user,
+        HttpMethod.POST,
+        "/transfers",
+        api.transferBody(checking, checking, TRANSFER_AMOUNT, "2026-11-09"));
+    api.call(user, HttpMethod.GET, "/transfers?month=2026-11", null);
+    api.call(user, HttpMethod.GET, "/balances", null);
+
     // caminhos de erro: senha errada, e-mail duplicado, token inválido, recuperação de senha
     mockMvc.perform(
         post("/auth/login")
@@ -113,7 +130,16 @@ class LogRedactionIT extends IntegrationTestBase {
 
     assertThat(appender.list).as("o teste precisa ter capturado logs para ser válido").isNotEmpty();
     List<String> forbidden =
-        List.of(EMAIL.toLowerCase(), PASSWORD, access, refresh, AMOUNT, "7654,32");
+        List.of(
+            EMAIL.toLowerCase(),
+            PASSWORD,
+            access,
+            refresh,
+            AMOUNT,
+            "7654,32",
+            TRANSFER_AMOUNT,
+            "3210,98",
+            TRANSFER_NOTE);
     List<String> leaks =
         appender.list.stream()
             // GreenMail é o servidor de e-mail falso dos testes, não código da aplicação.

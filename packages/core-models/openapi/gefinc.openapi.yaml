@@ -21,6 +21,7 @@ tags:
   - name: Transaction Groups
   - name: Transactions
   - name: Invoices
+  - name: Transfers
   - name: Dashboard
 
 paths:
@@ -335,8 +336,8 @@ paths:
       tags: [Accounts]
       summary: Exclui conta sem nenhum dado relacionado (FR-013)
       description: |
-        A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, cartões
-        vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
+        A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, transferências
+        (como origem ou destino), cartões vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
         (`ACCOUNT_IN_USE`) com as contagens; o cliente deve oferecer inativar a conta. A checagem é
         refeita no servidor a cada exclusão. Conta de outro usuário responde `404`.
       responses:
@@ -860,6 +861,120 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/InvoiceProjection' }
 
+  # ---------------------------------------------------------- Transfers
+  /transfers:
+    get:
+      tags: [Transfers]
+      summary: Lista as transferências entre contas de um mês
+      description: |
+        Transferências com `transferDate` no mês, da mais recente para a mais antiga. Com `accountId`,
+        só as que têm a conta como origem **ou** destino. Traz apenas ids de conta (sem nomes). Não
+        confunda com lançamentos: transferências não são receita nem despesa e não aparecem em
+        `/transactions`.
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/Month' }
+        - name: accountId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Página de transferências
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransferPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [Transfers]
+      summary: Transfere saldo entre duas contas
+      description: |
+        Origem e destino devem ser contas `CHECKING` ou `CASH`, ativas, do usuário e diferentes entre
+        si. Cartão de crédito responde `422` no campo `fromAccountId`/`toAccountId` (pagar fatura é
+        outro fluxo); conta inativa, `422` `ACCOUNT_INACTIVE`; origem = destino, `422` no campo
+        `toAccountId`; conta inexistente ou de outro usuário, `404` com a mesma mensagem. O saldo
+        insuficiente é permitido (como nas despesas). A data pode ser passada, hoje ou futura: o saldo
+        de `GET /balances` só considera transferências com data até hoje. Exige conexão no aplicativo
+        (não entra na fila offline).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferInput' }
+      responses:
+        '201':
+          description: Transferência registrada
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /transfers/{transferId}:
+    parameters:
+      - $ref: '#/components/parameters/TransferId'
+    get:
+      tags: [Transfers]
+      summary: Consulta uma transferência
+      responses:
+        '200':
+          description: Transferência
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Transfers]
+      summary: Edita uma transferência (substituição completa)
+      description: |
+        Mesmas regras da criação, inclusive conta inativa (`422`) nas duas pontas. `version`
+        desatualizada responde `409` (`STALE_VERSION`). Exige conexão no aplicativo.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferUpdate' }
+      responses:
+        '200':
+          description: Atualizada
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Transfers]
+      summary: Exclui (estorna) uma transferência
+      description: |
+        O saldo das duas contas volta ao que era. Permitido mesmo quando uma das contas está inativa.
+        Destrutivo: o cliente deve pedir confirmação. Exige conexão no aplicativo.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '204':
+          description: Excluída
+          headers:
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ------------------------------------------------------------ Dashboard
   /dashboard:
     get:
@@ -884,7 +999,9 @@ paths:
       description: |
         Para cada conta `CHECKING` ou `CASH` (ativas e inativas): saldo inicial + receitas recebidas
         (`PAID` com pagamento até hoje) − despesas pagas da própria conta − saídas dos cartões vinculados
-        (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje).
+        (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje) +
+        transferências recebidas − transferências enviadas (`/transfers` com data até hoje; transferência
+        de data futura só conta a partir dela). Uma transferência entre contas ativas não altera o `total`.
         A lista traz todas as contas com o saldo real e a flag `active`, mas o `total` soma apenas as
         contas ativas: conta inativa não entra no Saldo Geral, mesmo com saldo.
         Saídas de cartão sem conta vinculada não debitam nenhuma conta e somam em `unlinkedCardPayments`.
@@ -962,7 +1079,7 @@ components:
       required: false
       description: |
         UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-        excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+        excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
         `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
         mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
         o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -980,6 +1097,11 @@ components:
       schema: { type: integer, format: int64 }
     TransactionId:
       name: transactionId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    TransferId:
+      name: transferId
       in: path
       required: true
       schema: { type: integer, format: int64 }
@@ -1120,6 +1242,7 @@ components:
             transactionCount: { type: integer, format: int64, description: "Lançamentos que usam a conta ou a categoria." }
             groupCount: { type: integer, format: int64, description: "Grupos de lançamento que usam a categoria." }
             invoicePaymentCount: { type: integer, format: int64, description: "Pagamentos de fatura da conta." }
+            transferCount: { type: integer, format: int64, description: "Transferências em que a conta é origem ou destino." }
             linkedCardCount: { type: integer, format: int64, description: "Cartões vinculados à conta bancária." }
             hasOpeningBalance: { type: boolean, description: "A conta tem saldo inicial diferente de zero." }
     DeletionPendingProblem:
@@ -1238,11 +1361,12 @@ components:
     AccountUsage:
       type: object
       required: [canDelete, transactionCount, invoicePaymentCount, linkedCards, openingBalance]
-      description: "Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial."
+      description: "Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, transferências, cartões vinculados e saldo inicial."
       properties:
         canDelete: { type: boolean }
         transactionCount: { type: integer, format: int64 }
         invoicePaymentCount: { type: integer, format: int64 }
+        transferCount: { type: integer, format: int64, description: "Transferências em que a conta é origem ou destino. Campo aditivo: cópias antigas podem não trazê-lo (trate como 0)." }
         linkedCards:
           type: array
           items:
@@ -1383,6 +1507,54 @@ components:
         content:
           type: array
           items: { $ref: '#/components/schemas/Transaction' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+
+    Transfer:
+      type: object
+      required: [id, fromAccountId, toAccountId, amount, transferDate, scheduled, version]
+      properties:
+        id: { type: integer, format: int64 }
+        fromAccountId: { type: integer, format: int64 }
+        toAccountId: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/Money' }
+        transferDate: { type: string, format: date }
+        description: { type: string, maxLength: 120, description: "Ausente quando não informada." }
+        scheduled:
+          type: boolean
+          description: "Verdadeiro quando `transferDate` é futura: o saldo só a considera a partir dessa data."
+        version: { type: integer, format: int64 }
+    TransferInput:
+      type: object
+      required: [fromAccountId, toAccountId, amount, transferDate]
+      properties:
+        fromAccountId: { type: integer, format: int64, description: "Conta de origem (`CHECKING` ou `CASH`, ativa)." }
+        toAccountId: { type: integer, format: int64, description: "Conta de destino (`CHECKING` ou `CASH`, ativa), diferente da origem." }
+        amount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: "Maior que zero, até 15 dígitos inteiros."
+        transferDate: { type: string, format: date, description: "Passada, hoje ou futura, com ano de 1900 a 2200 (`1900-01-01` a `2200-12-31`); fora disso, `422` no campo `transferDate`." }
+        description: { type: string, maxLength: 120, description: "Opcional; o servidor apara os espaços e texto vazio vira ausente." }
+    TransferUpdate:
+      type: object
+      required: [fromAccountId, toAccountId, amount, transferDate, version]
+      properties:
+        fromAccountId: { type: integer, format: int64 }
+        toAccountId: { type: integer, format: int64 }
+        amount: { $ref: '#/components/schemas/Money' }
+        transferDate: { type: string, format: date, description: "Entre `1900-01-01` e `2200-12-31`." }
+        description: { type: string, maxLength: 120 }
+        version: { type: integer, format: int64 }
+      description: "Substituição completa; mesmas regras de TransferInput."
+    TransferPage:
+      type: object
+      required: [content, page, size, totalElements]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/Transfer' }
         page: { type: integer }
         size: { type: integer }
         totalElements: { type: integer, format: int64 }

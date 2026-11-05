@@ -19,3 +19,4 @@ export * from './invoices.api';
 export * from './dashboard.api';
 export * from './due-summary.api';
 export * from './balances.api';
+export * from './transfers.api';

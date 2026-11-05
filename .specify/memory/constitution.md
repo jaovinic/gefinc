@@ -1,6 +1,14 @@
 <!--
 Sync Impact Report
-- Version change: 1.2.0 → 1.3.0 (MINOR: Princípio II — o resíduo de arredondamento das parcelas passa a ser
+- Version change: 1.3.0 → 1.3.1 (PATCH: esclarecimento de lista, sem mudança de princípio — Princípios III
+  e V passam a enumerar as tabelas de dados financeiros do usuário isoladas por `user_id`, antes omitidas:
+  `invoice_payments` (V5), `idempotency_keys` (V6) e `account_transfers` (V13, feature de transferências
+  entre contas). Nenhuma regra nova: o isolamento por `user_id` já valia para essas tabelas.
+  `refresh_tokens` e `password_reset_tokens` (V1) são tabelas de autenticação, acessadas pelo hash do
+  token (sem JWT autenticado), e por isso ficam fora da regra de filtro por `user_id` do token. Origem:
+  branch `feat/account-transfers` (mesmo PR da feature de transferências, TASK-ACCOUNT-TRANSFERS),
+  TASK-CONSTITUTION-1.3.1)
+- 1.2.0 → 1.3.0 (MINOR: Princípio II — o resíduo de arredondamento das parcelas passa a ser
   atribuído à **primeira** parcela, e não mais à última, seguindo a convenção das adquirentes; exemplo:
   134,30 em 4x = 33,59/33,57/33,57/33,57. Mudança material de regra normativa, não mera redação; o
   determinismo e a soma exata = `total_amount` permanecem. Migração documentada (Princípio INEGOCIÁVEL):
@@ -22,7 +30,7 @@ Sync Impact Report
   - VII. Simplicidade
 - Seções adicionadas: Restrições Tecnológicas, Fluxo de Desenvolvimento, Governança
 - Seções removidas: nenhuma
-- Templates (reverificados na emenda 1.3.0, nenhuma alteração necessária):
+- Templates (reverificados na emenda 1.3.1, nenhuma alteração necessária):
   - ✅ .specify/templates/plan-template.md (Constitution Check com portões concretos; "installments sum
     exactly to total" continua válido)
   - ✅ .specify/templates/tasks-template.md (testes obrigatórios para lógica financeira e segurança)
@@ -69,7 +77,8 @@ Racional: erros de centavos ou de competência destroem a confiança em uma ferr
 Todo dado financeiro pertence a um único usuário.
 
 - A API MUST autenticar via JWT de curta duração com refresh token; não há sessão no servidor.
-- Toda consulta e mutação de `accounts`, `categories`, `transaction_groups` e `transactions`
+- Toda consulta e mutação de `accounts`, `categories`, `transaction_groups`, `transactions`,
+  `invoice_payments`, `idempotency_keys` e `account_transfers`
   MUST ser filtrada pelo `user_id` do token; acesso a recurso de outro usuário MUST resultar em 404/403.
 - Senhas MUST ser armazenadas apenas como hash forte (`password_hash`); segredos e chaves MUST vir
   de variáveis de ambiente, nunca do repositório.
@@ -96,8 +105,9 @@ O esquema do banco evolui exclusivamente por migrações Flyway.
 
 - Alterações de esquema MUST ser migrações versionadas e imutáveis após mescladas; correções vão em nova migração.
 - Hibernate `ddl-auto` MUST ser `validate` ou `none` fora de testes descartáveis.
-- Entidades JPA MUST permanecer coerentes com o modelo (`users`, `accounts`, `categories`,
-  `transaction_groups`, `transactions`); novas tabelas ou colunas exigem atualização da especificação.
+- O modelo de dados — tabelas e entidades JPA — MUST permanecer coerente com o conjunto (`users`,
+  `accounts`, `categories`, `transaction_groups`, `transactions`, `invoice_payments`, `idempotency_keys`,
+  `account_transfers`); novas tabelas ou colunas exigem atualização da especificação.
 - Chaves estrangeiras, `CHECK` para enums (`type`, `recurrence_type`, `status`) e índices por `user_id`
   e `due_date` MUST ser declarados no banco, não apenas na aplicação.
 
@@ -160,4 +170,4 @@ Esta constituição prevalece sobre quaisquer outras práticas do projeto.
 - **Orientação em execução**: o plano da funcionalidade corrente (referenciado em `CLAUDE.md`) e o `README.md`
   fornecem contexto operacional; em conflito, esta constituição prevalece.
 
-**Version**: 1.3.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-11-04
+**Version**: 1.3.1 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-11-05

@@ -38,6 +38,7 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   invoice: [p('M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6')],
   cashflow: [p('M3 20h18M5 16l4-5 4 3 6-8M15 6h4v4')],
   accounts: [p('M3 7h15a3 3 0 0 1 3 3v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7l2-3h11M16 14h2')],
+  transfer: [p('M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4')],
   tag: [p('M3 12V4h8l10 10-8 8zM7.5 8.5h.01')],
   user: [p('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0')],
   logout: [p('M9 4H5v16h4M16 8l4 4-4 4M20 12H9')],

@@ -5,15 +5,17 @@ import { BalanceValue } from '../balances/balance-value';
 import { ConfirmDialog } from '../layout/confirm-dialog';
 import { Sheet } from '../layout/sheet';
 import { EmptyView, ErrorView, LoadingView } from '../state-views/state-views';
+import { TransferForm } from '../transfers/transfer-form';
 import { Viewport } from '../viewport/viewport';
 import { AccountBadge } from './account-badge';
 import { ACCOUNT_TYPE_LABELS, AccountForm, HOLDER_LABELS } from './account-form';
+import { canTransfer, transferableAccounts } from './account-rules';
 import { blockedAccountMessage } from './account-usage';
 
 /** Cadastro de contas bancárias, dinheiro e cartões de crédito (FR-011 a FR-013). */
 @Component({
   selector: 'gef-accounts-page',
-  imports: [AccountBadge, AccountForm, BalanceValue, ConfirmDialog, EmptyView, ErrorView, LoadingView, Sheet],
+  imports: [AccountBadge, AccountForm, BalanceValue, ConfirmDialog, EmptyView, ErrorView, LoadingView, Sheet, TransferForm],
   template: `
     <section class="space-y-4">
       <header class="space-y-3">
@@ -23,8 +25,14 @@ import { blockedAccountMessage } from './account-usage';
             <input type="checkbox" class="gef-switch" [checked]="showInactive()" (change)="toggleInactive($event)" />
             <span>Mostrar inativas</span>
           </label>
-          <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" class="gef-btn-secondary" data-testid="transfer-button" [disabled]="!canTransferAny()" [attr.aria-describedby]="canTransferAny() ? null : 'transfer-hint'" (click)="startTransfer()">Transferir</button>
+            <button type="button" class="gef-btn-secondary" (click)="startCreate()">Nova conta</button>
+          </div>
         </div>
+        @if (!loading() && !loadError() && !canTransferAny()) {
+          <p id="transfer-hint" class="text-caption text-gefinc-muted" data-testid="transfer-hint">Para transferir, cadastre pelo menos duas contas bancárias ou de dinheiro ativas.</p>
+        }
       </header>
 
       @if (message(); as text) {
@@ -90,6 +98,9 @@ import { blockedAccountMessage } from './account-usage';
               }
               <div class="mt-2 flex flex-wrap gap-2 border-t border-gefinc-border pt-2">
                 <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + account.name" (click)="startEdit(account)">Editar</button>
+                @if (canTransferFrom(account)) {
+                  <button type="button" class="gef-btn-sm" data-testid="account-transfer" [attr.aria-label]="'Transferir de ' + account.name" (click)="startTransfer(account)">Transferir</button>
+                }
                 <button type="button" class="gef-btn-sm" [attr.aria-label]="(account.active ? 'Inativar ' : 'Reativar ') + account.name" (click)="toggleActive(account)">
                   {{ account.active ? 'Inativar' : 'Reativar' }}
                 </button>
@@ -137,6 +148,9 @@ import { blockedAccountMessage } from './account-usage';
                   </td>
                   <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
                     <button type="button" class="gef-btn-sm" (click)="startEdit(account)">Editar</button>
+                    @if (canTransferFrom(account)) {
+                      <button type="button" class="gef-btn-sm" data-testid="account-transfer" [attr.aria-label]="'Transferir de ' + account.name" (click)="startTransfer(account)">Transferir</button>
+                    }
                     <button type="button" class="gef-btn-sm" (click)="toggleActive(account)">
                       {{ account.active ? 'Inativar' : 'Reativar' }}
                     </button>
@@ -159,6 +173,11 @@ import { blockedAccountMessage } from './account-usage';
           (cancelled)="closeForm()"
           (newBankRequested)="newBank()"
         />
+      }
+    </gef-sheet>
+    <gef-sheet heading="Nova transferência" [open]="transferOpen()" (closed)="closeTransfer()">
+      @if (transferOpen()) {
+        <gef-transfer-form [accounts]="accounts()" [initialFromId]="transferFrom()" [resetToken]="transferKey()" (saved)="onTransferred()" (cancelled)="closeTransfer()" />
       }
     </gef-sheet>
     <gef-confirm-dialog
@@ -220,6 +239,10 @@ export class AccountsPage implements OnInit {
   protected readonly editing = signal<Account | null>(null);
   protected readonly formKey = signal(0);
   protected readonly confirming = signal<Account | null>(null);
+  protected readonly transferOpen = signal(false);
+  /** Origem pré-selecionada do formulário de transferência (ação "Transferir" de uma conta). */
+  protected readonly transferFrom = signal<number | null>(null);
+  protected readonly transferKey = signal(0);
   /** Exclusão em confirmação: a conta e a prévia do que a impede (GET usage). */
   protected readonly deleting = signal<{ account: Account; usage: AccountUsage } | null>(null);
   protected readonly deleteBusy = signal(false);
@@ -239,6 +262,8 @@ export class AccountsPage implements OnInit {
 
   /** Contas bancárias que um cartão pode usar. */
   protected readonly banks = computed(() => this.accounts().filter((a) => a.type === 'CHECKING'));
+  /** Transferir exige ao menos duas contas bancárias ou de dinheiro ativas (cartão nunca participa). */
+  protected readonly canTransferAny = computed(() => transferableAccounts(this.accounts()).length >= 2);
   /** O filtro PF/PJ só aparece quando há os dois tipos de titular (FR-004). */
   protected readonly showHolderFilter = computed(() => {
     const holders = new Set(this.accounts().map((a) => a.holderType).filter(Boolean));
@@ -345,6 +370,29 @@ export class AccountsPage implements OnInit {
     this.closeForm();
     this.load();
     this.notices.toast(created ? 'Conta cadastrada.' : 'Conta atualizada.');
+  }
+
+  /** A ação "Transferir" por conta só existe onde há com quem trocar saldo e a conta pode ser origem. */
+  protected canTransferFrom(account: Account): boolean {
+    return canTransfer(account) && this.canTransferAny();
+  }
+
+  protected startTransfer(from?: Account): void {
+    this.transferFrom.set(from?.id ?? null);
+    this.transferKey.update((k) => k + 1);
+    this.transferOpen.set(true);
+  }
+
+  protected closeTransfer(): void {
+    this.transferOpen.set(false);
+    this.transferFrom.set(null);
+  }
+
+  /** Recarrega as contas e os saldos (a transferência muda o saldo das duas contas). */
+  protected onTransferred(): void {
+    this.closeTransfer();
+    this.load();
+    this.notices.toast('Transferência registrada.');
   }
 
   protected cardsOf(bank: Account): Account[] {

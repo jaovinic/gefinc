@@ -25,7 +25,7 @@ describe('catálogo de ícones', () => {
     const needed = [
       'home', 'dashboard', 'list', 'invoice', 'cashflow', 'accounts', 'tag', 'user', 'logout', 'menu', 'close',
       'chevron-left', 'chevron-right', 'chevron-down', 'plus', 'arrow-up', 'arrow-down', 'check', 'clock', 'alert',
-      'info', 'trash', 'edit', 'undo', 'more', 'filter', 'search', 'inbox', 'wifi-off', 'sun', 'moon', 'monitor', 'calendar',
+      'info', 'trash', 'edit', 'undo', 'more', 'filter', 'search', 'inbox', 'wifi-off', 'sun', 'moon', 'monitor', 'calendar', 'transfer',
     ];
     for (const key of needed) {
       expect(ICON_SET[key]?.length).toBeGreaterThan(0);

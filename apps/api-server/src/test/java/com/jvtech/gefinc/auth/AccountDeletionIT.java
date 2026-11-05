@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jvtech.gefinc.support.IntegrationTestBase;
+import com.jvtech.gefinc.support.TestApi;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
 import java.time.Duration;
@@ -152,6 +153,8 @@ class AccountDeletionIT extends IntegrationTestBase {
   void apagaDefinitivamenteSoDepoisDe30DiasEEmCascata() throws Exception {
     TestUser ana = users.registerAndLogin("ana@example.com");
     users.registerAndLogin("bia@example.com");
+    TestApi api = new TestApi(mockMvc, objectMapper);
+    api.transfer(ana, api.checking(ana, "Itaú"), api.cash(ana, "Carteira"), "10.00", "2026-11-10");
     requestDeletion(ana, TestUsers.PASSWORD, 202);
 
     clock.advance(Duration.ofDays(29).plusHours(23));
@@ -170,5 +173,8 @@ class AccountDeletionIT extends IntegrationTestBase {
             jdbc.queryForObject(
                 "SELECT count(*) FROM refresh_tokens WHERE user_id = ?", Integer.class, ana.id()))
         .isZero();
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM account_transfers", Integer.class))
+        .isZero();
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM accounts", Integer.class)).isZero();
   }
 }

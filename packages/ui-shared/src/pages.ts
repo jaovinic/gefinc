@@ -7,3 +7,4 @@ export * from './lib/categories/categories-page';
 export * from './lib/transactions/transactions-page';
 export * from './lib/invoices/invoices-page';
 export * from './lib/invoices/cashflow-page';
+export * from './lib/transfers/transfers-page';

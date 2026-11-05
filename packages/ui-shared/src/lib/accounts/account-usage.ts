@@ -17,6 +17,11 @@ export function blockedAccountMessage(name: string, usage: AccountUsage): string
   if (usage.invoicePaymentCount > 0) {
     parts.push(plural(usage.invoicePaymentCount, 'pagamento de fatura', 'pagamentos de fatura'));
   }
+  // Campo aditivo: cópias locais antigas da prévia não o trazem (valem 0).
+  const transferCount = usage.transferCount ?? 0;
+  if (transferCount > 0) {
+    parts.push(plural(transferCount, 'transferência', 'transferências'));
+  }
   if (usage.linkedCards.length > 0) {
     const names = usage.linkedCards.map((card) => card.name).join(', ');
     parts.push(`${usage.linkedCards.length === 1 ? 'cartão vinculado' : 'cartões vinculados'} (${names})`);

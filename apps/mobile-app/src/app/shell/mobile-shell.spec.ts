@@ -247,7 +247,7 @@ describe('shell do app móvel', () => {
     expect(chipOf(el).getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('o menu Mais dá acesso a Fluxo de caixa, Categorias, Minha conta, Aparência e Sair', async () => {
+  it('o menu Mais dá acesso a Fluxo de caixa, Transferências, Categorias, Minha conta, Aparência e Sair', async () => {
     const { harness, el } = await open('/');
     chipOf(el).click();
     harness.detectChanges();
@@ -256,6 +256,7 @@ describe('shell do app móvel', () => {
     const links = [...menu.querySelectorAll('a')].map((a) => [a.textContent?.trim(), a.getAttribute('href')]);
     expect(links).toEqual([
       ['Fluxo de caixa', '/fluxo-de-caixa'],
+      ['Transferências', '/transferencias'],
       ['Categorias', '/categorias'],
       ['Minha conta', '/minha-conta'],
     ]);

@@ -5,7 +5,7 @@ import { LogoutAction } from '../core/logout';
 
 /**
  * Menu "Mais" (aberto pelo atalho Minha conta do cabeçalho): as áreas que não cabem na ilha de navegação
- * (fluxo de caixa, categorias e minha conta), a aparência (tema e desfoque) e a saída da conta. Quem o hospeda fecha o
+ * (fluxo de caixa, transferências, categorias e minha conta), a aparência (tema e desfoque) e a saída da conta. Quem o hospeda fecha o
  * painel ao receber `navigated`.
  */
 @Component({
@@ -33,8 +33,8 @@ import { LogoutAction } from '../core/logout';
 })
 export class MoreMenu {
   protected readonly logout = inject(LogoutAction);
-  /** Áreas fora da ilha de navegação: fluxo de caixa, categorias e minha conta. */
-  protected readonly items = NAV_ITEMS.filter((i) => ['cashflow', 'categories', 'settings'].includes(i.key));
+  /** Áreas fora da ilha de navegação: fluxo de caixa, transferências, categorias e minha conta. */
+  protected readonly items = NAV_ITEMS.filter((i) => ['cashflow', 'transfers', 'categories', 'settings'].includes(i.key));
   /** O usuário escolheu um destino ou saiu: o painel que hospeda o menu deve fechar. */
   readonly navigated = output<void>();
 

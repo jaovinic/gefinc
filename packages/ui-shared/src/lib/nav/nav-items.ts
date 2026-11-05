@@ -14,6 +14,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'invoices', label: 'Faturas', icon: 'invoice', web: '/invoices', app: '/faturas' },
   { key: 'cashflow', label: 'Fluxo de caixa', icon: 'cashflow', web: '/cashflow', app: '/fluxo-de-caixa' },
   { key: 'accounts', label: 'Contas e cartões', icon: 'accounts', web: '/accounts', app: '/contas' },
+  { key: 'transfers', label: 'Transferências', icon: 'transfer', web: '/transfers', app: '/transferencias' },
   { key: 'categories', label: 'Categorias', icon: 'tag', web: '/categories', app: '/categorias' },
   { key: 'settings', label: 'Minha conta', icon: 'user', web: '/settings', app: '/minha-conta' },
 ];

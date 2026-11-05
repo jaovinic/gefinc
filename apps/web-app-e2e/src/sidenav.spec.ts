@@ -6,6 +6,7 @@ const AREAS: [string, RegExp][] = [
   ['Faturas', /\/invoices$/],
   ['Fluxo de caixa', /\/cashflow$/],
   ['Contas e cartões', /\/accounts$/],
+  ['Transferências', /\/transfers$/],
   ['Categorias', /\/categories$/],
   ['Minha conta', /\/settings$/],
   ['Painel', /\/$/],

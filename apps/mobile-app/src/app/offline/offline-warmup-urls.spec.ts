@@ -14,7 +14,7 @@ import { Type, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { API_BASE_URL, DashboardPage, SessionService } from '@gefinc/ui-shared';
-import { AccountsPage, CashflowPage, CategoriesPage, InvoicesPage, TransactionsPage } from '@gefinc/ui-shared/pages';
+import { AccountsPage, CashflowPage, CategoriesPage, InvoicesPage, TransactionsPage, TransfersPage } from '@gefinc/ui-shared/pages';
 import { currentMonth } from '@gefinc/utils';
 import { AppLockService } from '../lock/app-lock.service';
 import { NetworkStatus } from './network-status';
@@ -43,6 +43,7 @@ function replyFor(path: string): unknown {
     return { month, totalMonth: '0.00', totalToDue: '0.00', totalPaid: '0.00', overdueTotal: '0.00', totalIncome: '0.00', totalReceived: '0.00', byCategory: [], byCard: [] };
   }
   if (path.startsWith('/balances')) return { asOf: `${month}-01`, total: '0.00', accounts: [], unlinkedCardPayments: '0.00' };
+  if (path.startsWith('/transfers')) return { content: [], page: 0, size: 25, totalElements: 0 };
   if (path.startsWith('/transactions')) return { content: [], page: 0, size: 25, totalElements: 0 };
   if (path.startsWith('/invoices/projection')) return { months: [month], cards: [] };
   return [];
@@ -130,6 +131,7 @@ describe('aquecimento x telas: as URLs que a tela pede ao abrir são as que o aq
     ['Fluxo de caixa', CashflowPage],
     ['Contas', AccountsPage],
     ['Categorias', CategoriesPage],
+    ['Transferências', TransfersPage],
   ];
 
   it.each(screens)('%s: todas as leituras da tela já estão no aquecimento', async (_name, component) => {
