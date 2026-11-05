@@ -649,8 +649,8 @@ export interface paths {
         post?: never;
         /**
          * Exclui conta sem nenhum dado relacionado (FR-013)
-         * @description A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, cartões
-         *     vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
+         * @description A conta só é excluída se não tiver lançamentos (nem grupos), pagamentos de fatura, transferências
+         *     (como origem ou destino), cartões vinculados nem saldo inicial diferente de zero. Caso contrário responde `409`
          *     (`ACCOUNT_IN_USE`) com as contagens; o cliente deve oferecer inativar a conta. A checagem é
          *     refeita no servidor a cada exclusão. Conta de outro usuário responde `404`.
          */
@@ -949,7 +949,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1028,7 +1028,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1077,7 +1077,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1168,7 +1168,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1231,7 +1231,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1370,7 +1370,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1428,7 +1428,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1494,7 +1494,7 @@ export interface paths {
                 header?: {
                     /**
                      * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-                     *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
                      *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
                      *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
                      *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -1769,6 +1769,223 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista as transferências entre contas de um mês
+         * @description Transferências com `transferDate` no mês, da mais recente para a mais antiga. Com `accountId`,
+         *     só as que têm a conta como origem **ou** destino. Traz apenas ids de conta (sem nomes). Não
+         *     confunda com lançamentos: transferências não são receita nem despesa e não aparecem em
+         *     `/transactions`.
+         */
+        get: {
+            parameters: {
+                query: {
+                    month: components["schemas"]["Month"];
+                    accountId?: number;
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Página de transferências */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TransferPage"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+            };
+        };
+        put?: never;
+        /**
+         * Transfere saldo entre duas contas
+         * @description Origem e destino devem ser contas `CHECKING` ou `CASH`, ativas, do usuário e diferentes entre
+         *     si. Cartão de crédito responde `422` no campo `fromAccountId`/`toAccountId` (pagar fatura é
+         *     outro fluxo); conta inativa, `422` `ACCOUNT_INACTIVE`; origem = destino, `422` no campo
+         *     `toAccountId`; conta inexistente ou de outro usuário, `404` com a mesma mensagem. O saldo
+         *     insuficiente é permitido (como nas despesas). A data pode ser passada, hoje ou futura: o saldo
+         *     de `GET /balances` só considera transferências com data até hoje. Exige conexão no aplicativo
+         *     (não entra na fila offline).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TransferInput"];
+                };
+            };
+            responses: {
+                /** @description Transferência registrada */
+                201: {
+                    headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transfer"];
+                    };
+                };
+                400: components["responses"]["BadRequest"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transfers/{transferId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transferId: components["parameters"]["TransferId"];
+            };
+            cookie?: never;
+        };
+        /** Consulta uma transferência */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    transferId: components["parameters"]["TransferId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Transferência */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transfer"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        /**
+         * Edita uma transferência (substituição completa)
+         * @description Mesmas regras da criação, inclusive conta inativa (`422`) nas duas pontas. `version`
+         *     desatualizada responde `409` (`STALE_VERSION`). Exige conexão no aplicativo.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
+                path: {
+                    transferId: components["parameters"]["TransferId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TransferUpdate"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transfer"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        post?: never;
+        /**
+         * Exclui (estorna) uma transferência
+         * @description O saldo das duas contas volta ao que era. Permitido mesmo quando uma das contas está inativa.
+         *     Destrutivo: o cliente deve pedir confirmação. Exige conexão no aplicativo.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
+                     *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
+                     *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
+                     *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
+                     *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
+                     *     outro caminho ou corpo responde `422` (`IDEMPOTENCY_KEY_REUSED`); chave que não é UUID, `400`.
+                     */
+                    "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+                };
+                path: {
+                    transferId: components["parameters"]["TransferId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Excluída */
+                204: {
+                    headers: {
+                        "Idempotent-Replayed": components["headers"]["IdempotentReplayed"];
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["NotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dashboard": {
         parameters: {
             query?: never;
@@ -1818,7 +2035,9 @@ export interface paths {
          * Saldo por conta e total, acumulado até hoje
          * @description Para cada conta `CHECKING` ou `CASH` (ativas e inativas): saldo inicial + receitas recebidas
          *     (`PAID` com pagamento até hoje) − despesas pagas da própria conta − saídas dos cartões vinculados
-         *     (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje).
+         *     (despesas de cartão pagas individualmente e pagamentos de fatura com data até hoje) +
+         *     transferências recebidas − transferências enviadas (`/transfers` com data até hoje; transferência
+         *     de data futura só conta a partir dela). Uma transferência entre contas ativas não altera o `total`.
          *     A lista traz todas as contas com o saldo real e a flag `active`, mas o `total` soma apenas as
          *     contas ativas: conta inativa não entra no Saldo Geral, mesmo com saldo.
          *     Saídas de cartão sem conta vinculada não debitam nenhuma conta e somam em `unlinkedCardPayments`.
@@ -2015,6 +2234,11 @@ export interface components {
             invoicePaymentCount?: number;
             /**
              * Format: int64
+             * @description Transferências em que a conta é origem ou destino.
+             */
+            transferCount?: number;
+            /**
+             * Format: int64
              * @description Cartões vinculados à conta bancária.
              */
             linkedCardCount?: number;
@@ -2123,13 +2347,18 @@ export interface components {
             /** Format: int64 */
             version: number;
         };
-        /** @description Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial. */
+        /** @description Prévia da exclusão. `canDelete` é verdadeiro só sem lançamentos, pagamentos de fatura, transferências, cartões vinculados e saldo inicial. */
         AccountUsage: {
             canDelete: boolean;
             /** Format: int64 */
             transactionCount: number;
             /** Format: int64 */
             invoicePaymentCount: number;
+            /**
+             * Format: int64
+             * @description Transferências em que a conta é origem ou destino. Campo aditivo: cópias antigas podem não trazê-lo (trate como 0).
+             */
+            transferCount?: number;
             linkedCards: {
                 /** Format: int64 */
                 id: number;
@@ -2245,6 +2474,67 @@ export interface components {
         };
         TransactionPage: {
             content: components["schemas"]["Transaction"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalElements: number;
+        };
+        Transfer: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            fromAccountId: number;
+            /** Format: int64 */
+            toAccountId: number;
+            amount: components["schemas"]["Money"];
+            /** Format: date */
+            transferDate: string;
+            /** @description Ausente quando não informada. */
+            description?: string;
+            /** @description Verdadeiro quando `transferDate` é futura: o saldo só a considera a partir dessa data. */
+            scheduled: boolean;
+            /** Format: int64 */
+            version: number;
+        };
+        TransferInput: {
+            /**
+             * Format: int64
+             * @description Conta de origem (`CHECKING` ou `CASH`, ativa).
+             */
+            fromAccountId: number;
+            /**
+             * Format: int64
+             * @description Conta de destino (`CHECKING` ou `CASH`, ativa), diferente da origem.
+             */
+            toAccountId: number;
+            /** @description Maior que zero, até 15 dígitos inteiros. */
+            amount: components["schemas"]["Money"];
+            /**
+             * Format: date
+             * @description Passada, hoje ou futura, com ano de 1900 a 2200 (`1900-01-01` a `2200-12-31`); fora disso, `422` no campo `transferDate`.
+             */
+            transferDate: string;
+            /** @description Opcional; o servidor apara os espaços e texto vazio vira ausente. */
+            description?: string;
+        };
+        /** @description Substituição completa; mesmas regras de TransferInput. */
+        TransferUpdate: {
+            /** Format: int64 */
+            fromAccountId: number;
+            /** Format: int64 */
+            toAccountId: number;
+            amount: components["schemas"]["Money"];
+            /**
+             * Format: date
+             * @description Entre `1900-01-01` e `2200-12-31`.
+             */
+            transferDate: string;
+            description?: string;
+            /** Format: int64 */
+            version: number;
+        };
+        TransferPage: {
+            content: components["schemas"]["Transfer"][];
             page: number;
             size: number;
             /** Format: int64 */
@@ -2415,7 +2705,7 @@ export interface components {
         ClientHeader: "web";
         /**
          * @description UUID gerado pelo cliente (operações feitas offline no aplicativo: criar, pagar, desfazer, editar e
-         *     excluir lançamentos, alterar valor e encerrar). A query string (ex.:
+         *     excluir lançamentos, alterar valor e encerrar; criar, editar e excluir transferências). A query string (ex.:
          *     `confirm=true`) não conta na identidade. Repetir a mesma chave, com o
          *     mesmo caminho e corpo, devolve a resposta original com `Idempotent-Replayed: true` sem repetir
          *     o efeito. Chave em processamento responde `409` (`IDEMPOTENCY_IN_PROGRESS`); chave usada com
@@ -2425,6 +2715,7 @@ export interface components {
         AccountId: number;
         GroupId: number;
         TransactionId: number;
+        TransferId: number;
         /** @description Mês do vencimento da fatura */
         MonthPath: components["schemas"]["Month"];
     };

@@ -44,6 +44,7 @@ class AccountDeletionGuardIT extends IntegrationTestBase {
     assertThat(usage.get("canDelete").asBoolean()).isTrue();
     assertThat(usage.get("transactionCount").asLong()).isZero();
     assertThat(usage.get("invoicePaymentCount").asLong()).isZero();
+    assertThat(usage.get("transferCount").asLong()).isZero();
     assertThat(usage.get("linkedCards")).isEmpty();
     assertThat(usage.get("openingBalance").asText()).isEqualTo("0.00");
 
@@ -138,6 +139,59 @@ class AccountDeletionGuardIT extends IntegrationTestBase {
                 .value(
                     "Esta conta não pode ser excluída: possui cartões vinculados (Inter, Nubank)."
                         + " Inative a conta para preservar o histórico."));
+  }
+
+  @Test
+  void contaComTransferenciaNaoEExcluidaNaOrigemNemNoDestino() throws Exception {
+    long source = api.checking(ana, "Itaú");
+    long target = api.account(ana, "Carteira", "CASH", null, null).get("id").asLong();
+    long idle = api.checking(ana, "Inter");
+    JsonNode transfer = api.transfer(ana, source, target, "25.00", "2026-11-08");
+    JsonNode back = api.transfer(ana, target, source, "5.00", "2026-11-09");
+
+    for (long id : new long[] {source, target}) {
+      JsonNode usage = usage(id);
+      assertThat(usage.get("canDelete").asBoolean()).isFalse();
+      assertThat(usage.get("transactionCount").asLong()).isZero();
+      assertThat(usage.get("transferCount").asLong()).isEqualTo(2);
+      api.call(ana, HttpMethod.DELETE, "/accounts/" + id, null)
+          .andExpect(status().isConflict())
+          .andExpect(matchesContract())
+          .andExpect(jsonPath("$.code").value("ACCOUNT_IN_USE"))
+          .andExpect(jsonPath("$.transferCount").value(2))
+          .andExpect(
+              jsonPath("$.detail")
+                  .value(
+                      "Esta conta não pode ser excluída: possui 2 transferências."
+                          + " Inative a conta para preservar o histórico."));
+    }
+    assertThat(usage(idle).get("canDelete").asBoolean()).isTrue();
+
+    // Inativar continua possível e excluir a transferência libera a conta.
+    api.updateAccount(ana, source, Map.of("active", false)).andExpect(status().isOk());
+    api.call(ana, HttpMethod.DELETE, "/transfers/" + transfer.get("id").asLong(), null)
+        .andExpect(status().isNoContent());
+    assertThat(usage(target).get("transferCount").asLong()).isEqualTo(1);
+    api.call(ana, HttpMethod.DELETE, "/transfers/" + back.get("id").asLong(), null)
+        .andExpect(status().isNoContent());
+    api.updateAccount(ana, target, Map.of("active", false)).andExpect(status().isOk());
+    api.call(ana, HttpMethod.DELETE, "/accounts/" + target, null).andExpect(status().isNoContent());
+  }
+
+  @Test
+  void contaComUmaTransferenciaESaldoInicialListaOsDoisMotivos() throws Exception {
+    long source = api.checking(ana, "Itaú");
+    long target = api.checking(ana, "Inter");
+    api.updateAccount(ana, source, Map.of("openingBalance", "500.00")).andExpect(status().isOk());
+    api.transfer(ana, source, target, "25.00", "2026-11-08");
+
+    api.call(ana, HttpMethod.DELETE, "/accounts/" + source, null)
+        .andExpect(status().isConflict())
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Esta conta não pode ser excluída: possui 1 transferência e saldo inicial de"
+                        + " R$ 500,00. Inative a conta para preservar o histórico."));
   }
 
   @Test

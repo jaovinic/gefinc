@@ -211,4 +211,42 @@ public final class TestApi {
         "/accounts/" + accountId + "/invoices/" + month + "/payments/settle",
         Map.of("paidAt", paidAt));
   }
+
+  public long cash(TestUser user, String name) throws Exception {
+    return account(user, name, "CASH", null, null).get("id").asLong();
+  }
+
+  /** Corpo de uma transferência (criação); a descrição é opcional. */
+  public Map<String, Object> transferBody(
+      long fromAccountId, long toAccountId, String amount, String transferDate) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("fromAccountId", fromAccountId);
+    body.put("toAccountId", toAccountId);
+    body.put("amount", amount);
+    body.put("transferDate", transferDate);
+    return body;
+  }
+
+  /** Cria a transferência (espera 201) e devolve o corpo da resposta. */
+  public JsonNode transfer(
+      TestUser user, long fromAccountId, long toAccountId, String amount, String transferDate)
+      throws Exception {
+    return json(
+        call(
+                user,
+                HttpMethod.POST,
+                "/transfers",
+                transferBody(fromAccountId, toAccountId, amount, transferDate))
+            .andExpect(status().isCreated()));
+  }
+
+  /** Saldo de uma conta em {@code GET /balances}. */
+  public String balanceOf(TestUser user, long accountId) throws Exception {
+    for (JsonNode a : get(user, "/balances").get("accounts")) {
+      if (a.get("accountId").asLong() == accountId) {
+        return a.get("balance").asText();
+      }
+    }
+    throw new IllegalStateException("Conta fora do saldo: " + accountId);
+  }
 }

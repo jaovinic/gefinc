@@ -124,12 +124,13 @@ public final class AccountDtos {
 
   /**
    * Prévia da exclusão: o que impede excluir a conta. {@code canDelete} só é verdadeiro sem
-   * lançamentos, pagamentos de fatura, cartões vinculados e saldo inicial.
+   * lançamentos, pagamentos de fatura, transferências, cartões vinculados e saldo inicial.
    */
   public record AccountUsage(
       boolean canDelete,
       long transactionCount,
       long invoicePaymentCount,
+      long transferCount,
       List<LinkedCard> linkedCards,
       BigDecimal openingBalance) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */

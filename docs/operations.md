@@ -55,7 +55,8 @@ Security e SQL em DEBUG. Por isso:
 - **Idempotência:** as operações do modo offline aceitam o cabeçalho `Idempotency-Key` (UUID): `POST
   /transaction-groups`, `POST /transactions/{id}/pay` e `/unpay`, `PATCH /transactions/{id}`, `PUT` e `DELETE
   /transaction-groups/{id}` (o `?confirm=true` não faz parte da identidade) e `POST /transaction-groups/{id}/amount-changes`
-  e `/end` (estas duas o app ainda não enfileira). As chaves ficam na tabela `idempotency_keys` por **7 dias** (job
+  e `/end` (estas duas o app ainda não enfileira), além de `POST /transfers` e `PUT`/`DELETE /transfers/{id}`
+  (transferências entre contas exigem conexão: o app não as enfileira, mas reenvia a mesma chave). As chaves ficam na tabela `idempotency_keys` por **7 dias** (job
   diário às 3h30) e valem por usuário. Reprocesso de uma chave devolve a resposta original com `Idempotent-Replayed:
   true` (inclusive o `204` da exclusão e o `200` de uma edição, sem `409 STALE_VERSION` nem `404` falsos); a mesma
   chave com outro verbo, caminho ou corpo é `422 IDEMPOTENCY_KEY_REUSED`; reserva sem conclusão há mais de 2

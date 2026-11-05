@@ -26,7 +26,9 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 /**
  * Idempotência das operações que o app executa offline: criar lançamento, pagar, desfazer o
  * pagamento, editar lançamento ({@code PATCH}) ou grupo ({@code PUT}), excluir grupo ({@code
- * DELETE}), alterar o valor e encerrar um lançamento fixo. Só age quando o cabeçalho {@code
+ * DELETE}), alterar o valor e encerrar um lançamento fixo. Também cobre as transferências entre
+ * contas ({@code POST /transfers}, {@code PUT} e {@code DELETE /transfers/{id}}), que exigem
+ * conexão mas podem ser reenviadas pelo cliente com a mesma chave. Só age quando o cabeçalho {@code
  * Idempotency-Key} vem em uma requisição autenticada de um desses verbos e caminhos (a query
  * string, como o {@code ?confirm=true} da exclusão, não faz parte do caminho); todo o resto passa
  * direto. Fica depois da autenticação na cadeia de segurança, e a chave vale por usuário (Princípio
@@ -41,14 +43,14 @@ public class IdempotencyFilter extends OncePerRequestFilter {
       Map.of(
           "POST",
           Pattern.compile(
-              "^/(transaction-groups|transactions/\\d+/(pay|unpay)"
+              "^/(transaction-groups|transfers|transactions/\\d+/(pay|unpay)"
                   + "|transaction-groups/\\d+/(amount-changes|end))$"),
           "PATCH",
           Pattern.compile("^/transactions/\\d+$"),
           "PUT",
-          Pattern.compile("^/transaction-groups/\\d+$"),
+          Pattern.compile("^/(transaction-groups|transfers)/\\d+$"),
           "DELETE",
-          Pattern.compile("^/transaction-groups/\\d+$"));
+          Pattern.compile("^/(transaction-groups|transfers)/\\d+$"));
 
   private final IdempotencyService service;
   private final ObjectMapper mapper;

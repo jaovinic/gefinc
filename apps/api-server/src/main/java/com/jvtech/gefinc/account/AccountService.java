@@ -10,6 +10,7 @@ import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.invoice.InvoicePaymentRepository;
 import com.jvtech.gefinc.transaction.TransactionGroupRepository;
 import com.jvtech.gefinc.transaction.TransactionRepository;
+import com.jvtech.gefinc.transfer.TransferRepository;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -32,6 +33,7 @@ public class AccountService {
   private final TransactionRepository transactions;
   private final TransactionGroupRepository groups;
   private final InvoicePaymentRepository payments;
+  private final TransferRepository transfers;
   private final ApplicationEventPublisher events;
 
   public AccountService(
@@ -39,11 +41,13 @@ public class AccountService {
       TransactionRepository transactions,
       TransactionGroupRepository groups,
       InvoicePaymentRepository payments,
+      TransferRepository transfers,
       ApplicationEventPublisher events) {
     this.accounts = accounts;
     this.transactions = transactions;
     this.groups = groups;
     this.payments = payments;
+    this.transfers = transfers;
     this.events = events;
   }
 
@@ -146,7 +150,8 @@ public class AccountService {
 
   /**
    * Prévia da exclusão: contagens do que impede excluir a conta (lançamentos, pagamentos de fatura,
-   * cartões vinculados e saldo inicial). Só leitura; o servidor refaz a checagem ao excluir.
+   * transferências, cartões vinculados e saldo inicial). Só leitura; o servidor refaz a checagem ao
+   * excluir.
    */
   @Transactional(readOnly = true)
   public AccountUsage usage(long userId, long id) {
@@ -155,9 +160,10 @@ public class AccountService {
 
   /**
    * Exclui a conta somente se ela não tem nenhum dado relacionado: lançamentos (ou grupos),
-   * pagamentos de fatura, cartões vinculados e saldo inicial diferente de zero. Caso contrário a
-   * resposta é {@code 409}: o usuário deve inativar a conta em vez de excluí-la (FR-013). A
-   * checagem e a exclusão ocorrem na mesma transação, com a linha da conta travada.
+   * pagamentos de fatura, transferências (como origem ou destino), cartões vinculados e saldo
+   * inicial diferente de zero. Caso contrário a resposta é {@code 409}: o usuário deve inativar a
+   * conta em vez de excluí-la (FR-013). A checagem e a exclusão ocorrem na mesma transação, com a
+   * linha da conta travada.
    */
   @Transactional
   public void delete(long userId, long id) {
@@ -185,6 +191,7 @@ public class AccountService {
     // Todo grupo tem ocorrências; o número exibido são as ocorrências (grupos só como reserva).
     long transactionCount = Math.max(transactions.countByAccount(userId, id), groupCount);
     long paymentCount = payments.countByUserIdAndAccountId(userId, id);
+    long transferCount = transfers.countByAccount(userId, id);
     List<LinkedCard> cards =
         accounts.findCardsOfBank(userId, id).stream()
             .map(c -> new LinkedCard(c.getId(), c.getName()))
@@ -192,8 +199,13 @@ public class AccountService {
     BigDecimal opening =
         account.getOpeningBalance() == null ? BigDecimal.ZERO : account.getOpeningBalance();
     boolean canDelete =
-        transactionCount == 0 && paymentCount == 0 && cards.isEmpty() && opening.signum() == 0;
-    return new AccountUsage(canDelete, transactionCount, paymentCount, cards, opening);
+        transactionCount == 0
+            && paymentCount == 0
+            && transferCount == 0
+            && cards.isEmpty()
+            && opening.signum() == 0;
+    return new AccountUsage(
+        canDelete, transactionCount, paymentCount, transferCount, cards, opening);
   }
 
   private static ApiException blocked(AccountUsage usage) {
@@ -203,6 +215,9 @@ public class AccountService {
     }
     if (usage.invoicePaymentCount() > 0) {
       parts.add(plural(usage.invoicePaymentCount(), "pagamento de fatura", "pagamentos de fatura"));
+    }
+    if (usage.transferCount() > 0) {
+      parts.add(plural(usage.transferCount(), "transferência", "transferências"));
     }
     if (!usage.linkedCards().isEmpty()) {
       String names =
@@ -232,6 +247,7 @@ public class AccountService {
             "Esta conta não pode ser excluída: possui " + list + "." + advice)
         .with("transactionCount", usage.transactionCount())
         .with("invoicePaymentCount", usage.invoicePaymentCount())
+        .with("transferCount", usage.transferCount())
         .with("linkedCardCount", usage.linkedCards().size())
         .with("hasOpeningBalance", hasOpeningBalance);
   }

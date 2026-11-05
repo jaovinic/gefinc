@@ -39,6 +39,11 @@ export type Transaction = Schemas['Transaction'];
 export type TransactionPatch = Schemas['TransactionPatch'];
 export type TransactionPage = Schemas['TransactionPage'];
 
+export type Transfer = Schemas['Transfer'];
+export type TransferInput = Schemas['TransferInput'];
+export type TransferUpdate = Schemas['TransferUpdate'];
+export type TransferPage = Schemas['TransferPage'];
+
 export type Invoice = Schemas['Invoice'];
 export type InvoicePayment = Schemas['InvoicePayment'];
 export type InvoicePaymentInput = Schemas['InvoicePaymentInput'];
@@ -74,6 +79,8 @@ export const ACCOUNT_ICONS = [
 export const CATEGORY_TYPES = ['INCOME', 'EXPENSE'] as const satisfies readonly CategoryType[];
 export const RECURRENCE_TYPES = ['FIXED', 'VARIABLE', 'INSTALLMENT'] as const satisfies readonly RecurrenceType[];
 export const TRANSACTION_STATUSES = ['PENDING', 'PAID'] as const satisfies readonly TransactionStatus[];
+/** Tipos de conta que participam de transferências (cartão de crédito nunca; pagar fatura é outro fluxo). */
+export const TRANSFERABLE_ACCOUNT_TYPES = ['CHECKING', 'CASH'] as const satisfies readonly AccountType[];
 
 /** Códigos estáveis de erro (`Problem.code`) tratados pelas interfaces. */
 export const ERROR_CODES = {
