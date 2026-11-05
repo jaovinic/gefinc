@@ -58,7 +58,8 @@ class TransferServiceForeignKeyTest {
                 violation(
                     "23503", "account_transfers_user_id_fkey", "violates foreign key (users)")))
         .isFalse();
-    assertThat(TransferService.isAccountForeignKeyViolation(new DataIntegrityViolationException("x")))
+    assertThat(
+            TransferService.isAccountForeignKeyViolation(new DataIntegrityViolationException("x")))
         .isFalse();
   }
 }
