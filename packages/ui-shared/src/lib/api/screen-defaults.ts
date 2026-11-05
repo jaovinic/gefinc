@@ -11,3 +11,6 @@ export const CASHFLOW_MONTHS = 12;
 
 /** Meses da projeção de faturas. */
 export const PROJECTION_MONTHS = 12;
+
+/** Transferências por página na tela de transferências. */
+export const TRANSFERS_PAGE_SIZE = 25;

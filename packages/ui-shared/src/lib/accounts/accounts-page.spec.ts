@@ -599,4 +599,116 @@ describe('AccountsPage', () => {
       expect(balanceCells(el)[0].textContent).toContain('R$ 0,00');
     });
   });
+
+  describe('transferir entre contas', () => {
+    const button = (el: HTMLElement) => el.querySelector('[data-testid="transfer-button"]') as HTMLButtonElement;
+    const dialog = () => document.querySelector('[role="dialog"][aria-label="Nova transferência"]');
+    const balancesFor = {
+      asOf: '2026-11-10',
+      total: '1300.00',
+      accounts: [
+        { accountId: 7, name: 'Itaú pessoal', type: 'CHECKING', active: true, balance: '1500.00', openingBalance: '0.00' },
+        { accountId: 2, name: 'Carteira', type: 'CASH', active: true, balance: '-200.00', openingBalance: '0.00' },
+      ],
+      unlinkedCardPayments: '0.00',
+    };
+
+    it('com duas ou mais contas elegíveis ativas o botão Transferir fica habilitado e não mostra a dica', () => {
+      const { el, fixture, expectList } = setup();
+      expectList(false).flush([itau, carteira, nubank]);
+      fixture.detectChanges();
+
+      expect(button(el).disabled).toBe(false);
+      expect(button(el).getAttribute('aria-describedby')).toBeNull();
+      expect(el.querySelector('[data-testid="transfer-hint"]')).toBeNull();
+    });
+
+    it.each([
+      ['nenhuma conta', []],
+      ['uma só conta elegível', [itau, nubank]],
+      ['só cartões e uma conta elegível', [carteira, nubank, antigo]],
+      ['uma ativa e outra inativa', [itau, { ...carteira, active: false }]],
+    ])('com %s o botão fica desabilitado e a dica explica o motivo', (_name, accounts) => {
+      const { el, fixture, expectList } = setup();
+      expectList(false).flush(accounts);
+      fixture.detectChanges();
+
+      expect(button(el).disabled).toBe(true);
+      expect(button(el).getAttribute('aria-describedby')).toBe('transfer-hint');
+      expect(el.querySelector('#transfer-hint')?.textContent).toContain('pelo menos duas contas bancárias ou de dinheiro ativas');
+    });
+
+    it('Transferir abre o formulário sem origem escolhida; registrar recarrega contas e saldos e avisa', () => {
+      const { http, el, fixture, expectList, expectBalances } = setup();
+      const notices = TestBed.inject(NoticeService);
+      expectList(false).flush([itau, carteira]);
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+
+      button(el).click();
+      fixture.detectChanges();
+      http.expectOne({ method: 'GET', url: `${API}/balances` }).flush(balancesFor);
+      fixture.detectChanges();
+      expect(dialog()).not.toBeNull();
+      expect(document.querySelector('[data-field="fromAccountId"]')?.textContent).toContain('Escolha a conta de origem');
+
+      (document.querySelector('[data-field="fromAccountId"] button[aria-haspopup]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      (document.querySelector('[role="option"][data-account-id="7"]') as HTMLElement).click();
+      fixture.detectChanges();
+      (document.querySelector('[data-field="toAccountId"] button[aria-haspopup]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      (document.querySelector('[role="option"][data-account-id="2"]') as HTMLElement).click();
+      fixture.detectChanges();
+      type(document.body, 'gef-money-input input', '5000');
+      (document.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      http
+        .expectOne({ method: 'POST', url: `${API}/transfers` })
+        .flush({ id: 1, fromAccountId: 7, toAccountId: 2, amount: '50.00', transferDate: '2026-11-10', scheduled: false, version: 0 }, { status: 201, statusText: 'Created' });
+      fixture.detectChanges();
+
+      expect(dialog()).toBeNull();
+      expect(notices.toasts()[0].message).toBe('Transferência registrada.');
+      expectList(false).flush([itau, carteira]);
+      expectBalances().flush(withBalances);
+    });
+
+    it('a ação Transferir de uma conta abre o formulário com ela como origem', () => {
+      const { http, el, fixture, expectList, expectBalances } = setup();
+      expectList(false).flush([itau, carteira, nubank]);
+      expectBalances().flush(withBalances);
+      fixture.detectChanges();
+
+      const row = (name: string) => Array.from(el.querySelectorAll('tbody tr')).find((tr) => tr.textContent?.includes(name)) as HTMLElement;
+      (row('Carteira').querySelector('[data-testid="account-transfer"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      http.expectOne({ method: 'GET', url: `${API}/balances` }).flush(balancesFor);
+      fixture.detectChanges();
+
+      expect(document.querySelector('[data-field="fromAccountId"]')?.textContent).toContain('Carteira');
+    });
+
+    it('cartão de crédito e conta inativa não têm a ação Transferir; as demais têm', () => {
+      const { el, fixture, expectList } = setup();
+      expectList(false).flush([itau, carteira, nubank, { ...inter, active: false }]);
+      fixture.detectChanges();
+
+      const rows = Array.from(el.querySelectorAll('tbody tr'));
+      const has = (name: string) => rows.find((tr) => tr.textContent?.includes(name))?.querySelector('[data-testid="account-transfer"]') != null;
+      expect(has('Itaú pessoal')).toBe(true);
+      expect(has('Carteira')).toBe(true);
+      expect(has('Nubank')).toBe(false);
+      expect(has('Inter empresa')).toBe(false);
+    });
+
+    it('no celular a ação também aparece nos cartões das contas elegíveis', () => {
+      const { el, fixture, expectList } = setup(true);
+      expectList(false).flush([itau, carteira, nubank]);
+      fixture.detectChanges();
+
+      const cards = Array.from(el.querySelectorAll('[data-testid="account-card"]'));
+      expect(cards.map((c) => c.querySelector('[data-testid="account-transfer"]') != null)).toEqual([true, true, false]);
+      expect(cards[0].querySelector('[data-testid="account-transfer"]')?.getAttribute('aria-label')).toBe('Transferir de Itaú pessoal');
+    });
+  });
 });

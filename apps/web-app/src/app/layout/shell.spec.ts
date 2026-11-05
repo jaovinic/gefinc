@@ -66,6 +66,16 @@ describe('Shell (menu lateral)', () => {
     expect(links.every((l) => l.querySelector('svg') !== null)).toBe(true);
   });
 
+  it('o menu lateral tem Transferências, logo depois de Contas e cartões, apontando para /transfers', async () => {
+    const { el } = await setup();
+    const links = Array.from(el.querySelectorAll('aside[data-testid="sidenav"] a.gef-nav-link')) as HTMLAnchorElement[];
+    const labels = links.map((l) => l.textContent?.trim());
+    const transfers = links[labels.indexOf('Transferências')];
+
+    expect(labels.indexOf('Transferências')).toBe(labels.indexOf('Contas e cartões') + 1);
+    expect(transfers.getAttribute('href')).toBe('/transfers');
+  });
+
   it('a barra do topo traz o atalho Minha conta com nome e inicial, fixo à direita', async () => {
     const { el } = await setup();
     const topbar = el.querySelector('header.gef-topbar') as HTMLElement;

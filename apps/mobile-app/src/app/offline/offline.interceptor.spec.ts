@@ -107,7 +107,7 @@ describe('offlineInterceptor', () => {
 
   it('leitura que prepara uma alteração (impacto da exclusão, uso, registro a editar) sem cópia continua dizendo que a AÇÃO precisa de conexão', async () => {
     online.set(false);
-    for (const path of ['/transaction-groups/3/impact', '/accounts/1/usage', '/categories/2/usage', '/transaction-groups/3', '/transactions/9']) {
+    for (const path of ['/transaction-groups/3/impact', '/accounts/1/usage', '/categories/2/usage', '/transaction-groups/3', '/transactions/9', '/transfers/4']) {
       const error = await new Promise<{ error: { code: string } }>((resolve) => http.get(`${API}${path}`).subscribe({ error: resolve }));
       expect(error.error.code).toBe('OFFLINE_REQUIRES_CONNECTION');
     }
@@ -444,6 +444,9 @@ describe('offlineInterceptor', () => {
       () => http.delete(`${API}/categories/2`),
       () => http.post(`${API}/accounts/2/invoices/2026-11/payments`, {}),
       () => http.post(`${API}/categories`, {}),
+      () => http.post(`${API}/transfers`, {}),
+      () => http.put(`${API}/transfers/4`, {}),
+      () => http.delete(`${API}/transfers/4`),
       () => http.post(`${API}/transaction-groups/3/amount-changes`, {}),
       () => http.post(`${API}/transaction-groups/3/end`, {}),
       () => http.patch(`${API}/transactions/9/other`, {}),
@@ -456,6 +459,59 @@ describe('offlineInterceptor', () => {
     }
     backend.verify();
     expect(queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  describe('transferências entre contas (exigem conexão, sem fila)', () => {
+    const transfer = { id: 4, fromAccountId: 1, toAccountId: 2, amount: '50.00', transferDate: '2026-11-10', scheduled: false, version: 0 };
+
+    it('com conexão, criar, editar e excluir vão direto ao servidor com a chave de idempotência da tela e nada entra na fila', async () => {
+      const key = '0b9d8c3a-9d5e-4f4f-9a3c-2f7a1d6e5b10';
+      const headers = { 'Idempotency-Key': key };
+
+      http.post(`${API}/transfers`, {}, { headers }).subscribe();
+      const created = backend.expectOne(`${API}/transfers`);
+      expect(created.request.headers.get('Idempotency-Key')).toBe(key);
+      created.flush(transfer);
+
+      http.put(`${API}/transfers/4`, {}, { headers }).subscribe();
+      backend.expectOne((r) => r.method === 'PUT' && r.url === `${API}/transfers/4`).flush(transfer);
+
+      http.delete(`${API}/transfers/4`, { headers }).subscribe();
+      backend.expectOne((r) => r.method === 'DELETE' && r.url === `${API}/transfers/4`).flush(null, { status: 204, statusText: 'No Content' });
+
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('depois de uma escrita online, a leitura seguinte de saldos e da lista vai à rede e renova a cópia local (não serve a antiga)', async () => {
+      cache.get.mockResolvedValue({ value: { total: '100.00' }, syncedAt: new Date('2026-11-09T20:00:00Z') });
+      http.post(`${API}/transfers`, {}).subscribe();
+      backend.expectOne(`${API}/transfers`).flush(transfer);
+
+      const balances = new Promise((resolve) => http.get(`${API}/balances`).subscribe(resolve));
+      backend.expectOne(`${API}/balances`).flush({ total: '100.00', accounts: [{ accountId: 1, balance: '50.00' }] });
+      const list = new Promise((resolve) => http.get(`${API}/transfers?month=2026-11&page=0&size=25`).subscribe(resolve));
+      backend.expectOne(`${API}/transfers?month=2026-11&page=0&size=25`).flush({ content: [transfer], page: 0, size: 25, totalElements: 1 });
+
+      expect(await balances).toMatchObject({ accounts: [{ balance: '50.00' }] });
+      expect(await list).toMatchObject({ totalElements: 1 });
+      expect(cache.put).toHaveBeenCalledWith(`${API}/balances`, expect.objectContaining({ accounts: [{ accountId: 1, balance: '50.00' }] }));
+      expect(cache.put).toHaveBeenCalledWith(`${API}/transfers?month=2026-11&page=0&size=25`, expect.objectContaining({ totalElements: 1 }));
+      expect(state.staleSince()).toBeNull();
+    });
+
+    it('sem conexão, a lista do mês vem da cópia local, mas criar, editar e excluir pedem conexão', async () => {
+      cache.get.mockResolvedValue({ value: { content: [transfer], page: 0, size: 25, totalElements: 1 }, syncedAt: new Date('2026-11-09T20:00:00Z') });
+      online.set(false);
+
+      const list = await new Promise((resolve) => http.get(`${API}/transfers?month=2026-11&page=0&size=25`).subscribe(resolve));
+      expect(list).toMatchObject({ totalElements: 1 });
+
+      for (const call of [() => http.post(`${API}/transfers`, {}), () => http.put(`${API}/transfers/4`, {}), () => http.delete(`${API}/transfers/4`)]) {
+        const error = await new Promise<{ error: { code: string } }>((resolve) => call().subscribe({ error: resolve }));
+        expect(error.error.code).toBe('OFFLINE_REQUIRES_CONNECTION');
+      }
+      backend.verify();
+    });
   });
 
   describe('editar e excluir (fase B)', () => {

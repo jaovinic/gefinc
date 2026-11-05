@@ -34,3 +34,13 @@ export function reconcileAccount(
   const preferred = allowed.find((account) => account.id === preferredId && account.active);
   return preferred?.id ?? allowed.find((account) => account.active)?.id ?? 0;
 }
+
+/** Só conta bancária e dinheiro, ativas, participam de transferências: cartão nunca (pagar fatura é outro fluxo). */
+export function canTransfer(account: { type: string; active: boolean }): boolean {
+  return account.active && account.type !== 'CREDIT_CARD';
+}
+
+/** Contas elegíveis a origem ou destino de uma transferência, na ordem recebida. */
+export function transferableAccounts<T extends { type: string; active: boolean }>(accounts: T[]): T[] {
+  return accounts.filter(canTransfer);
+}

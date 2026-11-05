@@ -1,4 +1,4 @@
-import { accountsFor, isAccountAllowed, reconcileAccount } from './account-rules';
+import { accountsFor, canTransfer, isAccountAllowed, reconcileAccount, transferableAccounts } from './account-rules';
 
 const accounts = [
   { id: 1, type: 'CHECKING', active: true },
@@ -36,5 +36,13 @@ describe('account-rules', () => {
     expect(reconcileAccount('INCOME', [accounts[1]], 2)).toBe(0);
     expect(reconcileAccount('INCOME', [accounts[3]], 0)).toBe(0);
     expect(reconcileAccount('EXPENSE', [], 0)).toBe(0);
+  });
+
+  it('transferência só aceita conta bancária e dinheiro ativas, nunca cartão nem inativa', () => {
+    expect(canTransfer(accounts[0])).toBe(true);
+    expect(canTransfer(accounts[2])).toBe(true);
+    expect(canTransfer(accounts[1])).toBe(false);
+    expect(canTransfer(accounts[3])).toBe(false);
+    expect(transferableAccounts(accounts).map((a) => a.id)).toEqual([1, 3]);
   });
 });

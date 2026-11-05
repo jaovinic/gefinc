@@ -56,6 +56,10 @@ export const appRoutes: Route[] = [
         loadComponent: () => import('@gefinc/ui-shared/pages').then((m) => m.AccountsPage),
       },
       {
+        path: 'transfers',
+        loadComponent: () => import('@gefinc/ui-shared/pages').then((m) => m.TransfersPage),
+      },
+      {
         path: 'settings',
         component: ProfilePage,
       },

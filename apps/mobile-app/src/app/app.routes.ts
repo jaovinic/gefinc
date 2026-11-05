@@ -31,6 +31,7 @@ export const appRoutes: Route[] = [
       { path: 'minha-conta', loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage) },
       { path: 'pendencias', loadComponent: () => import('./offline/pending-list.page').then((m) => m.PendingListPage) },
       { path: 'contas', loadComponent: () => import('@gefinc/ui-shared/pages').then((m) => m.AccountsPage) },
+      { path: 'transferencias', loadComponent: () => import('@gefinc/ui-shared/pages').then((m) => m.TransfersPage) },
       { path: 'categorias', loadComponent: () => import('@gefinc/ui-shared/pages').then((m) => m.CategoriesPage) },
       // As demais telas (lançamentos, faturas, contas, categorias, fluxo de caixa e minha conta)
       // entram aqui, como rotas filhas, nas histórias seguintes.

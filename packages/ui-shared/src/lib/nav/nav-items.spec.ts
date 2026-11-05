@@ -9,6 +9,7 @@ describe('NAV_ITEMS', () => {
       'Faturas',
       'Fluxo de caixa',
       'Contas e cartões',
+      'Transferências',
       'Categorias',
       'Minha conta',
     ]);
@@ -31,6 +32,8 @@ describe('NAV_ITEMS', () => {
     const byKey = Object.fromEntries(NAV_ITEMS.map((i) => [i.key, i]));
     expect(byKey['transactions'].web).toBe('/transactions');
     expect(byKey['transactions'].app).toBe('/lancamentos');
+    expect(byKey['transfers'].web).toBe('/transfers');
+    expect(byKey['transfers'].app).toBe('/transferencias');
     expect(byKey['settings'].web).toBe('/settings');
     expect(byKey['settings'].app).toBe('/minha-conta');
   });

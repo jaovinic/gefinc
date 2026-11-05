@@ -12,7 +12,9 @@ import {
   PROJECTION_MONTHS,
   SessionService,
   TRANSACTIONS_PAGE_SIZE,
+  TRANSFERS_PAGE_SIZE,
   TransactionsApi,
+  TransfersApi,
 } from '@gefinc/ui-shared';
 import { currentMonth } from '@gefinc/utils';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -46,6 +48,7 @@ export class OfflineWarmup {
   private readonly balancesApi = inject(BalancesApi);
   private readonly dashboardApi = inject(DashboardApi);
   private readonly transactionsApi = inject(TransactionsApi);
+  private readonly transfersApi = inject(TransfersApi);
   private readonly invoicesApi = inject(InvoicesApi);
 
   /** Quando o último aquecimento completo terminou, por usuário. Sai da conta: zera (a cópia também é apagada). */
@@ -139,6 +142,7 @@ export class OfflineWarmup {
       await read(() => this.balancesApi.get());
       await read(() => this.dashboardApi.dashboard(month));
       await read(() => this.transactionsApi.list({ month, page: 0, size: TRANSACTIONS_PAGE_SIZE }));
+      await read(() => this.transfersApi.list({ month, page: 0, size: TRANSFERS_PAGE_SIZE }));
       await read(() => this.invoicesApi.cashflow(month, CASHFLOW_MONTHS));
       const cards = (accounts ?? []).filter((a: Account) => a.type === 'CREDIT_CARD').slice(0, MAX_CARDS);
       for (const card of cards) {
