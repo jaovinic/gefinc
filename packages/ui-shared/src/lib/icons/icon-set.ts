@@ -41,6 +41,7 @@ export const ICON_SET: Readonly<Record<string, readonly IconPath[]>> = {
   transfer: [p('M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4')],
   tag: [p('M3 12V4h8l10 10-8 8zM7.5 8.5h.01')],
   user: [p('M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0')],
+  users: [p('M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M16 3.3a4 4 0 0 1 0 7.4M18 14.5A7 7 0 0 1 22 21')],
   logout: [p('M9 4H5v16h4M16 8l4 4-4 4M20 12H9')],
   menu: [p('M4 6h16M4 12h16M4 18h16')],
   close: [p('M6 6l12 12M18 6 6 18')],

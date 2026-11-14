@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { CurrentUser, NAV_ITEMS, NoticeService, SessionService } from '@gefinc/ui-shared';
+import { ADMIN_NAV_ITEMS } from '../admin/admin-nav';
 import { of } from 'rxjs';
 import { Shell } from './shell';
 
@@ -22,7 +23,7 @@ describe('Shell (menu lateral)', () => {
     load,
   };
 
-  async function setup() {
+  async function setup(admin = false) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
@@ -31,8 +32,9 @@ describe('Shell (menu lateral)', () => {
           { path: 'transactions', component: Page },
           { path: 'settings', component: Page },
           { path: 'login', component: Page },
+          { path: 'admin/users', component: Page },
         ]),
-        { provide: SessionService, useValue: { logout } },
+        { provide: SessionService, useValue: { logout, isAdmin: signal(admin) } },
         { provide: CurrentUser, useValue: currentUser },
       ],
     });
@@ -223,5 +225,89 @@ describe('Shell (menu lateral)', () => {
     TestBed.inject(NoticeService).staleVersion();
     fixture.detectChanges();
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('outro dispositivo');
+  });
+
+  describe('grupo Administração', () => {
+    const group = (el: HTMLElement) => el.querySelector('aside nav[aria-label="Administração"]') as HTMLElement | null;
+
+    it('usuário comum não vê o grupo nem o nome da área, em nenhum dos menus', async () => {
+      const { fixture, el } = await setup(false);
+      expect(group(el)).toBeNull();
+      expect(el.textContent).not.toContain('Administração');
+      expect(el.querySelector('a[href="/admin/users"]')).toBeNull();
+
+      (el.querySelector('button[aria-label="Abrir menu"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(el.querySelector('[role="dialog"] nav[aria-label="Administração"]')).toBeNull();
+    });
+
+    it('administrador vê o grupo entre o menu principal e o rodapé, com ícone e nome', async () => {
+      const { el } = await setup(true);
+      const side = el.querySelector('aside[data-testid="sidenav"]') as HTMLElement;
+      const nav = group(el) as HTMLElement;
+      const principal = side.querySelector('nav[aria-label="Principal"]') as HTMLElement;
+      const footer = side.querySelector('[data-testid="sidenav-footer"]') as HTMLElement;
+
+      expect(nav).not.toBeNull();
+      expect(principal.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(nav.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      const title = side.querySelector('[data-testid="admin-nav-title"]') as HTMLElement;
+      expect(title.textContent).toContain('Administração');
+      expect(title.querySelector('svg')).not.toBeNull();
+
+      const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>('a.gef-nav-link'));
+      expect(links.map((l) => l.textContent?.trim())).toEqual(ADMIN_NAV_ITEMS.map((i) => i.label));
+      expect(links[0].getAttribute('href')).toBe('/admin/users');
+      expect(links[0].querySelector('svg')).not.toBeNull();
+    });
+
+    it('o menu principal não muda para o administrador', async () => {
+      const { el } = await setup(true);
+      const principal = el.querySelector('aside nav[aria-label="Principal"]') as HTMLElement;
+      const labels = Array.from(principal.querySelectorAll('a.gef-nav-link')).map((l) => l.textContent?.trim());
+
+      expect(labels).toEqual(NAV_ITEMS.filter((i) => i.key !== 'settings').map((i) => i.label));
+    });
+
+    it('recolhido, o item mantém o nome acessível e a dica (aria-label e data-label)', async () => {
+      const { fixture, el } = await setup(true);
+      (el.querySelector('button[aria-label="Recolher menu"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+
+      const link = group(el)?.querySelector('a.gef-nav-link') as HTMLAnchorElement;
+      expect(link.getAttribute('aria-label')).toBe('Usuários');
+      expect(link.getAttribute('data-label')).toBe('Usuários');
+    });
+
+    it('marca a página atual do painel com aria-current', async () => {
+      const { fixture, el, router } = await setup(true);
+      await router.navigateByUrl('/admin/users');
+      fixture.detectChanges();
+
+      expect(group(el)?.querySelector('a.gef-nav-link')?.getAttribute('aria-current')).toBe('page');
+    });
+
+    it('a gaveta em tela estreita também traz o grupo para o administrador', async () => {
+      const { fixture, el } = await setup(true);
+      (el.querySelector('button[aria-label="Abrir menu"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const drawerGroup = el.querySelector('[role="dialog"] nav[aria-label="Administração"]') as HTMLElement;
+      expect(drawerGroup.querySelector('a[href="/admin/users"]')).not.toBeNull();
+    });
+
+    it('pede o perfil ao abrir, para o menu saber se é administrador', async () => {
+      await setup(true);
+      expect(load).toHaveBeenCalled();
+    });
+
+    it('o menu compartilhado (usado pelo app móvel) nunca tem item de administração', () => {
+      expect(NAV_ITEMS.some((i) => i.web.startsWith('/admin') || i.app.includes('admin'))).toBe(false);
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Injectable, Injector, inject, signal } from '@angular/core';
+import { Injectable, Injector, computed, inject, signal } from '@angular/core';
 import type { Credentials, TokenResponse } from '@gefinc/core-models';
 import { Observable, catchError, finalize, firstValueFrom, map, of, shareReplay, tap } from 'rxjs';
 import { API_BASE_URL, CLIENT_KIND, LOGIN_REDIRECT, SESSION_ENDED, SessionEndReason } from './api.tokens';
@@ -23,6 +23,12 @@ export class SessionService {
   private refreshInFlight$: Observable<TokenResponse> | null = null;
 
   readonly authenticated = signal(false);
+
+  /**
+   * O perfil carregado indica administrador. É só conveniência de interface (mostrar o menu do
+   * painel): a barreira de acesso é sempre do servidor, que lê o papel do banco a cada requisição.
+   */
+  readonly isAdmin = computed(() => this.currentUser.profile()?.admin === true);
 
   /** Restaura a sessão na abertura: token guardado (mobile) ou renovação pelo cookie (web). */
   async restore(): Promise<void> {

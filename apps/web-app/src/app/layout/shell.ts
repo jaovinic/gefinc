@@ -1,7 +1,19 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { AccountChip, Icon, Logo, NAV_ITEMS, NoticeService, SessionService, Sheet, ThemeToggle, type NavItem } from '@gefinc/ui-shared';
+import {
+  AccountChip,
+  CurrentUser,
+  Icon,
+  Logo,
+  NAV_ITEMS,
+  NoticeService,
+  SessionService,
+  Sheet,
+  ThemeToggle,
+  type NavItem,
+} from '@gefinc/ui-shared';
+import { ADMIN_NAV_ITEMS, ADMIN_NAV_LABEL, type AdminNavItem } from '../admin/admin-nav';
 
 const COLLAPSED_KEY = 'gefinc.ui.sidebar-collapsed';
 
@@ -29,7 +41,8 @@ function writeCollapsed(collapsed: boolean): void {
 /**
  * Estrutura da área autenticada: menu lateral à esquerda (logo, áreas com ícone, Minha conta e Sair
  * no rodapé), recolhível para só ícones; em tela estreita vira uma gaveta aberta por botão. Aviso
- * global e conteúdo ficam ao lado.
+ * global e conteúdo ficam ao lado. Administradores veem também o grupo "Administração", entre o
+ * menu principal e o rodapé (só o web: o app móvel usa o `NAV_ITEMS`, que não tem o painel).
  */
 @Component({
   selector: 'gef-shell',
@@ -50,6 +63,20 @@ function writeCollapsed(collapsed: boolean): void {
           <gef-icon [name]="item.icon" [size]="20" />
           <span class="gef-nav-label">{{ item.label }}</span>
         </a>
+      }
+    </ng-template>
+
+    <ng-template #adminGroup>
+      @if (session.isAdmin()) {
+        <div class="flex flex-col gap-1 border-t border-gefinc-border p-3" data-testid="admin-nav-group">
+          <p class="gef-nav-group-title" data-testid="admin-nav-title">
+            <gef-icon name="shield" [size]="16" />
+            <span class="gef-nav-label">{{ adminLabel }}</span>
+          </p>
+          <nav class="flex flex-col gap-1" [attr.aria-label]="adminLabel">
+            <ng-container *ngTemplateOutlet="links; context: { $implicit: adminItems }" />
+          </nav>
+        </div>
       }
     </ng-template>
 
@@ -76,6 +103,7 @@ function writeCollapsed(collapsed: boolean): void {
         <nav class="gef-sidenav-nav" aria-label="Principal">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
         </nav>
+        <ng-container *ngTemplateOutlet="adminGroup" />
         <div class="gef-sidenav-footer" data-testid="sidenav-footer">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: footerItems }" />
           <button type="button" class="gef-nav-link" aria-label="Sair" data-label="Sair" (click)="logout()">
@@ -119,6 +147,7 @@ function writeCollapsed(collapsed: boolean): void {
         <nav class="gef-sidenav-nav" aria-label="Menu">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
         </nav>
+        <ng-container *ngTemplateOutlet="adminGroup" />
         <div class="gef-sidenav-footer">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: footerItems }" />
           <button type="button" class="gef-nav-link" aria-label="Sair" (click)="logout()">
@@ -132,15 +161,22 @@ function writeCollapsed(collapsed: boolean): void {
 })
 export class Shell {
   protected readonly notices = inject(NoticeService);
-  private readonly session = inject(SessionService);
+  protected readonly session = inject(SessionService);
   private readonly router = inject(Router);
 
   protected readonly collapsed = signal(readCollapsed());
   protected readonly drawerOpen = signal(false);
+  protected readonly adminLabel = ADMIN_NAV_LABEL;
+  protected readonly adminItems: readonly AdminNavItem[] = ADMIN_NAV_ITEMS;
   protected readonly mainItems: readonly NavItem[] = NAV_ITEMS.filter((i) => i.key !== 'settings');
   protected readonly footerItems: readonly NavItem[] = NAV_ITEMS.filter((i) => i.key === 'settings');
   /** Destino do atalho Minha conta na barra do topo (o mesmo item do rodapé do menu). */
   protected readonly profileLink = NAV_ITEMS.find((i) => i.key === 'settings')!.web;
+
+  constructor() {
+    // O menu "Administração" depende do perfil: garante que ele seja pedido ao abrir a área logada.
+    inject(CurrentUser).load();
+  }
 
   protected toggle(): void {
     const next = !this.collapsed();

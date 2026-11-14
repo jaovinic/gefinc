@@ -8,6 +8,7 @@ import {
   DashboardPage,
   authGuard,
 } from '@gefinc/ui-shared';
+import { adminGuard } from './admin/admin.guard';
 import { Shell } from './layout/shell';
 
 /**
@@ -62,6 +63,11 @@ export const appRoutes: Route[] = [
       {
         path: 'settings',
         component: ProfilePage,
+      },
+      {
+        path: 'admin',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./admin/admin.routes').then((m) => m.adminRoutes),
       },
     ],
   },
