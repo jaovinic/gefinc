@@ -140,12 +140,71 @@ Security e SQL em DEBUG. Por isso:
 |---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | Conexão com o PostgreSQL |
 | `JWT_SECRET` | Segredo de assinatura dos tokens de acesso (mínimo de 32 caracteres, único por ambiente) |
-| `SMTP_HOST`, `SMTP_PORT` | Servidor de e-mail da recuperação de senha |
-| `APP_BASE_URL` | Endereço do web, usado nos links de e-mail e no CORS |
-| `MAIL_FROM` | Remetente dos e-mails |
+| `SMTP_HOST`, `SMTP_PORT` | Servidor de e-mail da recuperação de senha (padrão de dev: `localhost:1025`, Mailpit) |
+| `SMTP_USER`, `SMTP_PASSWORD` | Login e chave SMTP do provedor (segredos: só no `.env` do servidor, nunca versionados nem em logs) |
+| `SMTP_AUTH` | `true` para autenticar no servidor SMTP (padrão `false`; o compose de produção usa `true`) |
+| `SMTP_STARTTLS` | `true` para exigir STARTTLS (padrão `false`; o compose de produção usa `true`). Ligado, o envio falha em vez de seguir sem TLS |
+| `APP_BASE_URL` | URL pública do front, **sem barra final**; usada nos links de e-mail e no CORS. Obrigatória em produção |
+| `MAIL_FROM` | Remetente dos e-mails. Obrigatório em produção; precisa ser um remetente validado no provedor |
 | `DB_PORT` | Porta do PostgreSQL local no Docker Compose (padrão 5432) |
 
 Trocar o `JWT_SECRET` encerra todas as sessões abertas (os tokens de acesso deixam de valer).
+
+### E-mail de redefinição de senha em produção (Brevo)
+
+> **Atenção, mudança incompatível (migração obrigatória).** `SMTP_HOST`, `MAIL_FROM` e `APP_BASE_URL` passaram a
+> ser **obrigatórios** no `docker-compose.selfhost.yml` (e no compose do guia da Oracle): sem eles o
+> `docker compose up` aborta. Antes do próximo `docker compose up` (ou `up -d --build`), atualize o `.env` do
+> servidor com `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASSWORD`,
+> `SMTP_AUTH=true`, `SMTP_STARTTLS=true`, `MAIL_FROM` e `APP_BASE_URL`. Os padrões antigos (`localhost:1025`
+> e remetente `no-reply@gefinc.local`) não existem mais em produção; sem a atualização o deploy não sobe.
+> Apenas o ambiente de desenvolvimento continua usando os padrões de Mailpit (sem login nem TLS).
+
+O `docker-compose.selfhost.yml` exige `SMTP_HOST`, `MAIL_FROM` e `APP_BASE_URL` (o `docker compose` aborta se
+faltarem) e não usa mais `localhost` nem `meudominio.com` como padrão. Configuração no `.env` do servidor:
+
+```
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=<login SMTP gerado no painel do Brevo>
+SMTP_PASSWORD=<chave SMTP gerada no painel do Brevo>
+SMTP_AUTH=true
+SMTP_STARTTLS=true
+MAIL_FROM=<remetente validado no Brevo>
+APP_BASE_URL=<URL pública do front, sem barra final>
+```
+
+- O login e a chave SMTP vêm do painel do Brevo (SMTP & API > SMTP); não são o e-mail da conta nem a chave de API.
+- Sem `SMTP_USER`/`SMTP_PASSWORD`/`SMTP_AUTH=true`, o Brevo recusa o envio com `530 Authentication required`.
+- O domínio do remetente precisa estar autenticado no Brevo (registros SPF, DKIM e DMARC no DNS) e o remetente
+  validado; caso contrário o e-mail é recusado ou cai em spam.
+- A API responde `202` ao pedido de redefinição mesmo quando o envio falha (evita revelar quais e-mails existem).
+- O e-mail é enviado **de forma assíncrona, depois do commit** da transação que grava o link: a resposta não
+  espera o SMTP e, se a transação desfizer, nada é enviado. O envio roda num executor dedicado (2 threads, fila
+  de 100; se a fila encher, o e-mail é descartado com um aviso no log).
+- **O envio é best-effort.** E-mails em fila ou em re-tentativa podem se perder em reinício, deploy ou queda do
+  servidor (a fila é só em memória). Nesse caso basta o usuário solicitar a redefinição novamente (limite de 3
+  pedidos por hora por e-mail). O serviço `api-server` usa `stop_grace_period: 40s` nos composes, para o
+  encerramento aguardar até 30 s pelos envios pendentes antes de o Docker enviar `SIGKILL`; ainda assim não há
+  garantia de entrega.
+- **Descartes**: quando a fila está cheia ou o servidor está encerrando, o e-mail é descartado com um WARN
+  (`E-mail descartado: fila de envio cheia` ou `E-mail descartado: servidor em encerramento`), sem e-mail nem
+  token no log. Cada descarte também incrementa o contador interno `gefinc.mail.dropped` (rótulo `reason`:
+  `queue_full` ou `shutdown`) e cada falha final de envio incrementa `gefinc.mail.failed` (rótulo `reason`:
+  `permanent_rejection`, `authentication`, `retries_exhausted`, `other` ou `interrupted`). Os contadores são
+  Micrometer, sem dependência nova, e **não são expostos**: o actuator publica apenas `health` e `info`. Use os
+  logs (WARN/ERROR) para alertas.
+- Falhas transitórias de envio (`MailSendException`, como timeout ou conexão recusada) são re-tentadas até 3
+  vezes, com espera crescente (1 s, 2 s); falha de autenticação (`MailAuthenticationException`, chave SMTP errada)
+  e rejeição permanente do destinatário ou do servidor (resposta SMTP 5xx, como `550 mailbox unavailable`) não
+  são re-tentadas, e respostas 4xx continuam sendo re-tentadas. Há timeouts de 10 s de conexão, leitura e escrita no SMTP.
+- A resposta é sempre `202` com o mesmo corpo, exista a conta ou não. Resta uma diferença de tempo de
+  milissegundos entre conta existente (que grava o link no banco) e inexistente; ela é conhecida e aceita,
+  porque o envio do e-mail é assíncrono, fora da requisição, e não depende do SMTP.
+- As falhas ficam só no log da aplicação (`docker compose logs api-server`): procure por
+  `Falha ao enviar e-mail de redefinição de senha após N tentativa(s)` (nível ERROR, uma por pedido), que traz a
+  classe da exceção e a causa raiz resumida, sem o e-mail do destinatário, o link nem segredos. As tentativas
+  intermediárias aparecem como `Falha transitória ao enviar e-mail de redefinição de senha` (WARN).
 
 ## Teste de carga
 
