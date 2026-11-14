@@ -179,6 +179,8 @@ services:
       dockerfile: apps/api-server/Dockerfile
     container_name: gefinc-api
     restart: always
+    # Dá tempo de a fila de e-mails (até 30 s) terminar antes do SIGKILL em reinício/deploy.
+    stop_grace_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -187,11 +189,16 @@ services:
       DB_USER: ${DB_USER:-gefinc}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      APP_BASE_URL: ${APP_BASE_URL}
+      APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
       FORWARD_HEADERS_STRATEGY: native
-      SMTP_HOST: ${SMTP_HOST:-localhost}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      MAIL_FROM: ${MAIL_FROM:-no-reply@gefinc.local}
+      # E-mail de redefinição de senha (Brevo: smtp-relay.brevo.com, porta 587, AUTH e STARTTLS ligados).
+      SMTP_HOST: '${SMTP_HOST:?defina SMTP_HOST (ex.: smtp-relay.brevo.com)}'
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      MAIL_FROM: '${MAIL_FROM:?defina MAIL_FROM com um remetente validado no provedor de e-mail}'
       JAVA_TOOL_OPTIONS: "-Xms512m -Xmx2g -XX:+UseG1GC"
     expose:
       - "8080"
@@ -241,13 +248,19 @@ DB_USER=gefinc_admin
 DB_PASSWORD=${DB_PASS}
 JWT_SECRET=${JWT_KEY}
 APP_BASE_URL=https://gefinc-api.duckdns.org
-SMTP_HOST=localhost
-SMTP_PORT=1025
-MAIL_FROM=no-reply@gefinc.duckdns.org
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=SEU_LOGIN_SMTP_DO_BREVO
+SMTP_PASSWORD=SUA_CHAVE_SMTP_DO_BREVO
+SMTP_AUTH=true
+SMTP_STARTTLS=true
+MAIL_FROM=REMETENTE_VALIDADO_NO_BREVO
 EOF
 
 chmod 600 .env
 ```
+
+Substitua os placeholders `SEU_LOGIN_SMTP_DO_BREVO`, `SUA_CHAVE_SMTP_DO_BREVO` e `REMETENTE_VALIDADO_NO_BREVO` editando o `.env` (por exemplo, com `nano .env`) em vez de digitá-los no comando acima, para que a chave SMTP não fique no histórico do shell. O login e a chave SMTP vêm do painel do Brevo (SMTP & API > SMTP) e o remetente precisa estar validado/autenticado lá. `SMTP_HOST`, `MAIL_FROM` e `APP_BASE_URL` são obrigatórios: o `docker compose` aborta se algum faltar. Detalhes e solução de problemas em [operations.md](operations.md#e-mail-de-redefinição-de-senha-em-produção-brevo).
 
 ---
 

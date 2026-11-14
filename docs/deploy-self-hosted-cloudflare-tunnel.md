@@ -258,6 +258,8 @@ services:
       dockerfile: apps/api-server/Dockerfile
     container_name: gefinc-api
     restart: unless-stopped
+    # Dá tempo de a fila de e-mails (até 30 s) terminar antes do SIGKILL em reinício/deploy.
+    stop_grace_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
@@ -266,11 +268,15 @@ services:
       DB_USER: ${DB_USER:-gefinc}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      APP_BASE_URL: ${APP_BASE_URL}
+      APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
       FORWARD_HEADERS_STRATEGY: native
-      SMTP_HOST: ${SMTP_HOST:-localhost}
-      SMTP_PORT: ${SMTP_PORT:-1025}
-      MAIL_FROM: ${MAIL_FROM:-no-reply@meudominio.com}
+      SMTP_HOST: '${SMTP_HOST:?defina SMTP_HOST (ex.: smtp-relay.brevo.com)}'
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      MAIL_FROM: '${MAIL_FROM:?defina MAIL_FROM com um remetente validado no provedor de e-mail}'
       JAVA_TOOL_OPTIONS: '-Xms512m -Xmx1536m -XX:+UseG1GC'
     expose:
       - '8080'
@@ -329,9 +335,15 @@ CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...seu_token_gerado_no_painel_aqui...
 R2_ACCOUNT_ID=seu_account_id_cloudflare_aqui
 R2_BUCKET_NAME=gefinc-db-backups
 
-# E-mail e Notificações (opcional / produção)
-SMTP_HOST=smtp.sendgrid.net
+# E-mail da redefinição de senha (obrigatório em produção; exemplo com Brevo).
+# Login e chave SMTP são gerados no painel do provedor (SMTP & API > SMTP).
+# O domínio do remetente precisa estar autenticado (SPF/DKIM/DMARC) e o remetente validado.
+SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
+SMTP_USER=seu_login_smtp_do_provedor
+SMTP_PASSWORD=sua_chave_smtp_do_provedor
+SMTP_AUTH=true
+SMTP_STARTTLS=true
 MAIL_FROM=no-reply@meudominio.com
 EOF
 
