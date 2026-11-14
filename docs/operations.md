@@ -38,7 +38,19 @@ Pontos de atenção:
   bloqueio some sozinho.
 - **Memória e uma instância:** as contagens ficam na memória da API; reiniciar zera e, com mais de uma
   instância, cada uma conta separado. Para escalar na horizontal, mover o contador para Redis ou tabela.
+- **Retirar o bloqueio pelo painel:** o administrador pode liberar o login de um e-mail na hora (zera só
+  a contagem do e-mail, nunca a do IP); a ação é auditada.
 - Backlog: avisar o titular por e-mail depois de várias falhas seguidas.
+
+## Sessões de autenticação
+
+Cada login abre uma sessão em `auth_sessions` (uma por família de tokens de renovação) com o IP, um
+rótulo grosseiro do dispositivo ("Chrome em Windows") e o tipo de cliente. São dado pessoal: aparecem só
+no painel administrativo e somem junto com o usuário. O token de acesso leva a claim `sid`; a API confere
+a sessão a cada requisição (uma consulta por chave primária, sem escrita), então encerrar uma sessão, todas
+ou suspender a conta vale na requisição seguinte. A validade da sessão desliza a cada renovação. Um job
+diário (3h45, America/Sao_Paulo) remove as sessões expiradas ou encerradas há mais de **30 dias**.
+Tokens de acesso emitidos antes das sessões existirem (sem `sid`) valem até expirar (15 minutos).
 
 ## Logs
 
