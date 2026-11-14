@@ -1,6 +1,17 @@
 <!--
 Sync Impact Report
-- Version change: 1.3.0 → 1.3.1 (PATCH: esclarecimento de lista, sem mudança de princípio — Princípios III
+- Version change: 1.3.1 → 1.4.0 (MINOR: expansão material dos Princípios III e V — papel administrativo,
+  contagens agregadas globais e tabelas administrativas — mais uma exigência de teste no Princípio IV.
+  Princípio III: o primeiro marcador passa a citar o estado de revogação (`token_version`, `auth_sessions`,
+  `refresh_tokens`) guardado no banco e consultado a cada requisição, com token sem papel; novo marcador
+  "Perfil administrador" (`users.role`: `USER`, `ADMIN`, `ROOT`, verificado no servidor, `/admin/**` fechado
+  por padrão, administrador sem acesso a dados financeiros de terceiros, única exceção de contagens
+  agregadas por dia isoladas em `UsageStatsRepository`, administrador raiz só alterável por quem possui o
+  banco). Princípio V: o terceiro marcador passa a listar as tabelas financeiras e as 11 tabelas
+  administrativas (sem dados financeiros), `audit_log` append-only e `user_id` sem chave estrangeira em
+  tabelas de histórico. Princípio IV: teste de isolamento do administrador (SC-004). Nenhum outro
+  princípio alterado. Origem: branch `005-admin-panel`, TASK-ADMIN-T003)
+- 1.3.0 → 1.3.1 (PATCH: esclarecimento de lista, sem mudança de princípio — Princípios III
   e V passam a enumerar as tabelas de dados financeiros do usuário isoladas por `user_id`, antes omitidas:
   `invoice_payments` (V5), `idempotency_keys` (V6) e `account_transfers` (V13, feature de transferências
   entre contas). Nenhuma regra nova: o isolamento por `user_id` já valia para essas tabelas.
@@ -20,7 +31,8 @@ Sync Impact Report
 - 1.0.0 → 1.1.0 (MINOR: nova regra "Commits limpos" em Fluxo de Desenvolvimento,
   sem co-autoria nem menção a Claude/IA em commits e PRs)
 - Histórico: (template, não versionado) → 1.0.0
-- Princípios modificados: nenhum renomeado (todos definidos pela primeira vez)
+- Princípios modificados na 1.4.0: III, IV e V (nenhum renomeado)
+- Princípios (definidos pela primeira vez na 1.0.0):
   - I. Monorepo Nx com Fronteiras Explícitas
   - II. Integridade Financeira (INEGOCIÁVEL)
   - III. Isolamento de Dados e Autenticação Stateless
@@ -28,9 +40,9 @@ Sync Impact Report
   - V. Esquema de Dados Versionado
   - VI. Experiência Orientada à Plataforma
   - VII. Simplicidade
-- Seções adicionadas: Restrições Tecnológicas, Fluxo de Desenvolvimento, Governança
+- Seções adicionadas: Restrições Tecnológicas, Fluxo de Desenvolvimento, Governança (1.4.0: nenhuma)
 - Seções removidas: nenhuma
-- Templates (reverificados na emenda 1.3.1, nenhuma alteração necessária):
+- Templates (reverificados na emenda 1.4.0, nenhuma alteração necessária):
   - ✅ .specify/templates/plan-template.md (Constitution Check com portões concretos; "installments sum
     exactly to total" continua válido)
   - ✅ .specify/templates/tasks-template.md (testes obrigatórios para lógica financeira e segurança)
@@ -76,10 +88,19 @@ Racional: erros de centavos ou de competência destroem a confiança em uma ferr
 ### III. Isolamento de Dados e Autenticação Stateless
 Todo dado financeiro pertence a um único usuário.
 
-- A API MUST autenticar via JWT de curta duração com refresh token; não há sessão no servidor.
+- A API MUST autenticar via JWT de curta duração com refresh token; não há sessão HTTP no servidor. O
+  **estado de revogação** (`token_version`, `auth_sessions`, `refresh_tokens`) é guardado no banco e
+  consultado a cada requisição; o token não carrega papel.
 - Toda consulta e mutação de `accounts`, `categories`, `transaction_groups`, `transactions`,
   `invoice_payments`, `idempotency_keys` e `account_transfers`
   MUST ser filtrada pelo `user_id` do token; acesso a recurso de outro usuário MUST resultar em 404/403.
+- **Perfil administrador.** O papel (`users.role`: `USER`, `ADMIN`, `ROOT`) MUST ser verificado no servidor
+  a cada requisição, e `/admin/**` MUST ser fechado por padrão. O administrador administra **contas, não
+  finanças**: nenhuma função administrativa MAY ler, listar, somar ou exportar dados das tabelas listadas
+  acima de qualquer usuário. **Única exceção**: contagens agregadas do sistema inteiro (`COUNT` por dia,
+  sem valores, linhas nem identificação de usuário), isoladas em um único repositório
+  (`UsageStatsRepository`), para as estatísticas do painel. O administrador raiz só pode ser criado,
+  alterado ou removido por quem possui o banco.
 - Senhas MUST ser armazenadas apenas como hash forte (`password_hash`); segredos e chaves MUST vir
   de variáveis de ambiente, nunca do repositório.
 - No mobile, tokens MUST ser guardados em armazenamento seguro (Capacitor Preferences/SecureStorage);
@@ -96,6 +117,8 @@ Testes são escritos e vistos falhando antes da implementação (Red-Green-Refac
 - Endpoints e repositórios MUST ter testes de integração contra PostgreSQL real (Testcontainers),
   não contra banco em memória, para garantir paridade com produção e com as migrações Flyway.
 - Cada teste de isolamento de dados (Princípio III) MUST verificar que um usuário não acessa dados de outro.
+- Todo recurso administrativo MUST ter teste de isolamento provando que o administrador não acessa dados
+  financeiros de terceiros (SC-004).
 - Uma funcionalidade só está concluída quando seus testes passam na pipeline do Nx.
 
 Racional: a lógica financeira é fácil de quebrar silenciosamente; testes são a única rede de segurança confiável.
@@ -105,9 +128,15 @@ O esquema do banco evolui exclusivamente por migrações Flyway.
 
 - Alterações de esquema MUST ser migrações versionadas e imutáveis após mescladas; correções vão em nova migração.
 - Hibernate `ddl-auto` MUST ser `validate` ou `none` fora de testes descartáveis.
-- O modelo de dados — tabelas e entidades JPA — MUST permanecer coerente com o conjunto (`users`,
-  `accounts`, `categories`, `transaction_groups`, `transactions`, `invoice_payments`, `idempotency_keys`,
-  `account_transfers`); novas tabelas ou colunas exigem atualização da especificação.
+- O modelo de dados — tabelas e entidades JPA — MUST permanecer coerente com o conjunto de dados
+  financeiros (`users`, `accounts`, `categories`, `transaction_groups`, `transactions`,
+  `invoice_payments`, `idempotency_keys`, `account_transfers`) e com as tabelas **administrativas**, que
+  MUST NOT guardar dados financeiros: `system_parameters`, `deletion_reasons`,
+  `account_deletion_requests`, `user_notices`, `auth_sessions`, `audit_log`, `audit_log_client`,
+  `email_deliveries`, `pending_communications`, `invitations`, `pending_email_changes`. `audit_log` é
+  **append-only** (UPDATE, DELETE e TRUNCATE bloqueados no banco). Tabelas de histórico MAY guardar
+  `user_id` sem chave estrangeira quando precisam sobreviver à exclusão do usuário; novas tabelas ou
+  colunas exigem atualização da especificação.
 - Chaves estrangeiras, `CHECK` para enums (`type`, `recurrence_type`, `status`) e índices por `user_id`
   e `due_date` MUST ser declarados no banco, não apenas na aplicação.
 
@@ -170,4 +199,4 @@ Esta constituição prevalece sobre quaisquer outras práticas do projeto.
 - **Orientação em execução**: o plano da funcionalidade corrente (referenciado em `CLAUDE.md`) e o `README.md`
   fornecem contexto operacional; em conflito, esta constituição prevalece.
 
-**Version**: 1.3.1 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-11-05
+**Version**: 1.4.0 | **Ratified**: 2026-10-22 | **Last Amended**: 2026-11-14
