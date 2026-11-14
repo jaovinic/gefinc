@@ -5,6 +5,8 @@ import { provideRouter } from '@angular/router';
 import type { AdminUserPage, AdminUserRow } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService } from '@gefinc/ui-shared';
 import { optionLabels, pickOption } from '@gefinc/ui-shared/testing';
+import { Subject } from 'rxjs';
+import { AdminApi } from '../admin.api';
 import { UserList } from './user-list';
 
 const URL = '/api/v1/admin/users';
@@ -328,5 +330,45 @@ describe('UserList', () => {
     const positive = Array.from(el.querySelectorAll('[tabindex]')).filter((n) => Number(n.getAttribute('tabindex')) > 0);
 
     expect(positive).toHaveLength(0);
+  });
+});
+
+describe('UserList: respostas fora de ordem', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('descarta a resposta obsoleta: o primeiro pedido termina depois do segundo e a lista mostra o segundo', async () => {
+    const first = new Subject<AdminUserPage>();
+    const second = new Subject<AdminUserPage>();
+    const listUsers = jest.fn().mockReturnValueOnce(first.asObservable()).mockReturnValueOnce(second.asObservable());
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [provideRouter([]), { provide: AdminApi, useValue: { listUsers } }],
+    });
+    const fixture = TestBed.createComponent(UserList);
+    const el = fixture.nativeElement as HTMLElement;
+    fixture.detectChanges();
+    expect(listUsers).toHaveBeenCalledTimes(1);
+
+    // Segundo pedido enquanto o primeiro ainda está pendente (troca de situação).
+    (fixture.componentInstance as unknown as { onStatus(value: string): void }).onStatus('SUSPENDED');
+    expect(listUsers).toHaveBeenCalledTimes(2);
+
+    second.next(page([bruno]));
+    second.complete();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(Array.from(el.querySelectorAll('[data-testid="user-row"]')).map((r) => r.textContent)).toEqual([expect.stringContaining('bruno@teste.com')]);
+
+    // O primeiro termina depois: a resposta antiga não pode sobrescrever a lista atual.
+    first.next(page([ana, carla]));
+    first.complete();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const rowsAfter = Array.from(el.querySelectorAll('[data-testid="user-row"]'));
+    expect(rowsAfter).toHaveLength(1);
+    expect(rowsAfter[0].textContent).toContain('bruno@teste.com');
+    expect(el.textContent).not.toContain('ana@teste.com');
   });
 });

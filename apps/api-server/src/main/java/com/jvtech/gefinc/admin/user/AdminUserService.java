@@ -77,6 +77,10 @@ public class AdminUserService {
       invalid.withFieldError(
           "q", "A busca aceita até " + settings.searchMaxLength() + " caracteres.");
       hasErrors = true;
+    } else if (text != null && text.indexOf('\0') >= 0) {
+      // O PostgreSQL não aceita NUL em texto: sem esta checagem a consulta falharia com 500.
+      invalid.withFieldError("q", "A busca contém caracteres inválidos.");
+      hasErrors = true;
     }
     StatusFilter statusFilter = null;
     if (status != null && !status.isBlank()) {

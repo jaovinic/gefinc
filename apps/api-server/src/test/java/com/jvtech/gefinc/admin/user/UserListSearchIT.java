@@ -136,7 +136,8 @@ class UserListSearchIT extends IntegrationTestBase {
             new String[] {"status", "TODOS"},
             new String[] {"sort", "email"},
             new String[] {"dir", "up"},
-            new String[] {"q", "x".repeat(101)});
+            new String[] {"q", "x".repeat(101)},
+            new String[] {"q", "ab\0cd"});
     for (String[] parameter : invalid) {
       call(admin, params(parameter[0], parameter[1]))
           .andExpect(status().isUnprocessableEntity())
