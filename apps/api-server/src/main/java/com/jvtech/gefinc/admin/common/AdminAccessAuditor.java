@@ -20,10 +20,11 @@ import org.springframework.stereotype.Component;
 
 /**
  * Registra o acesso negado a {@code /admin/**}: usuário comum (403) e visitante (401). A tentativa
- * entra na trilha como {@code ACCESS_DENIED}, deduplicada em 15 minutos por ator, IP e rota
- * normalizada, e todo acesso negado incrementa o contador {@code gefinc.admin.access.denied}. A
- * rota é normalizada ({@code {id}} no lugar de identificadores) para não gravar dado pessoal. Falha
- * ao gravar nunca vira 500: a resposta 401/403 segue, com log só da classe do erro.
+ * entra na trilha como {@code ACCESS_DENIED}, deduplicada em 15 minutos por ator, IP e tipo (no
+ * máximo uma linha por IP a cada janela, qualquer que seja a rota pedida), e todo acesso negado
+ * incrementa o contador {@code gefinc.admin.access.denied}. A rota normalizada ({@code {id}} no
+ * lugar de identificadores, sem dado pessoal) vai só no assunto da linha gravada. Falha ao gravar
+ * nunca vira 500: a resposta 401/403 segue, com log só da classe do erro.
  *
  * <p>O visitante só é auditado quando a requisição não traz {@code Authorization}: um token
  * recusado ou expirado apenas incrementa o contador, para uma sessão que expirou no navegador não
@@ -34,6 +35,10 @@ public class AdminAccessAuditor {
 
   static final String DENIED = "gefinc.admin.access.denied";
   private static final String ADMIN_PREFIX = "/admin";
+
+  /** Alvo constante da decisão: a deduplicação é por ator, IP e tipo, nunca por rota. */
+  private static final String DECISION_TARGET = "/admin";
+
   private static final int SUBJECT_MAX = 60;
   private static final Pattern NUMERIC = Pattern.compile("\\d+");
   private static final Pattern SAFE_SEGMENT = Pattern.compile("[A-Za-z0-9_.-]{1,40}");
@@ -73,7 +78,7 @@ public class AdminAccessAuditor {
       } else {
         entry.actor(ActorKind.USER, user.id());
       }
-      audit.recordAttempt(entry.build(), origin, route);
+      audit.recordAttempt(entry.build(), origin, DECISION_TARGET);
     } catch (RuntimeException failure) {
       // Só a classe: a mensagem poderia trazer dado pessoal. A resposta 401/403 segue normalmente.
       log.error(

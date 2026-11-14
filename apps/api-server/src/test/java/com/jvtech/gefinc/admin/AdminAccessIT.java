@@ -28,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
@@ -96,6 +97,13 @@ class AdminAccessIT extends IntegrationTestBase {
       }
     }
     return routes;
+  }
+
+  private static RequestPostProcessor remoteAddr(String ip) {
+    return request -> {
+      request.setRemoteAddr(ip);
+      return request;
+    };
   }
 
   private MockHttpServletRequestBuilder request(Route route, String bearerToken) {
@@ -244,6 +252,70 @@ class AdminAccessIT extends IntegrationTestBase {
   }
 
   @Test
+  void rotasDistintasDoMesmoUsuarioEIpGeramUmaSoLinhaEContamTodas() throws Exception {
+    double before = counter(DENIED);
+
+    for (String path : List.of("/admin/a1", "/admin/a2", "/admin/users/7/role")) {
+      mockMvc
+          .perform(
+              get(path)
+                  .with(
+                      request -> {
+                        request.setRemoteAddr(IP);
+                        return request;
+                      })
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer " + commonToken))
+          .andExpect(status().isForbidden());
+    }
+
+    assertThat(counter(DENIED) - before).isEqualTo(3.0);
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log", Long.class)).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log_client", Long.class))
+        .isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT subject FROM audit_log", String.class))
+        .isEqualTo("/admin/a1");
+  }
+
+  @Test
+  void rotasDistintasDoMesmoVisitanteEIpGeramUmaSoLinhaEContamTodas() throws Exception {
+    double before = counter(DENIED);
+
+    for (String path : List.of("/admin/a1", "/admin/a2", "/admin/a3")) {
+      mockMvc
+          .perform(
+              get(path)
+                  .with(
+                      request -> {
+                        request.setRemoteAddr(IP);
+                        return request;
+                      }))
+          .andExpect(status().isUnauthorized());
+    }
+
+    assertThat(counter(DENIED) - before).isEqualTo(3.0);
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log", Long.class)).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log_client", Long.class))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void ipsDistintosContinuamGerandoLinhasDistintas() throws Exception {
+    for (String ip : List.of("198.51.100.21", "198.51.100.22")) {
+      mockMvc
+          .perform(
+              get("/admin/a1")
+                  .with(
+                      request -> {
+                        request.setRemoteAddr(ip);
+                        return request;
+                      }))
+          .andExpect(status().isUnauthorized());
+    }
+
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log", Long.class)).isEqualTo(2);
+  }
+
+  @Test
   void tokenRejeitadoSoIncrementaOContadorEMantem401() throws Exception {
     double before = counter(DENIED);
 
@@ -260,6 +332,7 @@ class AdminAccessIT extends IntegrationTestBase {
     mockMvc
         .perform(
             put("/admin/users/123/role")
+                .with(remoteAddr("198.51.100.31"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + commonToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
@@ -267,6 +340,7 @@ class AdminAccessIT extends IntegrationTestBase {
     mockMvc
         .perform(
             get("/admin/x/" + "a".repeat(120))
+                .with(remoteAddr("198.51.100.32"))
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + commonToken))
         .andExpect(status().isForbidden());
 
