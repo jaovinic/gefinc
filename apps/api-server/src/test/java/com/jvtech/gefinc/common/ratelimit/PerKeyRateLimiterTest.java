@@ -27,6 +27,22 @@ class PerKeyRateLimiterTest {
   }
 
   @Test
+  void blockedUntilSoInformaNoLimiteENaoRegistraNada() {
+    limiter.record("a");
+    limiter.record("a");
+    assertThat(limiter.blockedUntil("a")).isEmpty();
+    assertThat(limiter.blockedUntil("outra")).isEmpty();
+
+    Instant first = clock.instant();
+    limiter.record("a");
+
+    assertThat(limiter.blockedUntil("a")).contains(first.plus(WINDOW));
+    assertThat(limiter.count("a")).isEqualTo(3);
+    clock.advance(WINDOW);
+    assertThat(limiter.blockedUntil("a")).isEmpty();
+  }
+
+  @Test
   void noLimiteInformaOsSegundosAteLiberarMaisUm() {
     limiter.record("a");
     clock.advance(Duration.ofMinutes(1));

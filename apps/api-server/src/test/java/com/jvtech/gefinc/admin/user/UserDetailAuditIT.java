@@ -50,8 +50,8 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @BeforeEach
   void init() throws Exception {
-    adminRow = seed.createAdmin("adm@example.com");
-    admin = login("adm@example.com");
+    adminRow = seed.createAdmin("adm@teste.com");
+    admin = login("adm@teste.com");
   }
 
   private TestUser login(String email) throws Exception {
@@ -106,7 +106,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void abrirODetalheGravaUmaLinhaERecarregarGravaOutra() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
 
     open(target.id());
 
@@ -128,7 +128,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void listaEBuscaNaoGravamAuditoria() throws Exception {
-    seed.createUser("alvo@example.com");
+    seed.createUser("alvo@teste.com");
 
     mockMvc
         .perform(get("/admin/users").header(HttpHeaders.AUTHORIZATION, admin.bearer()))
@@ -162,9 +162,9 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void usuarioComumRecebe403SemAuditarAAbertura() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
-    seed.createUser("comum@example.com");
-    TestUser common = login("comum@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
+    seed.createUser("comum@teste.com");
+    TestUser common = login("comum@teste.com");
 
     detail(common, target.id()).andExpect(status().isForbidden());
 
@@ -173,8 +173,8 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void falhaNaAuditoriaDesfazALeituraEDa500SemVazarDados() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
-    doThrow(new IllegalStateException("trilha indisponível para alvo@example.com"))
+    SeededUser target = seed.createUser("alvo@teste.com");
+    doThrow(new IllegalStateException("trilha indisponível para alvo@teste.com"))
         .when(auditRepository)
         .save(any(AuditLog.class));
 
@@ -184,7 +184,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
             .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
 
     String body = result.andReturn().getResponse().getContentAsString();
-    assertThat(body).doesNotContain("alvo@example.com");
+    assertThat(body).doesNotContain("alvo@teste.com");
     assertThat(auditCount()).isZero();
   }
 
@@ -192,14 +192,14 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void detalheTrazDadosDaContaSemSessoesBloqueioNemExclusao() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     seed.setName(target.id(), "Alvo da Silva");
     seed.setDates(target.id(), NOW.minus(Duration.ofDays(10)), NOW.minus(Duration.ofHours(3)));
 
     JsonNode body = open(target.id());
 
     assertThat(body.get("id").asLong()).isEqualTo(target.id());
-    assertThat(body.get("email").asText()).isEqualTo("alvo@example.com");
+    assertThat(body.get("email").asText()).isEqualTo("alvo@teste.com");
     assertThat(body.get("name").asText()).isEqualTo("Alvo da Silva");
     assertThat(Instant.parse(body.get("createdAt").asText()))
         .isEqualTo(NOW.minus(Duration.ofDays(10)));
@@ -218,7 +218,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void detalheDoRaizEProtegido() throws Exception {
-    SeededUser root = seed.createRoot("raiz@example.com");
+    SeededUser root = seed.createRoot("raiz@teste.com");
 
     JsonNode body = open(root.id());
 
@@ -228,12 +228,12 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void contaSessoesAbertasIgnorandoRevogadasEExpiradas() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     insertSession(target.id(), NOW.plus(Duration.ofDays(1)), null);
     insertSession(target.id(), NOW.plus(Duration.ofDays(2)), null);
     insertSession(target.id(), NOW.plus(Duration.ofDays(2)), NOW.minus(Duration.ofHours(1)));
     insertSession(target.id(), NOW.minus(Duration.ofMinutes(1)), null);
-    SeededUser other = seed.createUser("outro@example.com");
+    SeededUser other = seed.createUser("outro@teste.com");
     insertSession(other.id(), NOW.plus(Duration.ofDays(1)), null);
 
     assertThat(open(target.id()).get("openSessions").asInt()).isEqualTo(2);
@@ -254,9 +254,9 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void mostraOBloqueioDeLoginAteQuando() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     for (int i = 0; i < 5; i++) {
-      failedLogin("alvo@example.com");
+      failedLogin("alvo@teste.com");
     }
 
     JsonNode body = open(target.id());
@@ -265,15 +265,15 @@ class UserDetailAuditIT extends IntegrationTestBase {
         .isEqualTo(NOW.plus(Duration.ofMinutes(15)));
 
     clock.advance(Duration.ofMinutes(16));
-    admin = login("adm@example.com");
+    admin = login("adm@teste.com");
     assertThat(open(target.id()).has("loginLock")).isFalse();
   }
 
   @Test
   void quatroFalhasAindaNaoBloqueiam() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     for (int i = 0; i < 4; i++) {
-      failedLogin("alvo@example.com");
+      failedLogin("alvo@teste.com");
     }
 
     assertThat(open(target.id()).has("loginLock")).isFalse();
@@ -288,7 +288,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void mostraAExclusaoPendenteSemJustificativa() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     seed.scheduleDeletion(target.id(), NOW.minus(Duration.ofDays(2)));
 
     JsonNode body = open(target.id());
@@ -307,7 +307,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void suspensaoApareceNaSituacao() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     seed.suspend(target.id(), NOW.minus(Duration.ofDays(1)));
 
     assertThat(open(target.id()).get("suspended").asBoolean()).isTrue();
@@ -317,7 +317,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void mostraNoMaximoAsUltimas20AcoesDaMaisRecenteParaAMaisAntiga() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     for (int i = 1; i <= 25; i++) {
       insertAudit(
           "USER_RENAMED",
@@ -329,7 +329,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
           "{}");
     }
     // Ações sobre outro usuário não entram.
-    SeededUser other = seed.createUser("outro@example.com");
+    SeededUser other = seed.createUser("outro@teste.com");
     insertAudit("USER_RENAMED", "SUCCESS", "ADMIN", adminRow.id(), other.id(), NOW, "{}");
 
     JsonNode actions = open(target.id()).get("recentActions");
@@ -343,7 +343,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void aAberturaAparecePorUltimoNaProximaConsulta() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
 
     assertThat(open(target.id()).get("recentActions")).isEmpty();
     clock.advance(Duration.ofMinutes(1));
@@ -358,7 +358,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void entradasTrazemAtorAlvoResumoEJustificativaSemIp() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     seed.setName(adminRow.id(), "Ana Admin");
     insertAudit(
         "ROLE_GRANTED",
@@ -423,7 +423,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
     assertThat(granted.get("actor").get("userId").asLong()).isEqualTo(adminRow.id());
     assertThat(granted.get("actor").get("label").asText()).isEqualTo("Ana Admin");
     assertThat(granted.get("target").get("userId").asLong()).isEqualTo(target.id());
-    assertThat(granted.get("target").get("label").asText()).isEqualTo("alvo@example.com");
+    assertThat(granted.get("target").get("label").asText()).isEqualTo("alvo@teste.com");
     assertThat(granted.get("summary").asText()).isEqualTo("Perfil de administrador concedido");
     assertThat(granted.get("details").get("from").asText()).isEqualTo("USER");
     assertThat(granted.get("details").get("to").asText()).isEqualTo("ADMIN");
@@ -435,7 +435,7 @@ class UserDetailAuditIT extends IntegrationTestBase {
 
   @Test
   void nenhumCampoDoDetalheEFinanceiroOuSensivel() throws Exception {
-    SeededUser target = seed.createUser("alvo@example.com");
+    SeededUser target = seed.createUser("alvo@teste.com");
     insertSession(target.id(), NOW.plus(Duration.ofDays(1)), null);
     seed.scheduleDeletion(target.id(), NOW);
     insertAudit("USER_RENAMED", "SUCCESS", "ADMIN", adminRow.id(), target.id(), NOW, "{}");

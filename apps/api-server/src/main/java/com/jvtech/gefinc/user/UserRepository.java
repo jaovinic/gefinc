@@ -57,6 +57,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
           + " and u.deletionRequestedAt is null")
   long countActiveAdminsExcluding(@Param("excludedId") long excludedId);
 
+  /**
+   * Registra o último acesso (login e renovação da sessão) sem carregar nem sujar a entidade: o
+   * UPDATE grava só esta coluna, então não concorre com troca de papel, suspensão ou versão do
+   * token.
+   */
+  @Modifying
+  @Query("update User u set u.lastAccessAt = :at where u.id = :id")
+  int touchAccess(@Param("id") long id, @Param("at") Instant at);
+
   /** Remove definitivamente as contas com carência vencida; o banco apaga os dados em cascata. */
   @Modifying
   @Query("delete from User u where u.deletionRequestedAt <= :limit")

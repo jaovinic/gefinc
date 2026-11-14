@@ -4,7 +4,9 @@ import com.jvtech.gefinc.common.error.TooManyRequestsException;
 import com.jvtech.gefinc.common.ratelimit.PerKeyRateLimiter;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Locale;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -39,6 +41,14 @@ public class LoginAttemptLimiter {
       throw new TooManyRequestsException(
           "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.", wait);
     }
+  }
+
+  /**
+   * Até quando o e-mail está bloqueado por tentativas de login; vazio se não está. Só leitura (o
+   * painel mostra o bloqueio sem alterá-lo) e não depende do IP de quem tentou.
+   */
+  public synchronized Optional<Instant> lockedUntil(String email) {
+    return byEmail.blockedUntil(emailKey(email));
   }
 
   public synchronized void recordFailure(String email, String ip) {

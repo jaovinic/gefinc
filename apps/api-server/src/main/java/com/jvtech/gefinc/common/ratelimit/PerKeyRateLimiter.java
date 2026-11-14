@@ -8,6 +8,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Janela deslizante em memória: no máximo {@code limit} ocorrências por chave em {@code window}.
@@ -44,6 +45,22 @@ public final class PerKeyRateLimiter {
       return 0;
     }
     return Duration.between(now, deque.peekFirst().plus(window)).toSeconds() + 1;
+  }
+
+  /**
+   * Instante em que a chave volta a poder agir, se está no limite agora; vazio se está abaixo dele.
+   * Só leitura: não registra nada.
+   */
+  public synchronized Optional<Instant> blockedUntil(String key) {
+    Deque<Instant> deque = events.get(key);
+    if (deque == null) {
+      return Optional.empty();
+    }
+    trim(deque, clock.instant());
+    if (deque.size() < limit) {
+      return Optional.empty();
+    }
+    return Optional.of(deque.peekFirst().plus(window));
   }
 
   public synchronized void record(String key) {

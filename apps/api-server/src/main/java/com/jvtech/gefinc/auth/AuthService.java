@@ -57,6 +57,7 @@ public class AuthService {
     if (user.isDeletionPending()) {
       throw deletionPending(user);
     }
+    users.touchAccess(user.getId(), clock.instant());
     return new Session(
         jwt.issueAccessToken(user.getId(), user.getTokenVersion()),
         jwt.accessTokenTtlSeconds(),
@@ -75,6 +76,7 @@ public class AuthService {
                 tokens.revokeAllOfUser(rotation.userId());
                 return Optional.empty();
               }
+              users.touchAccess(user.get().getId(), clock.instant());
               return Optional.of(
                   new Session(
                       jwt.issueAccessToken(user.get().getId(), user.get().getTokenVersion()),

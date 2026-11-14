@@ -99,14 +99,14 @@ class AdminIsolationIT extends IntegrationTestBase {
   void init() throws Exception {
     api = new TestApi(mockMvc, objectMapper);
     TestUsers users = new TestUsers(mockMvc, objectMapper);
-    ana = users.registerAndLogin("ana@iso.test");
-    bia = users.registerAndLogin("bia@iso.test");
-    adminId = seed.createAdmin("adm@iso.test").id();
+    ana = users.registerAndLogin("ana@iso.com");
+    bia = users.registerAndLogin("bia@iso.com");
+    adminId = seed.createAdmin("adm@iso.com").id();
     admin =
         new TestUser(
             adminId,
-            "adm@iso.test",
-            users.login("adm@iso.test", TestUsers.PASSWORD).get("accessToken").asText());
+            "adm@iso.com",
+            users.login("adm@iso.com", TestUsers.PASSWORD).get("accessToken").asText());
     anaAccount = seedFinances(ana, "A", "98765.43", "12345.67");
     seedFinances(bia, "B", "76543.21", "54321.09");
     anaTransfer =
@@ -158,7 +158,7 @@ class AdminIsolationIT extends IntegrationTestBase {
         List.of(
             "/admin/users",
             "/admin/users?size=100",
-            "/admin/users?q=iso.test",
+            "/admin/users?q=iso.com",
             "/admin/users?q=sigilos",
             "/admin/users?status=ACTIVE&sort=lastAccessAt&dir=asc"));
     map.put(

@@ -4395,8 +4395,24 @@ export interface components {
             expiresAt: string;
             attemptsLeft: number;
         };
-        /** @description Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles. */
-        AdminUserDetail: components["schemas"]["AdminUserRow"] & {
+        /**
+         * @description Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles.
+         *     Os campos da conta repetem `AdminUserRow` (o validador de contrato rejeita `allOf` com objetos
+         *     sem `additionalProperties`, então o esquema é plano).
+         */
+        AdminUserDetail: {
+            /** Format: int64 */
+            id: number;
+            /** Format: email */
+            email: string;
+            name?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastAccessAt?: string | null;
+            role: components["schemas"]["AdminRole"];
+            suspended: boolean;
+            deletionPending: boolean;
             openSessions: number;
             loginLock?: components["schemas"]["AdminLoginLock"];
             deletion?: components["schemas"]["AdminDeletionInfo"];

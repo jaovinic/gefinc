@@ -2380,21 +2380,30 @@ components:
         expiresAt: { type: string, format: date-time }
         attemptsLeft: { type: integer, minimum: 0, maximum: 5 }
     AdminUserDetail:
-      description: Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles.
-      allOf:
-        - $ref: '#/components/schemas/AdminUserRow'
-        - type: object
-          required: [openSessions, protected, recentActions]
-          properties:
-            openSessions: { type: integer, minimum: 0 }
-            loginLock: { $ref: '#/components/schemas/AdminLoginLock' }
-            deletion: { $ref: '#/components/schemas/AdminDeletionInfo' }
-            pendingEmailChange: { $ref: '#/components/schemas/PendingEmailChange' }
-            protected: { type: boolean, description: Verdadeiro para o administrador raiz }
-            recentActions:
-              type: array
-              description: Últimas 20 ações sobre o usuário
-              items: { $ref: '#/components/schemas/AuditEntry' }
+      description: |
+        Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles.
+        Os campos da conta repetem `AdminUserRow` (o validador de contrato rejeita `allOf` com objetos
+        sem `additionalProperties`, então o esquema é plano).
+      type: object
+      required: [id, email, createdAt, role, suspended, deletionPending, openSessions, protected, recentActions]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        lastAccessAt: { type: [string, 'null'], format: date-time }
+        role: { $ref: '#/components/schemas/AdminRole' }
+        suspended: { type: boolean }
+        deletionPending: { type: boolean }
+        openSessions: { type: integer, minimum: 0 }
+        loginLock: { $ref: '#/components/schemas/AdminLoginLock' }
+        deletion: { $ref: '#/components/schemas/AdminDeletionInfo' }
+        pendingEmailChange: { $ref: '#/components/schemas/PendingEmailChange' }
+        protected: { type: boolean, description: Verdadeiro para o administrador raiz }
+        recentActions:
+          type: array
+          description: Últimas 20 ações sobre o usuário
+          items: { $ref: '#/components/schemas/AuditEntry' }
     AdminSession:
       type: object
       required: [id, startedAt, lastUsedAt, current]

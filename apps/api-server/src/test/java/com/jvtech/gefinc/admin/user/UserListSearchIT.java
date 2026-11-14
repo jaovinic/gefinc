@@ -40,9 +40,9 @@ class UserListSearchIT extends IntegrationTestBase {
 
   @BeforeEach
   void init() throws Exception {
-    adminRow = seed.createAdmin("adm@example.com");
+    adminRow = seed.createAdmin("adm@teste.com");
     seed.setDates(adminRow.id(), BASE.minus(Duration.ofDays(400)), null);
-    admin = login("adm@example.com");
+    admin = login("adm@teste.com");
   }
 
   private TestUser login(String email) throws Exception {
@@ -91,10 +91,10 @@ class UserListSearchIT extends IntegrationTestBase {
   @Test
   void paginaDe25PorPadraoEUmaLinhaTemSoCamposDeConta() throws Exception {
     for (int i = 1; i <= 30; i++) {
-      user(String.format("p%02d@page.test", i), null);
+      user(String.format("p%02d@page.com", i), null);
     }
 
-    JsonNode first = list(params("q", "page.test"));
+    JsonNode first = list(params("q", "page.com"));
 
     assertThat(first.get("page").asInt()).isZero();
     assertThat(first.get("size").asInt()).isEqualTo(25);
@@ -106,9 +106,9 @@ class UserListSearchIT extends IntegrationTestBase {
         .toIterable()
         .containsExactlyInAnyOrder(
             "id", "email", "createdAt", "role", "suspended", "deletionPending");
-    JsonNode second = list(params("q", "page.test", "page", "1"));
+    JsonNode second = list(params("q", "page.com", "page", "1"));
     assertThat(second.get("content")).hasSize(5);
-    JsonNode beyond = list(params("q", "page.test", "page", "9"));
+    JsonNode beyond = list(params("q", "page.com", "page", "9"));
     assertThat(beyond.get("content")).isEmpty();
     assertThat(beyond.get("totalElements").asLong()).isEqualTo(30);
   }
@@ -116,10 +116,10 @@ class UserListSearchIT extends IntegrationTestBase {
   @Test
   void aceitaTamanhoAte100() throws Exception {
     for (int i = 1; i <= 120; i++) {
-      user(String.format("t%03d@size.test", i), null);
+      user(String.format("t%03d@size.com", i), null);
     }
 
-    JsonNode page = list(params("q", "size.test", "size", "100"));
+    JsonNode page = list(params("q", "size.com", "size", "100"));
 
     assertThat(page.get("size").asInt()).isEqualTo(100);
     assertThat(page.get("content")).hasSize(100);
@@ -157,44 +157,54 @@ class UserListSearchIT extends IntegrationTestBase {
 
   @Test
   void buscaIgnoraCaixaEAcentoNoNomeENoEmail() throws Exception {
-    user("contato@x.test", "João Pereira");
-    user("zeca@x.test", "José Souza");
-    user("AnA.Silva@Example.com", null);
-    user("outro@x.test", "Maria Lima");
+    user("contato@x.com", "João Pereira");
+    user("zeca@x.com", "José Souza");
+    user("AnA.Silva@Teste.com", null);
+    user("outro@x.com", "Maria Lima");
 
-    assertThat(emails(list(params("q", "joao")))).containsExactly("contato@x.test");
-    assertThat(emails(list(params("q", "JOÃO")))).containsExactly("contato@x.test");
-    assertThat(emails(list(params("q", "pereira")))).containsExactly("contato@x.test");
-    assertThat(emails(list(params("q", "jose")))).containsExactly("zeca@x.test");
-    assertThat(emails(list(params("q", "josé")))).containsExactly("zeca@x.test");
-    assertThat(emails(list(params("q", "ANA.silva")))).containsExactly("AnA.Silva@Example.com");
-    assertThat(emails(list(params("q", "@x.test"))))
-        .containsExactlyInAnyOrder("contato@x.test", "zeca@x.test", "outro@x.test");
+    assertThat(emails(list(params("q", "joao")))).containsExactly("contato@x.com");
+    assertThat(emails(list(params("q", "JOÃO")))).containsExactly("contato@x.com");
+    assertThat(emails(list(params("q", "pereira")))).containsExactly("contato@x.com");
+    assertThat(emails(list(params("q", "jose")))).containsExactly("zeca@x.com");
+    assertThat(emails(list(params("q", "josé")))).containsExactly("zeca@x.com");
+    assertThat(emails(list(params("q", "ANA.silva")))).containsExactly("AnA.Silva@Teste.com");
+    assertThat(emails(list(params("q", "@x.com"))))
+        .containsExactlyInAnyOrder("contato@x.com", "zeca@x.com", "outro@x.com");
   }
 
   @Test
   void buscaVaziaOuEmBrancoNaoFiltra() throws Exception {
-    user("a@x.test", null);
+    user("a@x.com", null);
 
-    assertThat(list(params("q", "")).get("totalElements").asLong()).isEqualTo(2);
+    // O validador de contrato recusa parâmetro vazio na requisição; só a resposta é conferida.
+    for (String blank : List.of("", "   ")) {
+      String body =
+          call(admin, params("q", blank))
+              .andExpect(status().isOk())
+              .andExpect(responseMatchesContract())
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+      assertThat(objectMapper.readTree(body).get("totalElements").asLong()).isEqualTo(2);
+    }
     assertThat(list(params()).get("totalElements").asLong()).isEqualTo(2);
   }
 
   @Test
   void porcentoSublinhadoEBarraInvertidaSaoTextoLiteral() throws Exception {
-    user("pct@w.test", "100% real");
-    user("under@w.test", "a_b");
-    user("slash@w.test", "back\\slash");
-    user("decoy1@w.test", "100 real");
-    user("decoy2@w.test", "axb");
-    user("decoy3@w.test", "backslash");
+    user("pct@w.com", "100% real");
+    user("under@w.com", "a_b");
+    user("slash@w.com", "back\\slash");
+    user("decoy1@w.com", "100 real");
+    user("decoy2@w.com", "axb");
+    user("decoy3@w.com", "backslash");
 
-    assertThat(emails(list(params("q", "%")))).containsExactly("pct@w.test");
-    assertThat(emails(list(params("q", "100%")))).containsExactly("pct@w.test");
-    assertThat(emails(list(params("q", "_")))).containsExactly("under@w.test");
-    assertThat(emails(list(params("q", "a_b")))).containsExactly("under@w.test");
-    assertThat(emails(list(params("q", "\\")))).containsExactly("slash@w.test");
-    assertThat(emails(list(params("q", "back\\s")))).containsExactly("slash@w.test");
+    assertThat(emails(list(params("q", "%")))).containsExactly("pct@w.com");
+    assertThat(emails(list(params("q", "100%")))).containsExactly("pct@w.com");
+    assertThat(emails(list(params("q", "_")))).containsExactly("under@w.com");
+    assertThat(emails(list(params("q", "a_b")))).containsExactly("under@w.com");
+    assertThat(emails(list(params("q", "\\")))).containsExactly("slash@w.com");
+    assertThat(emails(list(params("q", "back\\s")))).containsExactly("slash@w.com");
   }
 
   // ------------------------------------------------------------------ filtros e contagens
@@ -202,13 +212,13 @@ class UserListSearchIT extends IntegrationTestBase {
   private void seedSituations() {
     // admin (do init): ativo e administrador. Abaixo: raiz, 2 ativos, 2 suspensos, 1 em exclusão e
     // 1 suspenso que também aguarda exclusão.
-    seed.createRoot("raiz@sit.test");
-    user("u1@sit.test", null);
-    user("u2@sit.test", null);
-    SeededUser s1 = user("s1@sit.test", null);
-    SeededUser s2 = user("s2@sit.test", null);
-    SeededUser d1 = user("d1@sit.test", null);
-    SeededUser sd = user("sd@sit.test", null);
+    seed.createRoot("raiz@sit.com");
+    user("u1@sit.com", null);
+    user("u2@sit.com", null);
+    SeededUser s1 = user("s1@sit.com", null);
+    SeededUser s2 = user("s2@sit.com", null);
+    SeededUser d1 = user("d1@sit.com", null);
+    SeededUser sd = user("sd@sit.com", null);
     seed.suspend(s1.id(), BASE);
     seed.suspend(s2.id(), BASE);
     seed.scheduleDeletion(d1.id(), BASE);
@@ -221,31 +231,30 @@ class UserListSearchIT extends IntegrationTestBase {
     seedSituations();
 
     assertThat(emails(list(params("status", "ACTIVE"))))
-        .containsExactlyInAnyOrder(
-            "adm@example.com", "raiz@sit.test", "u1@sit.test", "u2@sit.test");
+        .containsExactlyInAnyOrder("adm@teste.com", "raiz@sit.com", "u1@sit.com", "u2@sit.com");
     assertThat(emails(list(params("status", "SUSPENDED"))))
-        .containsExactlyInAnyOrder("s1@sit.test", "s2@sit.test", "sd@sit.test");
+        .containsExactlyInAnyOrder("s1@sit.com", "s2@sit.com", "sd@sit.com");
     assertThat(emails(list(params("status", "DELETION_PENDING"))))
-        .containsExactlyInAnyOrder("d1@sit.test", "sd@sit.test");
+        .containsExactlyInAnyOrder("d1@sit.com", "sd@sit.com");
     assertThat(emails(list(params("status", "ADMIN"))))
-        .containsExactlyInAnyOrder("adm@example.com", "raiz@sit.test");
+        .containsExactlyInAnyOrder("adm@teste.com", "raiz@sit.com");
   }
 
   @Test
   void linhasTraduzemASituacaoEOPerfil() throws Exception {
     seedSituations();
 
-    JsonNode page = list(params("q", "sit.test", "size", "100"));
+    JsonNode page = list(params("q", "sit.com", "size", "100"));
 
     Map<String, JsonNode> byEmail = new LinkedHashMap<>();
     page.get("content").forEach(row -> byEmail.put(row.get("email").asText(), row));
-    assertThat(byEmail.get("raiz@sit.test").get("role").asText()).isEqualTo("ROOT");
-    assertThat(byEmail.get("u1@sit.test").get("role").asText()).isEqualTo("USER");
-    assertThat(byEmail.get("s1@sit.test").get("suspended").asBoolean()).isTrue();
-    assertThat(byEmail.get("s1@sit.test").get("deletionPending").asBoolean()).isFalse();
-    assertThat(byEmail.get("d1@sit.test").get("deletionPending").asBoolean()).isTrue();
-    assertThat(byEmail.get("sd@sit.test").get("suspended").asBoolean()).isTrue();
-    assertThat(byEmail.get("sd@sit.test").get("deletionPending").asBoolean()).isTrue();
+    assertThat(byEmail.get("raiz@sit.com").get("role").asText()).isEqualTo("ROOT");
+    assertThat(byEmail.get("u1@sit.com").get("role").asText()).isEqualTo("USER");
+    assertThat(byEmail.get("s1@sit.com").get("suspended").asBoolean()).isTrue();
+    assertThat(byEmail.get("s1@sit.com").get("deletionPending").asBoolean()).isFalse();
+    assertThat(byEmail.get("d1@sit.com").get("deletionPending").asBoolean()).isTrue();
+    assertThat(byEmail.get("sd@sit.com").get("suspended").asBoolean()).isTrue();
+    assertThat(byEmail.get("sd@sit.com").get("deletionPending").asBoolean()).isTrue();
   }
 
   @Test
@@ -260,7 +269,7 @@ class UserListSearchIT extends IntegrationTestBase {
     assertThat(filtered.get("totalElements").asLong()).isEqualTo(3);
     assertCounts(filtered.get("counts"), 4, 3, 2, 2);
 
-    JsonNode searched = list(params("q", "sit.test", "status", "ADMIN"));
+    JsonNode searched = list(params("q", "sit.com", "status", "ADMIN"));
     assertThat(searched.get("totalElements").asLong()).isEqualTo(1);
     assertCounts(searched.get("counts"), 3, 3, 2, 1);
   }
@@ -280,21 +289,21 @@ class UserListSearchIT extends IntegrationTestBase {
   @Test
   void ordenaPorCriacaoDoMaisNovoParaOMaisAntigoPorPadrao() throws Exception {
     for (int i = 1; i <= 4; i++) {
-      SeededUser u = user("c" + i + "@ord.test", null);
+      SeededUser u = user("c" + i + "@ord.com", null);
       seed.setDates(u.id(), BASE.plus(Duration.ofMinutes(i)), null);
     }
 
-    assertThat(emails(list(params("q", "ord.test"))))
-        .containsExactly("c4@ord.test", "c3@ord.test", "c2@ord.test", "c1@ord.test");
-    assertThat(emails(list(params("q", "ord.test", "sort", "createdAt", "dir", "asc"))))
-        .containsExactly("c1@ord.test", "c2@ord.test", "c3@ord.test", "c4@ord.test");
+    assertThat(emails(list(params("q", "ord.com"))))
+        .containsExactly("c4@ord.com", "c3@ord.com", "c2@ord.com", "c1@ord.com");
+    assertThat(emails(list(params("q", "ord.com", "sort", "createdAt", "dir", "asc"))))
+        .containsExactly("c1@ord.com", "c2@ord.com", "c3@ord.com", "c4@ord.com");
   }
 
   @Test
   void empatesDesempatamPorIdEFicamEstaveisEntrePaginas() throws Exception {
     List<Long> ids = new ArrayList<>();
     for (int i = 1; i <= 7; i++) {
-      SeededUser u = user("e" + i + "@tie.test", null);
+      SeededUser u = user("e" + i + "@tie.com", null);
       seed.setDates(u.id(), BASE, BASE);
       ids.add(u.id());
     }
@@ -311,7 +320,7 @@ class UserListSearchIT extends IntegrationTestBase {
     List<Long> seen = new ArrayList<>();
     for (int page = 0; page < 3; page++) {
       JsonNode result =
-          list(params("q", "tie.test", "sort", sort, "dir", dir, "size", "3", "page", "" + page));
+          list(params("q", "tie.com", "sort", sort, "dir", dir, "size", "3", "page", "" + page));
       result.get("content").forEach(row -> seen.add(row.get("id").asLong()));
     }
     return seen;
@@ -319,25 +328,25 @@ class UserListSearchIT extends IntegrationTestBase {
 
   @Test
   void ordenaPorUltimoAcessoComQuemNuncaEntrouSempreNoFim() throws Exception {
-    SeededUser a = user("a@acc.test", null);
-    SeededUser b = user("b@acc.test", null);
-    user("c@acc.test", null);
-    user("d@acc.test", null);
+    SeededUser a = user("a@acc.com", null);
+    SeededUser b = user("b@acc.com", null);
+    user("c@acc.com", null);
+    user("d@acc.com", null);
     seed.setDates(a.id(), BASE, BASE.plus(Duration.ofHours(1)));
     seed.setDates(b.id(), BASE, BASE.plus(Duration.ofHours(2)));
 
-    assertThat(emails(list(params("q", "acc.test", "sort", "lastAccessAt", "dir", "desc"))))
-        .containsExactly("b@acc.test", "a@acc.test", "d@acc.test", "c@acc.test");
-    assertThat(emails(list(params("q", "acc.test", "sort", "lastAccessAt", "dir", "asc"))))
-        .containsExactly("a@acc.test", "b@acc.test", "c@acc.test", "d@acc.test");
+    assertThat(emails(list(params("q", "acc.com", "sort", "lastAccessAt", "dir", "desc"))))
+        .containsExactly("b@acc.com", "a@acc.com", "d@acc.com", "c@acc.com");
+    assertThat(emails(list(params("q", "acc.com", "sort", "lastAccessAt", "dir", "asc"))))
+        .containsExactly("a@acc.com", "b@acc.com", "c@acc.com", "d@acc.com");
   }
 
   // ------------------------------------------------------------------ acesso
 
   @Test
   void usuarioComumRecebe403() throws Exception {
-    seed.createUser("comum@example.com");
-    TestUser common = login("comum@example.com");
+    seed.createUser("comum@teste.com");
+    TestUser common = login("comum@teste.com");
 
     call(common, params()).andExpect(status().isForbidden());
   }
@@ -354,7 +363,7 @@ class UserListSearchIT extends IntegrationTestBase {
   void buscaComDezMilUsuariosRespondeEmMenosDe300Ms() throws Exception {
     jdbc.update(
         "INSERT INTO users (email, name, password_hash, role, created_at)"
-            + " SELECT 'user' || g || '@bulk.test',"
+            + " SELECT 'user' || g || '@bulk.com',"
             + " CASE WHEN g % 7 = 0 THEN 'João ' || g ELSE 'Maria ' || g END,"
             + " 'x', 'USER', now() - g * interval '1 minute'"
             + " FROM generate_series(1, 10000) g");
