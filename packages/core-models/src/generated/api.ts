@@ -888,7 +888,8 @@ export interface paths {
         post?: never;
         /**
          * Encerra todas as sessões do usuário
-         * @description Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`).
+         * @description Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`);
+         *     o administrador não encerra todas as próprias sessões (`409 SELF_ACTION_FORBIDDEN`).
          */
         delete: {
             parameters: {
@@ -911,6 +912,7 @@ export interface paths {
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
                 404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
                 429: components["responses"]["TooManyRequests"];
             };
         };
@@ -929,7 +931,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Encerra uma sessão do usuário */
+        /**
+         * Encerra uma sessão do usuário
+         * @description Administrador raiz é protegido (`ROOT_PROTECTED`); o administrador não encerra a própria sessão
+         *     atual (`409 SELF_ACTION_FORBIDDEN`), mas pode encerrar as outras.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -952,6 +958,7 @@ export interface paths {
                 401: components["responses"]["Unauthorized"];
                 403: components["responses"]["Forbidden"];
                 404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
                 429: components["responses"]["TooManyRequests"];
             };
         };

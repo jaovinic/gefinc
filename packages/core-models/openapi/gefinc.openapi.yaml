@@ -467,7 +467,9 @@ paths:
     delete:
       tags: [Admin]
       summary: Encerra todas as sessões do usuário
-      description: Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`).
+      description: |
+        Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`);
+        o administrador não encerra todas as próprias sessões (`409 SELF_ACTION_FORBIDDEN`).
       parameters:
         - $ref: '#/components/parameters/UserId'
       responses:
@@ -475,12 +477,16 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /admin/users/{userId}/sessions/{sessionId}:
     delete:
       tags: [Admin]
       summary: Encerra uma sessão do usuário
+      description: |
+        Administrador raiz é protegido (`ROOT_PROTECTED`); o administrador não encerra a própria sessão
+        atual (`409 SELF_ACTION_FORBIDDEN`), mas pode encerrar as outras.
       parameters:
         - $ref: '#/components/parameters/UserId'
         - $ref: '#/components/parameters/SessionId'
@@ -489,6 +495,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /admin/users/{userId}/suspend:

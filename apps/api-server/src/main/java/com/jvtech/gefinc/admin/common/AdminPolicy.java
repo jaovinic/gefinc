@@ -11,11 +11,13 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Quem pode mudar o perfil de quem. {@link #decide} é a função pura das regras; {@link #enforce} a
- * aplica com efeito: nas ações que reduzem o conjunto de administradores ativos, serializa pela
- * trava consultiva {@value #LOCK_NAME} (vale até o fim da transação) e refaz a contagem sob a
- * trava, para duas retiradas simultâneas não deixarem o sistema sem administrador (R14). A ordem
- * das checagens é fixa: raiz, si mesmo, alvo ativo (só para conceder) e último administrador.
+ * Quem pode agir sobre quem (perfil, suspensão, sessões e bloqueio de login). {@link #decide} é a
+ * função pura das regras; {@link #enforce} a aplica com efeito: nas ações que reduzem o conjunto de
+ * administradores ativos, serializa pela trava consultiva {@value #LOCK_NAME} (vale até o fim da
+ * transação) e refaz a contagem sob a trava, para duas retiradas simultâneas não deixarem o sistema
+ * sem administrador (R14). A ordem das checagens é fixa: raiz, si mesmo, alvo ativo (só para
+ * conceder) e último administrador. Quem chama toma antes a trava de linha do alvo ({@code
+ * findForUpdate}): linha primeiro, trava consultiva depois, em todos os caminhos.
  */
 @Component
 public class AdminPolicy {
@@ -51,13 +53,10 @@ public class AdminPolicy {
    */
   public static Optional<ErrorCode> decide(
       Action action, Subject actor, Subject target, int otherActiveAdmins) {
-    if (action != Action.GRANT_ADMIN && action != Action.REVOKE_ADMIN) {
-      throw new UnsupportedOperationException("esqueleto: implementado junto com a suspensão");
-    }
     if (target.role() == UserRole.ROOT) {
       return Optional.of(ErrorCode.ROOT_PROTECTED);
     }
-    if (actor.id() == target.id()) {
+    if (actor.id() == target.id() && refusesSelf(action)) {
       return Optional.of(ErrorCode.SELF_ACTION_FORBIDDEN);
     }
     boolean grant = action == Action.GRANT_ADMIN;
@@ -70,9 +69,26 @@ public class AdminPolicy {
     return Optional.empty();
   }
 
-  /** A ação reduz o conjunto de administradores ativos (só retirar o perfil de um ativo). */
+  /**
+   * O administrador não pode aplicar a si mesmo a troca de perfil, a suspensão nem o encerramento
+   * da sessão atual ou de todas as suas sessões; reativar, retirar o bloqueio de login e encerrar
+   * uma outra sessão sua não oferecem risco.
+   */
+  private static boolean refusesSelf(Action action) {
+    return switch (action) {
+      case GRANT_ADMIN, REVOKE_ADMIN, SUSPEND, REVOKE_SESSIONS -> true;
+      case REACTIVATE, REVOKE_OTHER_SESSION, CLEAR_LOGIN_LOCK -> false;
+    };
+  }
+
+  /**
+   * A ação reduz o conjunto de administradores ativos (retirar o perfil ou suspender um
+   * administrador ativo).
+   */
   public static boolean changesAdminSet(Action action, Subject target) {
-    return action == Action.REVOKE_ADMIN && target.role() == UserRole.ADMIN && target.active();
+    return (action == Action.REVOKE_ADMIN || action == Action.SUSPEND)
+        && target.role() == UserRole.ADMIN
+        && target.active();
   }
 
   /** Aplica a política; lança {@link ApiException} com o código da recusa. */
@@ -114,7 +130,7 @@ public class AdminPolicy {
   private static String message(ErrorCode code) {
     return switch (code) {
       case ROOT_PROTECTED -> "O administrador raiz não pode ser alterado pelo painel.";
-      case SELF_ACTION_FORBIDDEN -> "Não é possível alterar o próprio perfil de administrador.";
+      case SELF_ACTION_FORBIDDEN -> "Esta ação não pode ser aplicada à própria conta.";
       case ACCOUNT_NOT_USABLE -> "A conta precisa estar ativa para receber o perfil.";
       case LAST_ADMIN -> "O sistema precisa manter ao menos um administrador ativo.";
       default -> "Operação não permitida.";

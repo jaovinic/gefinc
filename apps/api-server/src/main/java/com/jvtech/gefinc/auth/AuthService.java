@@ -1,5 +1,7 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.JwtService;
@@ -25,6 +27,7 @@ public class AuthService {
   private final TokenService tokens;
   private final Clock clock;
   private final LoginAttemptLimiter limiter;
+  private final AdminDecisionAuditor decisions;
   private final String dummyHash;
 
   public AuthService(
@@ -33,13 +36,15 @@ public class AuthService {
       JwtService jwt,
       TokenService tokens,
       Clock clock,
-      LoginAttemptLimiter limiter) {
+      LoginAttemptLimiter limiter,
+      AdminDecisionAuditor decisions) {
     this.users = users;
     this.encoder = encoder;
     this.jwt = jwt;
     this.tokens = tokens;
     this.clock = clock;
     this.limiter = limiter;
+    this.decisions = decisions;
     // Comparação "de fachada" quando o e-mail não existe, para o tempo de resposta não revelá-lo.
     this.dummyHash = encoder.encode("senha-de-fachada-para-igualar-o-tempo");
   }
@@ -54,6 +59,11 @@ public class AuthService {
       throw invalidCredentials();
     }
     limiter.recordSuccess(email);
+    // Só depois de credenciais corretas: senha errada segue o 401 comum e não revela a suspensão.
+    if (user.isSuspended()) {
+      decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
+      throw accountSuspended();
+    }
     if (user.isDeletionPending()) {
       throw deletionPending(user);
     }
@@ -65,25 +75,52 @@ public class AuthService {
         issued.rawToken());
   }
 
-  /** Troca o token de renovação por um novo par; vazio se o token não vale mais. */
-  @Transactional
+  /**
+   * Troca o token de renovação por um novo par; vazio se o token não vale mais. Dono suspenso: tudo
+   * é revogado, a conta não é reativada e a resposta é {@code 403 ACCOUNT_SUSPENDED}; por isso a
+   * transação não desfaz as revogações quando a exceção sai ({@code noRollbackFor}). Token já
+   * revogado cujo dono está sob decisão administrativa também é registrado como tentativa.
+   */
+  @Transactional(noRollbackFor = ApiException.class)
   public Optional<Session> refresh(String rawRefreshToken) {
     TokenService.Rotation rotation = tokens.rotate(rawRefreshToken);
     if (!rotation.accepted()) {
+      if (rotation.userId() != null) {
+        users.findById(rotation.userId()).ifPresent(this::auditRevertAttempt);
+      }
       return Optional.empty();
     }
-    Optional<User> user = users.findById(rotation.userId());
-    if (user.isEmpty() || user.get().isDeletionPending()) {
+    Optional<User> found = users.findById(rotation.userId());
+    if (found.isEmpty()) {
       tokens.revokeAllOfUser(rotation.userId(), RevokedBy.SYSTEM);
       return Optional.empty();
     }
-    users.touchAccess(user.get().getId(), clock.instant());
+    User user = found.get();
+    if (user.isSuspended()) {
+      tokens.revokeAllOfUser(user.getId(), RevokedBy.SYSTEM);
+      decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
+      throw accountSuspended();
+    }
+    if (user.isDeletionPending()) {
+      tokens.revokeAllOfUser(user.getId(), RevokedBy.SYSTEM);
+      auditRevertAttempt(user);
+      return Optional.empty();
+    }
+    users.touchAccess(user.getId(), clock.instant());
     return Optional.of(
         new Session(
-            jwt.issueAccessToken(
-                user.get().getId(), user.get().getTokenVersion(), rotation.familyId()),
+            jwt.issueAccessToken(user.getId(), user.getTokenVersion(), rotation.familyId()),
             jwt.accessTokenTtlSeconds(),
             rotation.newRawToken()));
+  }
+
+  /** Registra a tentativa de quem está sob decisão administrativa; usuário comum não gera nada. */
+  private void auditRevertAttempt(User user) {
+    if (user.isSuspended()) {
+      decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
+    } else if (user.isDeletionByAdmin()) {
+      decisions.revertAttempt(user.getId(), Decision.ADMIN_DELETION);
+    }
   }
 
   public void logout(String rawRefreshToken) {
@@ -110,6 +147,22 @@ public class AuthService {
 
   public static ApiException invalidCredentials() {
     return new ApiException(ErrorCode.INVALID_CREDENTIALS, "E-mail ou senha incorretos.");
+  }
+
+  /** Conta suspensa: orienta procurar o suporte e nunca revela o motivo. */
+  public static ApiException accountSuspended() {
+    return new ApiException(
+            ErrorCode.ACCOUNT_SUSPENDED,
+            "Sua conta está suspensa. Procure o suporte para saber mais.")
+        .with("supportHint", "Entre em contato com o suporte para entender a situação da conta.");
+  }
+
+  /** Exclusão pedida por um administrador: o usuário não a desfaz. */
+  public static ApiException adminDecisionLocked() {
+    return new ApiException(
+            ErrorCode.ADMIN_DECISION_LOCKED,
+            "A exclusão desta conta foi decidida pela administração e não pode ser cancelada.")
+        .with("supportHint", "Entre em contato com o suporte para saber mais.");
   }
 
   private ApiException deletionPending(User user) {

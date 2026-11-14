@@ -1,5 +1,7 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
 import com.jvtech.gefinc.admin.common.AdminPolicy;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
@@ -26,6 +28,7 @@ public class AccountDeletionService {
   private final DeletionLedger ledger;
   private final Pseudonymizer pseudonymizer;
   private final AdminPolicy adminPolicy;
+  private final AdminDecisionAuditor decisions;
 
   public AccountDeletionService(
       UserRepository users,
@@ -35,7 +38,8 @@ public class AccountDeletionService {
       LoginAttemptLimiter limiter,
       DeletionLedger ledger,
       Pseudonymizer pseudonymizer,
-      AdminPolicy adminPolicy) {
+      AdminPolicy adminPolicy,
+      AdminDecisionAuditor decisions) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
@@ -44,6 +48,7 @@ public class AccountDeletionService {
     this.ledger = ledger;
     this.pseudonymizer = pseudonymizer;
     this.adminPolicy = adminPolicy;
+    this.decisions = decisions;
   }
 
   /**
@@ -83,7 +88,11 @@ public class AccountDeletionService {
     }
   }
 
-  /** Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). */
+  /**
+   * Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). Conta suspensa
+   * não cancela nada ({@code ACCOUNT_SUSPENDED}) e exclusão pedida por administrador não se reverte
+   * ({@code ADMIN_DECISION_LOCKED}); as duas recusas viram {@code REVERT_ATTEMPT}, deduplicado.
+   */
   @Transactional
   public void cancel(String email, String password, String clientIp) {
     // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
@@ -94,9 +103,17 @@ public class AccountDeletionService {
       throw AuthService.invalidCredentials();
     }
     limiter.recordSuccess(email);
+    if (user.isSuspended()) {
+      decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
+      throw AuthService.accountSuspended();
+    }
     if (!user.isDeletionPending()) {
       throw new ApiException(
           ErrorCode.NO_PENDING_DELETION, "Não há exclusão pendente nesta conta.");
+    }
+    if (user.isDeletionByAdmin()) {
+      decisions.revertAttempt(user.getId(), Decision.ADMIN_DELETION);
+      throw AuthService.adminDecisionLocked();
     }
     ledger.markCanceled(user.getDeletionRequestId(), clock.instant());
     user.cancelDeletion();

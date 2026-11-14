@@ -5,6 +5,7 @@ import com.jvtech.gefinc.admin.audit.AuditEntryView;
 import com.jvtech.gefinc.user.UserRole;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Corpos das operações de perfil e política sobre usuários (módulo administrativo) e as respostas
@@ -27,6 +28,32 @@ public final class UserPolicyDtos {
     @Override
     public String toString() {
       return "RoleChangeRequest[REDACTED]";
+    }
+  }
+
+  /**
+   * Pedido de suspensão. O motivo (1 a 500 caracteres) é validado dentro da ação auditada, para a
+   * recusa 422 também entrar na trilha, e vai só para a auditoria: nunca para o usuário suspenso.
+   */
+  public record SuspendRequest(String reason) {
+
+    /** Sem o motivo em logs. */
+    @Override
+    public String toString() {
+      return "SuspendRequest[REDACTED]";
+    }
+  }
+
+  /**
+   * Sessão aberta de um usuário. {@code ip} (dado pessoal) e {@code device} (rótulo grosseiro,
+   * nunca o User-Agent) são omitidos quando nulos, nas sessões anteriores ao registro.
+   */
+  public record AdminSession(
+      UUID id, Instant startedAt, Instant lastUsedAt, String ip, String device, boolean current) {
+
+    @Override
+    public String toString() {
+      return "AdminSession[id=" + id + "]";
     }
   }
 

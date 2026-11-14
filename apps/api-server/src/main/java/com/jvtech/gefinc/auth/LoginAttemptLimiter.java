@@ -60,6 +60,14 @@ public class LoginAttemptLimiter {
     byEmail.reset(emailKey(email));
   }
 
+  /**
+   * Retira o bloqueio por tentativas do e-mail (ação do painel): zera só a contagem do e-mail,
+   * nunca a do IP. Idempotente.
+   */
+  public synchronized void clearLock(String email) {
+    byEmail.reset(emailKey(email));
+  }
+
   /** Zera as contagens (usado pelos testes para isolar cenários). */
   public synchronized void clear() {
     byEmail.clear();

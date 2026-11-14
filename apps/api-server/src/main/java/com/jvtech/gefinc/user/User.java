@@ -119,6 +119,11 @@ public class User {
     return deletionRequestedAt != null;
   }
 
+  /** Exclusão pendente pedida por um administrador (o usuário não a cancela). */
+  public boolean isDeletionByAdmin() {
+    return isDeletionPending() && "ADMIN".equals(deletionOrigin);
+  }
+
   public UserRole getRole() {
     return role;
   }
@@ -138,6 +143,33 @@ public class User {
   /** Conta utilizável: sem suspensão e sem exclusão pendente. */
   public boolean isActive() {
     return !isSuspended() && !isDeletionPending();
+  }
+
+  /**
+   * Suspende a conta e invalida de imediato os tokens de acesso já emitidos. Suspender de novo não
+   * muda a data da suspensão.
+   */
+  public void suspend(Instant now) {
+    if (this.suspendedAt == null) {
+      this.suspendedAt = now;
+    }
+    this.tokenVersion++;
+  }
+
+  /**
+   * Reativa a conta suspensa e invalida os tokens anteriores (nenhuma sessão antiga ressuscita). A
+   * exclusão pendente, se houver, continua. Reativar conta que não está suspensa não muda nada.
+   */
+  public void reactivate() {
+    if (this.suspendedAt != null) {
+      this.suspendedAt = null;
+      this.tokenVersion++;
+    }
+  }
+
+  /** Invalida de imediato todos os tokens de acesso já emitidos (inclusive os sem sessão). */
+  public void revokeAccessTokens() {
+    this.tokenVersion++;
   }
 
   /** Concede o perfil de administrador a um usuário comum; administrador e raiz não mudam. */
