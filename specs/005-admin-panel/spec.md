@@ -573,7 +573,7 @@ mais no formulário; conferir que tudo consta na auditoria.
 
 ### User Story 12 - Aviso de exclusão dentro do aplicativo (Priority: P3)
 
-Além do e-mail, o usuário que teve a exclusão **com prazo** solicitada por um administrador vê, **na web e no aplicativo móvel**, um
+Além do e-mail, o usuário que teve a exclusão **com prazo** solicitada por um administrador vê, **na web e no aplicativo móvel**, ao fazer login com e-mail e senha corretos, um
 aviso visível, em linguagem clara e acessível, com o **prazo** (data final) e o **motivo genérico**, nunca a justificativa livre.
 Se o administrador cancela a exclusão, o usuário vê, uma única vez e de forma dispensável, um aviso de que a exclusão administrativa
 foi cancelada: a conta segue ativa ou, se a exclusão era uma antecipação de uma exclusão que o próprio usuário agendara, o aviso
@@ -583,36 +583,36 @@ diz que a solicitação dele continua para a data original. Para exclusão imedi
 **Why this priority**: O e-mail pode não chegar ou ser ignorado; o aviso na própria porta de entrada do aplicativo reduz o risco de o
 usuário ser surpreendido, mas é complementar ao e-mail.
 
-**Independent Test**: Solicitar como administrador uma exclusão com prazo para um usuário de teste; abrir a web e o aplicativo móvel
-como esse usuário e conferir o aviso com prazo e motivo genérico, sem a justificativa; cancelar a exclusão como administrador e conferir
+**Independent Test**: Solicitar como administrador uma exclusão com prazo para um usuário de teste; entrar na web e no aplicativo móvel
+com as credenciais corretas desse usuário e conferir o aviso com prazo e motivo genérico, sem a justificativa; cancelar a exclusão como administrador e conferir
 que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
 
 **Acceptance Scenarios**:
 
-1. **Given** uma exclusão com prazo solicitada por administrador, **When** o usuário afetado abre a web ou o aplicativo móvel (ou tenta
-   entrar), **Then** vê um aviso visível com a data final da exclusão e a mensagem genérica do motivo, em linguagem simples, e que, se
+1. **Given** uma exclusão com prazo solicitada por administrador, **When** o usuário afetado faz login na web ou no aplicativo móvel com e-mail e
+   senha corretos, **Then** vê um aviso visível com a data final da exclusão e a mensagem genérica do motivo, em linguagem simples, e que, se
    tiver dúvidas, deve procurar o suporte.
 2. **Given** esse aviso, **When** exibido, **Then** nunca contém a justificativa livre do administrador nem dados de outros usuários, e
    não depende apenas de cor para ser entendido (ícone e texto), sendo anunciado corretamente por leitores de tela.
-3. **Given** uma exclusão com prazo cancelada pelo administrador, **When** o usuário volta a abrir ou a entrar na web ou no aplicativo
+3. **Given** uma exclusão com prazo cancelada pelo administrador, **When** o usuário volta a fazer login, com e-mail e senha corretos, na web ou no aplicativo
    móvel, **Then** vê, uma única vez, um aviso dispensável informando que a exclusão administrativa foi cancelada e que a conta
    segue ativa (ou, se a conta estava suspensa antes da solicitação, que continua sem acesso, com a orientação de procurar o
    suporte); depois de dispensado (ou exibido uma vez), não reaparece.
 4. **Given** uma exclusão imediata, **When** executada, **Then** não há janela de aviso no aplicativo: o único aviso é a tentativa
    de e-mail feita antes da remoção (história 10); se o envio falhar, a exclusão prossegue e o aviso vira comunicação pendente.
-5. **Given** uma exclusão que o administrador antecipou, **When** o usuário abre o aplicativo, **Then** o aviso mostra o novo prazo, e
+5. **Given** uma exclusão que o administrador antecipou, **When** o usuário faz login com e-mail e senha corretos, **Then** o aviso mostra o novo prazo, e
    não o anterior.
-6. **Given** o usuário com exclusão agendada pelo administrador, **When** ele tenta entrar ou abre o aviso, **Then** a tela de
+6. **Given** o usuário com exclusão agendada pelo administrador, **When** ele faz login com e-mail e senha corretos, **Then** a tela de
    entrada mostra o prazo, a mensagem genérica do motivo e a orientação de procurar o suporte, e não lhe é oferecida a opção de
    cancelar a exclusão por conta própria (só o administrador pode cancelar uma exclusão solicitada por ele, FR-047); a exclusão
    agendada pelo próprio usuário continua podendo ser cancelada por ele, como hoje.
-7. **Given** uma exclusão solicitada pelo próprio usuário (autoatendimento), **When** ele abre o aplicativo, **Then** continua vendo o
+7. **Given** uma exclusão solicitada pelo próprio usuário (autoatendimento), **When** ele faz login com e-mail e senha corretos, **Then** continua vendo o
    aviso atual de exclusão agendada, sem motivo genérico de administrador, e com a opção de cancelá-la com as credenciais.
 8. **Given** o aviso de uma exclusão pedida por administrador, **When** o usuário tenta contornar a ausência da opção de cancelar
    (por exemplo, repetindo o pedido de cancelamento por outro canal), **Then** todas as tentativas são recusadas e auditadas
    (FR-050), uma vez por janela de deduplicação (FR-053).
-9. **Given** uma exclusão com prazo que o administrador antecipou e depois cancelou, **When** o usuário abre a web ou o aplicativo
-   móvel (ou tenta entrar), **Then** vê, uma única vez, o aviso de que a exclusão administrativa foi cancelada e que a solicitação
+9. **Given** uma exclusão com prazo que o administrador antecipou e depois cancelou, **When** o usuário faz login, com e-mail e senha corretos, na web ou no aplicativo
+   móvel, **Then** vê, uma única vez, o aviso de que a exclusão administrativa foi cancelada e que a solicitação
    dele continua para a data original (dd/mm), e a tela de entrada volta a oferecer a opção de cancelar a exclusão que ele mesmo
    agendou (FR-049).
 
@@ -709,8 +709,9 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
 - **Mensagem genérica com dados pessoais ou texto livre**: recusada no cadastro ou edição do motivo; a mensagem nunca é preenchida
   com dados do usuário nem com a justificativa.
 - **Aviso no aplicativo para usuário sem sessão**: como a conta em exclusão fica sem acesso, o aviso aparece na tela de entrada
-  (ao abrir o aplicativo ou ao tentar entrar), e o aviso de cancelamento aparece na primeira abertura ou entrada depois do
-  cancelamento.
+  **quando o usuário faz login com e-mail e senha corretos** (sem sessão o aplicativo não sabe quem é o usuário; mostrar o aviso antes
+  da autenticação revelaria a existência e a situação da conta), e o aviso de cancelamento aparece no primeiro login com credenciais
+  corretas depois do cancelamento.
 - **Aviso de cancelamento nunca visto**: o aviso fica pendente até ser exibido uma vez ou dispensado; não reaparece depois.
 - **Administrador (autor das ações) excluído ou removido**: seu e-mail, nome, IP e dispositivo nos registros também são anonimizados,
   mantendo-se o registro da ação com um identificador anônimo e consistente.
@@ -897,12 +898,13 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
   a exclusão administrativa foi cancelada e que a solicitação do usuário continua para a data original. O cancelamento MUST ser
   aceito apenas enquanto houver prazo em curso e MUST ser recusado depois de executada a exclusão.
 - **FR-041**: Durante o prazo de uma exclusão **com prazo** solicitada por administrador, o sistema MUST exibir ao usuário, na web e
-  no aplicativo móvel, um aviso visível com o prazo (data final) e a mensagem genérica do motivo, em linguagem clara e acessível
+  no aplicativo móvel, **quando ele fizer login com e-mail e senha corretos** (nunca antes da autenticação, para não revelar a
+  existência da conta), um aviso visível com o prazo (data final) e a mensagem genérica do motivo, em linguagem clara e acessível
   (texto e ícone, compatível com leitores de tela). O aviso MUST NOT conter a justificativa livre. Em exclusão imediata, não há
   aviso no aplicativo (apenas a tentativa de e-mail). O aviso MUST refletir o prazo mais recente em caso de antecipação. O aviso MUST
   orientar a procurar o suporte em caso de dúvida e MUST NOT oferecer ao usuário a opção de cancelar a exclusão (FR-047).
 - **FR-042**: Quando o administrador cancelar uma exclusão com prazo, o sistema MUST exibir ao usuário, na web e no aplicativo
-  móvel, um aviso de que a exclusão administrativa foi cancelada, exibido uma única vez e dispensável. Se a conta voltou a uma
+  móvel, **no primeiro login com e-mail e senha corretos depois do cancelamento**, um aviso de que a exclusão administrativa foi cancelada, exibido uma única vez e dispensável. Se a conta voltou a uma
   exclusão agendada pelo próprio usuário (cancelamento de uma antecipação), o aviso MUST dizer que a solicitação dele continua para a
   data original (dd/mm); caso contrário, MUST dizer que a conta segue ativa (ou, se estava suspensa, que continua sem acesso, com a
   orientação de procurar o suporte).
@@ -1117,8 +1119,8 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
   aviso contém o texto livre da justificativa, e toda falha de envio vira comunicação pendente visível no histórico, na auditoria e
   no alerta permanente do painel (FR-056).
 - **SC-013**: 100% das ações de maior risco (FR-035) são recusadas sem reautenticação por senha válida do administrador.
-- **SC-014**: Em 100% das exclusões com prazo solicitadas por administrador, o usuário vê, na primeira abertura ou tentativa de
-  entrada na web e no aplicativo móvel, um aviso com o prazo vigente e a mensagem genérica do motivo, em 0% dos casos com a
+- **SC-014**: Em 100% das exclusões com prazo solicitadas por administrador, o usuário vê, no primeiro login com e-mail e senha corretos
+  na web e no aplicativo móvel, um aviso com o prazo vigente e a mensagem genérica do motivo, em 0% dos casos com a
   justificativa livre. Após o cancelamento, o aviso de cancelamento aparece uma única vez em 100% dos casos e, quando a exclusão era
   uma antecipação, informa que a solicitação original do usuário continua para a data original; em 100% dos cancelamentos a conta
   volta exatamente ao estado anterior à solicitação (inclusive suspensa, se estava) (FR-049).
@@ -1192,7 +1194,7 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
   "prosseguir sem aviso". A falha de envio vira uma **comunicação pendente**, a nova tentativa fica a cargo do administrador e o
   painel mantém um alerta permanente até que seja entregue ou descartada (FR-056). O motivo da mudança: não bloquear, por exemplo,
   uma ordem legal por causa de um servidor de e-mail indisponível. Além do e-mail, as exclusões com prazo têm aviso dentro do
-  aplicativo (web e móvel), sem janela para exclusões imediatas.
+  aplicativo (web e móvel), exibido quando o usuário faz login com e-mail e senha corretos, sem janela para exclusões imediatas.
 - **Endereço retido só no envio pendente (confirmado)**: se a conta já foi removida e o aviso ainda está pendente, o endereço de
   e-mail é a única exceção à anonimização: fica retido somente no registro da comunicação pendente e é apagado ao ser entregue, ao
   ser descartado pelo administrador ou 30 dias depois da remoção da conta, o que ocorrer primeiro (FR-057). O painel não exibe esse
