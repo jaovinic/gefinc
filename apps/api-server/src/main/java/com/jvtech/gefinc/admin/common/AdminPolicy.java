@@ -25,7 +25,12 @@ public class AdminPolicy {
 
   public enum Action {
     GRANT_ADMIN,
-    REVOKE_ADMIN
+    REVOKE_ADMIN,
+    SUSPEND,
+    REACTIVATE,
+    REVOKE_SESSIONS,
+    REVOKE_OTHER_SESSION,
+    CLEAR_LOGIN_LOCK
   }
 
   /** Pessoa envolvida na decisão; {@code active}: sem suspensão e sem exclusão pendente. */
@@ -46,6 +51,9 @@ public class AdminPolicy {
    */
   public static Optional<ErrorCode> decide(
       Action action, Subject actor, Subject target, int otherActiveAdmins) {
+    if (action != Action.GRANT_ADMIN && action != Action.REVOKE_ADMIN) {
+      throw new UnsupportedOperationException("esqueleto: implementado junto com a suspensão");
+    }
     if (target.role() == UserRole.ROOT) {
       return Optional.of(ErrorCode.ROOT_PROTECTED);
     }

@@ -164,6 +164,12 @@ class AdminIsolationIT extends IntegrationTestBase {
     map.put(
         "/admin/users/{userId}",
         List.of("/admin/users/" + ana.id(), "/admin/users/" + bia.id(), "/admin/users/" + adminId));
+    map.put(
+        "/admin/users/{userId}/sessions",
+        List.of(
+            "/admin/users/" + ana.id() + "/sessions",
+            "/admin/users/" + bia.id() + "/sessions",
+            "/admin/users/" + adminId + "/sessions"));
     return map;
   }
 

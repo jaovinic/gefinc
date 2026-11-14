@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jvtech.gefinc.support.AdminSeed.SeededUser;
 import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
+import com.jvtech.gefinc.support.TestTokens;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
 import java.util.Map;
@@ -17,9 +18,9 @@ import org.springframework.http.HttpMethod;
 
 /**
  * O administrador raiz é intocável pelo painel (US1.4, SC-008): cada ação contra ele é recusada com
- * {@code ROOT_PROTECTED} antes de qualquer outra checagem, auditada e sem efeito. Aqui só o
- * rebaixamento tem endpoint; os demais cenários ficam desabilitados e são ligados quando a ação
- * existir.
+ * {@code ROOT_PROTECTED} antes de qualquer outra checagem, auditada e sem efeito. Têm endpoint hoje
+ * o rebaixamento, a suspensão, o encerramento de sessões e a retirada do bloqueio de login; os
+ * demais cenários ficam desabilitados e são ligados quando a ação existir.
  */
 class RootProtectionIT extends IntegrationTestBase {
 
@@ -60,9 +61,83 @@ class RootProtectionIT extends IntegrationTestBase {
         .containsEntry("target_user_id", root.id());
   }
 
+  private void assertRefusedAndAudited(String action) {
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT result, refusal_code, target_user_id FROM audit_log WHERE action = ?",
+                action))
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "ROOT_PROTECTED")
+        .containsEntry("target_user_id", root.id());
+  }
+
   @Test
-  @Disabled("Ligar na US3 (T074, suspensão): suspender o raiz deve dar ROOT_PROTECTED")
-  void suspenderORaizEhRecusado() {}
+  void suspenderORaizEhRecusadoAuditadoESemEfeito() throws Exception {
+    api.call(
+            admin, HttpMethod.POST, "/admin/users/" + root.id() + "/suspend", Map.of("reason", "x"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT suspended_at IS NULL FROM users WHERE id = ?", Boolean.class, root.id()))
+        .isTrue();
+    assertRefusedAndAudited("USER_SUSPENDED");
+  }
+
+  @Test
+  void reativarORaizEhRecusadoEAuditado() throws Exception {
+    api.call(admin, HttpMethod.POST, "/admin/users/" + root.id() + "/reactivate", null)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertRefusedAndAudited("USER_REACTIVATED");
+  }
+
+  @Test
+  void encerrarSessoesDoRaizEhRecusadoAuditadoESemEfeito() throws Exception {
+    TestUser rootSession =
+        new TestUser(
+            root.id(),
+            "raiz@example.com",
+            new TestUsers(mockMvc, objectMapper)
+                .login("raiz@example.com", TestUsers.PASSWORD)
+                .get("accessToken")
+                .asText());
+    String sid = TestTokens.sessionId(rootSession.accessToken()).toString();
+
+    api.call(admin, HttpMethod.DELETE, "/admin/users/" + root.id() + "/sessions", null)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+    api.call(admin, HttpMethod.DELETE, "/admin/users/" + root.id() + "/sessions/" + sid, null)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    api.call(rootSession, HttpMethod.GET, "/auth/me", null).andExpect(status().isOk());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL",
+                Long.class,
+                root.id()))
+        .isEqualTo(1);
+    assertRefusedAndAudited("SESSIONS_REVOKED_ALL");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM audit_log WHERE action = 'SESSION_REVOKED'"
+                    + " AND refusal_code = 'ROOT_PROTECTED' AND target_user_id = ?",
+                Long.class,
+                root.id()))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void retirarOBloqueioDeLoginDoRaizEhRecusadoEAuditado() throws Exception {
+    api.call(admin, HttpMethod.DELETE, "/admin/users/" + root.id() + "/login-lock", null)
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertRefusedAndAudited("LOGIN_LOCK_CLEARED");
+  }
 
   @Test
   @Disabled("Ligar na US10 (T139, exclusão administrativa): excluir o raiz deve dar ROOT_PROTECTED")
@@ -76,8 +151,4 @@ class RootProtectionIT extends IntegrationTestBase {
   @Disabled(
       "Ligar na US4 (T091, redefinição de senha): forçar redefinição do raiz deve dar ROOT_PROTECTED")
   void forcarRedefinicaoDeSenhaDoRaizEhRecusado() {}
-
-  @Test
-  @Disabled("Ligar na US3 (T074, sessões): encerrar as sessões do raiz deve dar ROOT_PROTECTED")
-  void encerrarSessoesDoRaizEhRecusado() {}
 }

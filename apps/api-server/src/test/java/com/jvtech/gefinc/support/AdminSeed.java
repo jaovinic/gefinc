@@ -147,6 +147,35 @@ public final class AdminSeed {
         id);
   }
 
+  /**
+   * Agenda a exclusão pedida por um administrador (7 dias de carência, primeiro motivo semeado),
+   * com o livro-razão e as quatro colunas coerentes. O usuário não a desfaz.
+   */
+  public void scheduleAdminDeletion(long id, long adminId, Instant requestedAt) {
+    Instant dueAt = requestedAt.plus(Duration.ofDays(7));
+    Reason reason = DELETION_REASONS.get(0);
+    Long requestId =
+        jdbc.queryForObject(
+            "INSERT INTO account_deletion_requests (user_id, origin, mode, grace_days, requested_at,"
+                + " due_at, requested_by, reason_id, reason_name, reason_message, status, notice_state)"
+                + " VALUES (?, 'ADMIN', 'GRACE', 7, ?, ?, ?, 1, ?, ?, 'SCHEDULED', 'NOT_APPLICABLE')"
+                + " RETURNING id",
+            Long.class,
+            id,
+            Timestamp.from(requestedAt),
+            Timestamp.from(dueAt),
+            adminId,
+            reason.name(),
+            reason.message());
+    jdbc.update(
+        "UPDATE users SET deletion_requested_at = ?, deletion_due_at = ?, deletion_origin = 'ADMIN',"
+            + " deletion_request_id = ? WHERE id = ?",
+        Timestamp.from(requestedAt),
+        Timestamp.from(dueAt),
+        requestId,
+        id);
+  }
+
   private void allowRootChange() {
     jdbc.execute("SET LOCAL gefinc.allow_root_change = 'on'");
   }

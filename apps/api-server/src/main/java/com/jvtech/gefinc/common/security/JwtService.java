@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,10 @@ public class JwtService {
         .compact();
   }
 
+  public String issueAccessToken(long userId, int tokenVersion, UUID sessionId) {
+    throw new UnsupportedOperationException("esqueleto: implementado junto com a sessão");
+  }
+
   public AccessTokenClaims parse(String token) {
     try {
       Claims claims =
@@ -64,6 +69,7 @@ public class JwtService {
       return new AccessTokenClaims(
           Long.parseLong(claims.getSubject()),
           claims.get(VERSION_CLAIM, Integer.class),
+          null,
           claims.getExpiration().toInstant());
     } catch (JwtException | IllegalArgumentException | NullPointerException e) {
       throw new InvalidTokenException("Token de acesso inválido", e);

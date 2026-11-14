@@ -8,12 +8,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.jvtech.gefinc.common.security.JwtService;
 import com.jvtech.gefinc.support.AdminSeed.SeededUser;
 import com.jvtech.gefinc.support.IntegrationTestBase;
+import com.jvtech.gefinc.support.TestTokens;
 import com.jvtech.gefinc.support.TestUsers;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,6 +32,8 @@ class ReauthIT extends IntegrationTestBase {
 
   private static final String EMAIL = "adm@example.com";
   private static final String IP = "198.51.100.20";
+
+  @Autowired private JwtService jwt;
 
   private String token;
   private SeededUser admin;
@@ -170,5 +176,74 @@ class ReauthIT extends IntegrationTestBase {
                 .content("{}"))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.code").value("REAUTH_FAILED"));
+  }
+
+  @Test
+  void quintaFalhaRevogaSoASessaoAtualEMantemAsOutrasDoAdministrador() throws Exception {
+    JsonNode other = new TestUsers(mockMvc, objectMapper).login(EMAIL, TestUsers.PASSWORD);
+    String otherToken = other.get("accessToken").asText();
+    String currentSid = TestTokens.sessionId(token).toString();
+    String otherSid = TestTokens.sessionId(otherToken).toString();
+
+    for (int i = 0; i < 5; i++) {
+      reauth("senha-errada-999").andExpect(status().isForbidden());
+    }
+
+    anyAuthenticatedEndpoint().andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(get("/admin/_test/read").header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+        .andExpect(status().isOk());
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT revoked_at IS NOT NULL AS revoked, revoked_by FROM auth_sessions"
+                    + " WHERE id = ?::uuid",
+                currentSid))
+        .containsEntry("revoked", true)
+        .containsEntry("revoked_by", "SYSTEM");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT revoked_at IS NULL FROM auth_sessions WHERE id = ?::uuid",
+                Boolean.class,
+                otherSid))
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
+                Long.class,
+                admin.id()))
+        .isEqualTo(1);
+    // a versão do token não é mexida quando a sessão tem sid
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT token_version FROM users WHERE id = ?", Integer.class, admin.id()))
+        .isZero();
+  }
+
+  @Test
+  void tokenLegadoSemSidCaiNoFallbackQueCortaTodosOsAcessosDoAdministrador() throws Exception {
+    JsonNode other = new TestUsers(mockMvc, objectMapper).login(EMAIL, TestUsers.PASSWORD);
+    String legacy = jwt.issueAccessToken(admin.id(), 0);
+    token = legacy;
+
+    for (int i = 0; i < 5; i++) {
+      reauth("senha-errada-999").andExpect(status().isForbidden());
+    }
+
+    anyAuthenticatedEndpoint().andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(
+            get("/admin/_test/read")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + other.get("accessToken").asText()))
+        .andExpect(status().isUnauthorized());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT token_version FROM users WHERE id = ?", Integer.class, admin.id()))
+        .isEqualTo(1);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM refresh_tokens WHERE user_id = ? AND revoked_at IS NULL",
+                Long.class,
+                admin.id()))
+        .isZero();
   }
 }

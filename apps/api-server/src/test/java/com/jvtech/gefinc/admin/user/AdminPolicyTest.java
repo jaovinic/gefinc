@@ -1,7 +1,12 @@
 package com.jvtech.gefinc.admin.user;
 
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.CLEAR_LOGIN_LOCK;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.GRANT_ADMIN;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REACTIVATE;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_ADMIN;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_OTHER_SESSION;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_SESSIONS;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.SUSPEND;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jvtech.gefinc.admin.common.AdminPolicy;
@@ -74,5 +79,66 @@ class AdminPolicyTest {
     assertThat(AdminPolicy.changesAdminSet(REVOKE_ADMIN, ROOT)).isFalse();
     assertThat(AdminPolicy.changesAdminSet(GRANT_ADMIN, COMMON)).isFalse();
     assertThat(AdminPolicy.changesAdminSet(GRANT_ADMIN, OTHER_ADMIN)).isFalse();
+  }
+
+  @Test
+  void suspenderSegueRaizSiMesmoEUltimoAdministradorNessaOrdem() {
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, ROOT, 5)).contains(ErrorCode.ROOT_PROTECTED);
+    assertThat(AdminPolicy.decide(SUSPEND, ROOT, ROOT, 0)).contains(ErrorCode.ROOT_PROTECTED);
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, ADMIN, 0))
+        .contains(ErrorCode.SELF_ACTION_FORBIDDEN);
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, OTHER_ADMIN, 0)).contains(ErrorCode.LAST_ADMIN);
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, OTHER_ADMIN, 1)).isEmpty();
+  }
+
+  @Test
+  void suspenderAdministradorJaSuspensoOuUsuarioComumNaoDependeDeOutrosAdministradores() {
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, SUSPENDED_ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(SUSPEND, ADMIN, SUSPENDED_COMMON, 0)).isEmpty();
+  }
+
+  @Test
+  void suspenderUmAdministradorAtivoReduzOConjuntoEPedeATrava() {
+    assertThat(AdminPolicy.changesAdminSet(SUSPEND, OTHER_ADMIN)).isTrue();
+    assertThat(AdminPolicy.changesAdminSet(SUSPEND, SUSPENDED_ADMIN)).isFalse();
+    assertThat(AdminPolicy.changesAdminSet(SUSPEND, COMMON)).isFalse();
+    assertThat(AdminPolicy.changesAdminSet(SUSPEND, ROOT)).isFalse();
+    assertThat(AdminPolicy.changesAdminSet(REACTIVATE, OTHER_ADMIN)).isFalse();
+    assertThat(AdminPolicy.changesAdminSet(REVOKE_SESSIONS, OTHER_ADMIN)).isFalse();
+  }
+
+  @Test
+  void reativarEPermitidoParaTodosExcetoORaiz() {
+    assertThat(AdminPolicy.decide(REACTIVATE, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REACTIVATE, ADMIN, SUSPENDED_ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REACTIVATE, ADMIN, ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REACTIVATE, ADMIN, ROOT, 0)).contains(ErrorCode.ROOT_PROTECTED);
+  }
+
+  @Test
+  void encerrarTodasAsSessoesRecusaORaizEASiMesmo() {
+    assertThat(AdminPolicy.decide(REVOKE_SESSIONS, ADMIN, ROOT, 0))
+        .contains(ErrorCode.ROOT_PROTECTED);
+    assertThat(AdminPolicy.decide(REVOKE_SESSIONS, ADMIN, ADMIN, 0))
+        .contains(ErrorCode.SELF_ACTION_FORBIDDEN);
+    assertThat(AdminPolicy.decide(REVOKE_SESSIONS, ADMIN, OTHER_ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REVOKE_SESSIONS, ADMIN, COMMON, 0)).isEmpty();
+  }
+
+  @Test
+  void encerrarUmaSessaoQueNaoEAAtualPermiteOProprioAdministradorMasNaoORaiz() {
+    assertThat(AdminPolicy.decide(REVOKE_OTHER_SESSION, ADMIN, ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REVOKE_OTHER_SESSION, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(REVOKE_OTHER_SESSION, ADMIN, ROOT, 0))
+        .contains(ErrorCode.ROOT_PROTECTED);
+  }
+
+  @Test
+  void retirarOBloqueioDeLoginRecusaSoORaiz() {
+    assertThat(AdminPolicy.decide(CLEAR_LOGIN_LOCK, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(CLEAR_LOGIN_LOCK, ADMIN, ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(CLEAR_LOGIN_LOCK, ADMIN, ROOT, 0))
+        .contains(ErrorCode.ROOT_PROTECTED);
   }
 }
