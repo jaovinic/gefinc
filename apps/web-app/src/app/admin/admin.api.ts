@@ -1,9 +1,24 @@
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import type { RoleChangeRequest } from '@gefinc/core-models';
+import type { AdminUserDetail, AdminUserPage, RoleChangeRequest } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService, toProblem } from '@gefinc/ui-shared';
 import { Observable, catchError, throwError } from 'rxjs';
+
+/** Situação filtrável da lista de usuários (espelha o contrato de `GET /admin/users`). */
+export type AdminUserStatus = 'ACTIVE' | 'SUSPENDED' | 'DELETION_PENDING' | 'ADMIN';
+export type AdminUserSort = 'createdAt' | 'lastAccessAt';
+export type AdminSortDirection = 'asc' | 'desc';
+
+/** Parâmetros da lista; os ausentes ou vazios não vão na URL (o servidor assume os padrões). */
+export interface AdminUserListParams {
+  q?: string;
+  status?: AdminUserStatus;
+  sort?: AdminUserSort;
+  dir?: AdminSortDirection;
+  page?: number;
+  size?: number;
+}
 
 /**
  * Cliente das rotas `/admin/**`. As recusas de regra (`ROOT_PROTECTED`, `LAST_ADMIN`,
@@ -19,6 +34,36 @@ export class AdminApi {
   private readonly currentUser = inject(CurrentUser);
   private readonly notices = inject(NoticeService);
   private readonly router = inject(Router);
+
+  /** Página de usuários (busca, filtro e ordenação no servidor). A lista não é auditada. */
+  listUsers(params: AdminUserListParams = {}): Observable<AdminUserPage> {
+    let query = new HttpParams();
+    const q = params.q?.trim();
+    if (q) {
+      query = query.set('q', q);
+    }
+    if (params.status) {
+      query = query.set('status', params.status);
+    }
+    if (params.sort) {
+      query = query.set('sort', params.sort);
+    }
+    if (params.dir) {
+      query = query.set('dir', params.dir);
+    }
+    if (params.page !== undefined) {
+      query = query.set('page', params.page);
+    }
+    if (params.size !== undefined) {
+      query = query.set('size', params.size);
+    }
+    return this.guarded(this.http.get<AdminUserPage>(`${this.base}/admin/users`, { params: query }));
+  }
+
+  /** Detalhe de um usuário. Cada abertura é registrada na auditoria pelo servidor. */
+  getUser(id: number): Observable<AdminUserDetail> {
+    return this.guarded(this.http.get<AdminUserDetail>(`${this.base}/admin/users/${id}`));
+  }
 
   /** Concede (`ADMIN`) ou retira (`USER`) o perfil de administrador; exige a senha de quem pede. */
   setRole(userId: number, role: RoleChangeRequest['role'], password: string): Observable<void> {

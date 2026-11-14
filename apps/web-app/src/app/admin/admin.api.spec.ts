@@ -112,4 +112,87 @@ describe('AdminApi', () => {
     expect(clear).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  describe('listUsers', () => {
+    const empty = { content: [], page: 0, size: 25, totalElements: 0, counts: { active: 0, suspended: 0, deletionPending: 0, admin: 0 } };
+
+    it('só manda os parâmetros preenchidos', () => {
+      api.listUsers({ q: '  joão  ', status: 'SUSPENDED', sort: 'lastAccessAt', dir: 'asc', page: 2, size: 25 }).subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/users');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('q')).toBe('joão');
+      expect(req.request.params.get('status')).toBe('SUSPENDED');
+      expect(req.request.params.get('sort')).toBe('lastAccessAt');
+      expect(req.request.params.get('dir')).toBe('asc');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('size')).toBe('25');
+      req.flush(empty);
+    });
+
+    it('sem filtros não manda q nem status; busca só com espaços também não', () => {
+      api.listUsers({ q: '   ', page: 0 }).subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/users');
+      expect(req.request.params.keys()).toEqual(['page']);
+      req.flush(empty);
+    });
+
+    it('sem parâmetros nenhum vai na URL', () => {
+      api.listUsers().subscribe();
+
+      const req = http.expectOne('/api/v1/admin/users');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush(empty);
+    });
+
+    it('mapeia o problem+json da recusa (422) sem tratar como sessão expirada', () => {
+      let error: unknown;
+      api.listUsers({ size: 101 }).subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(422, 'VALIDATION_ERROR', { errors: [{ field: 'size', message: 'Tamanho inválido.' }] });
+      http.expectOne((r) => r.url === '/api/v1/admin/users').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 422, code: 'VALIDATION_ERROR', fieldErrors: { size: 'Tamanho inválido.' } });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('403 FORBIDDEN (perfil retirado) renova o perfil e volta para /; não vira "sessão expirada"', () => {
+      let error: unknown;
+      api.listUsers().subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(403, 'FORBIDDEN');
+      http.expectOne('/api/v1/admin/users').flush(body, init);
+
+      expect(clear).toHaveBeenCalledTimes(1);
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith('/');
+      expect(toProblem(error)).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('getUser', () => {
+    it('pede o detalhe pelo id', () => {
+      let id = 0;
+      api.getUser(7).subscribe((detail) => (id = detail.id));
+
+      const req = http.expectOne('/api/v1/admin/users/7');
+      expect(req.request.method).toBe('GET');
+      req.flush({ id: 7, email: 'a@teste.com', createdAt: '2026-11-14T00:00:00Z', role: 'USER', suspended: false, deletionPending: false, openSessions: 0, protected: false, recentActions: [] });
+      expect(id).toBe(7);
+    });
+
+    it('404 chega à tela como problema NOT_FOUND, sem efeitos colaterais', () => {
+      let error: unknown;
+      api.getUser(999).subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(404, 'NOT_FOUND');
+      http.expectOne('/api/v1/admin/users/999').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 404, code: 'NOT_FOUND' });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
 });

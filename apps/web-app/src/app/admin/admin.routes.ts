@@ -11,10 +11,8 @@ export const adminRoutes: Route[] = [
     component: AdminLayout,
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'users' },
-      {
-        path: 'users',
-        loadComponent: () => import('./admin-users-placeholder').then((m) => m.AdminUsersPlaceholder),
-      },
+      { path: 'users', loadComponent: () => import('./users/user-list').then((m) => m.UserList) },
+      { path: 'users/:id', loadComponent: () => import('./users/user-detail').then((m) => m.UserDetail) },
     ],
   },
 ];
