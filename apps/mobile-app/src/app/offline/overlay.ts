@@ -20,6 +20,10 @@ export interface OverlayContext {
 /** Filtros da consulta de lançamentos que está sendo mostrada. */
 export interface OverlayQuery {
   month?: string;
+  /** Vencimento a partir desta data (inclusiva). */
+  dateFrom?: string;
+  /** Vencimento até esta data (inclusiva). */
+  dateTo?: string;
   accountId?: number;
   categoryId?: number;
   kind?: CategoryType;
@@ -36,6 +40,8 @@ interface GroupBody {
   categoryId: number;
   purchaseDate: string;
   firstDueDate?: string;
+  /** "Dar baixa hoje" na criação: despesa avulsa fora de cartão, com vencimento até hoje. */
+  payNow?: boolean;
 }
 
 interface Row {
@@ -123,12 +129,11 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     }
   }
 
-  // Mudou de mês o que foi reagendado: deixa de combinar com o mês da tela e a ordem por vencimento se refaz.
+  // Mudou de mês o que foi reagendado: deixa de combinar com o mês ou o período da tela e a ordem (vencimento
+  // do mais recente ao mais antigo, empate pelo identificador maior primeiro, como no servidor) se refaz.
   if (rescheduled.size > 0) {
-    if (query.month) {
-      items = items.filter((t) => !rescheduled.has(t.id) || t.dueDate.slice(0, 7) === query.month);
-    }
-    items.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
+    items = items.filter((t) => !rescheduled.has(t.id) || inWindow(t.dueDate, query));
+    items.sort((a, b) => (a.dueDate < b.dueDate ? 1 : a.dueDate > b.dueDate ? -1 : b.id - a.id));
   }
   // Itens que mudaram de status deixam de combinar com o filtro de status da tela.
   if (query.status) {
@@ -150,8 +155,9 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
       continue;
     }
     for (const row of rowsFor(body, ctx)) {
-      // Receita com data de hoje ou anterior já entra na conta; a futura fica a receber até a data.
-      const settled = income && row.dueDate <= ctx.today;
+      // Receita com data de hoje ou anterior já entra na conta; a futura fica a receber até a data. Despesa com
+      // "dar baixa hoje" nasce paga na data do vencimento.
+      const settled = (income && row.dueDate <= ctx.today) || paidOnCreate(body, row, income, ctx);
       const tx = {
         id: -(sequence * 1000 + row.number),
         groupId: -sequence,
@@ -165,7 +171,7 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
         dueDate: row.dueDate,
         status: settled ? 'PAID' : 'PENDING',
         ...(settled ? { paymentDate: row.dueDate } : {}),
-        overdue: !income && row.dueDate < ctx.today,
+        overdue: !income && !settled && row.dueDate < ctx.today,
         version: -1,
       } as Transaction;
       if (matches(tx, query, ctx)) {
@@ -174,8 +180,9 @@ export function applyPending(page: TransactionPage, ops: PendingOp[], ctx: Overl
     }
   }
 
+  // Os criados no aparelho são os mais novos: no mesmo vencimento ficam antes dos que já estavam na lista.
   for (const tx of created) {
-    const at = items.findIndex((t) => t.dueDate > tx.dueDate);
+    const at = items.findIndex((t) => t.dueDate <= tx.dueDate);
     items.splice(at === -1 ? items.length : at, 0, tx);
   }
   return { ...page, content: items, totalElements: page.totalElements - dropped + created.length };
@@ -222,8 +229,29 @@ function isIncome(categoryId: number, ctx: OverlayContext): boolean {
   return ctx.categories.find((c) => c.id === categoryId)?.type === 'INCOME';
 }
 
+/** O vencimento está no mês e no período da consulta (quando informados; os dois juntos valem como E). */
+function inWindow(dueDate: string, query: OverlayQuery): boolean {
+  if (query.month && dueDate.slice(0, 7) !== query.month) {
+    return false;
+  }
+  if (query.dateFrom && dueDate < query.dateFrom) {
+    return false;
+  }
+  return !query.dateTo || dueDate <= query.dateTo;
+}
+
+/** Mesmas condições do servidor para pagar na criação: despesa avulsa, fora de cartão, vencimento até hoje. */
+function paidOnCreate(body: GroupBody, row: Row, income: boolean, ctx: OverlayContext): boolean {
+  if (body.payNow !== true || income || row.dueDate > ctx.today) {
+    return false;
+  }
+  const single = body.recurrenceType === 'VARIABLE' || (body.recurrenceType === 'INSTALLMENT' && (body.totalInstallments ?? 1) === 1);
+  const account = ctx.accounts.find((a) => a.id === body.accountId);
+  return single && !!account && account.type !== 'CREDIT_CARD';
+}
+
 function matches(tx: Transaction, query: OverlayQuery, ctx: OverlayContext): boolean {
-  if (query.month && tx.dueDate.slice(0, 7) !== query.month) {
+  if (!inWindow(tx.dueDate, query)) {
     return false;
   }
   if (query.accountId && tx.accountId !== query.accountId) {

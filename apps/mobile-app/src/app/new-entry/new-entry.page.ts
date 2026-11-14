@@ -46,6 +46,8 @@ interface Draft {
   /** Rascunhos antigos não têm: assumem 1x e o valor da parcela. */
   installments?: number;
   amountMode?: AmountMode;
+  /** Rascunhos antigos não têm: "dar baixa hoje" vem ligado. */
+  payNow?: boolean;
 }
 
 /** Máximo de parcelas oferecido na tela rápida (o servidor aceita até 120, no cadastro completo). */
@@ -170,6 +172,17 @@ const quickKind = (kind: CategoryType): QuickKind => (kind === 'INCOME' ? 'incom
         @if (parcelado() && total()) {
           <gef-installment-summary-card [total]="total()" [count]="installments()" [schedule]="plan()" [today]="today" />
         }
+        @if (canPayNow()) {
+          <div>
+            <label class="gef-switch-row">
+              <input id="payNow" type="checkbox" role="switch" class="gef-switch" aria-describedby="date-hint" [checked]="payNow()" (change)="onPayNow($event)" />
+              <span>Já paguei, dar baixa hoje</span>
+            </label>
+            @if (serverErrors()['payNow']; as message) {
+              <p class="gef-field-error">{{ message }}</p>
+            }
+          </div>
+        }
         <button type="submit" class="gef-btn-primary" [disabled]="busy()">{{ busy() ? 'Salvando…' : 'Salvar' }}</button>
       </form>
     </div>
@@ -217,10 +230,16 @@ export class NewEntryPage implements OnInit, OnDestroy {
 
   private readonly selectedAccount = computed(() => this.reference.account(this.accountId()));
   private readonly isCard = computed(() => this.selectedAccount()?.type === 'CREDIT_CARD');
+  /** Escolha do usuário em "dar baixa hoje" (ligada por padrão); só vale enquanto `canPayNow()` for verdadeiro. */
+  protected readonly payNow = signal(true);
   /** Parcelas só para despesa em cartão; receita, conta bancária e dinheiro são sempre à vista. */
   protected readonly showInstallments = computed(() => !this.isIncome() && this.isCard());
   protected readonly installments = computed(() => (this.showInstallments() ? this.count() : 1));
   protected readonly parcelado = computed(() => this.installments() >= 2);
+  /** "Dar baixa hoje" só para despesa à vista em conta bancária ou dinheiro com data de hoje; o servidor valida de novo. */
+  protected readonly canPayNow = computed(
+    () => !this.isIncome() && !!this.selectedAccount() && !this.isCard() && this.installments() === 1 && this.date() === this.today,
+  );
   protected readonly moneyLabel = computed(() => {
     if (!this.parcelado()) {
       return 'Valor';
@@ -278,7 +297,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
         return '';
       }
     }
-    return 'Vence na data';
+    return this.canPayNow() && this.payNow() ? 'Será dada baixa hoje e o valor sai do saldo da conta.' : 'Vence na data';
   });
 
   private applied = false;
@@ -301,6 +320,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
         this.amount.set(draft.amount);
         this.amountMode.set(draft.amountMode ?? 'INSTALLMENT');
         this.count.set(draft.installments ?? 1);
+        this.payNow.set(draft.payNow ?? true);
         this.resetInstallmentsIfNotApplicable();
         return;
       }
@@ -326,12 +346,16 @@ export class NewEntryPage implements OnInit, OnDestroy {
     this.reference.refresh();
     this.unregisterDraft = this.drafts.register(
       DRAFT_KEY,
-      (): Draft => ({ ...this.form.getRawValue(), installments: this.installments(), amountMode: this.amountMode() }),
+      (): Draft => ({ ...this.form.getRawValue(), installments: this.installments(), amountMode: this.amountMode(), payNow: this.payNow() }),
     );
   }
 
   ngOnDestroy(): void {
     this.unregisterDraft?.();
+  }
+
+  protected onPayNow(event: Event): void {
+    this.payNow.set((event.target as HTMLInputElement).checked);
   }
 
   protected setDay(offset: number): void {
@@ -419,6 +443,8 @@ export class NewEntryPage implements OnInit, OnDestroy {
       this.error.set(MIN_PER_INSTALLMENT_MESSAGE);
       return;
     }
+    // O "hoje" é recalculado aqui: a tela pode ter ficado aberta na virada do dia.
+    const payNow = this.payNow() && !income && !!account && account.type !== 'CREDIT_CARD' && !installment && value.date === todayIso();
     const input: TransactionGroupInput = {
       description: value.description.trim() || category?.name || (income ? 'Receita' : 'Despesa'),
       recurrenceType: installment ? 'INSTALLMENT' : 'VARIABLE',
@@ -430,6 +456,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
       // Receita tem uma só data (a do recebimento); despesa fora de cartão vence na data; cartão (inclusive
       // parcelado) segue o fechamento e o vencimento da fatura, sem firstDueDate.
       ...(income || account?.type !== 'CREDIT_CARD' ? { firstDueDate: value.date } : {}),
+      ...(payNow ? { payNow: true } : {}),
     };
     this.error.set(null);
     this.serverErrors.set({});
@@ -444,7 +471,7 @@ export class NewEntryPage implements OnInit, OnDestroy {
         this.notices.toast(
           savedOnDevice
             ? 'Salvo no aparelho; será enviado quando houver conexão.'
-            : income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : 'Despesa registrada.',
+            : income ? 'Receita registrada.' : installment ? `Despesa registrada em ${count}x.` : payNow ? 'Despesa registrada e paga.' : 'Despesa registrada.',
         );
         void Haptics.impact({ style: ImpactStyle.Light }).catch(() => undefined);
         void this.router.navigate(['/']);

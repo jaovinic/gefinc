@@ -42,3 +42,32 @@ describe('TransactionsApi - chave de idempotência', () => {
     expect(http.expectOne('/api/v1/transactions/7/unpay').request.headers.has('Idempotency-Key')).toBe(false);
   });
 });
+
+describe('TransactionsApi - listagem', () => {
+  let http: HttpTestingController;
+  let api: TransactionsApi;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: API_BASE_URL, useValue: '/api/v1' }],
+    });
+    http = TestBed.inject(HttpTestingController);
+    api = TestBed.inject(TransactionsApi);
+  });
+
+  it('envia dateFrom e dateTo quando informados', () => {
+    api.list({ dateFrom: '2026-11-01', dateTo: '2026-11-30', page: 0, size: 25 }).subscribe();
+    const request = http.expectOne((r) => r.url === '/api/v1/transactions');
+    expect(request.request.params.get('dateFrom')).toBe('2026-11-01');
+    expect(request.request.params.get('dateTo')).toBe('2026-11-30');
+    expect(request.request.params.has('month')).toBe(false);
+  });
+
+  it('não envia o período vazio ou ausente', () => {
+    api.list({ month: '2026-11', dateFrom: '', dateTo: undefined }).subscribe();
+    const request = http.expectOne((r) => r.url === '/api/v1/transactions');
+    expect(request.request.params.get('month')).toBe('2026-11');
+    expect(request.request.params.has('dateFrom')).toBe(false);
+    expect(request.request.params.has('dateTo')).toBe(false);
+  });
+});

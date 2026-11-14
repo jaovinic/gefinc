@@ -24,6 +24,10 @@ export interface TransactionFilter {
   kind?: CategoryType;
   recurrenceType?: RecurrenceType;
   status?: TransactionStatus;
+  /** Vencimento a partir desta data (`AAAA-MM-DD`, inclusiva). */
+  dateFrom?: string;
+  /** Vencimento até esta data (`AAAA-MM-DD`, inclusiva). */
+  dateTo?: string;
   page?: number;
   size?: number;
 }

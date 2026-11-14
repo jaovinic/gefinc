@@ -152,6 +152,20 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           }
         }
       </div>
+      @if (canPayNow()) {
+        <div>
+          <label class="gef-switch-row">
+            <input id="payNow" type="checkbox" role="switch" class="gef-switch" aria-describedby="payNow-hint" [checked]="payNow()" (change)="onPayNow($event)" />
+            <span>Já paguei, dar baixa hoje</span>
+          </label>
+          <p id="payNow-hint" class="mt-1 text-caption text-gefinc-muted" aria-live="polite" data-testid="pay-now-hint">
+            {{ payNow() ? 'Será dada baixa hoje e o valor sai do saldo da conta.' : 'Fica pendente até você registrar o pagamento.' }}
+          </p>
+          @if (serverErrors()['payNow']; as message) {
+            <p class="gef-field-error">{{ message }}</p>
+          }
+        </div>
+      }
       @if (recurrence() === 'INSTALLMENT' && installmentPreview().length > 0) {
         <div class="gef-card space-y-3 p-3">
           <p class="financial-value text-body-base font-semibold" aria-live="polite" data-testid="installment-summary">{{ summary() }}</p>
@@ -246,6 +260,8 @@ export class GroupForm implements OnInit {
     return total ? installmentSummary(total, this.count()) : '';
   });
   private readonly firstDueDate = signal(todayIso());
+  /** Escolha do usuário em "dar baixa hoje" (ligada por padrão); só vale enquanto `canPayNow()` for verdadeiro. */
+  protected readonly payNow = signal(true);
 
   /**
    * O vencimento só aparece em despesa fora do cartão (no cartão vem da fatura; na receita, da data do recebimento).
@@ -385,6 +401,24 @@ export class GroupForm implements OnInit {
     this.form.controls.firstDueDate.valueChanges.subscribe((v) => this.firstDueDate.set(v));
   }
 
+  /**
+   * "Dar baixa hoje" só para despesa avulsa em conta bancária ou dinheiro com vencimento hoje; o servidor valida de
+   * novo. Método (e não `computed`) para reavaliar o "hoje" se a tela ficar aberta na virada do dia.
+   */
+  protected canPayNow(): boolean {
+    const type = this.selectedAccount()?.type;
+    return (
+      this.kind() === 'EXPENSE' &&
+      this.recurrence() === 'VARIABLE' &&
+      (type === 'CHECKING' || type === 'CASH') &&
+      this.firstDueDate() === todayIso()
+    );
+  }
+
+  protected onPayNow(event: Event): void {
+    this.payNow.set((event.target as HTMLInputElement).checked);
+  }
+
   /** Habilita o vencimento enquanto ele aparece; oculto, desabilita (some o erro velho) e o envio usa `getRawValue`. */
   private toggleDueDate(visible: boolean): void {
     const control = this.form.controls.firstDueDate;
@@ -451,6 +485,7 @@ export class GroupForm implements OnInit {
       categoryId: Number(value.categoryId),
       purchaseDate: value.purchaseDate,
       ...(card ? {} : { firstDueDate: income ? value.purchaseDate : value.firstDueDate }),
+      ...(this.canPayNow() && this.payNow() ? { payNow: true } : {}),
     };
     this.error.set(null);
     this.serverErrors.set({});
