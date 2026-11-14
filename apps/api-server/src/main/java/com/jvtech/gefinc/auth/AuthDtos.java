@@ -87,7 +87,11 @@ public final class AuthDtos {
     }
   }
 
-  public record UserProfile(long id, String email, String name, Instant createdAt) {
+  /**
+   * {@code admin}: conveniência de interface para mostrar o painel; a barreira de acesso é sempre
+   * do servidor.
+   */
+  public record UserProfile(long id, String email, String name, Instant createdAt, boolean admin) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {

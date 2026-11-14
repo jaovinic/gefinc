@@ -1,10 +1,12 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.common.AdminPolicy;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.Pseudonymizer;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
+import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +25,7 @@ public class AccountDeletionService {
   private final LoginAttemptLimiter limiter;
   private final DeletionLedger ledger;
   private final Pseudonymizer pseudonymizer;
+  private final AdminPolicy adminPolicy;
 
   public AccountDeletionService(
       UserRepository users,
@@ -31,7 +34,8 @@ public class AccountDeletionService {
       Clock clock,
       LoginAttemptLimiter limiter,
       DeletionLedger ledger,
-      Pseudonymizer pseudonymizer) {
+      Pseudonymizer pseudonymizer,
+      AdminPolicy adminPolicy) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
@@ -39,6 +43,7 @@ public class AccountDeletionService {
     this.limiter = limiter;
     this.ledger = ledger;
     this.pseudonymizer = pseudonymizer;
+    this.adminPolicy = adminPolicy;
   }
 
   /** Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. */
@@ -48,6 +53,7 @@ public class AccountDeletionService {
     if (!auth.matches(password, user.getPasswordHash())) {
       throw AuthService.invalidCredentials();
     }
+    requireDeletable(user);
     Instant now = clock.instant();
     Instant dueAt = now.plus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
     // O livro-razão é gravado antes: a coluna deletion_request_id de users referencia a linha.
@@ -55,6 +61,21 @@ public class AccountDeletionService {
     user.scheduleDeletion(now, dueAt, requestId);
     tokens.revokeAllOfUser(userId);
     return auth.deletionDate(user);
+  }
+
+  /**
+   * Guarda mínima do autoatendimento (US1.6): o raiz nunca se exclui (a restrição do banco o
+   * recusaria) e o administrador não deixa o sistema sem administrador ativo (sob a trava
+   * consultiva do conjunto de administradores).
+   */
+  private void requireDeletable(User user) {
+    if (user.getRole() == UserRole.ROOT) {
+      throw new ApiException(
+          ErrorCode.ROOT_PROTECTED, "O administrador raiz não pode excluir a própria conta.");
+    }
+    if (user.getRole().isAdmin() && user.isActive()) {
+      adminPolicy.requireAnotherActiveAdmin(user.getId());
+    }
   }
 
   /** Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). */

@@ -141,11 +141,11 @@ class AdminRoleIT extends IntegrationTestBase {
     putRole(admin, target.id(), "ADMIN", null)
         .andExpect(status().isForbidden())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-        .andExpect(jsonPath("$.code").value("REAUTH_FAILED"))
-        .andExpect(matchesContract());
+        .andExpect(jsonPath("$.code").value("REAUTH_FAILED"));
     putRole(admin, target.id(), "ADMIN", "senha-errada-999")
         .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.code").value("REAUTH_FAILED"));
+        .andExpect(jsonPath("$.code").value("REAUTH_FAILED"))
+        .andExpect(matchesContract());
 
     assertThat(roleOf(target.id())).isEqualTo("USER");
     Map<String, Object> audit = lastAudit();

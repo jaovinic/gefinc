@@ -37,7 +37,12 @@ public class ProfileService {
   }
 
   static UserProfile toProfile(User user) {
-    return new UserProfile(user.getId(), user.getEmail(), user.getName(), user.getCreatedAt());
+    return new UserProfile(
+        user.getId(),
+        user.getEmail(),
+        user.getName(),
+        user.getCreatedAt(),
+        user.getRole().isAdmin());
   }
 
   @Transactional(readOnly = true)
