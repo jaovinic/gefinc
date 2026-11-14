@@ -285,7 +285,7 @@ class AuditServiceIT extends IntegrationTestBase {
   }
 
   @Test
-  void cadaRecusaDeRegraStatus403409e422EhAuditadaMasOutrasFalhasNao() {
+  void cadaRecusaDeRegraStatus403404409e422EhAuditadaMasOutrasFalhasNao() {
     SeededUser admin = seed.createAdmin("adm@example.com");
     authenticateAs(admin.id());
     AuditContext ctx =
@@ -306,9 +306,26 @@ class AuditServiceIT extends IntegrationTestBase {
     assertThatThrownBy(
             () ->
                 executor.run(
-                    ctx,
+                    new AuditContext(
+                        AuditAction.USER_SUSPENDED, 987654L, null, null, AuditDetails::of),
                     () -> {
                       throw new ApiException(ErrorCode.NOT_FOUND, "x");
+                    }))
+        .isInstanceOf(ApiException.class);
+    assertThat(count()).isEqualTo(4);
+    // o id inexistente não é gravado: sem FK, um usuário futuro poderia herdá-lo
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT refusal_code, target_user_id FROM audit_log ORDER BY id DESC LIMIT 1"))
+        .containsEntry("refusal_code", "NOT_FOUND")
+        .containsEntry("target_user_id", null);
+
+    assertThatThrownBy(
+            () ->
+                executor.run(
+                    ctx,
+                    () -> {
+                      throw new ApiException(ErrorCode.BAD_REQUEST, "x");
                     }))
         .isInstanceOf(ApiException.class);
     assertThatThrownBy(
@@ -319,7 +336,7 @@ class AuditServiceIT extends IntegrationTestBase {
                       throw new IllegalStateException("x");
                     }))
         .isInstanceOf(IllegalStateException.class);
-    assertThat(count()).isEqualTo(3);
+    assertThat(count()).isEqualTo(4);
   }
 
   @Test
