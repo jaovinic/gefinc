@@ -7,6 +7,7 @@ import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.auth.PasswordResetRateLimiter;
+import com.jvtech.gefinc.common.ratelimit.PerKeyRateLimiter;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
@@ -77,6 +78,7 @@ public abstract class IntegrationTestBase {
   @Autowired private LoginAttemptLimiter loginAttemptLimiter;
   @Autowired private ThreadPoolTaskExecutor mailExecutor;
   @Autowired private PlatformTransactionManager transactionManager;
+  @Autowired private List<PerKeyRateLimiter> perKeyRateLimiters;
   @Autowired private PasswordEncoder passwordEncoder;
 
   @Autowired private MeterRegistry meterRegistry;
@@ -104,6 +106,7 @@ public abstract class IntegrationTestBase {
     clock.set(TestClockConfig.START);
     passwordResetRateLimiter.clear();
     loginAttemptLimiter.clear();
+    perKeyRateLimiters.forEach(PerKeyRateLimiter::clear);
     truncateAllTables();
     AdminSeed.restore(jdbc);
     GREEN_MAIL.purgeEmailFromAllMailboxes();
