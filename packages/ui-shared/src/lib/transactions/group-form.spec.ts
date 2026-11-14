@@ -818,3 +818,128 @@ describe('GroupForm - receita entra na conta', () => {
     expect((el.querySelector('#purchaseDate') as HTMLInputElement).value).toBe(isoToBR('2026-11-05'));
   });
 });
+
+describe('GroupForm - dar baixa hoje (payNow)', () => {
+  async function setup() {
+    const ctx = configureHttpTesting();
+    const fixture = TestBed.createComponent(GroupForm);
+    fixture.detectChanges();
+    ctx.flushReference();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { ...ctx, fixture, el: fixture.nativeElement as HTMLElement };
+  }
+
+  function fill(el: HTMLElement, fixture: { detectChanges(): void }, account: string) {
+    type(el, '#description', 'Mercado');
+    chooseAccount(fixture, el, account);
+    pickOption(fixture, 'Categoria', 'Alimentação');
+    type(el, 'gef-money-input input', '15000');
+    fixture.detectChanges();
+  }
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    const submit = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+    const toggle = (el: HTMLElement) => el.querySelector('#payNow') as HTMLInputElement | null;
+
+    it('despesa avulsa em conta com vencimento hoje mostra a chave ligada, com a dica, e envia payNow', async () => {
+      const { http, el, fixture } = await setup();
+      fill(el, fixture, '1');
+      fixture.detectChanges();
+
+      const input = toggle(el)!;
+      expect(input).not.toBeNull();
+      expect(input.checked).toBe(true);
+      expect(input.getAttribute('role')).toBe('switch');
+      expect(el.querySelector(`label[for="payNow"], label:has(#payNow)`)?.textContent).toContain('Já paguei, dar baixa hoje');
+      const hint = el.querySelector('#payNow-hint') as HTMLElement;
+      expect(input.getAttribute('aria-describedby')).toBe('payNow-hint');
+      expect(hint.textContent).toContain('dada baixa hoje');
+
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.payNow).toBe(true);
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('desligar a chave não envia payNow', async () => {
+      const { http, el, fixture } = await setup();
+      fill(el, fixture, '1');
+      toggle(el)!.click();
+      fixture.detectChanges();
+      expect(el.querySelector('#payNow-hint')?.textContent).toContain('pendente');
+
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body).not.toHaveProperty('payNow');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('vencimento diferente de hoje esconde a chave e não envia payNow', async () => {
+      const { http, el, fixture } = await setup();
+      fill(el, fixture, '1');
+      fillDate(el, '#firstDueDate', '2099-01-10');
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body).not.toHaveProperty('payNow');
+      post.flush({}, { status: 201, statusText: 'Created' });
+    });
+
+    it('voltar o vencimento para hoje mostra a chave de novo', async () => {
+      const { el, fixture } = await setup();
+      fill(el, fixture, '1');
+      fillDate(el, '#firstDueDate', '2099-01-10');
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+      fillDate(el, '#firstDueDate', todayIso());
+      fixture.detectChanges();
+      expect(toggle(el)).not.toBeNull();
+    });
+
+    it('cartão, receita, fixo e parcelado não têm a chave nem enviam payNow', async () => {
+      const { http, el, fixture } = await setup();
+      fill(el, fixture, '2');
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+      submit(el);
+      const card = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(card.request.body).not.toHaveProperty('payNow');
+      card.flush({}, { status: 201, statusText: 'Created' });
+
+      chooseAccount(fixture, el, '1');
+      fixture.detectChanges();
+      expect(toggle(el)).not.toBeNull();
+      pickOption(fixture, 'Tipo', 'Fixo mensal');
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+      pickOption(fixture, 'Tipo', 'Parcelado');
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+      pickOption(fixture, 'Tipo', 'Avulso');
+      fixture.detectChanges();
+      expect(toggle(el)).not.toBeNull();
+
+      (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
+      fixture.detectChanges();
+      expect(toggle(el)).toBeNull();
+    });
+
+    it('mostra o erro 422 do servidor no campo payNow', async () => {
+      const { http, el, fixture } = await setup();
+      fill(el, fixture, '1');
+      submit(el);
+      http
+        .expectOne({ method: 'POST', url: `${API}/transaction-groups` })
+        .flush(
+          { title: 'Dados inválidos', status: 422, errors: [{ field: 'payNow', message: 'Só é possível pagar na criação lançamentos com vencimento até hoje.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+      fixture.detectChanges();
+      expect(el.textContent).toContain('Só é possível pagar na criação');
+    });
+});

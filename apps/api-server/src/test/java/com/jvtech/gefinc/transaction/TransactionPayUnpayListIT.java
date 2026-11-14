@@ -10,6 +10,8 @@ import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -156,7 +158,7 @@ class TransactionPayUnpayListIT extends IntegrationTestBase {
   }
 
   @Test
-  void paginaOrdenandoPorVencimento() throws Exception {
+  void paginaOrdenandoPorVencimentoDoMaisRecenteAoMaisAntigo() throws Exception {
     variable("C", "3.00", checking, food, "2026-11-30");
     variable("A", "1.00", checking, food, "2026-11-01");
     variable("B", "2.00", checking, food, "2026-11-15");
@@ -166,11 +168,79 @@ class TransactionPayUnpayListIT extends IntegrationTestBase {
         .andExpect(matchesContract())
         .andExpect(jsonPath("$.totalElements").value(3))
         .andExpect(jsonPath("$.size").value(2))
-        .andExpect(jsonPath("$.content[0].description").value("A"))
+        .andExpect(jsonPath("$.content[0].description").value("C"))
         .andExpect(jsonPath("$.content[1].description").value("B"));
     api.call(ana, HttpMethod.GET, "/transactions?month=2026-11&size=2&page=1", null)
         .andExpect(jsonPath("$.content.length()").value(1))
-        .andExpect(jsonPath("$.content[0].description").value("C"));
+        .andExpect(jsonPath("$.content[0].description").value("A"));
+  }
+
+  @Test
+  void mesmoVencimentoDesempataPorIdDecrescente() throws Exception {
+    variable("Primeiro", "1.00", checking, food, "2026-11-15");
+    variable("Segundo", "2.00", checking, food, "2026-11-15");
+
+    api.call(ana, HttpMethod.GET, "/transactions?month=2026-11", null)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].description").value("Segundo"))
+        .andExpect(jsonPath("$.content[1].description").value("Primeiro"));
+  }
+
+  private List<String> descriptions(String query) throws Exception {
+    JsonNode page =
+        api.json(
+            api.call(ana, HttpMethod.GET, "/transactions" + query, null)
+                .andExpect(status().isOk())
+                .andExpect(matchesContract()));
+    List<String> result = new ArrayList<>();
+    for (JsonNode item : page.get("content")) {
+      result.add(item.get("description").asText());
+    }
+    return result;
+  }
+
+  @Test
+  void filtraPorPeriodoComLimitesInclusivos() throws Exception {
+    variable("Antes", "1.00", checking, food, "2026-11-04");
+    variable("Inicio", "2.00", checking, food, "2026-11-05");
+    variable("Meio", "3.00", checking, food, "2026-11-10");
+    variable("Fim", "4.00", checking, food, "2026-11-15");
+    variable("Depois", "5.00", checking, food, "2026-11-16");
+
+    assertThat(descriptions("?dateFrom=2026-11-05&dateTo=2026-11-15"))
+        .containsExactly("Fim", "Meio", "Inicio");
+    assertThat(descriptions("?dateFrom=2026-11-10&dateTo=2026-11-10")).containsExactly("Meio");
+  }
+
+  @Test
+  void filtraPorPeriodoComApenasUmLimite() throws Exception {
+    variable("Antes", "1.00", checking, food, "2026-10-31");
+    variable("Meio", "3.00", checking, food, "2026-11-10");
+    variable("Depois", "5.00", checking, food, "2026-12-01");
+
+    assertThat(descriptions("?dateFrom=2026-11-10")).containsExactly("Depois", "Meio");
+    assertThat(descriptions("?dateTo=2026-11-10")).containsExactly("Meio", "Antes");
+  }
+
+  @Test
+  void periodoEMesJuntosAplicamEElogico() throws Exception {
+    variable("Outubro", "1.00", checking, food, "2026-10-20");
+    variable("Novembro", "2.00", checking, food, "2026-11-20");
+    variable("Dezembro", "3.00", checking, food, "2026-12-20");
+
+    assertThat(descriptions("?month=2026-11&dateFrom=2026-10-01&dateTo=2026-12-31"))
+        .containsExactly("Novembro");
+    assertThat(descriptions("?month=2026-11&dateFrom=2026-12-01")).isEmpty();
+  }
+
+  @Test
+  void periodoInvertidoOuMalformadoEhRecusado() throws Exception {
+    api.call(ana, HttpMethod.GET, "/transactions?dateFrom=2026-11-10&dateTo=2026-11-09", null)
+        .andExpect(status().isBadRequest());
+    api.call(ana, HttpMethod.GET, "/transactions?dateFrom=10/11/2026", null)
+        .andExpect(status().isBadRequest());
+    api.call(ana, HttpMethod.GET, "/transactions?dateTo=2026-02-30", null)
+        .andExpect(status().isBadRequest());
   }
 
   @Test

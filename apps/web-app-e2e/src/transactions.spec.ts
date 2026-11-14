@@ -19,6 +19,10 @@ async function newTransaction(
   }
   await fillDate(form.getByLabel('Data da compra'), fields.due);
   await fillDate(form.getByLabel(/vencimento/i), fields.due);
+  if (!fields.recurrence && fields.due === todayIso()) {
+    // avulso de hoje oferece "dar baixa hoje" (ligado por padrão): estes testes cobrem o fluxo pendente
+    await form.getByLabel('Já paguei, dar baixa hoje').uncheck();
+  }
   await form.getByRole('button', { name: 'Salvar' }).click();
 }
 

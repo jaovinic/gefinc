@@ -4,6 +4,7 @@ import com.jvtech.gefinc.category.CategoryType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,9 @@ class TransactionSearch {
       Long categoryId,
       CategoryType kind,
       RecurrenceType recurrenceType,
-      TransactionStatus status) {}
+      TransactionStatus status,
+      LocalDate dateFrom,
+      LocalDate dateTo) {}
 
   record Row(Transaction transaction, TransactionGroup group) {}
 
@@ -60,9 +63,18 @@ class TransactionSearch {
       params.add(new Object[] {"status", filter.status()});
     }
 
+    if (filter.dateFrom() != null) {
+      where.append(" and t.dueDate >= :dateFrom");
+      params.add(new Object[] {"dateFrom", filter.dateFrom()});
+    }
+    if (filter.dateTo() != null) {
+      where.append(" and t.dueDate <= :dateTo");
+      params.add(new Object[] {"dateTo", filter.dateTo()});
+    }
+
     Query count = em.createQuery("select count(t)" + where);
     Query select =
-        em.createQuery("select t, g" + where + " order by t.dueDate, t.id")
+        em.createQuery("select t, g" + where + " order by t.dueDate desc, t.id desc")
             .setFirstResult(page * size)
             .setMaxResults(size);
     for (Query query : new Query[] {count, select}) {

@@ -42,6 +42,11 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     (el.querySelector('#kind-INCOME') as HTMLInputElement).click();
     fixture.detectChanges();
   };
+  const setDay = (el: HTMLElement, fixture: { detectChanges(): void }, offset: number) => {
+    const label = offset === 0 ? 'Hoje' : 'Ontem';
+    (Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === label) as HTMLButtonElement).click();
+    fixture.detectChanges();
+  };
   const submit = (el: HTMLElement) => (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
   const optionIds = (fixture: { detectChanges(): void }, el: HTMLElement) => {
     (el.querySelector('gef-account-picker button[aria-haspopup]') as HTMLButtonElement).click();
@@ -168,7 +173,11 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
   it('a dica da data muda por natureza: vence na data, entra na conta hoje, fica a receber até a data', async () => {
     const { el, fixture } = await setup();
     const hint = () => el.querySelector('[data-testid="date-hint"]')?.textContent?.trim();
+    expect(hint()).toBe('Será dada baixa hoje e o valor sai do saldo da conta.');
+    fillDate(el, '#date', '2999-12-24');
+    fixture.detectChanges();
     expect(hint()).toBe('Vence na data');
+    setDay(el, fixture, 0);
 
     income(el, fixture);
     expect(hint()).toBe('Entra na conta hoje');
@@ -248,7 +257,110 @@ describe('NewEntryPage (despesa e receita na mesma tela)', () => {
     expect(post.request.body).not.toHaveProperty('settled');
     post.flush({ id: 2 }, { status: 201, statusText: 'Created' });
     await first.fixture.whenStable();
-    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada.');
+    expect(post.request.body.payNow).toBe(true);
+    expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada e paga.');
+  });
+
+  describe('dar baixa hoje (payNow)', () => {
+    const toggle = (el: HTMLElement) => el.querySelector('#payNow') as HTMLInputElement | null;
+
+    it('despesa de hoje em conta mostra a chave ligada, ligada à dica da data, e envia payNow', async () => {
+      const { el, http, fixture } = await setup();
+      const input = toggle(el)!;
+      expect(input).not.toBeNull();
+      expect(input.checked).toBe(true);
+      expect(input.getAttribute('role')).toBe('switch');
+      expect(input.getAttribute('aria-describedby')).toBe('date-hint');
+      expect(el.querySelector('label.gef-switch-row')?.textContent).toContain('Já paguei, dar baixa hoje');
+
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body.payNow).toBe(true);
+      post.flush({ id: 2 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+    });
+
+    it('desligar a chave não envia payNow, mostra "Vence na data" e o aviso é o de registrado', async () => {
+      const { el, http, fixture } = await setup();
+      toggle(el)!.click();
+      fixture.detectChanges();
+      expect(el.querySelector('[data-testid="date-hint"]')?.textContent?.trim()).toBe('Vence na data');
+
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body).not.toHaveProperty('payNow');
+      post.flush({ id: 2 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada.');
+    });
+
+    it('data diferente de hoje esconde a chave e não envia payNow', async () => {
+      const { el, http, fixture } = await setup();
+      setDay(el, fixture, -1);
+      expect(toggle(el)).toBeNull();
+
+      type(el, 'gef-money-input input', '2550');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body).not.toHaveProperty('payNow');
+      post.flush({ id: 2 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+    });
+
+    it('voltar a data para hoje mostra a chave de novo, ainda ligada', async () => {
+      const { el, fixture } = await setup();
+      toggle(el)!.click();
+      setDay(el, fixture, -1);
+      expect(toggle(el)).toBeNull();
+      setDay(el, fixture, 0);
+      expect(toggle(el)).not.toBeNull();
+      expect(toggle(el)!.checked).toBe(false);
+    });
+
+    it('cartão e receita não têm a chave nem enviam payNow', async () => {
+      const { el, http, fixture } = await setup();
+      chooseAccount(fixture, el, 2);
+      expect(toggle(el)).toBeNull();
+      type(el, 'gef-money-input input', '1000');
+      submit(el);
+      const post = http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(post.request.body).not.toHaveProperty('payNow');
+      post.flush({ id: 3 }, { status: 201, statusText: 'Created' });
+      await fixture.whenStable();
+
+      TestBed.resetTestingModule();
+      const second = await setup({ tipo: 'receita' });
+      expect(toggle(second.el)).toBeNull();
+      type(second.el, 'gef-money-input input', '1000');
+      submit(second.el);
+      const income = second.http.expectOne({ method: 'POST', url: `${API}/transaction-groups` });
+      expect(income.request.body).not.toHaveProperty('payNow');
+      income.flush({ id: 4 }, { status: 201, statusText: 'Created' });
+      await second.fixture.whenStable();
+    });
+
+    it('o rascunho guarda a escolha e a retomada a restaura; rascunho antigo abre com a chave ligada', async () => {
+      const first = await setup();
+      toggle(first.el)!.click();
+      first.fixture.detectChanges();
+      TestBed.inject(DraftService).snapshotAll();
+      const saved = JSON.parse(sessionStorage.getItem('gefinc:draft:quick-new') ?? '{}');
+      expect(saved.payNow).toBe(false);
+      TestBed.resetTestingModule();
+
+      const resumed = await setup();
+      expect(toggle(resumed.el)!.checked).toBe(false);
+      TestBed.resetTestingModule();
+
+      sessionStorage.setItem(
+        'gefinc:draft:quick-new',
+        JSON.stringify({ kind: 'EXPENSE', amount: '50.00', description: 'Mercado', accountId: 1, categoryId: 10, date: todayIso() }),
+      );
+      const old = await setup();
+      expect(toggle(old.el)!.checked).toBe(true);
+    });
   });
 
   it('despesa no cartão não envia firstDueDate', async () => {
@@ -752,7 +864,7 @@ describe('NewEntryPage - parcelamento no cartão', () => {
       http.expectOne({ method: 'POST', url: `${API}/transaction-groups` }).flush({ id: 3 }, { status: 201, statusText: 'Created' });
       await fixture.whenStable();
 
-      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada.');
+      expect(TestBed.inject(NoticeService).toasts()[0].message).toBe('Despesa registrada e paga.');
     });
   });
 });

@@ -239,6 +239,93 @@ describe('TransactionsPage', () => {
     request.flush(page([paid]));
   });
 
+  describe('período de vencimento', () => {
+    it('preencher "De" e "Até" consulta pelo período e deixa de enviar o mês', async () => {
+      const { http, el, fixture } = await setup();
+      fillDate(el, '#dateFrom', '2026-11-01');
+      fixture.detectChanges();
+      const first = listRequest(http);
+      expect(first.request.params.get('dateFrom')).toBe('2026-11-01');
+      expect(first.request.params.has('dateTo')).toBe(false);
+      expect(first.request.params.has('month')).toBe(false);
+      first.flush(page([pending]));
+      fixture.detectChanges();
+
+      fillDate(el, '#dateTo', '2026-11-30');
+      fixture.detectChanges();
+      const second = listRequest(http);
+      expect(second.request.params.get('dateFrom')).toBe('2026-11-01');
+      expect(second.request.params.get('dateTo')).toBe('2026-11-30');
+      expect(second.request.params.get('page')).toBe('0');
+      expect(second.request.params.has('month')).toBe(false);
+      second.flush(page([pending]));
+    });
+
+    it('esconde o seletor de mês enquanto há período', async () => {
+      const { http, el, fixture } = await setup();
+      expect(el.querySelector('gef-month-picker')).not.toBeNull();
+      fillDate(el, '#dateTo', '2026-11-30');
+      fixture.detectChanges();
+      listRequest(http).flush(page([pending]));
+      fixture.detectChanges();
+      expect(el.querySelector('gef-month-picker')).toBeNull();
+    });
+
+    it('estado vazio fala do período', async () => {
+      const { http, el, fixture } = await setup();
+      fillDate(el, '#dateFrom', '2026-11-01');
+      fixture.detectChanges();
+      listRequest(http).flush(page([]));
+      fixture.detectChanges();
+      expect(el.textContent).toContain('Nenhum lançamento no período');
+      expect(el.textContent).not.toContain('neste mês');
+    });
+
+    it('período invertido avisa e não consulta o servidor', async () => {
+      const { http, el, fixture } = await setup();
+      fillDate(el, '#dateFrom', '2026-11-20');
+      fixture.detectChanges();
+      listRequest(http).flush(page([pending]));
+      fillDate(el, '#dateTo', '2026-11-10');
+      fixture.detectChanges();
+      http.expectNone((r) => r.url === `${API}/transactions`);
+      expect(el.querySelector('[role="alert"]')?.textContent).toContain('A data inicial não pode ser após a final.');
+      expect(el.textContent?.split('A data inicial não pode ser após a final.').length).toBe(2); // aparece uma única vez
+    });
+
+    it('Limpar período volta ao mês atual', async () => {
+      const { http, el, fixture } = await setup();
+      fillDate(el, '#dateFrom', '2026-10-01');
+      fixture.detectChanges();
+      listRequest(http).flush(page([pending]));
+      fixture.detectChanges();
+
+      clickButton(el, 'Limpar período');
+      fixture.detectChanges();
+      const request = listRequest(http);
+      expect(request.request.params.get('month')).toBe(currentMonth());
+      expect(request.request.params.has('dateFrom')).toBe(false);
+      request.flush(page([pending]));
+      fixture.detectChanges();
+      expect(el.querySelector('gef-month-picker')).not.toBeNull();
+    });
+
+    it('o período conta como um filtro ativo no botão Filtros', async () => {
+      const { http, el, fixture } = await setup(undefined, { compact: true });
+      expect(el.querySelector('header')?.textContent).not.toContain('Filtros (');
+      clickButton(el, 'Filtros');
+      fixture.detectChanges();
+      fillDate(el, '#dateFrom', '2026-11-01');
+      fillDate(el, '#dateTo', '2026-11-30');
+      fixture.detectChanges();
+      for (const request of http.match((r) => r.url === `${API}/transactions`)) {
+        request.flush(page([pending]));
+      }
+      fixture.detectChanges();
+      expect(el.querySelector('header')?.textContent).toContain('Filtros (1)');
+    });
+  });
+
   it('o filtro de status diz A receber e Recebidas só quando o tipo é Receita', async () => {
     const { http, el, fixture } = await setup();
     const statusLabels = () => optionLabels(fixture, 'Status');
