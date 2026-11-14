@@ -1,3 +1,6 @@
+# ATENÇÃO: cópia histórica, desatualizada de propósito (sem /transfers, /auth/password, payNow nem as rotas
+# do painel administrativo da feature 005). A fonte única do contrato é
+# packages/core-models/openapi/gefinc.openapi.yaml; não acrescente alterações aqui.
 openapi: 3.1.0
 info:
   title: GEFINC API

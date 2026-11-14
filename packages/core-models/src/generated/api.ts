@@ -13,7 +13,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cria uma conta (FR-001) */
+        /**
+         * Cria uma conta (FR-001)
+         * @description Com os cadastros fechados pelo painel responde `403` (`SIGNUPS_CLOSED`); em manutenção, `503`
+         *     (`MAINTENANCE`). Consome convite pendente do mesmo e-mail.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -36,8 +40,10 @@ export interface paths {
                         "application/json": components["schemas"]["UserProfile"];
                     };
                 };
+                403: components["responses"]["Forbidden"];
                 409: components["responses"]["Conflict"];
                 422: components["responses"]["ValidationError"];
+                503: components["responses"]["ServiceUnavailable"];
             };
         };
         delete?: never;
@@ -62,6 +68,12 @@ export interface paths {
          *     Conta com exclusão pendente responde `423` (`ACCOUNT_DELETION_PENDING`) sem emitir tokens.
          *     Depois de 5 falhas por e-mail ou 20 por IP em 15 minutos, responde `429` com `Retry-After`,
          *     mesmo que a senha esteja certa (FR-002).
+         *
+         *     Mudanças de comportamento do painel administrativo (aditivas): conta suspensa responde `403`
+         *     (`ACCOUNT_SUSPENDED`) somente depois de credenciais corretas; o `423` passa a informar a data
+         *     real (`deletionDate`, prazo variável), a origem (`origin`) e se o usuário pode cancelar
+         *     (`canCancel`); em manutenção, usuários comuns recebem `503` (`MAINTENANCE`) e administradores
+         *     entram normalmente.
          */
         post: {
             parameters: {
@@ -89,6 +101,7 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
                 /** @description Exclusão da conta pendente */
                 423: {
                     headers: {
@@ -99,6 +112,7 @@ export interface paths {
                     };
                 };
                 429: components["responses"]["TooManyRequests"];
+                503: components["responses"]["ServiceUnavailable"];
             };
         };
         delete?: never;
@@ -116,7 +130,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Renova a sessão com rotação do refresh token (FR-002) */
+        /**
+         * Renova a sessão com rotação do refresh token (FR-002)
+         * @description Conta suspensa responde `403` (`ACCOUNT_SUSPENDED`). Em manutenção, usuários comuns recebem
+         *     `503` (`MAINTENANCE`) e o cliente não deve encerrar a sessão por isso.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -144,6 +162,8 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                503: components["responses"]["ServiceUnavailable"];
             };
         };
         delete?: never;
@@ -424,7 +444,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Solicita a exclusão da conta com carência de 30 dias (FR-008) */
+        /**
+         * Solicita a exclusão da conta com carência de 30 dias (FR-008)
+         * @description O administrador raiz não pode excluir a própria conta (`403` `ROOT_PROTECTED`) e o último
+         *     administrador ativo também não (`409` `LAST_ADMIN`).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -457,6 +481,8 @@ export interface paths {
                     };
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                409: components["responses"]["Conflict"];
             };
         };
         delete?: never;
@@ -474,7 +500,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancela a exclusão pendente (FR-009) */
+        /**
+         * Cancela a exclusão pendente (FR-009)
+         * @description Mudança de comportamento (aditiva): só vale para exclusão pedida pelo próprio usuário. Exclusão
+         *     de origem administrativa responde `403` (`ADMIN_DECISION_LOCKED`) e o usuário não a reverte por
+         *     nenhum canal. Em manutenção, `503` (`MAINTENANCE`).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -496,6 +527,7 @@ export interface paths {
                     content?: never;
                 };
                 401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
                 /** @description Não há exclusão pendente */
                 409: {
                     headers: {
@@ -505,6 +537,1952 @@ export interface paths {
                         "application/problem+json": components["schemas"]["Problem"];
                     };
                 };
+                429: components["responses"]["TooManyRequests"];
+                503: components["responses"]["ServiceUnavailable"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/system/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estado público do sistema (manutenção e cadastros)
+         * @description Público e sem dado sensível. Alimenta o aviso das telas de entrada (web e aplicativo):
+         *     manutenção ligada e se os cadastros por conta própria estão abertos.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Estado atual */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SystemStatus"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Consulta um convite de cadastro
+         * @description Público. Devolve o e-mail convidado e a validade. Token inexistente responde `404`; convite
+         *     expirado ou cancelado, `410` (`INVITATION_EXPIRED`).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Token do link do convite (chega só por e-mail) */
+                    token: components["parameters"]["InvitationToken"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Convite válido */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvitationPreview"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+                410: components["responses"]["Gone"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aceita o convite e cria a conta
+         * @description Público. Aplica a política de senha existente. Ignora "cadastros fechados". Em manutenção
+         *     responde `503` (`MAINTENANCE`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Token do link do convite (chega só por e-mail) */
+                    token: components["parameters"]["InvitationToken"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInvitationRequest"];
+                };
+            };
+            responses: {
+                /** @description Conta criada */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserProfile"];
+                    };
+                };
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                410: components["responses"]["Gone"];
+                422: components["responses"]["ValidationError"];
+                503: components["responses"]["ServiceUnavailable"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/notices/{noticeId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispensa um aviso entregue ao usuário
+         * @description A entrega já conta como visto; a dispensa é explícita. Aviso de outro usuário responde `404`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    noticeId: components["parameters"]["NoticeId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Aviso dispensado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lista usuários (sem dado financeiro)
+         * @description Exige papel administrador, verificado no servidor a cada requisição (usuário comum recebe
+         *     `403`, visitante `401`). `q` é literal (até 100 caracteres), sem diferenciar caixa nem acento.
+         *     Não é auditada.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                    status?: "ACTIVE" | "SUSPENDED" | "DELETION_PENDING" | "ADMIN";
+                    sort?: "createdAt" | "lastAccessAt";
+                    dir?: "asc" | "desc";
+                    page?: number;
+                    size?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Página de usuários */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminUserPage"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Detalhe de um usuário (a abertura é auditada)
+         * @description Cada abertura registra `USER_DETAIL_OPENED`. Recarregar conta como nova abertura.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Detalhe */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminUserDetail"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Altera o nome de exibição do usuário */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AdminRenameRequest"];
+                };
+            };
+            responses: {
+                /** @description Usuário atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminUserDetail"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        trace?: never;
+    };
+    "/admin/users/{userId}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sessões abertas do usuário (dado pessoal) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sessões abertas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminSession"][];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Encerra todas as sessões do usuário
+         * @description Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`).
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sessões encerradas */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Encerra uma sessão do usuário */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                    sessionId: components["parameters"]["SessionId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sessão encerrada */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspende o usuário
+         * @description Recusas: a própria conta (`409 SELF_ACTION_FORBIDDEN`), administrador raiz (`403
+         *     ROOT_PROTECTED`), último administrador ativo (`409 LAST_ADMIN`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuspendRequest"];
+                };
+            };
+            responses: {
+                /** @description Usuário suspenso */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reativa o usuário suspenso (mantém a exclusão pendente, se houver) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Usuário reativado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/login-lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Retira o bloqueio temporário por tentativas de login */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Bloqueio retirado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/password-reset/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reenvia o e-mail de redefinição de senha
+         * @description Gera um novo link e invalida os anteriores. Conta suspensa ou em exclusão responde `409
+         *     ACCOUNT_NOT_USABLE`; falha de envio, `502 MAIL_DELIVERY_FAILED` (nada é concluído).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description E-mail enviado */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/password-reset/force": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invalida a senha e as sessões e envia o link de redefinição
+         * @description O administrador nunca vê senha, link nem token. Falha de envio desfaz tudo (`502`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Senha invalidada e e-mail enviado */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Concede ou retira o perfil de administrador
+         * @description Exige a senha do próprio administrador (`403 REAUTH_FAILED`). Alvo ativo; raiz protegido
+         *     (`403 ROOT_PROTECTED`); nunca deixa o sistema sem administrador (`409 LAST_ADMIN`).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RoleChangeRequest"];
+                };
+            };
+            responses: {
+                /** @description Perfil alterado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/email-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inicia a troca de e-mail do usuário
+         * @description Envia um código de 6 dígitos ao **novo** endereço (validade de 15 minutos, no máximo 5
+         *     erros); o e-mail antigo continua válido até a confirmação.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmailChangeRequest"];
+                };
+            };
+            responses: {
+                /** @description Código enviado */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PendingEmailChange"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
+            };
+        };
+        /** Cancela a troca de e-mail pendente */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Troca cancelada */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/email-change/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirma a troca de e-mail com o código recebido
+         * @description Código expirado, usado, invalidado, errado ou acima de 5 tentativas responde `422
+         *     EMAIL_CHANGE_CODE_INVALID`. Ao confirmar, encerra as sessões do usuário e avisa os dois
+         *     endereços.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmailChangeConfirmRequest"];
+                };
+            };
+            responses: {
+                /** @description E-mail alterado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users/{userId}/deletion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Solicita a exclusão da conta do usuário
+         * @description Exige motivo ativo, justificativa, prazo (imediata ou de 1 a 30 dias), o e-mail do alvo
+         *     digitado e a senha do administrador. Se já houver exclusão do usuário, só antecipa (prazo
+         *     menor; senão `422`). A exclusão imediata tenta o aviso por e-mail e executa antes de
+         *     responder. Recusas: `403 ROOT_PROTECTED`, `409 SELF_ACTION_FORBIDDEN`, `409 LAST_ADMIN`,
+         *     `422 INVALID_CONFIRMATION`, `403 REAUTH_FAILED`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeletionRequest"];
+                };
+            };
+            responses: {
+                /** @description Exclusão agendada ou executada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeletionOutcome"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        /**
+         * Cancela a exclusão com prazo em curso
+         * @description Restaura o estado anterior e avisa o usuário (e-mail e aviso no aplicativo). Exclusão já
+         *     executada responde `409 DELETION_ALREADY_EXECUTED`.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: components["parameters"]["UserId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Exclusão cancelada */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trilha de auditoria (somente leitura)
+         * @description Da mais recente à mais antiga, com cursor opaco e sem total. Não existe escrita nem
+         *     exportação da auditoria.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    actorId?: number;
+                    targetUserId?: number;
+                    action?: components["schemas"]["AuditAction"];
+                    result?: components["schemas"]["AuditResult"];
+                    /** @description Cursor opaco devolvido em `nextCursor` da página anterior */
+                    cursor?: components["parameters"]["Cursor"];
+                    limit?: components["parameters"]["CursorLimit"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Página da trilha */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditPage"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/audit/{auditId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Registro completo da auditoria */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    auditId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Registro */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditEntry"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saúde do sistema (sem endereços, credenciais ou mensagens internas) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saúde */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SystemHealth"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Estatísticas de uso (somente contagens) */
+        get: {
+            parameters: {
+                query?: {
+                    days?: 7 | 30 | 90;
+                    /** @description `true` ignora o cache de 60 segundos */
+                    refresh?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Estatísticas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UsageStats"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Alertas permanentes do painel */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Alertas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminAlerts"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/email/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Configuração de envio de e-mail (nunca usuário nem senha) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configuração */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmailConfig"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Envia um e-mail de teste ao próprio administrador
+         * @description Envio imediato, uma única tentativa.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resultado do envio */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmailTestResult"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/email/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Histórico de envios dos últimos 90 dias
+         * @description Sem corpo, assunto, link, token nem código. Conta removida aparece como `anônimo-…`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "SENT" | "FAILED";
+                    kind?: components["schemas"]["EmailKind"];
+                    /** @description Cursor opaco devolvido em `nextCursor` da página anterior */
+                    cursor?: components["parameters"]["Cursor"];
+                    limit?: components["parameters"]["CursorLimit"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Página do histórico */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EmailDeliveryPage"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/email/deliveries/{deliveryId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reenvia uma redefinição de senha que falhou
+         * @description Somente `PASSWORD_RESET` com falha e conta ainda existente; gera um novo link.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    deliveryId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reenvio aceito */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/communications/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Comunicações pendentes (avisos que não puderam ser enviados)
+         * @description Não devolve o endereço retido.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Pendências */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PendingCommunication"][];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/communications/pending/{pendingId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reenvia o aviso pendente */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    pendingId: components["parameters"]["PendingId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resultado do reenvio */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResendResult"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/communications/pending/{pendingId}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Descarta o aviso pendente (apaga o endereço retido) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    pendingId: components["parameters"]["PendingId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Aviso descartado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Convites de cadastro
+         * @description O e-mail só aparece enquanto o convite está `PENDING`.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["InvitationStatus"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Convites */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Invitation"][];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        /**
+         * Convida um e-mail a se cadastrar
+         * @description Convite pendente para o mesmo e-mail é reenviado. Falha no envio responde `502` e o convite
+         *     não é criado.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvitationRequest"];
+                };
+            };
+            responses: {
+                /** @description Convite criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Invitation"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invitations/{invitationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Cancela o convite (zera o e-mail) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    invitationId: components["parameters"]["InvitationId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Convite cancelado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invitations/{invitationId}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reenvia o convite com novo link (o anterior deixa de valer) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    invitationId: components["parameters"]["InvitationId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Convite reenviado */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/deletion-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Motivos de exclusão de conta */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Motivos */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeletionReason"][];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        /**
+         * Cria um motivo de exclusão
+         * @description A mensagem é genérica; texto com dado pessoal ou marcador de substituição responde `422`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeletionReasonInput"];
+                };
+            };
+            responses: {
+                /** @description Motivo criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeletionReason"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/deletion-reasons/{reasonId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edita um motivo
+         * @description Não altera as mensagens de exclusões já solicitadas.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reasonId: components["parameters"]["ReasonId"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeletionReasonInput"];
+                };
+            };
+            responses: {
+                /** @description Motivo atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeletionReason"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/deletion-reasons/{reasonId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Desativa um motivo
+         * @description O último motivo ativo não pode ser desativado (`409 LAST_ACTIVE_REASON`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reasonId: components["parameters"]["ReasonId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Motivo desativado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                409: components["responses"]["Conflict"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/deletion-reasons/{reasonId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reativa um motivo */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    reasonId: components["parameters"]["ReasonId"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Motivo ativado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                404: components["responses"]["NotFound"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parameters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Parâmetros do sistema
+         * @description Os editáveis (cadastros e manutenção) e os somente leitura (sessões, limites de login, carência).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Parâmetros */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Parameters"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parameters/signups-open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Abre ou fecha os cadastros por conta própria
+         * @description Auditado com o valor anterior e o novo.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SignupsOpenRequest"];
+                };
+            };
+            responses: {
+                /** @description Parâmetro alterado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/parameters/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Liga ou desliga o modo de manutenção
+         * @description Em manutenção, só administradores entram; usuários comuns recebem `503 MAINTENANCE`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MaintenanceRequest"];
+                };
+            };
+            responses: {
+                /** @description Parâmetro alterado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
+                429: components["responses"]["TooManyRequests"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Encerra as sessões de todos os usuários
+         * @description Preserva a sessão do administrador que acionou e as dos raízes. Exige a senha (`403
+         *     REAUTH_FAILED`) e a palavra de confirmação (`422 INVALID_CONFIRMATION`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RevokeAllRequest"];
+                };
+            };
+            responses: {
+                /** @description Sessões encerradas */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RevokeAllResult"];
+                    };
+                };
+                401: components["responses"]["Unauthorized"];
+                403: components["responses"]["Forbidden"];
+                422: components["responses"]["ValidationError"];
                 429: components["responses"]["TooManyRequests"];
             };
         };
@@ -2256,8 +4234,23 @@ export interface components {
             [key: string]: unknown;
         });
         DeletionPendingProblem: components["schemas"]["Problem"] & ({
-            /** Format: date */
+            /**
+             * Format: date
+             * @description Data limite (`due_at` real da solicitação; o prazo pode variar)
+             */
             deletionDate: string;
+            /**
+             * @description Quem pediu a exclusão
+             * @enum {string}
+             */
+            origin?: "USER" | "ADMIN";
+            /** @description Verdadeiro só quando `origin` é `USER`; exclusão de origem administrativa não é revertida pelo usuário */
+            canCancel?: boolean;
+            /** @description Mensagem genérica fixada na solicitação (só `ADMIN`); nunca a justificativa */
+            reasonMessage?: string;
+            /** @description Orientação para procurar o suporte */
+            supportHint?: string;
+            notices?: components["schemas"]["UserNotice"][];
         } & {
             [key: string]: unknown;
         });
@@ -2295,6 +4288,370 @@ export interface components {
             name?: string | null;
             /** Format: date-time */
             createdAt: string;
+            /** @description Conveniência de interface (mostrar o painel); a barreira de acesso é sempre do servidor. Ausente em clientes e respostas antigas. */
+            admin?: boolean;
+            /** @description Avisos de entrega única ao usuário (ex.: exclusão cancelada por um administrador). */
+            notices?: components["schemas"]["UserNotice"][];
+        };
+        SystemStatus: {
+            maintenance: boolean;
+            /** @description Mensagem de manutenção */
+            message?: string;
+            signupsOpen: boolean;
+        };
+        InvitationPreview: {
+            /** Format: email */
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        AcceptInvitationRequest: {
+            /**
+             * Format: password
+             * @description Política de senha existente: mínimo de 10 caracteres e máximo de 72 bytes em UTF-8
+             */
+            password: string;
+        };
+        UserNotice: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "DELETION_CANCELED";
+            /** @enum {string} */
+            variant: "ACTIVE" | "STILL_BLOCKED" | "USER_REQUEST_CONTINUES";
+            /** Format: date */
+            originalDeletionDate?: string;
+            /** @description Texto pronto em pt-BR; nunca a justificativa do administrador */
+            message: string;
+        };
+        MaintenanceProblem: components["schemas"]["Problem"] & ({
+            /** @description Mensagem de manutenção definida pelo administrador */
+            message?: string;
+        } & {
+            [key: string]: unknown;
+        });
+        Party: {
+            /** Format: int64 */
+            userId?: number;
+            /**
+             * @description E-mail ou nome vivos; `anônimo-` e 8 hexadecimais se a conta foi removida; `visitante` (com o
+             *     IP apenas enquanto em claro, até 90 dias) para quem não estava autenticado.
+             */
+            label: string;
+        };
+        /** @enum {string} */
+        AdminRole: "USER" | "ADMIN" | "ROOT";
+        AdminUserRow: {
+            /** Format: int64 */
+            id: number;
+            /** Format: email */
+            email: string;
+            name?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastAccessAt?: string | null;
+            role: components["schemas"]["AdminRole"];
+            suspended: boolean;
+            deletionPending: boolean;
+        };
+        AdminUserCounts: {
+            /** Format: int64 */
+            active: number;
+            /** Format: int64 */
+            suspended: number;
+            /** Format: int64 */
+            deletionPending: number;
+            /** Format: int64 */
+            admin: number;
+        };
+        AdminUserPage: {
+            content: components["schemas"]["AdminUserRow"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalElements: number;
+            counts: components["schemas"]["AdminUserCounts"];
+        };
+        AdminLoginLock: {
+            /** Format: date-time */
+            lockedUntil: string;
+        };
+        AdminDeletionInfo: {
+            /** @enum {string} */
+            origin: "USER" | "ADMIN";
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            dueAt: string;
+            reasonName?: string;
+            /** @enum {string} */
+            noticeState?: "NOT_APPLICABLE" | "QUEUED" | "SENT" | "PENDING" | "DISCARDED" | "EXPIRED";
+        };
+        PendingEmailChange: {
+            /** Format: email */
+            newEmail: string;
+            /** Format: date-time */
+            expiresAt: string;
+            attemptsLeft: number;
+        };
+        /** @description Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles. */
+        AdminUserDetail: components["schemas"]["AdminUserRow"] & {
+            openSessions: number;
+            loginLock?: components["schemas"]["AdminLoginLock"];
+            deletion?: components["schemas"]["AdminDeletionInfo"];
+            pendingEmailChange?: components["schemas"]["PendingEmailChange"];
+            /** @description Verdadeiro para o administrador raiz */
+            protected: boolean;
+            /** @description Últimas 20 ações sobre o usuário */
+            recentActions: components["schemas"]["AuditEntry"][];
+        };
+        AdminSession: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            lastUsedAt: string;
+            /** @description Dado pessoal; ausente em sessões anteriores à feature */
+            ip?: string;
+            /** @description Rótulo grosseiro (ex.: "Chrome em Windows"), nunca o User-Agent bruto */
+            device?: string;
+            current: boolean;
+        };
+        AdminRenameRequest: {
+            name: string | null;
+        };
+        SuspendRequest: {
+            /** @description Justificativa guardada só na auditoria */
+            reason: string;
+        };
+        RoleChangeRequest: {
+            /** @enum {string} */
+            role: "USER" | "ADMIN";
+            /**
+             * Format: password
+             * @description Senha do próprio administrador
+             */
+            password: string;
+        };
+        EmailChangeRequest: {
+            /** Format: email */
+            newEmail: string;
+        };
+        EmailChangeConfirmRequest: {
+            code: string;
+        };
+        DeletionRequest: {
+            /** Format: int64 */
+            reasonId: number;
+            /** @description Guardada só na auditoria; nunca mostrada ao usuário */
+            justification: string;
+            /** @enum {string} */
+            mode: "IMMEDIATE" | "GRACE";
+            /** @description Obrigatório em `GRACE` */
+            days?: number;
+            /**
+             * Format: email
+             * @description E-mail do alvo
+             */
+            confirmEmail: string;
+            /**
+             * Format: password
+             * @description Senha do próprio administrador
+             */
+            password: string;
+        };
+        DeletionOutcome: {
+            /** @enum {string} */
+            status: "SCHEDULED" | "EXECUTED" | "SUPERSEDED";
+            /** Format: date-time */
+            dueAt?: string;
+            /** @enum {string} */
+            noticeState: "SENT" | "PENDING";
+        };
+        /** @enum {string} */
+        AuditAction: "USER_DETAIL_OPENED" | "USER_SUSPENDED" | "USER_REACTIVATED" | "LOGIN_LOCK_CLEARED" | "SESSION_REVOKED" | "SESSIONS_REVOKED_ALL" | "SYSTEM_SESSIONS_REVOKED" | "PASSWORD_RESET_SENT" | "PASSWORD_RESET_FORCED" | "USER_RENAMED" | "EMAIL_CHANGE_REQUESTED" | "EMAIL_CHANGE_CONFIRMED" | "EMAIL_CHANGE_FAILED" | "EMAIL_CHANGE_CANCELED" | "ROLE_GRANTED" | "ROLE_REVOKED" | "DELETION_REQUESTED" | "DELETION_ANTICIPATED" | "DELETION_CANCELED" | "ACCOUNT_ERASED" | "COMMUNICATION_RESENT" | "COMMUNICATION_DISCARDED" | "EMAIL_TEST_SENT" | "INVITATION_CREATED" | "INVITATION_RESENT" | "INVITATION_CANCELED" | "REASON_CREATED" | "REASON_UPDATED" | "REASON_DEACTIVATED" | "REASON_ACTIVATED" | "PARAMETER_CHANGED" | "ACCESS_DENIED" | "REVERT_ATTEMPT";
+        /** @enum {string} */
+        AuditResult: "SUCCESS" | "REFUSED" | "FAILED";
+        AuditEntry: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            occurredAt: string;
+            action: components["schemas"]["AuditAction"];
+            result: components["schemas"]["AuditResult"];
+            actor: components["schemas"]["Party"];
+            target?: components["schemas"]["Party"];
+            /** @description Alvo que não é usuário: parâmetro, motivo, convite, comunicação ou rota negada */
+            subject?: string;
+            /** @description Justificativa informada pelo administrador */
+            reason?: string;
+            refusalCode?: string;
+            /** @description Resumo em pt-BR */
+            summary: string;
+            /** @description Resumo estruturado; nunca senha */
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        AuditPage: {
+            content: components["schemas"]["AuditEntry"][];
+            /** @description Ausente na última página */
+            nextCursor?: string;
+        };
+        SystemHealth: {
+            /** @enum {string} */
+            app: "UP" | "DOWN";
+            /** @enum {string} */
+            database: "UP" | "DOWN";
+            version: string;
+            /** Format: int64 */
+            uptimeSeconds: number;
+            /** Format: date-time */
+            readAt: string;
+        };
+        DayCount: {
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            count: number;
+        };
+        /** @description Somente contagens; nada por usuário. */
+        UsageStats: {
+            /** Format: date-time */
+            readAt: string;
+            usersByStatus: components["schemas"]["AdminUserCounts"];
+            /** Format: int64 */
+            active7d: number;
+            /** Format: int64 */
+            active30d: number;
+            newUsersByDay: components["schemas"]["DayCount"][];
+            entriesCreatedByDay: components["schemas"]["DayCount"][];
+        };
+        AdminAlerts: {
+            pendingCommunications: number;
+        };
+        /** @enum {string} */
+        EmailKind: "PASSWORD_RESET" | "TEST" | "INVITATION" | "DELETION_NOTICE" | "CANCELLATION_NOTICE" | "EMAIL_CHANGE_CODE" | "EMAIL_CHANGE_NOTICE";
+        /** @enum {string} */
+        EmailFailureReason: "AUTHENTICATION" | "PERMANENT_REJECTION" | "TRANSIENT_EXHAUSTED" | "TIMEOUT" | "NOT_CONFIGURED" | "OTHER";
+        /** @description Nunca inclui usuário nem senha do servidor de e-mail. */
+        EmailConfig: {
+            host: string;
+            port: number;
+            from: string;
+            complete: boolean;
+            authEnabled: boolean;
+            starttls: boolean;
+        };
+        EmailTestResult: {
+            /** @enum {string} */
+            status: "SENT" | "FAILED";
+            failureReason?: components["schemas"]["EmailFailureReason"];
+        };
+        EmailDelivery: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date-time */
+            createdAt: string;
+            kind: components["schemas"]["EmailKind"];
+            recipient: components["schemas"]["Party"];
+            /** @enum {string} */
+            status: "SENT" | "FAILED";
+            failureReason?: components["schemas"]["EmailFailureReason"];
+        };
+        EmailDeliveryPage: {
+            content: components["schemas"]["EmailDelivery"][];
+            /** @description Ausente na última página */
+            nextCursor?: string;
+        };
+        PendingCommunication: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "DELETION_NOTICE" | "CANCELLATION_NOTICE";
+            /** @description Rótulo anônimo (ex.: "anônimo-1a2b3c4d") */
+            targetLabel: string;
+            failureReason?: components["schemas"]["EmailFailureReason"];
+            attempts?: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            retainedUntil?: string;
+        };
+        ResendResult: {
+            /** @enum {string} */
+            state: "DELIVERED" | "PENDING";
+        };
+        /** @enum {string} */
+        InvitationStatus: "PENDING" | "ACCEPTED" | "CANCELED" | "EXPIRED";
+        InvitationRequest: {
+            /** Format: email */
+            email: string;
+        };
+        Invitation: {
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: email
+             * @description Somente enquanto `PENDING`
+             */
+            email?: string;
+            status: components["schemas"]["InvitationStatus"];
+            invitedBy: components["schemas"]["Party"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        DeletionReason: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** @description Mensagem genérica mostrada ao usuário */
+            message: string;
+            active: boolean;
+            initial: boolean;
+        };
+        DeletionReasonInput: {
+            name: string;
+            /** @description Genérica: sem e-mail, URL, sequência de 8 ou mais dígitos nem marcador de substituição */
+            message: string;
+        };
+        EditableParameter: {
+            /** @enum {string} */
+            key: "SIGNUPS_OPEN" | "MAINTENANCE_ENABLED" | "MAINTENANCE_MESSAGE";
+            value: string;
+            /** Format: date-time */
+            updatedAt: string;
+            updatedBy?: components["schemas"]["Party"];
+        };
+        ReadOnlyParameter: {
+            key: string;
+            value: string;
+            label: string;
+        };
+        Parameters: {
+            editable: components["schemas"]["EditableParameter"][];
+            readOnly: components["schemas"]["ReadOnlyParameter"][];
+        };
+        SignupsOpenRequest: {
+            open: boolean;
+        };
+        MaintenanceRequest: {
+            enabled: boolean;
+            message?: string;
+        };
+        RevokeAllRequest: {
+            /** Format: password */
+            password: string;
+            /** @enum {string} */
+            confirmWord: "ENCERRAR";
+        };
+        RevokeAllResult: {
+            /** Format: int64 */
+            revoked: number;
         };
         Account: {
             /** Format: int64 */
@@ -2709,6 +5066,47 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /**
+         * @description Acesso negado ou regra de negócio recusada: usuário sem papel administrador, `ROOT_PROTECTED`,
+         *     `REAUTH_FAILED`, `ACCOUNT_SUSPENDED`, `ADMIN_DECISION_LOCKED` ou `SIGNUPS_CLOSED`. Recusas de
+         *     regra nunca usam `401`, que fica reservado a "não autenticado ou sessão expirada".
+         */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Convite expirado ou cancelado (`INVITATION_EXPIRED`) */
+        Gone: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description O envio de e-mail de que a ação depende falhou; nada foi concluído (`MAIL_DELIVERY_FAILED`) */
+        BadGateway: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Sistema em manutenção para usuários comuns (`MAINTENANCE`), com a mensagem em `message` */
+        ServiceUnavailable: {
+            headers: {
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["MaintenanceProblem"];
+            };
+        };
     };
     parameters: {
         /** @description `web` entrega o refresh token em cookie HttpOnly; ausente (mobile) entrega no corpo */
@@ -2728,6 +5126,17 @@ export interface components {
         TransferId: number;
         /** @description Mês do vencimento da fatura */
         MonthPath: components["schemas"]["Month"];
+        UserId: number;
+        SessionId: string;
+        InvitationId: number;
+        /** @description Token do link do convite (chega só por e-mail) */
+        InvitationToken: string;
+        ReasonId: number;
+        PendingId: number;
+        NoticeId: number;
+        /** @description Cursor opaco devolvido em `nextCursor` da página anterior */
+        Cursor: string;
+        CursorLimit: number;
     };
     requestBodies: never;
     headers: {

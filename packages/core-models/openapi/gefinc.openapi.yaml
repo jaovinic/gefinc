@@ -23,6 +23,10 @@ tags:
   - name: Invoices
   - name: Transfers
   - name: Dashboard
+  - name: Admin
+    description: Painel administrativo. Exige papel administrador, verificado no servidor a cada requisição.
+  - name: System
+    description: Estado público do sistema.
 
 paths:
   # ---------------------------------------------------------------- Auth
@@ -30,6 +34,9 @@ paths:
     post:
       tags: [Auth]
       summary: Cria uma conta (FR-001)
+      description: |
+        Com os cadastros fechados pelo painel responde `403` (`SIGNUPS_CLOSED`); em manutenção, `503`
+        (`MAINTENANCE`). Consome convite pendente do mesmo e-mail.
       security: []
       requestBody:
         required: true
@@ -42,8 +49,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/UserProfile' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /auth/login:
     post:
@@ -55,6 +64,12 @@ paths:
         Conta com exclusão pendente responde `423` (`ACCOUNT_DELETION_PENDING`) sem emitir tokens.
         Depois de 5 falhas por e-mail ou 20 por IP em 15 minutos, responde `429` com `Retry-After`,
         mesmo que a senha esteja certa (FR-002).
+
+        Mudanças de comportamento do painel administrativo (aditivas): conta suspensa responde `403`
+        (`ACCOUNT_SUSPENDED`) somente depois de credenciais corretas; o `423` passa a informar a data
+        real (`deletionDate`, prazo variável), a origem (`origin`) e se o usuário pode cancelar
+        (`canCancel`); em manutenção, usuários comuns recebem `503` (`MAINTENANCE`) e administradores
+        entram normalmente.
       security: []
       parameters:
         - $ref: '#/components/parameters/ClientHeader'
@@ -71,16 +86,21 @@ paths:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '423':
           description: Exclusão da conta pendente
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/DeletionPendingProblem' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /auth/refresh:
     post:
       tags: [Auth]
       summary: Renova a sessão com rotação do refresh token (FR-002)
+      description: |
+        Conta suspensa responde `403` (`ACCOUNT_SUSPENDED`). Em manutenção, usuários comuns recebem
+        `503` (`MAINTENANCE`) e o cliente não deve encerrar a sessão por isso.
       security: []
       parameters:
         - $ref: '#/components/parameters/ClientHeader'
@@ -96,6 +116,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /auth/logout:
     post:
@@ -220,6 +242,9 @@ paths:
     post:
       tags: [Auth]
       summary: Solicita a exclusão da conta com carência de 30 dias (FR-008)
+      description: |
+        O administrador raiz não pode excluir a própria conta (`403` `ROOT_PROTECTED`) e o último
+        administrador ativo também não (`409` `LAST_ADMIN`).
       requestBody:
         required: true
         content:
@@ -243,11 +268,17 @@ paths:
                     format: date
                     description: Data limite para desistir (hoje + 30 dias)
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /auth/account-deletion/cancel:
     post:
       tags: [Auth]
       summary: Cancela a exclusão pendente (FR-009)
+      description: |
+        Mudança de comportamento (aditiva): só vale para exclusão pedida pelo próprio usuário. Exclusão
+        de origem administrativa responde `403` (`ADMIN_DECISION_LOCKED`) e o usuário não a reverte por
+        nenhum canal. Em manutenção, `503` (`MAINTENANCE`).
       security: []
       requestBody:
         required: true
@@ -257,12 +288,871 @@ paths:
       responses:
         '204': { description: Exclusão cancelada; faça login normalmente }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '409':
           description: Não há exclusão pendente
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  # ------------------------------------------- Convites, avisos e estado do sistema
+  /system/status:
+    get:
+      tags: [System]
+      summary: Estado público do sistema (manutenção e cadastros)
+      description: |
+        Público e sem dado sensível. Alimenta o aviso das telas de entrada (web e aplicativo):
+        manutenção ligada e se os cadastros por conta própria estão abertos.
+      security: []
+      responses:
+        '200':
+          description: Estado atual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemStatus' }
+
+  /auth/invitations/{token}:
+    get:
+      tags: [Auth]
+      summary: Consulta um convite de cadastro
+      description: |
+        Público. Devolve o e-mail convidado e a validade. Token inexistente responde `404`; convite
+        expirado ou cancelado, `410` (`INVITATION_EXPIRED`).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvitationToken'
+      responses:
+        '200':
+          description: Convite válido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitationPreview' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/Gone' }
+
+  /auth/invitations/{token}/accept:
+    post:
+      tags: [Auth]
+      summary: Aceita o convite e cria a conta
+      description: |
+        Público. Aplica a política de senha existente. Ignora "cadastros fechados". Em manutenção
+        responde `503` (`MAINTENANCE`).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvitationToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcceptInvitationRequest' }
+      responses:
+        '201':
+          description: Conta criada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /auth/notices/{noticeId}/dismiss:
+    post:
+      tags: [Auth]
+      summary: Dispensa um aviso entregue ao usuário
+      description: A entrega já conta como visto; a dispensa é explícita. Aviso de outro usuário responde `404`.
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      responses:
+        '204': { description: Aviso dispensado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # --------------------------------------------------- Painel administrativo
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Lista usuários (sem dado financeiro)
+      description: |
+        Exige papel administrador, verificado no servidor a cada requisição (usuário comum recebe
+        `403`, visitante `401`). `q` é literal (até 100 caracteres), sem diferenciar caixa nem acento.
+        Não é auditada.
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, SUSPENDED, DELETION_PENDING, ADMIN] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [createdAt, lastAccessAt], default: createdAt }
+        - name: dir
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        '200':
+          description: Página de usuários
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/users/{userId}:
+    get:
+      tags: [Admin]
+      summary: Detalhe de um usuário (a abertura é auditada)
+      description: Cada abertura registra `USER_DETAIL_OPENED`. Recarregar conta como nova abertura.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Detalhe
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Admin]
+      summary: Altera o nome de exibição do usuário
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminRenameRequest' }
+      responses:
+        '200':
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/sessions:
+    get:
+      tags: [Admin]
+      summary: Sessões abertas do usuário (dado pessoal)
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Sessões abertas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AdminSession' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin]
+      summary: Encerra todas as sessões do usuário
+      description: Vale na requisição seguinte, sem aviso ao usuário. Administrador raiz é protegido (`ROOT_PROTECTED`).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Sessões encerradas }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/sessions/{sessionId}:
+    delete:
+      tags: [Admin]
+      summary: Encerra uma sessão do usuário
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '204': { description: Sessão encerrada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/suspend:
+    post:
+      tags: [Admin]
+      summary: Suspende o usuário
+      description: |
+        Recusas: a própria conta (`409 SELF_ACTION_FORBIDDEN`), administrador raiz (`403
+        ROOT_PROTECTED`), último administrador ativo (`409 LAST_ADMIN`).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SuspendRequest' }
+      responses:
+        '204': { description: Usuário suspenso }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/reactivate:
+    post:
+      tags: [Admin]
+      summary: Reativa o usuário suspenso (mantém a exclusão pendente, se houver)
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Usuário reativado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/login-lock:
+    delete:
+      tags: [Admin]
+      summary: Retira o bloqueio temporário por tentativas de login
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Bloqueio retirado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/password-reset/send:
+    post:
+      tags: [Admin]
+      summary: Reenvia o e-mail de redefinição de senha
+      description: |
+        Gera um novo link e invalida os anteriores. Conta suspensa ou em exclusão responde `409
+        ACCOUNT_NOT_USABLE`; falha de envio, `502 MAIL_DELIVERY_FAILED` (nada é concluído).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '202': { description: E-mail enviado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+
+  /admin/users/{userId}/password-reset/force:
+    post:
+      tags: [Admin]
+      summary: Invalida a senha e as sessões e envia o link de redefinição
+      description: O administrador nunca vê senha, link nem token. Falha de envio desfaz tudo (`502`).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '202': { description: Senha invalidada e e-mail enviado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+
+  /admin/users/{userId}/role:
+    put:
+      tags: [Admin]
+      summary: Concede ou retira o perfil de administrador
+      description: |
+        Exige a senha do próprio administrador (`403 REAUTH_FAILED`). Alvo ativo; raiz protegido
+        (`403 ROOT_PROTECTED`); nunca deixa o sistema sem administrador (`409 LAST_ADMIN`).
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoleChangeRequest' }
+      responses:
+        '204': { description: Perfil alterado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/email-change:
+    post:
+      tags: [Admin]
+      summary: Inicia a troca de e-mail do usuário
+      description: |
+        Envia um código de 6 dígitos ao **novo** endereço (validade de 15 minutos, no máximo 5
+        erros); o e-mail antigo continua válido até a confirmação.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailChangeRequest' }
+      responses:
+        '202':
+          description: Código enviado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PendingEmailChange' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+    delete:
+      tags: [Admin]
+      summary: Cancela a troca de e-mail pendente
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Troca cancelada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/email-change/confirm:
+    post:
+      tags: [Admin]
+      summary: Confirma a troca de e-mail com o código recebido
+      description: |
+        Código expirado, usado, invalidado, errado ou acima de 5 tentativas responde `422
+        EMAIL_CHANGE_CODE_INVALID`. Ao confirmar, encerra as sessões do usuário e avisa os dois
+        endereços.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmailChangeConfirmRequest' }
+      responses:
+        '204': { description: E-mail alterado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/users/{userId}/deletion:
+    post:
+      tags: [Admin]
+      summary: Solicita a exclusão da conta do usuário
+      description: |
+        Exige motivo ativo, justificativa, prazo (imediata ou de 1 a 30 dias), o e-mail do alvo
+        digitado e a senha do administrador. Se já houver exclusão do usuário, só antecipa (prazo
+        menor; senão `422`). A exclusão imediata tenta o aviso por e-mail e executa antes de
+        responder. Recusas: `403 ROOT_PROTECTED`, `409 SELF_ACTION_FORBIDDEN`, `409 LAST_ADMIN`,
+        `422 INVALID_CONFIRMATION`, `403 REAUTH_FAILED`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionRequest' }
+      responses:
+        '200':
+          description: Exclusão agendada ou executada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionOutcome' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    delete:
+      tags: [Admin]
+      summary: Cancela a exclusão com prazo em curso
+      description: |
+        Restaura o estado anterior e avisa o usuário (e-mail e aviso no aplicativo). Exclusão já
+        executada responde `409 DELETION_ALREADY_EXECUTED`.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204': { description: Exclusão cancelada }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/audit:
+    get:
+      tags: [Admin]
+      summary: Trilha de auditoria (somente leitura)
+      description: |
+        Da mais recente à mais antiga, com cursor opaco e sem total. Não existe escrita nem
+        exportação da auditoria.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: actorId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: targetUserId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: action
+          in: query
+          schema: { $ref: '#/components/schemas/AuditAction' }
+        - name: result
+          in: query
+          schema: { $ref: '#/components/schemas/AuditResult' }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/CursorLimit'
+      responses:
+        '200':
+          description: Página da trilha
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/audit/{auditId}:
+    get:
+      tags: [Admin]
+      summary: Registro completo da auditoria
+      parameters:
+        - name: auditId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '200':
+          description: Registro
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditEntry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/system/health:
+    get:
+      tags: [Admin]
+      summary: Saúde do sistema (sem endereços, credenciais ou mensagens internas)
+      responses:
+        '200':
+          description: Saúde
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemHealth' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/system/stats:
+    get:
+      tags: [Admin]
+      summary: Estatísticas de uso (somente contagens)
+      parameters:
+        - name: days
+          in: query
+          schema: { type: integer, enum: [7, 30, 90], default: 30 }
+        - name: refresh
+          in: query
+          description: "`true` ignora o cache de 60 segundos"
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Estatísticas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsageStats' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/alerts:
+    get:
+      tags: [Admin]
+      summary: Alertas permanentes do painel
+      responses:
+        '200':
+          description: Alertas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminAlerts' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/email/config:
+    get:
+      tags: [Admin]
+      summary: Configuração de envio de e-mail (nunca usuário nem senha)
+      responses:
+        '200':
+          description: Configuração
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailConfig' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/email/test:
+    post:
+      tags: [Admin]
+      summary: Envia um e-mail de teste ao próprio administrador
+      description: Envio imediato, uma única tentativa.
+      responses:
+        '200':
+          description: Resultado do envio
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailTestResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/email/deliveries:
+    get:
+      tags: [Admin]
+      summary: Histórico de envios dos últimos 90 dias
+      description: Sem corpo, assunto, link, token nem código. Conta removida aparece como `anônimo-…`.
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [SENT, FAILED] }
+        - name: kind
+          in: query
+          schema: { $ref: '#/components/schemas/EmailKind' }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/CursorLimit'
+      responses:
+        '200':
+          description: Página do histórico
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmailDeliveryPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /admin/email/deliveries/{deliveryId}/resend:
+    post:
+      tags: [Admin]
+      summary: Reenvia uma redefinição de senha que falhou
+      description: Somente `PASSWORD_RESET` com falha e conta ainda existente; gera um novo link.
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        '202': { description: Reenvio aceito }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/communications/pending:
+    get:
+      tags: [Admin]
+      summary: Comunicações pendentes (avisos que não puderam ser enviados)
+      description: Não devolve o endereço retido.
+      responses:
+        '200':
+          description: Pendências
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PendingCommunication' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/communications/pending/{pendingId}/resend:
+    post:
+      tags: [Admin]
+      summary: Reenvia o aviso pendente
+      parameters:
+        - $ref: '#/components/parameters/PendingId'
+      responses:
+        '200':
+          description: Resultado do reenvio
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResendResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/communications/pending/{pendingId}/discard:
+    post:
+      tags: [Admin]
+      summary: Descarta o aviso pendente (apaga o endereço retido)
+      parameters:
+        - $ref: '#/components/parameters/PendingId'
+      responses:
+        '204': { description: Aviso descartado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/invitations:
+    get:
+      tags: [Admin]
+      summary: Convites de cadastro
+      description: O e-mail só aparece enquanto o convite está `PENDING`.
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/InvitationStatus' }
+      responses:
+        '200':
+          description: Convites
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invitation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      summary: Convida um e-mail a se cadastrar
+      description: |
+        Convite pendente para o mesmo e-mail é reenviado. Falha no envio responde `502` e o convite
+        não é criado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitationRequest' }
+      responses:
+        '201':
+          description: Convite criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invitation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+
+  /admin/invitations/{invitationId}:
+    delete:
+      tags: [Admin]
+      summary: Cancela o convite (zera o e-mail)
+      parameters:
+        - $ref: '#/components/parameters/InvitationId'
+      responses:
+        '204': { description: Convite cancelado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/invitations/{invitationId}/resend:
+    post:
+      tags: [Admin]
+      summary: Reenvia o convite com novo link (o anterior deixa de valer)
+      parameters:
+        - $ref: '#/components/parameters/InvitationId'
+      responses:
+        '202': { description: Convite reenviado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
+
+  /admin/deletion-reasons:
+    get:
+      tags: [Admin]
+      summary: Motivos de exclusão de conta
+      responses:
+        '200':
+          description: Motivos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DeletionReason' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin]
+      summary: Cria um motivo de exclusão
+      description: A mensagem é genérica; texto com dado pessoal ou marcador de substituição responde `422`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionReasonInput' }
+      responses:
+        '201':
+          description: Motivo criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionReason' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/deletion-reasons/{reasonId}:
+    put:
+      tags: [Admin]
+      summary: Edita um motivo
+      description: Não altera as mensagens de exclusões já solicitadas.
+      parameters:
+        - $ref: '#/components/parameters/ReasonId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionReasonInput' }
+      responses:
+        '200':
+          description: Motivo atualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletionReason' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/deletion-reasons/{reasonId}/deactivate:
+    post:
+      tags: [Admin]
+      summary: Desativa um motivo
+      description: O último motivo ativo não pode ser desativado (`409 LAST_ACTIVE_REASON`).
+      parameters:
+        - $ref: '#/components/parameters/ReasonId'
+      responses:
+        '204': { description: Motivo desativado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/deletion-reasons/{reasonId}/activate:
+    post:
+      tags: [Admin]
+      summary: Reativa um motivo
+      parameters:
+        - $ref: '#/components/parameters/ReasonId'
+      responses:
+        '204': { description: Motivo ativado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/parameters:
+    get:
+      tags: [Admin]
+      summary: Parâmetros do sistema
+      description: Os editáveis (cadastros e manutenção) e os somente leitura (sessões, limites de login, carência).
+      responses:
+        '200':
+          description: Parâmetros
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Parameters' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/parameters/signups-open:
+    put:
+      tags: [Admin]
+      summary: Abre ou fecha os cadastros por conta própria
+      description: Auditado com o valor anterior e o novo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupsOpenRequest' }
+      responses:
+        '204': { description: Parâmetro alterado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/parameters/maintenance:
+    put:
+      tags: [Admin]
+      summary: Liga ou desliga o modo de manutenção
+      description: Em manutenção, só administradores entram; usuários comuns recebem `503 MAINTENANCE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MaintenanceRequest' }
+      responses:
+        '204': { description: Parâmetro alterado }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /admin/sessions/revoke-all:
+    post:
+      tags: [Admin]
+      summary: Encerra as sessões de todos os usuários
+      description: |
+        Preserva a sessão do administrador que acionou e as dos raízes. Exige a senha (`403
+        REAUTH_FAILED`) e a palavra de confirmação (`422 INVALID_CONFIRMATION`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RevokeAllRequest' }
+      responses:
+        '200':
+          description: Sessões encerradas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RevokeAllResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   # ------------------------------------------------------------ Accounts
   /accounts:
@@ -1126,6 +2016,51 @@ components:
       required: true
       description: Mês do vencimento da fatura
       schema: { $ref: '#/components/schemas/Month' }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    InvitationToken:
+      name: token
+      in: path
+      required: true
+      description: Token do link do convite (chega só por e-mail)
+      schema: { type: string }
+    ReasonId:
+      name: reasonId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    PendingId:
+      name: pendingId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    NoticeId:
+      name: noticeId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    Cursor:
+      name: cursor
+      in: query
+      description: Cursor opaco devolvido em `nextCursor` da página anterior
+      schema: { type: string }
+    CursorLimit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
 
   headers:
     IdempotentReplayed:
@@ -1166,6 +2101,32 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: |
+        Acesso negado ou regra de negócio recusada: usuário sem papel administrador, `ROOT_PROTECTED`,
+        `REAUTH_FAILED`, `ACCOUNT_SUSPENDED`, `ADMIN_DECISION_LOCKED` ou `SIGNUPS_CLOSED`. Recusas de
+        regra nunca usam `401`, que fica reservado a "não autenticado ou sessão expirada".
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Gone:
+      description: Convite expirado ou cancelado (`INVITATION_EXPIRED`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    BadGateway:
+      description: O envio de e-mail de que a ação depende falhou; nada foi concluído (`MAIL_DELIVERY_FAILED`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: Sistema em manutenção para usuários comuns (`MAINTENANCE`), com a mensagem em `message`
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/MaintenanceProblem' }
 
   schemas:
     Money:
@@ -1267,7 +2228,14 @@ components:
           additionalProperties: true
           required: [deletionDate]
           properties:
-            deletionDate: { type: string, format: date }
+            deletionDate: { type: string, format: date, description: Data limite (`due_at` real da solicitação; o prazo pode variar) }
+            origin: { type: string, enum: [USER, ADMIN], description: Quem pediu a exclusão }
+            canCancel: { type: boolean, description: Verdadeiro só quando `origin` é `USER`; exclusão de origem administrativa não é revertida pelo usuário }
+            reasonMessage: { type: string, description: Mensagem genérica fixada na solicitação (só `ADMIN`); nunca a justificativa }
+            supportHint: { type: string, description: Orientação para procurar o suporte }
+            notices:
+              type: array
+              items: { $ref: '#/components/schemas/UserNotice' }
 
     RegisterRequest:
       type: object
@@ -1303,6 +2271,422 @@ components:
         email: { type: string, format: email }
         name: { type: [string, 'null'], description: Nome de exibição; nulo até o usuário informar }
         createdAt: { type: string, format: date-time }
+        admin:
+          type: boolean
+          description: Conveniência de interface (mostrar o painel); a barreira de acesso é sempre do servidor. Ausente em clientes e respostas antigas.
+        notices:
+          type: array
+          description: 'Avisos de entrega única ao usuário (ex.: exclusão cancelada por um administrador).'
+          items: { $ref: '#/components/schemas/UserNotice' }
+
+    SystemStatus:
+      type: object
+      required: [maintenance, signupsOpen]
+      properties:
+        maintenance: { type: boolean }
+        message: { type: string, maxLength: 280, description: Mensagem de manutenção, quando houver }
+        signupsOpen: { type: boolean }
+    InvitationPreview:
+      type: object
+      required: [email, expiresAt]
+      properties:
+        email: { type: string, format: email }
+        expiresAt: { type: string, format: date-time }
+    AcceptInvitationRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, format: password, minLength: 10, description: 'Política de senha existente: mínimo de 10 caracteres e máximo de 72 bytes em UTF-8' }
+    UserNotice:
+      type: object
+      required: [id, kind, variant, message]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [DELETION_CANCELED] }
+        variant: { type: string, enum: [ACTIVE, STILL_BLOCKED, USER_REQUEST_CONTINUES] }
+        originalDeletionDate: { type: string, format: date }
+        message: { type: string, description: Texto pronto em pt-BR; nunca a justificativa do administrador }
+    MaintenanceProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          additionalProperties: true
+          properties:
+            message: { type: string, description: Mensagem de manutenção definida pelo administrador }
+
+    Party:
+      type: object
+      required: [label]
+      properties:
+        userId: { type: integer, format: int64 }
+        label:
+          type: string
+          description: |
+            E-mail ou nome vivos; `anônimo-` e 8 hexadecimais se a conta foi removida; `visitante` (com o
+            IP apenas enquanto em claro, até 90 dias) para quem não estava autenticado.
+    AdminRole:
+      type: string
+      enum: [USER, ADMIN, ROOT]
+    AdminUserRow:
+      type: object
+      required: [id, email, createdAt, role, suspended, deletionPending]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        lastAccessAt: { type: [string, 'null'], format: date-time }
+        role: { $ref: '#/components/schemas/AdminRole' }
+        suspended: { type: boolean }
+        deletionPending: { type: boolean }
+    AdminUserCounts:
+      type: object
+      required: [active, suspended, deletionPending, admin]
+      properties:
+        active: { type: integer, format: int64, minimum: 0 }
+        suspended: { type: integer, format: int64, minimum: 0 }
+        deletionPending: { type: integer, format: int64, minimum: 0 }
+        admin: { type: integer, format: int64, minimum: 0 }
+    AdminUserPage:
+      type: object
+      required: [content, page, size, totalElements, counts]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserRow' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        counts: { $ref: '#/components/schemas/AdminUserCounts' }
+    AdminLoginLock:
+      type: object
+      required: [lockedUntil]
+      properties:
+        lockedUntil: { type: string, format: date-time }
+    AdminDeletionInfo:
+      type: object
+      required: [origin, requestedAt, dueAt]
+      properties:
+        origin: { type: string, enum: [USER, ADMIN] }
+        requestedAt: { type: string, format: date-time }
+        dueAt: { type: string, format: date-time }
+        reasonName: { type: string }
+        noticeState: { type: string, enum: [NOT_APPLICABLE, QUEUED, SENT, PENDING, DISCARDED, EXPIRED] }
+    PendingEmailChange:
+      type: object
+      required: [newEmail, expiresAt, attemptsLeft]
+      properties:
+        newEmail: { type: string, format: email }
+        expiresAt: { type: string, format: date-time }
+        attemptsLeft: { type: integer, minimum: 0, maximum: 5 }
+    AdminUserDetail:
+      description: Nunca inclui contas, cartões, lançamentos, categorias, transferências, saldos nem contagens deles.
+      allOf:
+        - $ref: '#/components/schemas/AdminUserRow'
+        - type: object
+          required: [openSessions, protected, recentActions]
+          properties:
+            openSessions: { type: integer, minimum: 0 }
+            loginLock: { $ref: '#/components/schemas/AdminLoginLock' }
+            deletion: { $ref: '#/components/schemas/AdminDeletionInfo' }
+            pendingEmailChange: { $ref: '#/components/schemas/PendingEmailChange' }
+            protected: { type: boolean, description: Verdadeiro para o administrador raiz }
+            recentActions:
+              type: array
+              description: Últimas 20 ações sobre o usuário
+              items: { $ref: '#/components/schemas/AuditEntry' }
+    AdminSession:
+      type: object
+      required: [id, startedAt, lastUsedAt, current]
+      properties:
+        id: { type: string, format: uuid }
+        startedAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+        ip: { type: string, description: Dado pessoal; ausente em sessões anteriores à feature }
+        device: { type: string, description: 'Rótulo grosseiro (ex.: "Chrome em Windows"), nunca o User-Agent bruto' }
+        current: { type: boolean }
+    AdminRenameRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: [string, 'null'], maxLength: 80 }
+    SuspendRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500, description: Justificativa guardada só na auditoria }
+    RoleChangeRequest:
+      type: object
+      required: [role, password]
+      properties:
+        role: { type: string, enum: [USER, ADMIN] }
+        password: { type: string, format: password, description: Senha do próprio administrador }
+    EmailChangeRequest:
+      type: object
+      required: [newEmail]
+      properties:
+        newEmail: { type: string, format: email, maxLength: 254 }
+    EmailChangeConfirmRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: '^\d{6}$' }
+    DeletionRequest:
+      type: object
+      required: [reasonId, justification, mode, confirmEmail, password]
+      properties:
+        reasonId: { type: integer, format: int64 }
+        justification: { type: string, minLength: 1, maxLength: 1000, description: Guardada só na auditoria; nunca mostrada ao usuário }
+        mode: { type: string, enum: [IMMEDIATE, GRACE] }
+        days: { type: integer, minimum: 1, maximum: 30, description: Obrigatório em `GRACE` }
+        confirmEmail: { type: string, format: email, description: E-mail do alvo, digitado pelo administrador }
+        password: { type: string, format: password, description: Senha do próprio administrador }
+    DeletionOutcome:
+      type: object
+      required: [status, noticeState]
+      properties:
+        status: { type: string, enum: [SCHEDULED, EXECUTED, SUPERSEDED] }
+        dueAt: { type: string, format: date-time }
+        noticeState: { type: string, enum: [SENT, PENDING] }
+
+    AuditAction:
+      type: string
+      enum:
+        - USER_DETAIL_OPENED
+        - USER_SUSPENDED
+        - USER_REACTIVATED
+        - LOGIN_LOCK_CLEARED
+        - SESSION_REVOKED
+        - SESSIONS_REVOKED_ALL
+        - SYSTEM_SESSIONS_REVOKED
+        - PASSWORD_RESET_SENT
+        - PASSWORD_RESET_FORCED
+        - USER_RENAMED
+        - EMAIL_CHANGE_REQUESTED
+        - EMAIL_CHANGE_CONFIRMED
+        - EMAIL_CHANGE_FAILED
+        - EMAIL_CHANGE_CANCELED
+        - ROLE_GRANTED
+        - ROLE_REVOKED
+        - DELETION_REQUESTED
+        - DELETION_ANTICIPATED
+        - DELETION_CANCELED
+        - ACCOUNT_ERASED
+        - COMMUNICATION_RESENT
+        - COMMUNICATION_DISCARDED
+        - EMAIL_TEST_SENT
+        - INVITATION_CREATED
+        - INVITATION_RESENT
+        - INVITATION_CANCELED
+        - REASON_CREATED
+        - REASON_UPDATED
+        - REASON_DEACTIVATED
+        - REASON_ACTIVATED
+        - PARAMETER_CHANGED
+        - ACCESS_DENIED
+        - REVERT_ATTEMPT
+    AuditResult:
+      type: string
+      enum: [SUCCESS, REFUSED, FAILED]
+    AuditEntry:
+      type: object
+      required: [id, occurredAt, action, result, actor, summary]
+      properties:
+        id: { type: integer, format: int64 }
+        occurredAt: { type: string, format: date-time }
+        action: { $ref: '#/components/schemas/AuditAction' }
+        result: { $ref: '#/components/schemas/AuditResult' }
+        actor: { $ref: '#/components/schemas/Party' }
+        target: { $ref: '#/components/schemas/Party' }
+        subject: { type: string, description: 'Alvo que não é usuário: parâmetro, motivo, convite, comunicação ou rota negada' }
+        reason: { type: string, description: Justificativa informada pelo administrador }
+        refusalCode: { type: string }
+        summary: { type: string, description: Resumo em pt-BR }
+        details: { type: object, additionalProperties: true, description: Resumo estruturado; nunca senha, token, link, código, e-mail, nome, IP nem valor financeiro }
+    AuditPage:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/AuditEntry' }
+        nextCursor: { type: string, description: Ausente na última página }
+
+    SystemHealth:
+      type: object
+      required: [app, database, version, uptimeSeconds, readAt]
+      properties:
+        app: { type: string, enum: [UP, DOWN] }
+        database: { type: string, enum: [UP, DOWN] }
+        version: { type: string }
+        uptimeSeconds: { type: integer, format: int64, minimum: 0 }
+        readAt: { type: string, format: date-time }
+    DayCount:
+      type: object
+      required: [date, count]
+      properties:
+        date: { type: string, format: date }
+        count: { type: integer, format: int64, minimum: 0 }
+    UsageStats:
+      description: Somente contagens; nada por usuário.
+      type: object
+      required: [readAt, usersByStatus, active7d, active30d, newUsersByDay, entriesCreatedByDay]
+      properties:
+        readAt: { type: string, format: date-time }
+        usersByStatus: { $ref: '#/components/schemas/AdminUserCounts' }
+        active7d: { type: integer, format: int64, minimum: 0 }
+        active30d: { type: integer, format: int64, minimum: 0 }
+        newUsersByDay:
+          type: array
+          items: { $ref: '#/components/schemas/DayCount' }
+        entriesCreatedByDay:
+          type: array
+          items: { $ref: '#/components/schemas/DayCount' }
+    AdminAlerts:
+      type: object
+      required: [pendingCommunications]
+      properties:
+        pendingCommunications: { type: integer, minimum: 0 }
+
+    EmailKind:
+      type: string
+      enum: [PASSWORD_RESET, TEST, INVITATION, DELETION_NOTICE, CANCELLATION_NOTICE, EMAIL_CHANGE_CODE, EMAIL_CHANGE_NOTICE]
+    EmailFailureReason:
+      type: string
+      enum: [AUTHENTICATION, PERMANENT_REJECTION, TRANSIENT_EXHAUSTED, TIMEOUT, NOT_CONFIGURED, OTHER]
+    EmailConfig:
+      description: Nunca inclui usuário nem senha do servidor de e-mail.
+      type: object
+      required: [host, port, from, complete, authEnabled, starttls]
+      properties:
+        host: { type: string }
+        port: { type: integer }
+        from: { type: string }
+        complete: { type: boolean }
+        authEnabled: { type: boolean }
+        starttls: { type: boolean }
+    EmailTestResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [SENT, FAILED] }
+        failureReason: { $ref: '#/components/schemas/EmailFailureReason' }
+    EmailDelivery:
+      type: object
+      required: [id, createdAt, kind, recipient, status]
+      properties:
+        id: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        kind: { $ref: '#/components/schemas/EmailKind' }
+        recipient: { $ref: '#/components/schemas/Party' }
+        status: { type: string, enum: [SENT, FAILED] }
+        failureReason: { $ref: '#/components/schemas/EmailFailureReason' }
+    EmailDeliveryPage:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/EmailDelivery' }
+        nextCursor: { type: string, description: Ausente na última página }
+    PendingCommunication:
+      type: object
+      required: [id, kind, targetLabel, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [DELETION_NOTICE, CANCELLATION_NOTICE] }
+        targetLabel: { type: string, description: 'Rótulo anônimo (ex.: "anônimo-1a2b3c4d")' }
+        failureReason: { $ref: '#/components/schemas/EmailFailureReason' }
+        attempts: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        retainedUntil: { type: string, format: date-time }
+    ResendResult:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [DELIVERED, PENDING] }
+
+    InvitationStatus:
+      type: string
+      enum: [PENDING, ACCEPTED, CANCELED, EXPIRED]
+    InvitationRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+    Invitation:
+      type: object
+      required: [id, status, invitedBy, createdAt, expiresAt]
+      properties:
+        id: { type: integer, format: int64 }
+        email: { type: string, format: email, description: Somente enquanto `PENDING` }
+        status: { $ref: '#/components/schemas/InvitationStatus' }
+        invitedBy: { $ref: '#/components/schemas/Party' }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    DeletionReason:
+      type: object
+      required: [id, name, message, active, initial]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string, maxLength: 80 }
+        message: { type: string, maxLength: 500, description: Mensagem genérica mostrada ao usuário }
+        active: { type: boolean }
+        initial: { type: boolean }
+    DeletionReasonInput:
+      type: object
+      required: [name, message]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        message: { type: string, minLength: 1, maxLength: 500, description: 'Genérica: sem e-mail, URL, sequência de 8 ou mais dígitos nem marcador de substituição' }
+    EditableParameter:
+      type: object
+      required: [key, value, updatedAt]
+      properties:
+        key: { type: string, enum: [SIGNUPS_OPEN, MAINTENANCE_ENABLED, MAINTENANCE_MESSAGE] }
+        value: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { $ref: '#/components/schemas/Party' }
+    ReadOnlyParameter:
+      type: object
+      required: [key, value, label]
+      properties:
+        key: { type: string }
+        value: { type: string }
+        label: { type: string }
+    Parameters:
+      type: object
+      required: [editable, readOnly]
+      properties:
+        editable:
+          type: array
+          items: { $ref: '#/components/schemas/EditableParameter' }
+        readOnly:
+          type: array
+          items: { $ref: '#/components/schemas/ReadOnlyParameter' }
+    SignupsOpenRequest:
+      type: object
+      required: [open]
+      properties:
+        open: { type: boolean }
+    MaintenanceRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        message: { type: string, maxLength: 280 }
+    RevokeAllRequest:
+      type: object
+      required: [password, confirmWord]
+      properties:
+        password: { type: string, format: password }
+        confirmWord: { type: string, enum: [ENCERRAR] }
+    RevokeAllResult:
+      type: object
+      required: [revoked]
+      properties:
+        revoked: { type: integer, format: int64, minimum: 0 }
 
     Account:
       type: object
