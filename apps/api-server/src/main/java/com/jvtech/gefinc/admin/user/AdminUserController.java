@@ -3,8 +3,6 @@ package com.jvtech.gefinc.admin.user;
 import com.jvtech.gefinc.admin.common.AdminOnly;
 import com.jvtech.gefinc.admin.common.Destructive;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.RoleChangeRequest;
-import com.jvtech.gefinc.user.UserRole;
-import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,8 +27,7 @@ public class AdminUserController {
   @Destructive
   @PutMapping("/{userId}/role")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void changeRole(
-      @PathVariable("userId") long userId, @Valid @RequestBody RoleChangeRequest body) {
-    roles.change(userId, UserRole.valueOf(body.role()), body.password());
+  public void changeRole(@PathVariable("userId") long userId, @RequestBody RoleChangeRequest body) {
+    roles.change(userId, body.role(), body.password());
   }
 }

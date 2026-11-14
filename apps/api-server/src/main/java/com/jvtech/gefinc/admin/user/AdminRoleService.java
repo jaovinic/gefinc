@@ -45,12 +45,15 @@ public class AdminRoleService {
     this.users = users;
   }
 
-  /** {@code requested}: {@code ADMIN} concede, {@code USER} retira. */
-  public void change(long targetId, UserRole requested, String password) {
-    if (requested == UserRole.ROOT) {
-      throw new IllegalArgumentException("O raiz não se concede pelo painel.");
-    }
-    boolean grant = requested == UserRole.ADMIN;
+  /**
+   * {@code requestedRole}: {@code ADMIN} concede, {@code USER} retira. Qualquer outro valor
+   * (ausente, {@code ROOT}, desconhecido) é recusado com 422 dentro da ação auditada, como
+   * tentativa de concessão ({@code ROLE_GRANTED}): é isso que ele tentaria fazer. A trilha não
+   * guarda o valor enviado.
+   */
+  public void change(long targetId, String requestedRole, String password) {
+    UserRole requested = parse(requestedRole);
+    boolean grant = requested != UserRole.USER;
     Action action = grant ? Action.GRANT_ADMIN : Action.REVOKE_ADMIN;
     AuditAction auditAction = grant ? AuditAction.ROLE_GRANTED : AuditAction.ROLE_REVOKED;
     long actorId = CurrentUser.id();
@@ -69,6 +72,9 @@ public class AdminRoleService {
                     .put(AuditKey.FROM, before.get().name())
                     .put(AuditKey.TO, after.get().name())),
         () -> {
+          if (requested == null) {
+            throw invalidRole(requestedRole);
+          }
           reauthenticator.verify(password);
           User target =
               users
@@ -85,6 +91,18 @@ public class AdminRoleService {
           after.set(target.getRole());
           return null;
         });
+  }
+
+  private static UserRole parse(String value) {
+    if ("USER".equals(value)) {
+      return UserRole.USER;
+    }
+    return "ADMIN".equals(value) ? UserRole.ADMIN : null;
+  }
+
+  private static ApiException invalidRole(String value) {
+    return ApiException.validation("Há campos inválidos.")
+        .withFieldError("role", value == null ? "Informe o perfil." : "Perfil inválido.");
   }
 
   private static Subject subject(User user) {

@@ -21,9 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Executa uma ação administrativa com auditoria obrigatória (audit-or-rollback): a alteração e a
  * linha da trilha entram na mesma transação, e a falha de qualquer uma desfaz as duas. Recusas de
- * regra (403, 409 e 422) são gravadas em transação própria, depois do rollback, e a mesma exceção é
- * relançada; a recusa de reautenticação é deduplicada. Outras falhas propagam sem auditoria. O ator
- * vem sempre de {@link CurrentUser}, nunca de parâmetro.
+ * regra (403, 404, 409 e 422) são gravadas em transação própria, depois do rollback, e a mesma
+ * exceção é relançada; a recusa de reautenticação é deduplicada. A recusa 404 (alvo inexistente) é
+ * gravada sem alvo: {@code target_user_id} não tem chave estrangeira, e um id que não existe
+ * poderia passar a apontar para um usuário criado depois. Outras falhas propagam sem auditoria. O
+ * ator vem sempre de {@link CurrentUser}, nunca de parâmetro.
  */
 @Component
 public class AdminActionExecutor {
@@ -89,6 +91,7 @@ public class AdminActionExecutor {
   private static boolean isRuleRefusal(ApiException e) {
     HttpStatus status = e.code().status();
     return status == HttpStatus.FORBIDDEN
+        || status == HttpStatus.NOT_FOUND
         || status == HttpStatus.CONFLICT
         || status == HttpStatus.UNPROCESSABLE_ENTITY;
   }
@@ -98,7 +101,7 @@ public class AdminActionExecutor {
       AuditEntry entry =
           AuditEntry.builder(ctx.action())
               .actor(ActorKind.ADMIN, adminId)
-              .target(ctx.targetUserId())
+              .target(refusal.code() == ErrorCode.NOT_FOUND ? null : ctx.targetUserId())
               .subject(ctx.subject())
               .reasonText(ctx.reasonText())
               .refusal(refusal.code().name())

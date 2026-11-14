@@ -1,6 +1,7 @@
 package com.jvtech.gefinc.admin.user;
 
 import static com.jvtech.gefinc.support.ContractAssertions.matchesContract;
+import static com.jvtech.gefinc.support.ContractAssertions.responseMatchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -251,25 +252,64 @@ class AdminRoleIT extends IntegrationTestBase {
   }
 
   @Test
-  void usuarioInexistenteDa404() throws Exception {
+  void usuarioInexistenteDa404EAuditaARecusaSemApontarParaOIdInexistente() throws Exception {
     putRole(admin, 987654L, "ADMIN", TestUsers.PASSWORD)
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("NOT_FOUND"))
         .andExpect(matchesContract());
+
+    assertThat(auditCount()).isEqualTo(1);
+    Map<String, Object> audit = lastAudit();
+    assertThat(audit)
+        .containsEntry("action", "ROLE_GRANTED")
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "NOT_FOUND")
+        .containsEntry("actor_user_id", adminRow.id());
+    // sem FK, um id inexistente poderia ser herdado por um usuário futuro: a linha não o grava
+    assertThat(audit.get("target_user_id")).isNull();
   }
 
   @Test
-  void papelInvalidoOuAusenteDa422SemTocarNoBanco() throws Exception {
+  void papelInvalidoOuAusenteDa422SemTocarNoBancoEAuditaCadaTentativa() throws Exception {
     SeededUser target = seed.createUser("alvo@example.com");
 
-    for (String role : new String[] {"ROOT", "SUPER", "", null}) {
+    String[] roles = {"ROOT", "SUPER", "", null};
+    for (String role : roles) {
       putRole(admin, target.id(), role, TestUsers.PASSWORD)
           .andExpect(status().isUnprocessableEntity())
-          .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+          .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+          .andExpect(jsonPath("$.errors[0].field").value("role"))
+          .andExpect(
+              jsonPath("$.errors[0].message")
+                  .value(role == null ? "Informe o perfil." : "Perfil inválido."));
     }
 
     assertThat(roleOf(target.id())).isEqualTo("USER");
-    assertThat(auditCount()).isZero();
+    assertThat(auditCount()).isEqualTo(roles.length);
+    List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM audit_log ORDER BY id");
+    for (Map<String, Object> row : rows) {
+      assertThat(row)
+          .containsEntry("action", "ROLE_GRANTED")
+          .containsEntry("result", "REFUSED")
+          .containsEntry("refusal_code", "VALIDATION_ERROR")
+          .containsEntry("actor_kind", "ADMIN")
+          .containsEntry("actor_user_id", adminRow.id())
+          .containsEntry("target_user_id", target.id());
+      assertThat(details(row).isEmpty()).isTrue();
+      assertThat(row.get("reason_text")).isNull();
+      // nem a senha nem o valor enviado entram na trilha
+      assertThat(row.toString()).doesNotContain(TestUsers.PASSWORD).doesNotContain("SUPER");
+    }
+  }
+
+  @Test
+  void respostaDe422ContinuaNoContratoDaApi() throws Exception {
+    SeededUser target = seed.createUser("alvo@example.com");
+
+    putRole(admin, target.id(), "ROOT", TestUsers.PASSWORD)
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(responseMatchesContract());
   }
 
   @Test
