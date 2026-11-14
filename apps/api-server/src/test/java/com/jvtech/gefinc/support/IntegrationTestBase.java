@@ -1,11 +1,15 @@
 package com.jvtech.gefinc.support;
 
+import static org.awaitility.Awaitility.await;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.auth.PasswordResetRateLimiter;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -52,9 +57,15 @@ public abstract class IntegrationTestBase {
   @Autowired protected MutableClock clock;
   @Autowired private PasswordResetRateLimiter passwordResetRateLimiter;
   @Autowired private LoginAttemptLimiter loginAttemptLimiter;
+  @Autowired private ThreadPoolTaskExecutor mailExecutor;
 
   @BeforeEach
   void resetState() throws Exception {
+    // E-mails são enviados em segundo plano: aguarda os do teste anterior para não vazarem.
+    ThreadPoolExecutor pool = mailExecutor.getThreadPoolExecutor();
+    await()
+        .atMost(Duration.ofSeconds(15))
+        .until(() -> pool.getCompletedTaskCount() == pool.getTaskCount());
     clock.set(TestClockConfig.START);
     passwordResetRateLimiter.clear();
     loginAttemptLimiter.clear();

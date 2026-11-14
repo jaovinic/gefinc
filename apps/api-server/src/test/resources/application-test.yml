@@ -5,6 +5,8 @@ spring:
 
 app:
   base-url: http://localhost:4200
+  mail:
+    retry-backoff: 10ms
   security:
     jwt-secret: segredo-de-teste-com-pelo-menos-32-caracteres-ok
     bcrypt-strength: 4

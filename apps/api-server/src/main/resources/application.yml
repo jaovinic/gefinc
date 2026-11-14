@@ -17,8 +17,23 @@ spring:
     enabled: true
     locations: classpath:db/migration
   mail:
+    # Padrões para dev (Mailpit/GreenMail: sem login nem TLS). Em produção defina SMTP_HOST, SMTP_PORT,
+    # SMTP_USER, SMTP_PASSWORD, SMTP_AUTH=true e SMTP_STARTTLS=true (ex.: Brevo, porta 587).
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:false}
+          starttls:
+            enable: ${SMTP_STARTTLS:false}
+            # Com STARTTLS ligado ele é obrigatório: nunca envia login e chave SMTP em texto puro.
+            required: ${SMTP_STARTTLS:false}
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
   jackson:
     serialization:
       write-dates-as-timestamps: false
