@@ -221,7 +221,8 @@ rejeitadas. Valores numéricos "para o plano" estão consolidados em D32.
   HMAC com segredo, o espaço de 4 bilhões de IPv4 não pode ser varrido sem o segredo (FR-062b). Rótulo na UI: `anônimo-` + 8 primeiros hex.
 - **Rotação**: trocar o segredo faz **novos** identificadores divergirem dos antigos (perde a correlação futura, não expõe nada); documentado
   como "não rotacione sem necessidade; guarde junto das demais credenciais".
-- **Deduplicação (FR-053)**: janela de 15 minutos contada a partir do primeiro registro. Chave: `HMAC(dedupe, ator|IP|decisão-alvo|tipo)`.
+- **Deduplicação (FR-053)**: janela de 15 minutos contada a partir do primeiro registro. Chave: `HMAC(dedupe, ator|IP|decisão-alvo|tipo)`
+  (nos acessos negados o alvo é constante, `/admin`, e não a rota; a rota normalizada vai só em `subject`).
   Em `AdminAccessAuditor`/`RevertAttemptAuditor`: `pg_advisory_xact_lock(hashtext(chave))`, depois `SELECT 1 FROM audit_log WHERE dedupe_key = :k AND
   occurred_at > now() - interval '15 minutes'`; se existir, **não** grava e incrementa o contador Micrometer `gefinc.admin.attempts.suppressed`
   (tags de baixa cardinalidade: `type`); senão grava (com a linha em `audit_log_client`). O `SELECT` usa o índice parcial

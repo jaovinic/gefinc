@@ -974,9 +974,11 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
   com o administrador, de modo que um e-mail digitado errado não vire posse por terceiro que apenas clique num link recebido.
 - **FR-053**: A auditoria de **acessos negados ao painel** e de **tentativas de reverter decisão administrativa** MUST registrar a
   tentativa **uma única vez por janela de 15 minutos** para o mesmo autor (usuário autenticado ou, na falta, o IP do visitante), o
-  mesmo IP, a mesma decisão ou função alvo e o mesmo tipo de tentativa. As repetições dentro da janela MUST aparecer apenas como
-  **contador/métrica operacional fora da auditoria**. A regra vale também para acessos negados de visitantes não autenticados,
-  identificados por IP. Ações administrativas efetivas e recusas por regra de negócio de um administrador (por exemplo, tentar
+  mesmo IP, a mesma decisão ou função alvo e o mesmo tipo de tentativa. Para **acessos negados ao painel** o alvo da decisão é
+  constante (`/admin`): a deduplicação é por ator, IP e tipo, com no máximo uma linha por janela, mesmo que o ator varie a rota
+  pedida; a rota normalizada fica apenas como `subject` da linha gravada. As repetições dentro da janela MUST aparecer apenas como
+  **contador/métrica operacional fora da auditoria**, que soma todas as tentativas. A regra vale também para acessos negados de
+  visitantes não autenticados, identificados por IP: IPs diferentes geram linhas distintas. Ações administrativas efetivas e recusas por regra de negócio de um administrador (por exemplo, tentar
   suspender o raiz) MUST continuar sendo registradas individualmente.
 - **FR-054**: O sistema MUST gravar o **IP real** do cliente nas tentativas auditadas (FR-053) e nas sessões (FR-008), tratando-o
   como dado pessoal (FR-039, FR-061). O IP real MUST ser obtido do cabeçalho informado pelo Cloudflare (CF-Connecting-IP), e esse
@@ -1084,7 +1086,8 @@ que o aviso de cancelamento aparece uma vez e some ao ser dispensado.
 ### Measurable Outcomes
 
 - **SC-001**: 100% das tentativas de usuários comuns e visitantes de usar qualquer função administrativa são negadas, e em 100%
-  das janelas de deduplicação (15 minutos por autor/IP, função alvo e tipo de tentativa, FR-053) há ao menos um registro na
+  das janelas de deduplicação (15 minutos por autor/IP e tipo de tentativa, com alvo constante `/admin` nos acessos negados, ou por
+  função alvo nas tentativas de reverter decisão, FR-053) há ao menos um registro na
   auditoria, com o IP (FR-054); as repetições dentro da janela são contadas em métrica fora da auditoria, sem perda de contagem.
 - **SC-002**: O administrador localiza um usuário específico (busca por parte do e-mail) e abre seu detalhe em menos de 30 segundos,
   mesmo com 10.000 usuários cadastrados.

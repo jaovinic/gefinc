@@ -61,7 +61,9 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                     .permitAll()
                     // Fechado por padrão: toda rota sob /admin, existente ou não, exige o papel
-                    // (visitante 401, usuário comum 403, nunca 404). @AdminOnly é a segunda camada.
+                    // (visitante 401, usuário comum 403, nunca 404 sob /admin). Exceção: a caixa
+                    // diferente (/ADMIN/...) dá 404 para usuário comum, como documentado no
+                    // tasks.md. @AdminOnly é a segunda camada.
                     .requestMatchers("/admin/**")
                     .hasRole("ADMIN")
                     .anyRequest()
