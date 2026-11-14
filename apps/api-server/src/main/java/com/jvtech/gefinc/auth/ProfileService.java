@@ -81,11 +81,12 @@ public class ProfileService {
           .withFieldError("newPassword", "A nova senha deve ser diferente da atual.");
     }
     user.changePassword(encoder.encode(newPassword));
-    tokens.revokeAllOfUser(userId);
+    tokens.revokeAllOfUser(userId, RevokedBy.USER);
+    TokenService.Issued issued = tokens.issueNewFamily(userId);
     return new AuthService.Session(
-        jwt.issueAccessToken(user.getId(), user.getTokenVersion()),
+        jwt.issueAccessToken(user.getId(), user.getTokenVersion(), issued.familyId()),
         jwt.accessTokenTtlSeconds(),
-        tokens.issueNewFamily(userId));
+        issued.rawToken());
   }
 
   private User load(long userId) {

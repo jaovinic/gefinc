@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 public class JwtService {
 
   private static final String VERSION_CLAIM = "ver";
+  private static final String SESSION_CLAIM = "sid";
   private static final int MIN_SECRET_BYTES = 32;
 
   private final SecretKey key;
@@ -42,19 +43,27 @@ public class JwtService {
     this.clock = clock;
   }
 
+  /** Token sem sessão: formato anterior ao painel, que vale até expirar. */
   public String issueAccessToken(long userId, int tokenVersion) {
-    Instant now = clock.instant();
-    return Jwts.builder()
-        .subject(Long.toString(userId))
-        .claim(VERSION_CLAIM, tokenVersion)
-        .issuedAt(Date.from(now))
-        .expiration(Date.from(now.plus(ttl)))
-        .signWith(key)
-        .compact();
+    return issueAccessToken(userId, tokenVersion, null);
   }
 
+  /**
+   * Token de acesso preso a uma sessão: a claim {@code sid} é o {@code family_id} da família de
+   * tokens de renovação e a requisição só vale enquanto a sessão estiver aberta.
+   */
   public String issueAccessToken(long userId, int tokenVersion, UUID sessionId) {
-    throw new UnsupportedOperationException("esqueleto: implementado junto com a sessão");
+    Instant now = clock.instant();
+    var builder =
+        Jwts.builder()
+            .subject(Long.toString(userId))
+            .claim(VERSION_CLAIM, tokenVersion)
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plus(ttl)));
+    if (sessionId != null) {
+      builder.claim(SESSION_CLAIM, sessionId.toString());
+    }
+    return builder.signWith(key).compact();
   }
 
   public AccessTokenClaims parse(String token) {
@@ -69,11 +78,16 @@ public class JwtService {
       return new AccessTokenClaims(
           Long.parseLong(claims.getSubject()),
           claims.get(VERSION_CLAIM, Integer.class),
-          null,
+          sessionId(claims),
           claims.getExpiration().toInstant());
     } catch (JwtException | IllegalArgumentException | NullPointerException e) {
       throw new InvalidTokenException("Token de acesso inválido", e);
     }
+  }
+
+  private static UUID sessionId(Claims claims) {
+    String sid = claims.get(SESSION_CLAIM, String.class);
+    return sid == null ? null : UUID.fromString(sid);
   }
 
   public long accessTokenTtlSeconds() {

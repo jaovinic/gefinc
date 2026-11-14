@@ -62,6 +62,10 @@ public class RefreshToken {
     return familyId;
   }
 
+  public Instant getExpiresAt() {
+    return expiresAt;
+  }
+
   public boolean isRevoked() {
     return revokedAt != null;
   }

@@ -58,31 +58,32 @@ public class AuthService {
       throw deletionPending(user);
     }
     users.touchAccess(user.getId(), clock.instant());
+    TokenService.Issued issued = tokens.issueNewFamily(user.getId());
     return new Session(
-        jwt.issueAccessToken(user.getId(), user.getTokenVersion()),
+        jwt.issueAccessToken(user.getId(), user.getTokenVersion(), issued.familyId()),
         jwt.accessTokenTtlSeconds(),
-        tokens.issueNewFamily(user.getId()));
+        issued.rawToken());
   }
 
   /** Troca o token de renovação por um novo par; vazio se o token não vale mais. */
   @Transactional
   public Optional<Session> refresh(String rawRefreshToken) {
-    return tokens
-        .rotate(rawRefreshToken)
-        .flatMap(
-            rotation -> {
-              Optional<User> user = users.findById(rotation.userId());
-              if (user.isEmpty() || user.get().isDeletionPending()) {
-                tokens.revokeAllOfUser(rotation.userId());
-                return Optional.empty();
-              }
-              users.touchAccess(user.get().getId(), clock.instant());
-              return Optional.of(
-                  new Session(
-                      jwt.issueAccessToken(user.get().getId(), user.get().getTokenVersion()),
-                      jwt.accessTokenTtlSeconds(),
-                      rotation.newRawToken()));
-            });
+    TokenService.Rotation rotation = tokens.rotate(rawRefreshToken);
+    if (!rotation.accepted()) {
+      return Optional.empty();
+    }
+    Optional<User> user = users.findById(rotation.userId());
+    if (user.isEmpty() || user.get().isDeletionPending()) {
+      tokens.revokeAllOfUser(rotation.userId(), RevokedBy.SYSTEM);
+      return Optional.empty();
+    }
+    users.touchAccess(user.get().getId(), clock.instant());
+    return Optional.of(
+        new Session(
+            jwt.issueAccessToken(
+                user.get().getId(), user.get().getTokenVersion(), rotation.familyId()),
+            jwt.accessTokenTtlSeconds(),
+            rotation.newRawToken()));
   }
 
   public void logout(String rawRefreshToken) {

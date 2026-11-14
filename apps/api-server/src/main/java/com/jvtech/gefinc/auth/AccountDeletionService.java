@@ -64,7 +64,7 @@ public class AccountDeletionService {
     // O livro-razão é gravado antes: a coluna deletion_request_id de users referencia a linha.
     long requestId = ledger.openUserRequest(userId, pseudonymizer.userRef(userId), now, dueAt);
     user.scheduleDeletion(now, dueAt, requestId);
-    tokens.revokeAllOfUser(userId);
+    tokens.revokeAllOfUser(userId, RevokedBy.USER);
     return auth.deletionDate(user);
   }
 

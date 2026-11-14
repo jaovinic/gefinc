@@ -99,6 +99,6 @@ public class PasswordResetService {
     user.changePassword(encoder.encode(newPassword));
     token.markUsed(now);
     resetTokens.invalidateOpenTokens(user.getId(), now);
-    tokens.revokeAllOfUser(user.getId());
+    tokens.revokeAllOfUser(user.getId(), RevokedBy.USER);
   }
 }

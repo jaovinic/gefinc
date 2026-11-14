@@ -1,6 +1,8 @@
 package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.common.config.AppProperties;
+import com.jvtech.gefinc.common.security.RequestOrigin;
+import com.jvtech.gefinc.common.security.RequestOriginProvider;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,7 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Tokens opacos de renovação de sessão: aleatórios, guardados só como hash SHA-256, rotativos a
- * cada uso e agrupados em famílias — reusar um token já rotacionado revoga a família inteira.
+ * cada uso e agrupados em famílias — reusar um token já rotacionado revoga a família inteira. Cada
+ * família é uma sessão em {@code auth_sessions} (o {@code family_id} é o {@code sid} do token de
+ * acesso): o login a cria com a origem da requisição, a renovação marca o uso e desliza a validade,
+ * e toda revogação de família marca também a sessão.
  */
 @Service
 public class TokenService {
@@ -24,11 +29,20 @@ public class TokenService {
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final RefreshTokenRepository repository;
+  private final AuthSessionRepository sessions;
+  private final RequestOriginProvider origins;
   private final AppProperties properties;
   private final Clock clock;
 
-  public TokenService(RefreshTokenRepository repository, AppProperties properties, Clock clock) {
+  public TokenService(
+      RefreshTokenRepository repository,
+      AuthSessionRepository sessions,
+      RequestOriginProvider origins,
+      AppProperties properties,
+      Clock clock) {
     this.repository = repository;
+    this.sessions = sessions;
+    this.origins = origins;
     this.properties = properties;
     this.clock = clock;
   }
@@ -50,59 +64,120 @@ public class TokenService {
     }
   }
 
-  /** Abre uma nova família (um login) e devolve o token em texto puro, que nunca é guardado. */
+  /**
+   * Abre uma nova família (um login) e a sessão correspondente, com IP, rótulo e tipo de cliente da
+   * requisição corrente. Devolve o identificador da sessão e o token em texto puro, que nunca é
+   * guardado.
+   */
   @Transactional
-  public String issueNewFamily(long userId) {
-    return store(userId, UUID.randomUUID(), clock.instant()).raw();
+  public Issued issueNewFamily(long userId) {
+    Instant now = clock.instant();
+    UUID familyId = UUID.randomUUID();
+    Stored stored = store(userId, familyId, now);
+    insertSession(familyId, userId, now, stored.expiresAt());
+    return new Issued(familyId, stored.raw());
   }
 
   /**
-   * Troca o token apresentado por um novo da mesma família. Retorna vazio se o token é
-   * desconhecido, expirado ou já rotacionado (nesse último caso a família inteira é revogada).
+   * Troca o token apresentado por um novo da mesma família. Sempre devolve o dono e a família
+   * quando o token é conhecido, mesmo ao recusar (para a auditoria de quem tenta reverter uma
+   * decisão administrativa): token desconhecido, expirado ou já rotacionado (nesse último caso a
+   * família inteira é revogada). Aceitar marca o uso da sessão e desliza a validade; uma família
+   * anterior à tabela de sessões ganha a linha aqui.
    */
   @Transactional
-  public Optional<Rotation> rotate(String rawToken) {
+  public Rotation rotate(String rawToken) {
     Instant now = clock.instant();
     Optional<RefreshToken> found = repository.findByTokenHash(hash(rawToken));
     if (found.isEmpty()) {
-      return Optional.empty();
+      return Rotation.unknown();
     }
     RefreshToken current = found.get();
     if (current.isRevoked()) {
       repository.revokeFamily(current.getFamilyId(), now);
-      return Optional.empty();
+      sessions.revoke(current.getFamilyId(), now, RevokedBy.SYSTEM.name());
+      return Rotation.refused(current.getUserId(), current.getFamilyId());
     }
     if (current.isExpired(now)) {
-      return Optional.empty();
+      return Rotation.refused(current.getUserId(), current.getFamilyId());
     }
     Stored next = store(current.getUserId(), current.getFamilyId(), now);
     current.revoke(now, next.id());
-    return Optional.of(new Rotation(current.getUserId(), next.raw()));
+    if (sessions.touch(current.getFamilyId(), now, next.expiresAt()) == 0) {
+      insertSession(current.getFamilyId(), current.getUserId(), now, next.expiresAt());
+    }
+    return Rotation.accepted(current.getUserId(), current.getFamilyId(), next.raw());
   }
 
-  /** Revoga a família do token informado (logout); desconhecido é ignorado. */
+  /** Encerra a sessão do token informado (logout); desconhecido é ignorado. */
   @Transactional
   public void revokeFamilyOf(String rawToken) {
     repository
         .findByTokenHash(hash(rawToken))
-        .ifPresent(token -> repository.revokeFamily(token.getFamilyId(), clock.instant()));
+        .ifPresent(token -> revokeFamily(token.getFamilyId(), RevokedBy.USER));
   }
 
+  /** Encerra uma sessão: os tokens de renovação da família e a linha em {@code auth_sessions}. */
   @Transactional
-  public void revokeAllOfUser(long userId) {
-    repository.revokeAllOfUser(userId, clock.instant());
+  public void revokeFamily(UUID familyId, RevokedBy by) {
+    Instant now = clock.instant();
+    repository.revokeFamily(familyId, now);
+    sessions.revoke(familyId, now, by.name());
+  }
+
+  /** Encerra todas as sessões do usuário (famílias e linhas de {@code auth_sessions}). */
+  @Transactional
+  public void revokeAllOfUser(long userId, RevokedBy by) {
+    Instant now = clock.instant();
+    repository.revokeAllOfUser(userId, now);
+    sessions.revokeAllOfUser(userId, now, by.name());
+  }
+
+  private void insertSession(UUID familyId, long userId, Instant now, Instant expiresAt) {
+    RequestOrigin origin = origins.current();
+    sessions.insertIfAbsent(
+        familyId, userId, now, expiresAt, origin.ip(), origin.deviceLabel(), origin.clientKind());
   }
 
   private Stored store(long userId, UUID familyId, Instant now) {
     String raw = newRawToken();
-    RefreshToken token =
-        new RefreshToken(
-            userId, familyId, hash(raw), now.plus(properties.security().refreshTokenTtl()), now);
+    Instant expiresAt = now.plus(properties.security().refreshTokenTtl());
+    RefreshToken token = new RefreshToken(userId, familyId, hash(raw), expiresAt, now);
     repository.saveAndFlush(token);
-    return new Stored(token.getId(), raw);
+    return new Stored(token.getId(), raw, expiresAt);
   }
 
-  public record Rotation(long userId, String newRawToken) {
+  /** Sessão aberta no login: seu identificador (o {@code sid}) e o token de renovação. */
+  public record Issued(UUID familyId, String rawToken) {
+    /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "Issued[REDACTED]";
+    }
+  }
+
+  /**
+   * Resultado de uma renovação. {@code userId} e {@code familyId} são nulos só para token
+   * desconhecido; {@code newRawToken} só existe quando aceita.
+   */
+  public record Rotation(Long userId, UUID familyId, String newRawToken) {
+
+    static Rotation unknown() {
+      return new Rotation(null, null, null);
+    }
+
+    static Rotation refused(long userId, UUID familyId) {
+      return new Rotation(userId, familyId, null);
+    }
+
+    static Rotation accepted(long userId, UUID familyId, String newRawToken) {
+      return new Rotation(userId, familyId, newRawToken);
+    }
+
+    public boolean accepted() {
+      return newRawToken != null;
+    }
+
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {
@@ -110,7 +185,7 @@ public class TokenService {
     }
   }
 
-  private record Stored(long id, String raw) {
+  private record Stored(long id, String raw, Instant expiresAt) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {
