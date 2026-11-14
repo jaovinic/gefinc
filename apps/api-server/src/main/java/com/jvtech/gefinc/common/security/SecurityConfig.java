@@ -19,6 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -64,7 +65,12 @@ public class SecurityConfig {
                     .contentTypeOptions(Customizer.withDefaults())
                     .referrerPolicy(
                         r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
-                    .httpStrictTransportSecurity(Customizer.withDefaults()))
+                    // Sempre emitido: com forward-headers-strategy=none o Tomcat não enxerga o
+                    // X-Forwarded-Proto do túnel e a requisição pareceria "não segura". O TLS
+                    // termina
+                    // no proxy; o cabeçalho é inofensivo sobre HTTP puro.
+                    .httpStrictTransportSecurity(
+                        hsts -> hsts.requestMatcher(AnyRequestMatcher.INSTANCE)))
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService, lookup),
             UsernamePasswordAuthenticationFilter.class)

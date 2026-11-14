@@ -106,6 +106,31 @@ class LoginThrottlingIT extends IntegrationTestBase {
   }
 
   @Test
+  void cabecalhoDeIpForjadoForaDeProxyConfiavelNaoEvitaOLimitePorIp() throws Exception {
+    // Na suíte não há proxy confiável: CF-Connecting-IP e X-Forwarded-For devem ser ignorados.
+    for (int i = 0; i < 20; i++) {
+      mockMvc
+          .perform(
+              post("/auth/login")
+                  .with(
+                      request -> {
+                        request.setRemoteAddr("10.0.0.9");
+                        return request;
+                      })
+                  .header("CF-Connecting-IP", "203.0.113." + (i + 1))
+                  .header("X-Forwarded-For", "198.51.100." + (i + 1))
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          Map.of("email", "forjado" + i + "@example.com", "password", WRONG))))
+          .andExpect(status().isUnauthorized());
+    }
+
+    login("/auth/login", "forjado-novo@example.com", WRONG, "10.0.0.9")
+        .andExpect(status().isTooManyRequests());
+  }
+
+  @Test
   void cancelamentoDeExclusaoDivideOMesmoLimite() throws Exception {
     fail("ana@example.com", 5, "10.0.0.1");
 

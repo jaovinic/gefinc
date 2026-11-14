@@ -14,6 +14,7 @@ import com.jvtech.gefinc.auth.AuthDtos.UserProfile;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.ClientIpResolver;
 import com.jvtech.gefinc.common.security.CurrentUser;
 import com.jvtech.gefinc.user.User;
 import jakarta.servlet.http.Cookie;
@@ -50,6 +51,7 @@ public class AuthController {
   private final AccountDeletionService deletion;
   private final ProfileService profile;
   private final AppProperties properties;
+  private final ClientIpResolver clientIp;
 
   public AuthController(
       RegistrationService registration,
@@ -57,13 +59,15 @@ public class AuthController {
       PasswordResetService passwordReset,
       AccountDeletionService deletion,
       ProfileService profile,
-      AppProperties properties) {
+      AppProperties properties,
+      ClientIpResolver clientIp) {
     this.registration = registration;
     this.auth = auth;
     this.passwordReset = passwordReset;
     this.deletion = deletion;
     this.profile = profile;
     this.properties = properties;
+    this.clientIp = clientIp;
   }
 
   @PostMapping("/register")
@@ -79,7 +83,7 @@ public class AuthController {
       HttpServletRequest request,
       HttpServletResponse response) {
     return respond(
-        auth.login(body.email(), body.password(), request.getRemoteAddr()), request, response);
+        auth.login(body.email(), body.password(), clientIp.resolve(request)), request, response);
   }
 
   @PostMapping("/refresh")
@@ -152,7 +156,7 @@ public class AuthController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void cancelAccountDeletion(
       @Valid @RequestBody LoginRequest body, HttpServletRequest request) {
-    deletion.cancel(body.email(), body.password(), request.getRemoteAddr());
+    deletion.cancel(body.email(), body.password(), clientIp.resolve(request));
   }
 
   private TokenResponse respond(
