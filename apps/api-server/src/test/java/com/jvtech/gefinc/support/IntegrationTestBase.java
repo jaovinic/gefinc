@@ -10,6 +10,7 @@ import com.jvtech.gefinc.auth.PasswordResetRateLimiter;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,10 +63,7 @@ public abstract class IntegrationTestBase {
   @BeforeEach
   void resetState() throws Exception {
     // E-mails são enviados em segundo plano: aguarda os do teste anterior para não vazarem.
-    ThreadPoolExecutor pool = mailExecutor.getThreadPoolExecutor();
-    await()
-        .atMost(Duration.ofSeconds(15))
-        .until(() -> pool.getCompletedTaskCount() == pool.getTaskCount());
+    awaitPendingMails();
     clock.set(TestClockConfig.START);
     passwordResetRateLimiter.clear();
     loginAttemptLimiter.clear();
@@ -81,5 +79,19 @@ public abstract class IntegrationTestBase {
               + " RESTART IDENTITY CASCADE");
     }
     GREEN_MAIL.purgeEmailFromAllMailboxes();
+  }
+
+  @AfterEach
+  void drainMailExecutor() {
+    // Garante que envios em segundo plano terminem antes de o GreenMail encerrar ou outro teste
+    // começar.
+    awaitPendingMails();
+  }
+
+  protected void awaitPendingMails() {
+    ThreadPoolExecutor pool = mailExecutor.getThreadPoolExecutor();
+    await()
+        .atMost(Duration.ofSeconds(15))
+        .until(() -> pool.getCompletedTaskCount() == pool.getTaskCount());
   }
 }

@@ -127,6 +127,7 @@ class LogRedactionIT extends IntegrationTestBase {
         post("/auth/refresh")
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(Map.of("refreshToken", refresh))));
+    awaitPendingMails();
 
     assertThat(appender.list).as("o teste precisa ter capturado logs para ser válido").isNotEmpty();
     List<String> forbidden =
