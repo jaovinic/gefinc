@@ -5,6 +5,8 @@ spring:
 
 app:
   base-url: http://localhost:4200
+  # Valor fixo de teste (distinto do JWT); nunca usar em produção.
+  pseudonym-secret: segredo-de-pseudonimizacao-so-para-testes-0123456789
   mail:
     retry-backoff: 10ms
   security:

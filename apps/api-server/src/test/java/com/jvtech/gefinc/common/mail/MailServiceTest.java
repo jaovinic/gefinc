@@ -98,7 +98,8 @@ class MailServiceTest {
   private MailService service(JavaMailSender sender) {
     return new MailService(
         sender,
-        new AppProperties("America/Sao_Paulo", "http://localhost:4200", REMETENTE, null),
+        new AppProperties(
+            "America/Sao_Paulo", "http://localhost:4200", REMETENTE, null, null, null),
         3,
         Duration.ofMillis(10),
         new MailMetrics(registry));
