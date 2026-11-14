@@ -55,6 +55,28 @@ class IntegrationTestBaseResetIT extends IntegrationTestBase {
   }
 
   @Test
+  void resetEsvaziaATrilhaDeAuditoriaImutavelEMantemOsGatilhosAtivos() throws Exception {
+    jdbc.update(
+        "INSERT INTO audit_log (action, result, actor_kind) VALUES ('ACCESS_DENIED', 'REFUSED',"
+            + " 'VISITOR')");
+
+    resetState();
+
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_log", Long.class)).isZero();
+    jdbc.update(
+        "INSERT INTO audit_log (action, result, actor_kind) VALUES ('ACCESS_DENIED', 'REFUSED',"
+            + " 'VISITOR')");
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> jdbc.update("UPDATE audit_log SET subject = 'x'"))
+        .rootCause()
+        .hasMessageContaining("imutável");
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> jdbc.execute("TRUNCATE TABLE audit_log, audit_log_client"))
+        .rootCause()
+        .hasMessageContaining("imutável");
+  }
+
+  @Test
   void resetRestauraAsSementesDasMigracoes() throws Exception {
     jdbc.update("UPDATE system_parameters SET value = 'false' WHERE key = 'SIGNUPS_OPEN'");
     jdbc.update("UPDATE deletion_reasons SET active = false, name = 'Alterado' WHERE id = 1");
