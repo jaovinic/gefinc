@@ -61,6 +61,11 @@ public class TransactionService {
     if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
       throw new ApiException(ErrorCode.BAD_REQUEST, "Paginação inválida.");
     }
+    if (filter.dateFrom() != null
+        && filter.dateTo() != null
+        && filter.dateFrom().isAfter(filter.dateTo())) {
+      throw new ApiException(ErrorCode.BAD_REQUEST, "A data inicial não pode ser após a final.");
+    }
     incomeSettlement.settleDue(userId);
     TransactionSearch.Result result = search.search(userId, filter, page, size);
     return new TransactionPage(

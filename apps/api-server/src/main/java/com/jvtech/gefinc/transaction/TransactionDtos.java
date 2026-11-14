@@ -34,7 +34,8 @@ public final class TransactionDtos {
       @NotNull(message = "Informe a conta.") Long accountId,
       @NotNull(message = "Informe a categoria.") Long categoryId,
       @NotNull(message = "Informe a data da compra.") LocalDate purchaseDate,
-      LocalDate firstDueDate) {
+      LocalDate firstDueDate,
+      Boolean payNow) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {

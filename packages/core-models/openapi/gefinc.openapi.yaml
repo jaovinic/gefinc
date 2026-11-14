@@ -624,11 +624,25 @@ paths:
     get:
       tags: [Transactions]
       summary: Lista lançamentos com filtros (FR-027)
+      description: >-
+        Ordenada por vencimento do mais recente ao mais antigo (`dueDate desc, id desc`), em todas as páginas.
       parameters:
         - name: month
           in: query
           description: Mês de vencimento
           schema: { $ref: '#/components/schemas/Month' }
+        - name: dateFrom
+          in: query
+          description: >-
+            Vencimento a partir desta data (inclusiva). Se `month` também for enviado, os dois filtros
+            valem juntos (E).
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          description: >-
+            Vencimento até esta data (inclusiva). `dateFrom` posterior a `dateTo` ou data malformada
+            respondem `400`.
+          schema: { type: string, format: date }
         - name: accountId
           in: query
           schema: { type: integer, format: int64 }
@@ -656,6 +670,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TransactionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
 
   /transactions/{transactionId}:
     parameters:
@@ -1431,6 +1446,14 @@ components:
             Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor). Para receita,
             é a data em que o dinheiro entra na conta: data de hoje ou anterior entra automaticamente
             (`PAID`); data futura fica `PENDING` até a data chegar.
+        payNow:
+          type: boolean
+          description: >-
+            "Pagar agora": a ocorrência é criada já `PAID`, com `paymentDate` igual ao vencimento
+            (`firstDueDate`), na mesma requisição. Vale só para despesa avulsa (`VARIABLE`, ou `INSTALLMENT`
+            com 1 parcela) em conta `CHECKING` ou `CASH`, com vencimento de hoje ou anterior. Em cartão de
+            crédito, receita, `FIXED`, `INSTALLMENT` com 2+ parcelas ou vencimento futuro, `true` responde
+            `422` com erro no campo `payNow` e nada é gravado. Omitido equivale a `false`.
     TransactionGroupUpdate:
       type: object
       required: [description, categoryId, version]

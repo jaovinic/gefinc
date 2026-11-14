@@ -1280,12 +1280,19 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lista lançamentos com filtros (FR-027) */
+        /**
+         * Lista lançamentos com filtros (FR-027)
+         * @description Ordenada por vencimento do mais recente ao mais antigo (`dueDate desc, id desc`), em todas as páginas.
+         */
         get: {
             parameters: {
                 query?: {
                     /** @description Mês de vencimento */
                     month?: components["schemas"]["Month"];
+                    /** @description Vencimento a partir desta data (inclusiva). Se `month` também for enviado, os dois filtros valem juntos (E). */
+                    dateFrom?: string;
+                    /** @description Vencimento até esta data (inclusiva). `dateFrom` posterior a `dateTo` ou data malformada respondem `400`. */
+                    dateTo?: string;
                     accountId?: number;
                     categoryId?: number;
                     kind?: components["schemas"]["CategoryType"];
@@ -1309,6 +1316,7 @@ export interface paths {
                         "application/json": components["schemas"]["TransactionPage"];
                     };
                 };
+                400: components["responses"]["BadRequest"];
             };
         };
         put?: never;
@@ -2406,6 +2414,8 @@ export interface components {
              * @description Obrigatório fora do cartão de crédito; ignorado em cartão (calculado pelo servidor). Para receita, é a data em que o dinheiro entra na conta: data de hoje ou anterior entra automaticamente (`PAID`); data futura fica `PENDING` até a data chegar.
              */
             firstDueDate?: string;
+            /** @description "Pagar agora": a ocorrência é criada já `PAID`, com `paymentDate` igual ao vencimento (`firstDueDate`), na mesma requisição. Vale só para despesa avulsa (`VARIABLE`, ou `INSTALLMENT` com 1 parcela) em conta `CHECKING` ou `CASH`, com vencimento de hoje ou anterior. Em cartão de crédito, receita, `FIXED`, `INSTALLMENT` com 2+ parcelas ou vencimento futuro, `true` responde `422` com erro no campo `payNow` e nada é gravado. Omitido equivale a `false`. */
+            payNow?: boolean;
         };
         TransactionGroupUpdate: {
             description: string;
