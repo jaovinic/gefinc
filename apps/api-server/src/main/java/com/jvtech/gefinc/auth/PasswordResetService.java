@@ -3,12 +3,13 @@ package com.jvtech.gefinc.auth;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
-import com.jvtech.gefinc.common.mail.MailService;
+import com.jvtech.gefinc.common.mail.PasswordResetMailRequested;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,7 @@ public class PasswordResetService {
   private final PasswordPolicy policy;
   private final PasswordEncoder encoder;
   private final TokenService tokens;
-  private final MailService mail;
+  private final ApplicationEventPublisher events;
   private final AppProperties properties;
   private final Clock clock;
 
@@ -36,7 +37,7 @@ public class PasswordResetService {
       PasswordPolicy policy,
       PasswordEncoder encoder,
       TokenService tokens,
-      MailService mail,
+      ApplicationEventPublisher events,
       AppProperties properties,
       Clock clock) {
     this.users = users;
@@ -45,14 +46,15 @@ public class PasswordResetService {
     this.policy = policy;
     this.encoder = encoder;
     this.tokens = tokens;
-    this.mail = mail;
+    this.events = events;
     this.properties = properties;
     this.clock = clock;
   }
 
   /**
    * Resposta sempre igual, exista a conta ou não. Para contas existentes, invalida os links
-   * anteriores e envia um novo.
+   * anteriores e agenda o envio de um novo; o e-mail só sai de forma assíncrona depois do commit,
+   * sem segurar a conexão do banco durante o SMTP e sem diferença de tempo observável por conta.
    */
   @Transactional
   public void request(String email) {
@@ -67,8 +69,9 @@ public class PasswordResetService {
               resetTokens.save(
                   new PasswordResetToken(
                       user.getId(), TokenService.hash(raw), now.plus(LINK_VALIDITY), now));
-              mail.sendPasswordReset(
-                  user.getEmail(), properties.baseUrl() + "/reset-password?token=" + raw);
+              events.publishEvent(
+                  new PasswordResetMailRequested(
+                      user.getEmail(), properties.baseUrl() + "/reset-password?token=" + raw));
             });
   }
 

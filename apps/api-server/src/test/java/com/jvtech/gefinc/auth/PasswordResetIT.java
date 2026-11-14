@@ -85,6 +85,10 @@ class PasswordResetIT extends IntegrationTestBase {
   void contaInexistenteRecebeAMesmaRespostaSemEnviarEmail() throws Exception {
     requestReset("ninguem@example.com", 202);
 
+    // Sem conta não há link gravado, logo nenhum e-mail pode estar a caminho (checagem
+    // determinística); a espera curta só confirma que nada chegou ao SMTP.
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM password_reset_tokens", Integer.class))
+        .isZero();
     assertThat(GREEN_MAIL.waitForIncomingEmail(500, 1)).isFalse();
   }
 
