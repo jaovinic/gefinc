@@ -124,4 +124,11 @@ describe('ProfilePage (Minha conta)', () => {
     expect(el.textContent).toContain('A senha atual está incorreta.');
     expect(TestBed.inject(SessionService).authenticated()).toBe(true);
   });
+
+  it('tem o link do aviso de privacidade em Minha conta', async () => {
+    const { el } = await setup();
+
+    const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/privacidade');
+  });
 });

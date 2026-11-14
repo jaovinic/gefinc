@@ -7,3 +7,4 @@ export * from './reset-password/reset-password';
 export * from './profile/profile-page';
 export * from './avatar/avatar';
 export * from './account-chip/account-chip';
+export * from './privacy/privacy-notice';

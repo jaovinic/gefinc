@@ -45,6 +45,9 @@ import { AuthCard } from '../auth-card';
         <p class="text-caption text-gefinc-muted">Ainda não tem conta?</p>
         <a class="gef-btn-secondary block w-full text-center" routerLink="/register">Criar conta</a>
       </div>
+      <p class="mt-5 text-center text-caption text-gefinc-muted">
+        <a class="underline underline-offset-2 hover:text-gefinc-text" routerLink="/privacidade" data-testid="privacy-link">Privacidade: o que guardamos das sessões</a>
+      </p>
     </gef-auth-card>
   `,
 })

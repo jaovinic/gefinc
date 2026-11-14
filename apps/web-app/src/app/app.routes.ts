@@ -3,6 +3,7 @@ import {
   ProfilePage,
   ForgotPassword,
   Login,
+  PrivacyNoticePage,
   Register,
   ResetPassword,
   DashboardPage,
@@ -26,6 +27,7 @@ export const appRoutes: Route[] = [
     path: 'reset-password',
     component: ResetPassword,
   },
+  { path: 'privacidade', component: PrivacyNoticePage },
   {
     path: '',
     component: Shell,

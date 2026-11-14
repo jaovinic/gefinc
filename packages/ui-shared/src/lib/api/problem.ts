@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ERROR_CODES } from '@gefinc/core-models';
+import { ADMIN_ERROR_CODES, ERROR_CODES } from '@gefinc/core-models';
 
 /** Erro da API já interpretado (corpo `problem+json` do contrato). */
 export interface ApiProblem {
@@ -59,6 +59,11 @@ export function messageFor(problem: ApiProblem): string {
       return 'Muitas solicitações ou tentativas. Aguarde alguns minutos e tente novamente.';
     case ERROR_CODES.invalidResetToken:
       return 'Este link é inválido, já foi usado ou expirou. Solicite um novo.';
+    case ADMIN_ERROR_CODES.accountSuspended:
+      // Nunca o motivo: o servidor não o envia e a tela só orienta procurar o suporte.
+      return 'Conta suspensa. Procure o suporte.';
+    case ADMIN_ERROR_CODES.adminDecisionLocked:
+      return 'Esta decisão foi tomada pela administração e não pode ser desfeita por aqui. Procure o suporte.';
     case ERROR_CODES.staleVersion:
       return 'Este registro foi alterado em outro dispositivo. Recarregue para ver a versão atual.';
     default:

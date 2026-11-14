@@ -83,4 +83,30 @@ describe('Login', () => {
     await fixture.whenStable();
     expect(navigateByUrl).toHaveBeenCalledWith('/');
   });
+
+  it('conta suspensa com a senha certa mostra a orientação de procurar o suporte, sem o motivo', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        { code: 'ACCOUNT_SUSPENDED', detail: 'Sua conta está suspensa.', supportHint: 'Fale com o suporte.' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Conta suspensa. Procure o suporte.');
+    expect(el.textContent).not.toContain('agendada');
+    expect(el.querySelector('button.gef-btn-secondary[disabled]')).toBeNull();
+  });
+
+  it('tem o link do aviso de privacidade no rodapé', async () => {
+    const { el } = await setup();
+
+    const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/privacidade');
+    expect(link.textContent).toContain('Privacidade');
+  });
 });

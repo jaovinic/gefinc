@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { Route, Router } from '@angular/router';
-import { authGuard } from '@gefinc/ui-shared';
+import { PrivacyNoticePage, authGuard } from '@gefinc/ui-shared';
 import { ForgotPasswordPage, LoginPage, RegisterPage } from './auth/auth-pages';
 import { HomePage } from './home/home.page';
 import { MobileShell } from './shell/mobile-shell';
@@ -13,6 +13,7 @@ export const appRoutes: Route[] = [
   { path: 'login', component: LoginPage },
   { path: 'register', component: RegisterPage },
   { path: 'forgot-password', component: ForgotPasswordPage },
+  { path: 'privacidade', component: PrivacyNoticePage },
   { path: 'novo', loadComponent: () => import('./new-entry/new-entry.page').then((m) => m.NewEntryPage), canActivate: [authGuard] },
   // Endereços antigos (atalhos e lembretes já gravados) levam ao novo lançamento na natureza certa.
   { path: 'quick-expense', redirectTo: () => inject(Router).parseUrl('/novo?tipo=despesa') },
