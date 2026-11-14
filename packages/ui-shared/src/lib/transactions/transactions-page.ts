@@ -53,7 +53,9 @@ export const IMPACT_WAIT_MS = 3_000;
       <header class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 class="text-title-lg font-bold">Lançamentos</h1>
         <div class="flex flex-col gap-3 md:flex-row md:items-center">
-          <gef-month-picker [(value)]="month" />
+          @if (!periodActive()) {
+            <gef-month-picker [(value)]="month" />
+          }
           <div class="flex flex-wrap gap-3">
             <button type="button" class="gef-btn-primary flex w-auto flex-1 basis-auto items-center justify-center gap-2 md:w-auto" (click)="formOpen.set(true)">
               <gef-icon name="plus" [size]="18" />Novo lançamento
@@ -89,11 +91,23 @@ export const IMPACT_WAIT_MS = 3_000;
       }
 
       <ng-template #filtersTpl>
-        <div class="grid gap-3 sm:grid-cols-4">
-          <gef-select ariaLabel="Natureza" [options]="kindOptions" [ngModel]="kind()" (ngModelChange)="kind.set($event)" />
-          <gef-select ariaLabel="Status" [options]="statusOptions()" [ngModel]="status()" (ngModelChange)="status.set($event)" />
-          <gef-select ariaLabel="Conta" [options]="accountOptions()" [ngModel]="accountId()" (ngModelChange)="accountId.set(+$event)" />
-          <gef-select ariaLabel="Categoria" [options]="categoryOptions()" [ngModel]="categoryId()" (ngModelChange)="categoryId.set(+$event)" />
+        <div class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-4">
+            <gef-select ariaLabel="Natureza" [options]="kindOptions" [ngModel]="kind()" (ngModelChange)="kind.set($event)" />
+            <gef-select ariaLabel="Status" [options]="statusOptions()" [ngModel]="status()" (ngModelChange)="status.set($event)" />
+            <gef-select ariaLabel="Conta" [options]="accountOptions()" [ngModel]="accountId()" (ngModelChange)="accountId.set(+$event)" />
+            <gef-select ariaLabel="Categoria" [options]="categoryOptions()" [ngModel]="categoryId()" (ngModelChange)="categoryId.set(+$event)" />
+          </div>
+          <div class="grid items-end gap-3 sm:grid-cols-4" role="group" aria-label="Período de vencimento">
+            <gef-date-field inputId="dateFrom" label="De" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+            <gef-date-field inputId="dateTo" label="Até" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+            @if (periodActive()) {
+              <button type="button" class="gef-btn-secondary" (click)="clearPeriod()">Limpar período</button>
+            }
+          </div>
+          @if (periodActive() && !periodError()) {
+            <p class="text-caption text-gefinc-muted">Com um período escolhido, o mês acima não é usado.</p>
+          }
         </div>
       </ng-template>
 
@@ -233,6 +247,8 @@ export const IMPACT_WAIT_MS = 3_000;
         <gef-loading variant="list" message="Carregando lançamentos…" />
       } @else if (loadError()) {
         <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
+      } @else if (periodError(); as text) {
+        <p class="gef-alert-error" role="alert">{{ text }}</p>
       } @else if (items().length === 0) {
         <gef-empty icon="list" [title]="emptyTitle()" [hint]="emptyHint()">
           <button type="button" class="gef-btn-secondary" (click)="formOpen.set(true)">Novo lançamento</button>
@@ -378,6 +394,13 @@ export class TransactionsPage implements OnInit {
   protected readonly status = signal<TransactionStatus | ''>(['PENDING', 'PAID'].includes(this.initial?.get('status') ?? '') ? (this.initial!.get('status') as TransactionStatus) : '');
   protected readonly accountId = signal(0);
   protected readonly categoryId = signal(0);
+  /** Período de vencimento (`AAAA-MM-DD`, inclusivo); vazio é sem limite. Com algum limite preenchido, o mês não é usado. */
+  protected readonly dateFrom = signal('');
+  protected readonly dateTo = signal('');
+  protected readonly periodActive = computed(() => this.dateFrom() !== '' || this.dateTo() !== '');
+  protected readonly periodError = computed(() =>
+    this.dateFrom() && this.dateTo() && this.dateFrom() > this.dateTo() ? 'A data inicial não pode ser após a final.' : null,
+  );
   protected readonly page = signal(0);
 
   protected readonly items = signal<Transaction[]>([]);
@@ -390,12 +413,14 @@ export class TransactionsPage implements OnInit {
   private readonly staleAt = signal<Date | null>(null);
   protected readonly emptyTitle = computed(() => {
     const since = this.staleAt();
-    return since ? `Nenhum lançamento na última sincronização (${formatSyncedAt(since)})` : 'Nenhum lançamento neste mês';
+    return since ? `Nenhum lançamento na última sincronização (${formatSyncedAt(since)})` : this.periodActive() ? 'Nenhum lançamento no período' : 'Nenhum lançamento neste mês';
   });
   protected readonly emptyHint = computed(() =>
     this.staleAt()
       ? 'Estes são os dados salvos neste aparelho; podem estar desatualizados. Conecte-se para atualizar.'
-      : 'Cadastre um lançamento ou escolha outro mês.',
+      : this.periodActive()
+        ? 'Cadastre um lançamento ou ajuste o período.'
+        : 'Cadastre um lançamento ou escolha outro mês.',
   );
   protected readonly message = signal<string | null>(null);
   protected readonly formOpen = signal(false);
@@ -422,7 +447,7 @@ export class TransactionsPage implements OnInit {
     ...this.reference.categories().map((c) => ({ value: c.id, label: c.name })),
   ]);
   protected readonly activeFilters = computed(
-    () => [this.kind() !== '', this.status() !== '', this.accountId() !== 0, this.categoryId() !== 0].filter(Boolean).length,
+    () => [this.kind() !== '', this.status() !== '', this.accountId() !== 0, this.categoryId() !== 0, this.periodActive()].filter(Boolean).length,
   );
   protected readonly panel = signal<Panel | null>(null);
   /** Ação do painel em andamento: toques repetidos não registram a operação de novo. */
@@ -448,6 +473,8 @@ export class TransactionsPage implements OnInit {
       this.status();
       this.accountId();
       this.categoryId();
+      this.dateFrom();
+      this.dateTo();
       untracked(() => {
         this.page.set(0);
         this.load();
@@ -465,12 +492,29 @@ export class TransactionsPage implements OnInit {
     this.reference.refresh();
   }
 
+  /** Limpa o período e volta ao mês atual. */
+  protected clearPeriod(): void {
+    this.dateFrom.set('');
+    this.dateTo.set('');
+    this.month.set(currentMonth());
+  }
+
   protected load(): void {
+    if (this.periodError()) {
+      // Período invertido: a tela avisa em vez de chamar o servidor.
+      this.loading.set(false);
+      this.loadError.set(null);
+      this.items.set([]);
+      this.total.set(0);
+      return;
+    }
     this.loading.set(true);
     this.loadError.set(null);
     this.api
       .list({
-        month: this.month(),
+        month: this.periodActive() ? undefined : this.month(),
+        dateFrom: this.dateFrom() || undefined,
+        dateTo: this.dateTo() || undefined,
         kind: this.kind() || undefined,
         status: this.status() || undefined,
         accountId: this.accountId() || undefined,

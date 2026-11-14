@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { API_BASE_URL, NoticeService, ReferenceData } from '@gefinc/ui-shared';
+import { todayIso } from '@gefinc/utils';
 import { BACKGROUND_READ_MAX_MS, offlineInterceptor } from './offline.interceptor';
 import { BackgroundReads } from './background-reads';
 import { CacheStore } from './cache-store';
@@ -649,6 +650,30 @@ describe('offlineInterceptor', () => {
       backend.expectNone(`${API}/transactions?month=2026-11`);
 
       expect((await result).totalElements).toBe(1);
+    });
+
+    it('o período da consulta (dateFrom e dateTo) filtra o lançamento novo, sem o mês', async () => {
+      ops.set([op]);
+      online.set(false);
+      cache.get.mockResolvedValue({ value: { content: [], page: 0, size: 25, totalElements: 0 }, syncedAt: new Date() });
+      const within = new Promise<{ totalElements: number }>((resolve) => http.get<never>(`${API}/transactions?dateFrom=2026-11-12&dateTo=2026-11-12`).subscribe(resolve as never));
+      expect((await within).totalElements).toBe(1);
+
+      const outside = new Promise<{ totalElements: number }>((resolve) => http.get<never>(`${API}/transactions?dateFrom=2026-11-13`).subscribe(resolve as never));
+      expect((await outside).totalElements).toBe(0);
+    });
+
+    it('lançamento com payNow criado sem conexão aparece como pago', async () => {
+      const today = todayIso();
+      ops.set([{ ...op, body: { ...(op.body as object), firstDueDate: today, purchaseDate: today, payNow: true } }]);
+      online.set(false);
+      cache.get.mockResolvedValue({ value: { content: [], page: 0, size: 25, totalElements: 0 }, syncedAt: new Date() });
+
+      const page = await new Promise<{ content: { status: string; paymentDate?: string; overdue: boolean }[] }>((resolve) =>
+        http.get<never>(`${API}/transactions?dateFrom=${today}&dateTo=${today}`).subscribe(resolve as never),
+      );
+
+      expect(page.content[0]).toMatchObject({ status: 'PAID', paymentDate: today, overdue: false });
     });
   });
 });

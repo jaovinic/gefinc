@@ -75,16 +75,48 @@ public class TransactionGroupService {
           .withFieldError(
               "totalInstallments", "Somente lançamentos parcelados têm mais de uma parcela.");
     }
+    boolean payNow = Boolean.TRUE.equals(input.payNow());
+    if (payNow) {
+      assertCanPayNow(account, category, input, installments);
+    }
     GroupView created =
         switch (input.recurrenceType()) {
           case VARIABLE -> createVariable(userId, account, input);
           case FIXED -> createFixed(userId, account, input);
           case INSTALLMENT -> createInstallments(userId, account, input, installments);
         };
+    if (payNow) {
+      // Mesma operação de TransactionService.pay, na mesma transação da criação.
+      Transaction tx = created.transactions().get(0);
+      tx.markPaid(tx.getDueDate());
+      transactions.saveAndFlush(tx);
+    }
     // Receita com vencimento até hoje já entra na conta; a liquidação limpa o contexto de
     // persistência, então o grupo é lido de novo.
     incomeSettlement.settleDue(userId);
     return view(userId, created.group().getId());
+  }
+
+  /**
+   * "Pagar agora" só vale para despesa avulsa (ou parcelada em 1x) fora de cartão, com vencimento
+   * até hoje; o pagamento de cartão passa pela fatura.
+   */
+  private void assertCanPayNow(
+      Account account, Category category, GroupInput input, int installments) {
+    String message;
+    if (account.isCreditCard()) {
+      message = "Compras no cartão são pagas pela fatura.";
+    } else if (category.getType() != CategoryType.EXPENSE) {
+      message = "Somente despesas podem ser pagas na criação.";
+    } else if (input.recurrenceType() == RecurrenceType.FIXED
+        || (input.recurrenceType() == RecurrenceType.INSTALLMENT && installments > 1)) {
+      message = "Somente lançamentos avulsos podem ser pagos na criação.";
+    } else if (input.firstDueDate() == null || input.firstDueDate().isAfter(LocalDate.now(clock))) {
+      message = "Só é possível pagar na criação lançamentos com vencimento até hoje.";
+    } else {
+      return;
+    }
+    throw ApiException.validation("Há campos inválidos.").withFieldError("payNow", message);
   }
 
   private GroupView createVariable(long userId, Account account, GroupInput input) {
@@ -128,7 +160,8 @@ public class TransactionGroupService {
               input.accountId(),
               input.categoryId(),
               input.purchaseDate(),
-              input.firstDueDate());
+              input.firstDueDate(),
+              input.payNow());
       return createVariable(userId, account, single);
     }
     if (input.totalAmount().movePointRight(2).longValueExact() < installments) {

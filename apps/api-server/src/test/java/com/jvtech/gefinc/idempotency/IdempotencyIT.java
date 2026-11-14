@@ -11,6 +11,7 @@ import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -101,6 +102,28 @@ class IdempotencyIT extends IntegrationTestBase {
     assertThat(objectMapper.readTree(second)).isEqualTo(objectMapper.readTree(first));
     assertThat(count("transaction_groups")).isEqualTo(1);
     assertThat(count("transactions")).isEqualTo(1);
+  }
+
+  @Test
+  void repetirACriacaoComPayNowNaoDuplicaNemPagaDuasVezes() throws Exception {
+    String key = UUID.randomUUID().toString();
+    Map<String, Object> body =
+        api.variableBody("Mercado", "150.00", checking, food, "2026-11-10", "2026-11-10");
+    body.put("payNow", true);
+    BigDecimal before = new BigDecimal(api.balanceOf(ana, checking));
+
+    post(ana, "/transaction-groups", key, body)
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.transactions[0].status").value("PAID"));
+    post(ana, "/transaction-groups", key, body)
+        .andExpect(status().isCreated())
+        .andExpect(header().string("Idempotent-Replayed", "true"))
+        .andExpect(jsonPath("$.transactions[0].status").value("PAID"));
+
+    assertThat(count("transaction_groups")).isEqualTo(1);
+    assertThat(count("transactions")).isEqualTo(1);
+    assertThat(new BigDecimal(api.balanceOf(ana, checking)))
+        .isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
   }
 
   @Test

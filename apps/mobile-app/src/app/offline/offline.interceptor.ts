@@ -82,6 +82,8 @@ function queryOf(req: HttpRequest<unknown>): OverlayQuery {
   const number = (key: string) => (params.get(key) ? Number(params.get(key)) : undefined);
   return {
     month: params.get('month') ?? undefined,
+    dateFrom: params.get('dateFrom') ?? undefined,
+    dateTo: params.get('dateTo') ?? undefined,
     accountId: number('accountId'),
     categoryId: number('categoryId'),
     kind: (params.get('kind') as CategoryType | null) ?? undefined,

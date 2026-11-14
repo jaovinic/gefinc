@@ -53,6 +53,13 @@ class TransactionIsolationIT extends IntegrationTestBase {
   }
 
   @Test
+  void filtroDePeriodoNaoEnxergaLancamentosAlheios() throws Exception {
+    String period = "?dateFrom=2026-11-01&dateTo=2026-11-30";
+    assertThat(api.get(ana, "/transactions" + period).get("totalElements").asInt()).isEqualTo(1);
+    assertThat(api.get(bia, "/transactions" + period).get("totalElements").asInt()).isZero();
+  }
+
+  @Test
   void outroUsuarioNaoAlteraPagaDesfazNemExclui() throws Exception {
     api.call(
             bia,

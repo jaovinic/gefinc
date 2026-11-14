@@ -7,6 +7,7 @@ import com.jvtech.gefinc.transaction.TransactionDtos.PayRequest;
 import com.jvtech.gefinc.transaction.TransactionDtos.TransactionPage;
 import com.jvtech.gefinc.transaction.TransactionDtos.TransactionResponse;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -35,10 +36,13 @@ public class TransactionController {
       @RequestParam(required = false) CategoryType kind,
       @RequestParam(required = false) RecurrenceType recurrenceType,
       @RequestParam(required = false) TransactionStatus status,
+      @RequestParam(required = false) LocalDate dateFrom,
+      @RequestParam(required = false) LocalDate dateTo,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "50") int size) {
     var filter =
-        new TransactionSearch.Filter(month, accountId, categoryId, kind, recurrenceType, status);
+        new TransactionSearch.Filter(
+            month, accountId, categoryId, kind, recurrenceType, status, dateFrom, dateTo);
     return service.list(CurrentUser.id(), filter, page, size);
   }
 

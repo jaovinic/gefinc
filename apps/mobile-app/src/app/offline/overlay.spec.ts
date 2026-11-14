@@ -72,11 +72,12 @@ describe('applyPending (lista de lançamentos com as operações ainda não envi
 
     const all = applyPending(empty(), [op], ctx, {}).content;
     expect(all).toHaveLength(10);
+    // Do vencimento mais recente ao mais antigo, como a lista do servidor.
     expect(all.map((r) => r.dueDate)).toEqual([
-      '2026-12-17', '2027-01-17', '2027-02-17', '2027-03-17', '2027-04-17',
-      '2027-05-17', '2027-06-17', '2027-07-17', '2027-08-17', '2027-09-17',
+      '2027-09-17', '2027-08-17', '2027-07-17', '2027-06-17', '2027-05-17',
+      '2027-04-17', '2027-03-17', '2027-02-17', '2027-01-17', '2026-12-17',
     ]);
-    expect(all.map((r) => r.installmentNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(all.map((r) => r.installmentNumber)).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
     expect(all.every((r) => r.totalInstallments === 10 && r.amount === '100.00')).toBe(true);
     expect(applyPending(empty(), [op], ctx, { month: '2027-01' }).content).toMatchObject([{ installmentNumber: 2, dueDate: '2027-01-17' }]);
   });
@@ -115,14 +116,25 @@ describe('applyPending (lista de lançamentos com as operações ainda não envi
     expect(applyPending(empty(), [op], ctx, { month: '2026-11' }).content[0].overdue).toBe(true);
   });
 
-  it('mantém a ordem por vencimento junto com os itens do servidor', () => {
+  it('mantém a ordem por vencimento (do mais recente ao mais antigo) junto com os itens do servidor', () => {
     const op = create({ ...base, recurrenceType: 'VARIABLE', totalAmount: '10.00', firstDueDate: '2026-11-12' });
-    const page = { content: [item({ id: 1, dueDate: '2026-11-05' }), item({ id: 2, dueDate: '2026-11-20' })], page: 0, size: 25, totalElements: 2 };
+    const page = { content: [item({ id: 2, dueDate: '2026-11-20' }), item({ id: 1, dueDate: '2026-11-05' })], page: 0, size: 25, totalElements: 2 };
 
     const result = applyPending(page, [op], ctx, { month: '2026-11' });
 
-    expect(result.content.map((t) => t.dueDate)).toEqual(['2026-11-05', '2026-11-12', '2026-11-20']);
+    expect(result.content.map((t) => t.dueDate)).toEqual(['2026-11-20', '2026-11-12', '2026-11-05']);
     expect(result.totalElements).toBe(3);
+  });
+
+  it('o criado no aparelho vem antes dos do servidor com o mesmo vencimento (identificador maior primeiro)', () => {
+    const op = create({ ...base, recurrenceType: 'VARIABLE', totalAmount: '10.00', firstDueDate: '2026-11-12', description: 'Novo' });
+    const other = create({ ...base, recurrenceType: 'VARIABLE', totalAmount: '10.00', firstDueDate: '2026-11-12', description: 'Mais novo' });
+    other.createdAt = 2;
+    const page = pageOf(item({ id: 1, dueDate: '2026-11-12', description: 'Servidor' }));
+
+    const result = applyPending(page, [op, other], ctx, { month: '2026-11' });
+
+    expect(result.content.map((t) => t.description)).toEqual(['Mais novo', 'Novo', 'Servidor']);
   });
 
   it('pagar marca o item como pago e desfazer volta a pendente', () => {
@@ -282,7 +294,7 @@ describe('applyPending (lista de lançamentos com as operações ainda não envi
 
       const result = applyPending(page, [editTx(5, { dueDate: '2026-11-20' })], ctx, { month: '2026-11' });
 
-      expect(result.content.map((t) => t.id)).toEqual([6, 5]);
+      expect(result.content.map((t) => t.id)).toEqual([5, 6]);
     });
 
     it('edições encadeadas valem na ordem em que foram feitas; recusadas não entram', () => {
@@ -356,5 +368,86 @@ describe('applyPending (lista de lançamentos com as operações ainda não envi
   it('só linhas criadas localmente têm identificador negativo', () => {
     expect(isPendingRow(item({ id: 5 }))).toBe(false);
     expect(isPendingRow(item({ id: -1 }))).toBe(true);
+  });
+});
+
+describe('applyPending - período de vencimento', () => {
+  const novo = (due: string, description: string) =>
+    create({ ...base, description, recurrenceType: 'VARIABLE', totalAmount: '10.00', firstDueDate: due });
+
+  it('o criado só aparece dentro do período, com limites inclusivos e podendo ter só um deles', () => {
+    const ops = [novo('2026-11-04', 'Antes'), novo('2026-11-05', 'Inicio'), novo('2026-11-15', 'Fim'), novo('2026-11-16', 'Depois')];
+
+    const both = applyPending(empty(), ops, ctx, { dateFrom: '2026-11-05', dateTo: '2026-11-15' }).content.map((t) => t.description);
+    expect(both).toEqual(['Fim', 'Inicio']);
+    expect(applyPending(empty(), ops, ctx, { dateFrom: '2026-11-15' }).content.map((t) => t.description)).toEqual(['Depois', 'Fim']);
+    expect(applyPending(empty(), ops, ctx, { dateTo: '2026-11-05' }).content.map((t) => t.description)).toEqual(['Inicio', 'Antes']);
+  });
+
+  it('mês e período juntos valem como E', () => {
+    const ops = [novo('2026-10-20', 'Outubro'), novo('2026-11-20', 'Novembro')];
+
+    expect(applyPending(empty(), ops, ctx, { month: '2026-11', dateFrom: '2026-10-01' }).content.map((t) => t.description)).toEqual(['Novembro']);
+    expect(applyPending(empty(), ops, ctx, { month: '2026-11', dateFrom: '2026-12-01' }).content).toHaveLength(0);
+  });
+
+  it('o item reagendado para fora do período sai da lista', () => {
+    const page = pageOf(item({ id: 5, dueDate: '2026-11-05' }), item({ id: 6, dueDate: '2026-11-10' }));
+
+    const result = applyPending(page, [editTx(5, { dueDate: '2026-12-20' })], ctx, { dateFrom: '2026-11-01', dateTo: '2026-11-30' });
+
+    expect(result.content.map((t) => t.id)).toEqual([6]);
+    expect(result.totalElements).toBe(1);
+  });
+});
+
+describe('applyPending - dar baixa hoje na criação (payNow)', () => {
+  const despesa = (over: object) => create({ ...base, recurrenceType: 'VARIABLE', totalAmount: '10.00', firstDueDate: '2026-11-10', payNow: true, ...over });
+
+  it('despesa avulsa em conta com vencimento hoje aparece paga, com a data de pagamento e sem atraso', () => {
+    const [row] = applyPending(empty(), [despesa({})], ctx, { month: '2026-11' }).content;
+
+    expect(row).toMatchObject({ status: 'PAID', paymentDate: '2026-11-10', overdue: false, dueDate: '2026-11-10' });
+  });
+
+  it('vencimento passado também vale (pago na data do vencimento) e não fica atrasado', () => {
+    const [row] = applyPending(empty(), [despesa({ firstDueDate: '2026-11-05' })], ctx, { month: '2026-11' }).content;
+
+    expect(row).toMatchObject({ status: 'PAID', paymentDate: '2026-11-05', overdue: false });
+  });
+
+  it('parcelado em uma parcela conta como avulso', () => {
+    const [row] = applyPending(empty(), [despesa({ recurrenceType: 'INSTALLMENT', totalInstallments: 1 })], ctx, { month: '2026-11' }).content;
+
+    expect(row.status).toBe('PAID');
+  });
+
+  it('sem payNow, ou com payNow falso, continua pendente', () => {
+    const rows = [
+      ...applyPending(empty(), [despesa({ payNow: undefined })], ctx, { month: '2026-11' }).content,
+      ...applyPending(empty(), [despesa({ payNow: false })], ctx, { month: '2026-11' }).content,
+    ];
+
+    expect(rows.map((r) => r.status)).toEqual(['PENDING', 'PENDING']);
+    expect(rows.every((r) => r.paymentDate === undefined)).toBe(true);
+  });
+
+  it('cartão, receita, fixo, parcelado 2+ e vencimento futuro não são pagos (o servidor recusa)', () => {
+    const cases = [
+      despesa({ accountId: 2, purchaseDate: '2026-11-12' }),
+      despesa({ categoryId: 20 }),
+      despesa({ recurrenceType: 'FIXED' }),
+      despesa({ recurrenceType: 'INSTALLMENT', totalInstallments: 3 }),
+      despesa({ firstDueDate: '2026-11-11' }),
+    ];
+    for (const op of cases) {
+      const paidRows = applyPending(empty(), [op], ctx, {}).content.filter((r) => r.status === 'PAID' && r.categoryId !== 20);
+      expect(paidRows).toHaveLength(0);
+    }
+  });
+
+  it('só entra na lista paga se combinar com o filtro de status', () => {
+    expect(applyPending(empty(), [despesa({})], ctx, { month: '2026-11', status: 'PENDING' }).content).toHaveLength(0);
+    expect(applyPending(empty(), [despesa({})], ctx, { month: '2026-11', status: 'PAID' }).content).toHaveLength(1);
   });
 });
