@@ -21,18 +21,20 @@ npx nx serve web-app
 ## Criar o administrador raiz (roteiro do dono da implantação)
 
 1. Cadastre uma conta normalmente em `http://localhost:4200/register` (ex.: `dono@exemplo.com`).
-2. Marque-a como raiz **no banco** (única forma; a transação precisa do `SET LOCAL`, senão o gatilho recusa):
+2. Marque-a como raiz **no banco** (única forma; a transação precisa do `SET LOCAL`, senão o gatilho recusa). O e-mail vai como **variável do psql** (`-v email=...`, usada como `:'email'`),
+   nunca concatenado ao SQL, e o roteiro segue pela entrada padrão (o psql não interpola variáveis em `-c`):
 
 ```bash
-docker compose exec -T postgres psql -U gefinc -d gefinc -v ON_ERROR_STOP=1 <<'SQL'
+docker compose exec -T postgres psql -U gefinc -d gefinc -v ON_ERROR_STOP=1 -v email='dono@exemplo.com' <<'SQL'
 BEGIN;
 SET LOCAL gefinc.allow_root_change = 'on';
-UPDATE users SET role = 'ROOT' WHERE lower(email) = lower('dono@exemplo.com');
+UPDATE users SET role = 'ROOT' WHERE lower(email) = lower(:'email') RETURNING id;
 COMMIT;
 SQL
 ```
 
-   (ou `tools/ops/promote-root.sh dono@exemplo.com`). Na próxima requisição a conta vê o grupo **Administração** no menu lateral. O mesmo roteiro, com `suspended_at = NULL` e
+   O script `tools/ops/promote-root.sh dono@exemplo.com` faz o mesmo: valida o e-mail, mostra o usuário e o papel atual, pede confirmação (`--yes` dispensa) e confere que uma linha foi promovida.
+   Na próxima requisição a conta vê o grupo **Administração** no menu lateral. O mesmo roteiro, com `suspended_at = NULL` e
    `token_version = token_version + 1`, recupera um administrador comum suspenso por engano (`docs/operations.md`, seção "Administrador raiz e recuperação de acesso").
 3. Prova de que a trava existe: repetir o `UPDATE` **sem** o `SET LOCAL` deve falhar com `permissão negada` (`42501`).
 
