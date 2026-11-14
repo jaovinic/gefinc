@@ -46,10 +46,15 @@ public class AccountDeletionService {
     this.adminPolicy = adminPolicy;
   }
 
-  /** Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. */
+  /**
+   * Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. A
+   * linha do usuário é travada antes da trava consultiva dos administradores (a mesma ordem de
+   * {@code AdminRoleService}: linha, depois trava), o que evita deadlock com a retirada do perfil e
+   * garante que o papel lido pela guarda é o vigente.
+   */
   @Transactional
   public LocalDate request(long userId, String password) {
-    User user = users.findById(userId).orElseThrow(AuthService::invalidCredentials);
+    User user = users.findForUpdate(userId).orElseThrow(AuthService::invalidCredentials);
     if (!auth.matches(password, user.getPasswordHash())) {
       throw AuthService.invalidCredentials();
     }
