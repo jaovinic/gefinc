@@ -31,6 +31,15 @@ public class User {
   @Column(name = "deletion_requested_at")
   private Instant deletionRequestedAt;
 
+  @Column(name = "deletion_due_at")
+  private Instant deletionDueAt;
+
+  @Column(name = "deletion_origin", length = 5)
+  private String deletionOrigin;
+
+  @Column(name = "deletion_request_id")
+  private Long deletionRequestId;
+
   @Column(name = "token_version", nullable = false)
   private int tokenVersion;
 
@@ -71,6 +80,18 @@ public class User {
     return deletionRequestedAt;
   }
 
+  public Instant getDeletionDueAt() {
+    return deletionDueAt;
+  }
+
+  public String getDeletionOrigin() {
+    return deletionOrigin;
+  }
+
+  public Long getDeletionRequestId() {
+    return deletionRequestId;
+  }
+
   public int getTokenVersion() {
     return tokenVersion;
   }
@@ -85,14 +106,23 @@ public class User {
     this.tokenVersion++;
   }
 
-  /** Marca a exclusão e invalida de imediato os tokens de acesso já emitidos. */
-  public void requestDeletion(Instant now) {
+  /**
+   * Agenda a exclusão pedida pelo próprio usuário e invalida de imediato os tokens de acesso já
+   * emitidos. As quatro colunas de exclusão andam juntas (restrição do banco).
+   */
+  public void scheduleDeletion(Instant now, Instant dueAt, long requestId) {
     this.deletionRequestedAt = now;
+    this.deletionDueAt = dueAt;
+    this.deletionOrigin = "USER";
+    this.deletionRequestId = requestId;
     this.tokenVersion++;
   }
 
   public void cancelDeletion() {
     this.deletionRequestedAt = null;
+    this.deletionDueAt = null;
+    this.deletionOrigin = null;
+    this.deletionRequestId = null;
     this.tokenVersion++;
   }
 }

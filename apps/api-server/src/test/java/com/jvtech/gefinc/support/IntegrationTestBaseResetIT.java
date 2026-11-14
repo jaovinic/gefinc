@@ -26,6 +26,35 @@ class IntegrationTestBaseResetIT extends IntegrationTestBase {
   private String password;
 
   @Test
+  void seedCriaUsuariosAdministradoresEORaizQueConseguemEntrar() throws Exception {
+    AdminSeed.SeededUser user = seed.createUser("comum@example.com");
+    AdminSeed.SeededUser admin = seed.createAdmin("adm@example.com");
+    AdminSeed.SeededUser root = seed.createRoot("raiz@example.com");
+
+    assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, user.id()))
+        .isEqualTo("USER");
+    assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, admin.id()))
+        .isEqualTo("ADMIN");
+    assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, root.id()))
+        .isEqualTo("ROOT");
+    assertThat(
+            new TestUsers(mockMvc, objectMapper)
+                .login("raiz@example.com", TestUsers.PASSWORD)
+                .get("accessToken")
+                .asText())
+        .isNotBlank();
+
+    seed.promoteToRoot("comum@example.com");
+    assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, user.id()))
+        .isEqualTo("ROOT");
+    // sem a variável de transação, o gatilho continua recusando
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> jdbc.update("UPDATE users SET role = 'ROOT' WHERE id = ?", admin.id()))
+        .rootCause()
+        .hasMessageContaining("administrador raiz");
+  }
+
+  @Test
   void resetRestauraAsSementesDasMigracoes() throws Exception {
     jdbc.update("UPDATE system_parameters SET value = 'false' WHERE key = 'SIGNUPS_OPEN'");
     jdbc.update("UPDATE deletion_reasons SET active = false, name = 'Alterado' WHERE id = 1");

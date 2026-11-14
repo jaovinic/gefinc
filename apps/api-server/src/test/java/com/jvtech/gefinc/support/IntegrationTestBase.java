@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -74,11 +75,16 @@ public abstract class IntegrationTestBase {
   @Autowired private LoginAttemptLimiter loginAttemptLimiter;
   @Autowired private ThreadPoolTaskExecutor mailExecutor;
   @Autowired private PlatformTransactionManager transactionManager;
+  @Autowired private PasswordEncoder passwordEncoder;
+
+  /** Cria usuários, administradores e o raiz direto no banco. */
+  protected AdminSeed seed;
 
   private static volatile boolean superuserChecked;
 
   @BeforeEach
   void resetState() throws Exception {
+    seed = new AdminSeed(jdbc, passwordEncoder, transactionManager);
     // E-mails são enviados em segundo plano: aguarda os do teste anterior para não vazarem.
     awaitPendingMails();
     clock.set(TestClockConfig.START);

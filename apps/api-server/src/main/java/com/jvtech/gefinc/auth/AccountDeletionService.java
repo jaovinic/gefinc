@@ -2,6 +2,7 @@ package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.Pseudonymizer;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
 import java.time.Clock;
@@ -20,18 +21,24 @@ public class AccountDeletionService {
   private final TokenService tokens;
   private final Clock clock;
   private final LoginAttemptLimiter limiter;
+  private final DeletionLedger ledger;
+  private final Pseudonymizer pseudonymizer;
 
   public AccountDeletionService(
       UserRepository users,
       AuthService auth,
       TokenService tokens,
       Clock clock,
-      LoginAttemptLimiter limiter) {
+      LoginAttemptLimiter limiter,
+      DeletionLedger ledger,
+      Pseudonymizer pseudonymizer) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
     this.clock = clock;
     this.limiter = limiter;
+    this.ledger = ledger;
+    this.pseudonymizer = pseudonymizer;
   }
 
   /** Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. */
@@ -41,7 +48,11 @@ public class AccountDeletionService {
     if (!auth.matches(password, user.getPasswordHash())) {
       throw AuthService.invalidCredentials();
     }
-    user.requestDeletion(clock.instant());
+    Instant now = clock.instant();
+    Instant dueAt = now.plus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
+    // O livro-razão é gravado antes: a coluna deletion_request_id de users referencia a linha.
+    long requestId = ledger.openUserRequest(userId, pseudonymizer.userRef(userId), now, dueAt);
+    user.scheduleDeletion(now, dueAt, requestId);
     tokens.revokeAllOfUser(userId);
     return auth.deletionDate(user);
   }
@@ -61,6 +72,7 @@ public class AccountDeletionService {
       throw new ApiException(
           ErrorCode.NO_PENDING_DELETION, "Não há exclusão pendente nesta conta.");
     }
+    ledger.markCanceled(user.getDeletionRequestId(), clock.instant());
     user.cancelDeletion();
   }
 
@@ -70,6 +82,7 @@ public class AccountDeletionService {
   @Transactional
   public int deleteExpired() {
     Instant limit = clock.instant().minus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
+    ledger.markExecutedDue(limit, clock.instant());
     return users.deleteExpiredDeletions(limit);
   }
 }

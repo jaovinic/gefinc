@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jvtech.gefinc.common.security.Pseudonymizer;
 import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
 import com.jvtech.gefinc.support.TestUsers;
@@ -21,6 +22,7 @@ import org.springframework.http.MediaType;
 class AccountDeletionIT extends IntegrationTestBase {
 
   @Autowired private AccountDeletionService deletionService;
+  @Autowired private Pseudonymizer pseudonymizer;
 
   private TestUsers users;
 
@@ -176,5 +178,110 @@ class AccountDeletionIT extends IntegrationTestBase {
     assertThat(jdbc.queryForObject("SELECT count(*) FROM account_transfers", Integer.class))
         .isZero();
     assertThat(jdbc.queryForObject("SELECT count(*) FROM accounts", Integer.class)).isZero();
+  }
+
+  @Test
+  void solicitacaoGravaNoLivroRazaoEMantemAsColunasDoUsuarioCoerentes() throws Exception {
+    TestUser ana = users.registerAndLogin("ana@example.com");
+
+    requestDeletion(ana, TestUsers.PASSWORD, 202);
+
+    Map<String, Object> row =
+        jdbc.queryForMap("SELECT * FROM account_deletion_requests WHERE user_id = ?", ana.id());
+    assertThat(row)
+        .containsEntry("origin", "USER")
+        .containsEntry("mode", "GRACE")
+        .containsEntry("grace_days", 30)
+        .containsEntry("status", "SCHEDULED")
+        .containsEntry("notice_state", "NOT_APPLICABLE")
+        .containsEntry("target_ref", pseudonymizer.userRef(ana.id()));
+    assertThat(row.get("requested_by")).isNull();
+    java.time.Instant requestedAt = ((java.sql.Timestamp) row.get("requested_at")).toInstant();
+    java.time.Instant dueAt = ((java.sql.Timestamp) row.get("due_at")).toInstant();
+    assertThat(requestedAt).isEqualTo(clock.instant());
+    assertThat(dueAt).isEqualTo(requestedAt.plus(Duration.ofDays(30)));
+
+    Map<String, Object> user =
+        jdbc.queryForMap(
+            "SELECT deletion_requested_at, deletion_due_at, deletion_origin, deletion_request_id"
+                + " FROM users WHERE id = ?",
+            ana.id());
+    assertThat(((java.sql.Timestamp) user.get("deletion_requested_at")).toInstant())
+        .isEqualTo(requestedAt);
+    assertThat(((java.sql.Timestamp) user.get("deletion_due_at")).toInstant()).isEqualTo(dueAt);
+    assertThat(user).containsEntry("deletion_origin", "USER");
+    assertThat(user.get("deletion_request_id")).isEqualTo(row.get("id"));
+  }
+
+  @Test
+  void cancelarMarcaOLivroRazaoComoCanceladoELimpaAsQuatroColunas() throws Exception {
+    TestUser ana = users.registerAndLogin("ana@example.com");
+    requestDeletion(ana, TestUsers.PASSWORD, 202);
+    clock.advance(Duration.ofDays(3));
+
+    mockMvc
+        .perform(
+            post("/auth/account-deletion/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", "ana@example.com", "password", TestUsers.PASSWORD))))
+        .andExpect(status().isNoContent());
+
+    Map<String, Object> row =
+        jdbc.queryForMap("SELECT * FROM account_deletion_requests WHERE user_id = ?", ana.id());
+    assertThat(row).containsEntry("status", "CANCELED");
+    assertThat(((java.sql.Timestamp) row.get("canceled_at")).toInstant())
+        .isEqualTo(clock.instant());
+    Map<String, Object> user =
+        jdbc.queryForMap(
+            "SELECT deletion_requested_at, deletion_due_at, deletion_origin, deletion_request_id"
+                + " FROM users WHERE id = ?",
+            ana.id());
+    assertThat(user.values()).containsOnlyNulls();
+
+    // pedir de novo depois de cancelar cria outra linha ativa
+    TestUser again =
+        new TestUser(
+            ana.id(),
+            ana.email(),
+            users.login("ana@example.com", TestUsers.PASSWORD).get("accessToken").asText());
+    requestDeletion(again, TestUsers.PASSWORD, 202);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM account_deletion_requests WHERE user_id = ?",
+                Integer.class,
+                ana.id()))
+        .isEqualTo(2);
+  }
+
+  @Test
+  void execucaoMarcaOLivroRazaoComoExecutadoEAMantemAposApagarOUsuario() throws Exception {
+    TestUser ana = users.registerAndLogin("ana@example.com");
+    requestDeletion(ana, TestUsers.PASSWORD, 202);
+
+    clock.advance(Duration.ofDays(30).plusHours(1));
+    assertThat(deletionService.deleteExpired()).isEqualTo(1);
+
+    Map<String, Object> row =
+        jdbc.queryForMap("SELECT * FROM account_deletion_requests WHERE user_id = ?", ana.id());
+    assertThat(row).containsEntry("status", "EXECUTED");
+    assertThat(((java.sql.Timestamp) row.get("executed_at")).toInstant())
+        .isEqualTo(clock.instant());
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isZero();
+  }
+
+  @Test
+  void aindaNaCarenciaNadaEhExecutado() throws Exception {
+    TestUser ana = users.registerAndLogin("ana@example.com");
+    requestDeletion(ana, TestUsers.PASSWORD, 202);
+
+    clock.advance(Duration.ofDays(29));
+    assertThat(deletionService.deleteExpired()).isZero();
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT status FROM account_deletion_requests WHERE user_id = ?",
+                String.class,
+                ana.id()))
+        .isEqualTo("SCHEDULED");
   }
 }
