@@ -26,7 +26,7 @@ public class AuthSessionCleanupJob {
     this.clock = clock;
   }
 
-  @Scheduled(cron = "0 30 3 * * *", zone = "America/Sao_Paulo")
+  @Scheduled(cron = "0 45 3 * * *", zone = "America/Sao_Paulo")
   public void run() {
     int removed = sessions.deleteInactiveBefore(clock.instant().minus(RETENTION));
     if (removed > 0) {
