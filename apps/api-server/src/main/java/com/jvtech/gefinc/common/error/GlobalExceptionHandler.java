@@ -1,6 +1,8 @@
 package com.jvtech.gefinc.common.error;
 
+import com.jvtech.gefinc.admin.common.AdminAccessAuditor;
 import com.jvtech.gefinc.common.json.MoneyFormatException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +31,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+  private final AdminAccessAuditor adminAccess;
+
+  public GlobalExceptionHandler(AdminAccessAuditor adminAccess) {
+    this.adminAccess = adminAccess;
+  }
 
   @ExceptionHandler(TooManyRequestsException.class)
   ResponseEntity<ProblemDetail> handleTooMany(TooManyRequestsException ex) {
@@ -104,7 +112,11 @@ public class GlobalExceptionHandler {
   }
 
   @ExceptionHandler(AccessDeniedException.class)
-  ResponseEntity<ProblemDetail> handleDenied(AccessDeniedException ex) {
+  ResponseEntity<ProblemDetail> handleDenied(AccessDeniedException ex, HttpServletRequest request) {
+    // A regra de URL já cobre /admin/**; isto pega a negativa de @PreAuthorize (deduplicada).
+    if (AdminAccessAuditor.isAdminPath(request)) {
+      adminAccess.denied(request);
+    }
     return problem(ErrorCode.FORBIDDEN, "Acesso negado.", Map.of(), List.of());
   }
 

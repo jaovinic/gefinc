@@ -24,14 +24,18 @@ public class RequestOriginProvider {
   public RequestOrigin current() {
     RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
     if (attributes instanceof ServletRequestAttributes servlet) {
-      HttpServletRequest request = servlet.getRequest();
-      String userAgent = request.getHeader(USER_AGENT);
-      String client = request.getHeader(CLIENT_HEADER);
-      return new RequestOrigin(
-          clientIp.resolve(request),
-          deviceLabels.label(userAgent, client),
-          deviceLabels.clientKind(client, userAgent));
+      return from(servlet.getRequest());
     }
     return RequestOrigin.NONE;
+  }
+
+  /** Origem de uma requisição conhecida (ex.: na cadeia de segurança, antes do contexto web). */
+  public RequestOrigin from(HttpServletRequest request) {
+    String userAgent = request.getHeader(USER_AGENT);
+    String client = request.getHeader(CLIENT_HEADER);
+    return new RequestOrigin(
+        clientIp.resolve(request),
+        deviceLabels.label(userAgent, client),
+        deviceLabels.clientKind(client, userAgent));
   }
 }

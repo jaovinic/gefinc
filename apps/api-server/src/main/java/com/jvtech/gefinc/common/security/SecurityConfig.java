@@ -1,6 +1,7 @@
 package com.jvtech.gefinc.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jvtech.gefinc.admin.common.AdminAccessAuditor;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.idempotency.IdempotencyFilter;
 import com.jvtech.gefinc.idempotency.IdempotencyService;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -27,6 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /** Autenticação stateless por JWT, CORS restrito e cabeçalhos de segurança (Princípio III). */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
   private static final int DEFAULT_BCRYPT_STRENGTH = 12;
@@ -37,9 +40,10 @@ public class SecurityConfig {
       JwtService jwtService,
       TokenVersionLookup lookup,
       ObjectMapper mapper,
-      IdempotencyService idempotency)
+      IdempotencyService idempotency,
+      AdminAccessAuditor adminAccess)
       throws Exception {
-    ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper);
+    ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper, adminAccess);
     http.csrf(AbstractHttpConfigurer::disable)
         .cors(Customizer.withDefaults())
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -56,6 +60,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                     .permitAll()
+                    // Fechado por padrão: toda rota sob /admin, existente ou não, exige o papel
+                    // (visitante 401, usuário comum 403, nunca 404). @AdminOnly é a segunda camada.
+                    .requestMatchers("/admin/**")
+                    .hasRole("ADMIN")
                     .anyRequest()
                     .authenticated())
         .exceptionHandling(e -> e.authenticationEntryPoint(handlers).accessDeniedHandler(handlers))
