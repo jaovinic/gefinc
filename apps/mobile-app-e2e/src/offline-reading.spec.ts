@@ -232,7 +232,7 @@ test.describe('novo lançamento sem conexão', () => {
     expect(list.content.filter((t) => t.description === 'Lanche')).toHaveLength(1);
   });
 
-  test('com conexão o aviso não aparece e o toast continua "Despesa registrada."', async ({ page, request }) => {
+  test('com conexão o aviso não aparece e o toast diz "Despesa registrada e paga."', async ({ page, request }) => {
     const user = await seed(request);
     await signIn(page, user.email);
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
@@ -240,7 +240,7 @@ test.describe('novo lançamento sem conexão', () => {
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await page.keyboard.type('1500');
     await page.getByRole('button', { name: 'Salvar' }).click();
-    await expect(page.getByTestId('toast')).toContainText('Despesa registrada.');
+    await expect(page.getByTestId('toast')).toContainText('Despesa registrada e paga.');
   });
 });
 

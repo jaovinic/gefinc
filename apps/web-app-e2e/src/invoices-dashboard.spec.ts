@@ -20,6 +20,8 @@ test('fatura do cartão com pagamento parcial e conferência dos totais do paine
     await fillDate(form.getByLabel('Data da compra'), purchase);
     if (due) {
       await fillDate(form.getByLabel(/vencimento/i), due);
+      // avulso de hoje oferece "dar baixa hoje" (ligado por padrão): este teste cobre o fluxo pendente
+      await form.getByLabel('Já paguei, dar baixa hoje').uncheck();
     }
     await form.getByRole('button', { name: 'Salvar' }).click();
     await expect(form).toHaveCount(0);

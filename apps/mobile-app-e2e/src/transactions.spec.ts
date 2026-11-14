@@ -29,6 +29,8 @@ test.describe('lançamentos completos no celular', () => {
     await form.getByLabel('Valor').fill('15000');
     await fillDate(form.getByLabel('Data da compra'), todayIso());
     await fillDate(form.getByLabel(/vencimento/i), todayIso());
+    // avulso de hoje oferece "dar baixa hoje" (ligado por padrão): este teste cobre o fluxo pendente
+    await form.getByLabel('Já paguei, dar baixa hoje').uncheck();
     await form.getByRole('button', { name: 'Salvar' }).click();
     await expect(card(page, 'Mercado')).toContainText('R$ 150,00');
     await expect(card(page, 'Mercado')).toContainText('Pend');
