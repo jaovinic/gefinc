@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Import;
@@ -189,6 +191,108 @@ class AdminAccessIT extends IntegrationTestBase {
     mockMvc
         .perform(get("/admin/nao-existe").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
         .andExpect(status().isNotFound());
+  }
+
+  /** Variantes de caminho e método que tentam escapar da regra de URL ou do {@code @AdminOnly}. */
+  private static final String VARIANTS =
+      """
+      GET,/admin/
+      GET,//admin
+      GET,//admin/_test/read
+      GET,/admin;x=1
+      GET,/admin/_test/read;x=1
+      GET,/admin/_test/read/
+      GET,/admin/users.json
+      GET,/admin/_test/read.json
+      GET,/admin/%2e%2e/admin/_test/read
+      GET,/admin/./_test/read
+      HEAD,/admin/_test/read
+      HEAD,/admin/nao-existe
+      OPTIONS,/admin/_test/read
+      OPTIONS,/admin/nao-existe
+      POST,/admin/_test/read
+      """;
+
+  /**
+   * Caixa diferente: o MVC distingue maiúsculas, então nenhum handler de admin é alcançado. O
+   * visitante recebe 401 (cai em "autenticado"); o usuário comum recebe o 404 de qualquer caminho
+   * sem handler, o mesmo de {@code /qualquer-coisa}, sem executar nada de {@code /admin}.
+   */
+  private static final String CASE_VARIANTS =
+      """
+      GET,/ADMIN/users
+      GET,/ADMIN/_test/read
+      """;
+
+  private static final Set<Integer> BLOCKED = Set.of(400, 401, 403);
+
+  private MockHttpServletRequestBuilder variant(String method, String path, String bearerToken) {
+    MockHttpServletRequestBuilder builder =
+        MockMvcRequestBuilders.request(HttpMethod.valueOf(method), "/")
+            .with(
+                request -> {
+                  // URI bruta, sem reinterpretar: "//admin" viraria autoridade em java.net.URI.
+                  request.setRequestURI(path);
+                  request.setPathInfo(path);
+                  return request;
+                })
+            .with(remoteAddr(IP));
+    if (bearerToken != null) {
+      builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearerToken);
+    }
+    return builder;
+  }
+
+  @ParameterizedTest(name = "visitante: {0} {1}")
+  @CsvSource(textBlock = VARIANTS + CASE_VARIANTS)
+  void variantesDeCaminhoNuncaAbremNemRevelamRotaAoVisitante(String method, String path)
+      throws Exception {
+    int status = mockMvc.perform(variant(method, path, null)).andReturn().getResponse().getStatus();
+
+    assertThat(status).as("%s %s", method, path).isIn(BLOCKED);
+  }
+
+  @ParameterizedTest(name = "usuário comum: {0} {1}")
+  @CsvSource(textBlock = VARIANTS)
+  void variantesDeCaminhoNuncaAbremNemRevelamRotaAoUsuarioComum(String method, String path)
+      throws Exception {
+    int status =
+        mockMvc.perform(variant(method, path, commonToken)).andReturn().getResponse().getStatus();
+
+    assertThat(status).as("%s %s", method, path).isIn(BLOCKED);
+  }
+
+  @ParameterizedTest(name = "usuário comum, outra caixa: {0} {1}")
+  @CsvSource(textBlock = CASE_VARIANTS)
+  void caixaDiferenteNuncaExecutaHandlerDeAdminParaOUsuarioComum(String method, String path)
+      throws Exception {
+    int status =
+        mockMvc.perform(variant(method, path, commonToken)).andReturn().getResponse().getStatus();
+
+    assertThat(status).as("%s %s", method, path).isIn(403, 404);
+  }
+
+  @ParameterizedTest(name = "administrador: {0} {1}")
+  @CsvSource(
+      textBlock =
+          """
+          GET,/admin/
+          GET,//admin
+          GET,/admin;x=1
+          GET,/admin/users.json
+          GET,/admin/_test/read.json
+          GET,/ADMIN/users
+          GET,/ADMIN/_test/read
+          HEAD,/admin/nao-existe
+          OPTIONS,/admin/nao-existe
+          POST,/admin/_test/read
+          """)
+  void variantesQueNaoSaoRotaDeAdminNuncaSaoAutorizadasAoAdministrador(String method, String path)
+      throws Exception {
+    int status =
+        mockMvc.perform(variant(method, path, adminToken)).andReturn().getResponse().getStatus();
+
+    assertThat(status / 100).as("%s %s -> %s", method, path, status).isNotEqualTo(2);
   }
 
   @Test
