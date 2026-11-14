@@ -195,4 +195,61 @@ describe('AdminApi', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
   });
+
+  describe('sessões, suspensão e bloqueio de login', () => {
+    it('lista as sessões do usuário', () => {
+      let count = 0;
+      api.listSessions(7).subscribe((sessions) => (count = sessions.length));
+
+      const req = http.expectOne('/api/v1/admin/users/7/sessions');
+      expect(req.request.method).toBe('GET');
+      req.flush([{ id: 'a', startedAt: '2026-11-14T00:00:00Z', lastUsedAt: '2026-11-14T00:00:00Z', current: false }]);
+      expect(count).toBe(1);
+    });
+
+    it('encerra uma sessão e todas', () => {
+      api.revokeSession(7, 'abc-1').subscribe();
+      const one = http.expectOne('/api/v1/admin/users/7/sessions/abc-1');
+      expect(one.request.method).toBe('DELETE');
+      one.flush(null, { status: 204, statusText: 'No Content' });
+
+      api.revokeAllSessions(7).subscribe();
+      const all = http.expectOne('/api/v1/admin/users/7/sessions');
+      expect(all.request.method).toBe('DELETE');
+      all.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('suspende com o motivo no corpo', () => {
+      api.suspend(7, 'Uso indevido').subscribe();
+
+      const req = http.expectOne('/api/v1/admin/users/7/suspend');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ reason: 'Uso indevido' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('reativa e retira o bloqueio de login', () => {
+      api.reactivate(7).subscribe();
+      const reactivate = http.expectOne('/api/v1/admin/users/7/reactivate');
+      expect(reactivate.request.method).toBe('POST');
+      reactivate.flush(null, { status: 204, statusText: 'No Content' });
+
+      api.clearLoginLock(7).subscribe();
+      const lock = http.expectOne('/api/v1/admin/users/7/login-lock');
+      expect(lock.request.method).toBe('DELETE');
+      lock.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('recusa de regra (409 SELF_ACTION_FORBIDDEN) chega à tela sem virar sessão expirada', () => {
+      let error: unknown;
+      api.suspend(7, 'x').subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(409, 'SELF_ACTION_FORBIDDEN');
+      http.expectOne('/api/v1/admin/users/7/suspend').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 409, code: 'SELF_ACTION_FORBIDDEN' });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
 });

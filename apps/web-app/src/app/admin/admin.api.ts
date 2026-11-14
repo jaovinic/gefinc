@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import type { AdminUserDetail, AdminUserPage, RoleChangeRequest } from '@gefinc/core-models';
+import type { AdminSession, AdminUserDetail, AdminUserPage, RoleChangeRequest } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService, toProblem } from '@gefinc/ui-shared';
 import { Observable, catchError, throwError } from 'rxjs';
 
@@ -68,6 +68,36 @@ export class AdminApi {
   /** Concede (`ADMIN`) ou retira (`USER`) o perfil de administrador; exige a senha de quem pede. */
   setRole(userId: number, role: RoleChangeRequest['role'], password: string): Observable<void> {
     return this.guarded(this.http.put<void>(`${this.base}/admin/users/${userId}/role`, { role, password }));
+  }
+
+  /** Sessões abertas do usuário, com IP e dispositivo (dado pessoal, só para o painel). */
+  listSessions(userId: number): Observable<AdminSession[]> {
+    return this.guarded(this.http.get<AdminSession[]>(`${this.base}/admin/users/${userId}/sessions`));
+  }
+
+  /** Encerra uma sessão; vale na próxima ação do usuário. */
+  revokeSession(userId: number, sessionId: string): Observable<void> {
+    return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/sessions/${sessionId}`));
+  }
+
+  /** Encerra todas as sessões do usuário. */
+  revokeAllSessions(userId: number): Observable<void> {
+    return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/sessions`));
+  }
+
+  /** Suspende a conta; o motivo (1 a 500 caracteres) fica só na auditoria. */
+  suspend(userId: number, reason: string): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/users/${userId}/suspend`, { reason }));
+  }
+
+  /** Reativa a conta suspensa (a exclusão pendente, se houver, continua). */
+  reactivate(userId: number): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/users/${userId}/reactivate`, null));
+  }
+
+  /** Retira o bloqueio temporário por tentativas de login. */
+  clearLoginLock(userId: number): Observable<void> {
+    return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/login-lock`));
   }
 
   private guarded<T>(request: Observable<T>): Observable<T> {

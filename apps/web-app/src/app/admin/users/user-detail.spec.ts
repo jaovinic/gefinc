@@ -1,13 +1,15 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import type { AdminUserDetail } from '@gefinc/core-models';
+import type { AdminSession, AdminUserDetail } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService } from '@gefinc/ui-shared';
 import { UserDetail } from './user-detail';
 
 const URL = '/api/v1/admin/users/7';
+const SESSIONS_URL = `${URL}/sessions`;
 
 const base: AdminUserDetail = {
   id: 7,
@@ -25,17 +27,19 @@ const base: AdminUserDetail = {
 
 describe('UserDetail', () => {
   let http: HttpTestingController;
+  let toast: jest.Mock;
 
-  async function setup(first: AdminUserDetail | 'pending' = base) {
+  async function setup(first: AdminUserDetail | 'pending' = base, sessions: AdminSession[] = [], selfId = 1) {
     TestBed.resetTestingModule();
+    toast = jest.fn();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: 'admin/users/:id', component: UserDetail }, { path: 'admin/users', component: UserDetail }]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: API_BASE_URL, useValue: '/api/v1' },
-        { provide: CurrentUser, useValue: { clear: jest.fn(), load: jest.fn() } },
-        { provide: NoticeService, useValue: { toast: jest.fn() } },
+        { provide: CurrentUser, useValue: { clear: jest.fn(), load: jest.fn(), profile: signal({ id: selfId, email: 'adm@teste.com' }) } },
+        { provide: NoticeService, useValue: { toast } },
       ],
     });
     http = TestBed.inject(HttpTestingController);
@@ -44,6 +48,8 @@ describe('UserDetail', () => {
     harness.fixture.detectChanges();
     if (first !== 'pending') {
       detailRequest().flush(first);
+      await settle(harness);
+      sessionsRequest().flush(sessions);
       await settle(harness);
     }
     return { harness, el: harness.routeNativeElement as HTMLElement };
@@ -56,8 +62,12 @@ describe('UserDetail', () => {
   }
 
   const detailRequest = () => http.expectOne((r) => r.method === 'GET' && r.url === URL);
+  const sessionsRequest = () => http.expectOne((r) => r.method === 'GET' && r.url === SESSIONS_URL);
   const text = (node: Element | null) => node?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
   const field = (el: HTMLElement, id: string) => text(el.querySelector(`[data-testid="${id}"]`));
+  const action = (el: HTMLElement, id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement | null;
+  const actionLabels = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll('[data-testid="actions"] button')).map((b) => text(b));
 
   afterEach(() => http.verify());
 
@@ -189,11 +199,10 @@ describe('UserDetail', () => {
     expect(text(el.querySelector('[data-testid="recent-actions-empty"]'))).toBe('Nenhuma ação administrativa registrada para esta conta.');
   });
 
-  it('não tem botões de ação nem nada financeiro nem exportação', async () => {
+  it('não mostra nada financeiro nem exportação', async () => {
     const { el } = await setup({ ...base, recentActions: [] });
     const content = text(el).toLowerCase();
 
-    expect(el.querySelectorAll('button')).toHaveLength(0);
     expect(content).not.toContain('exportar');
     for (const word of ['saldo', 'lançamento', 'cartão', 'transferência', 'categoria', 'conta bancária']) {
       expect(content).not.toContain(word);
@@ -224,8 +233,287 @@ describe('UserDetail', () => {
     (el.querySelector('gef-error button') as HTMLButtonElement).click();
     detailRequest().flush(base);
     await settle(harness);
+    sessionsRequest().flush([]);
+    await settle(harness);
 
     expect(el.querySelector('gef-error')).toBeNull();
     expect(field(el, 'email')).toBe('ana@teste.com');
+  });
+
+  describe('ações por estado', () => {
+    it('usuário ativo: suspender e conceder o perfil, sem reativar nem retirar bloqueio', async () => {
+      const { el } = await setup();
+
+      expect(actionLabels(el)).toEqual(['Suspender conta', 'Conceder perfil de administrador']);
+    });
+
+    it('usuário suspenso: só reativar (e o perfil), sem suspender', async () => {
+      const { el } = await setup({ ...base, suspended: true });
+
+      expect(actionLabels(el)).toContain('Reativar conta');
+      expect(actionLabels(el)).not.toContain('Suspender conta');
+    });
+
+    it('bloqueio de login vigente: oferece retirar o bloqueio; sem bloqueio, não', async () => {
+      const locked = await setup({ ...base, loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } });
+      expect(actionLabels(locked.el)).toContain('Retirar bloqueio de login');
+
+      const free = await setup();
+      expect(actionLabels(free.el)).not.toContain('Retirar bloqueio de login');
+    });
+
+    it('administrador comum: retirar o perfil em vez de conceder', async () => {
+      const { el } = await setup({ ...base, role: 'ADMIN' });
+
+      expect(actionLabels(el)).toContain('Retirar perfil de administrador');
+      expect(actionLabels(el)).not.toContain('Conceder perfil de administrador');
+    });
+
+    it('administrador raiz: nenhum botão de ação, só o aviso de proteção', async () => {
+      const { el } = await setup({ ...base, role: 'ROOT', protected: true, loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } });
+
+      expect(actionLabels(el)).toEqual([]);
+      expect(text(el.querySelector('[data-testid="protected"]'))).toBe('Administrador raiz protegido');
+      expect(text(el.querySelector('[data-testid="actions-protected"]'))).toContain('raiz');
+    });
+
+    it('o próprio administrador não se suspende nem altera o próprio perfil, mas pode retirar o bloqueio', async () => {
+      const { el } = await setup({ ...base, role: 'ADMIN', loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } }, [], 7);
+
+      expect(actionLabels(el)).toEqual(['Retirar bloqueio de login']);
+      expect(text(el.querySelector('[data-testid="actions-self"]'))).toContain('própria conta');
+    });
+
+    it('todo botão de ação tem texto e ícone', async () => {
+      const { el } = await setup({ ...base, loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } });
+      const buttons = Array.from(el.querySelectorAll('[data-testid="actions"] button'));
+
+      expect(buttons.length).toBeGreaterThanOrEqual(3);
+      for (const button of buttons) {
+        expect(text(button).length).toBeGreaterThan(0);
+        expect(button.querySelector('gef-icon')).not.toBeNull();
+      }
+    });
+  });
+
+  describe('executar ações', () => {
+    const confirmButton = (el: HTMLElement) => el.querySelector('[data-testid="confirm-confirm"]') as HTMLButtonElement;
+    const dialog = (el: HTMLElement) => el.querySelector('[role="alertdialog"]');
+
+    function typeInto(el: HTMLElement, selector: string, value: string) {
+      const input = el.querySelector(selector) as HTMLInputElement | HTMLTextAreaElement;
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    }
+
+    async function afterAction(harness: Awaited<ReturnType<typeof setup>>['harness'], updated: AdminUserDetail, sessions: AdminSession[] = []) {
+      await settle(harness);
+      detailRequest().flush(updated);
+      sessionsRequest().flush(sessions);
+      await settle(harness);
+    }
+
+    it('suspender pede o motivo, mostra o efeito, envia e recarrega detalhe e sessões', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-suspend')!.click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="action-effect"]'))).toContain('perde o acesso');
+      confirmButton(el).click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="reason-error"]'))).toContain('Informe o motivo');
+      http.expectNone((r) => r.method === 'POST');
+
+      typeInto(el, '[data-testid="action-reason"]', '  Uso indevido  ');
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/suspend`);
+      expect(req.request.body).toEqual({ reason: 'Uso indevido' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, { ...base, suspended: true, openSessions: 0 });
+
+      expect(toast).toHaveBeenCalledWith('Conta suspensa.');
+      expect(dialog(el)).toBeNull();
+      expect(field(el, 'status')).toBe('Suspenso');
+      expect(actionLabels(el)).toContain('Reativar conta');
+      expect(text(el.querySelector('[role="status"][data-testid="action-status"]'))).toBe('Conta suspensa.');
+    });
+
+    it('depois da ação o foco volta ao título (o botão que abriu pode ter sumido)', async () => {
+      const { harness, el } = await setup();
+      action(el, 'action-suspend')!.click();
+      await settle(harness);
+      typeInto(el, '[data-testid="action-reason"]', 'Motivo');
+      confirmButton(el).click();
+      http.expectOne((r) => r.method === 'POST').flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, { ...base, suspended: true });
+
+      expect(document.activeElement).toBe(el.querySelector('[data-testid="detail-heading"]'));
+    });
+
+    it('reativar não pede motivo, explica que as sessões antigas não voltam e recarrega', async () => {
+      const { harness, el } = await setup({ ...base, suspended: true });
+
+      action(el, 'action-reactivate')!.click();
+      await settle(harness);
+      expect(el.querySelector('[data-testid="action-reason"]')).toBeNull();
+      expect(text(el.querySelector('[data-testid="action-effect"]'))).toContain('precisará entrar de novo');
+      confirmButton(el).click();
+      http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/reactivate`).flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, base);
+
+      expect(toast).toHaveBeenCalledWith('Conta reativada.');
+      expect(field(el, 'status')).toBe('Ativo');
+    });
+
+    it('retirar o bloqueio de login chama a API e atualiza o bloqueio', async () => {
+      const { harness, el } = await setup({ ...base, loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } });
+
+      action(el, 'action-unlock')!.click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="action-effect"]'))).toContain('IP');
+      confirmButton(el).click();
+      http.expectOne((r) => r.method === 'DELETE' && r.url === `${URL}/login-lock`).flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, base);
+
+      expect(toast).toHaveBeenCalledWith('Bloqueio de login retirado.');
+      expect(field(el, 'login-lock')).toBe('Sem bloqueio');
+    });
+
+    it('conceder o perfil exige a senha do administrador', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-grant')!.click();
+      await settle(harness);
+      expect(el.querySelector('[data-testid="action-reason"]')).toBeNull();
+      confirmButton(el).click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="password-error"]'))).toContain('Informe sua senha');
+      http.expectNone((r) => r.method === 'PUT');
+
+      typeInto(el, '[data-testid="action-password"]', 'senha-forte-123');
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/role`);
+      expect(req.request.body).toEqual({ role: 'ADMIN', password: 'senha-forte-123' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, { ...base, role: 'ADMIN' });
+
+      expect(toast).toHaveBeenCalledWith('Perfil de administrador concedido.');
+      expect(actionLabels(el)).toContain('Retirar perfil de administrador');
+    });
+
+    it('retirar o perfil envia USER com a senha', async () => {
+      const { harness, el } = await setup({ ...base, role: 'ADMIN' });
+
+      action(el, 'action-revoke-role')!.click();
+      await settle(harness);
+      typeInto(el, '[data-testid="action-password"]', 'senha-forte-123');
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'PUT' && r.url === `${URL}/role`);
+      expect(req.request.body).toEqual({ role: 'USER', password: 'senha-forte-123' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, base);
+
+      expect(toast).toHaveBeenCalledWith('Perfil de administrador retirado.');
+    });
+
+    it('senha incorreta aparece dentro do diálogo, que não fecha, e nada é recarregado', async () => {
+      const { harness, el } = await setup();
+      action(el, 'action-grant')!.click();
+      await settle(harness);
+      typeInto(el, '[data-testid="action-password"]', 'errada');
+      await settle(harness);
+      confirmButton(el).click();
+
+      http
+        .expectOne((r) => r.method === 'PUT')
+        .flush({ code: 'REAUTH_FAILED', detail: 'Senha incorreta.' }, { status: 403, statusText: 'Forbidden' });
+      await settle(harness);
+
+      expect(dialog(el)).not.toBeNull();
+      expect(text(el.querySelector('[data-testid="confirm-error"]'))).toBe('Senha incorreta.');
+      expect((el.querySelector('[data-testid="action-password"]') as HTMLInputElement).value).toBe('');
+      expect(toast).not.toHaveBeenCalled();
+      http.expectNone((r) => r.method === 'GET');
+    });
+
+    it('recusa de regra (409) mostra a mensagem do servidor no diálogo', async () => {
+      const { harness, el } = await setup();
+      action(el, 'action-suspend')!.click();
+      await settle(harness);
+      typeInto(el, '[data-testid="action-reason"]', 'Motivo');
+      confirmButton(el).click();
+
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush({ code: 'LAST_ADMIN', detail: 'O sistema precisa manter ao menos um administrador ativo.' }, { status: 409, statusText: 'Conflict' });
+      await settle(harness);
+
+      expect(text(el.querySelector('[data-testid="confirm-error"]'))).toBe('O sistema precisa manter ao menos um administrador ativo.');
+      expect(dialog(el)).not.toBeNull();
+    });
+
+    it('erro de validação do motivo no servidor aparece no diálogo', async () => {
+      const { harness, el } = await setup();
+      action(el, 'action-suspend')!.click();
+      await settle(harness);
+      typeInto(el, '[data-testid="action-reason"]', 'Motivo');
+      confirmButton(el).click();
+
+      http
+        .expectOne((r) => r.method === 'POST')
+        .flush(
+          { code: 'VALIDATION_ERROR', detail: 'Há campos inválidos.', errors: [{ field: 'reason', message: 'Informe o motivo da suspensão.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+      await settle(harness);
+
+      expect(text(el.querySelector('[data-testid="confirm-error"]'))).toBe('Informe o motivo da suspensão.');
+    });
+
+    it('Cancelar fecha o diálogo sem chamar a API', async () => {
+      const { harness, el } = await setup();
+      action(el, 'action-suspend')!.click();
+      await settle(harness);
+
+      (el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement).click();
+      await settle(harness);
+
+      expect(dialog(el)).toBeNull();
+      http.expectNone((r) => r.method !== 'GET');
+    });
+
+    it('encerrar uma sessão pela lista recarrega o detalhe (contagem de sessões abertas)', async () => {
+      const session: AdminSession = {
+        id: '11111111-1111-1111-1111-111111111111',
+        startedAt: '2026-11-14T19:00:00Z',
+        lastUsedAt: '2026-11-14T19:30:00Z',
+        current: false,
+      };
+      const { harness, el } = await setup(base, [session]);
+
+      (el.querySelector('[data-testid="revoke-session"]') as HTMLButtonElement).click();
+      await settle(harness);
+      confirmButton(el).click();
+      http.expectOne((r) => r.method === 'DELETE').flush(null, { status: 204, statusText: 'No Content' });
+      await settle(harness);
+      detailRequest().flush({ ...base, openSessions: 2 });
+      sessionsRequest().flush([]);
+      await settle(harness);
+
+      expect(field(el, 'open-sessions')).toBe('2');
+    });
+
+    it('o administrador raiz tem a lista de sessões somente para leitura', async () => {
+      const session: AdminSession = {
+        id: '11111111-1111-1111-1111-111111111111',
+        startedAt: '2026-11-14T19:00:00Z',
+        lastUsedAt: '2026-11-14T19:30:00Z',
+        current: false,
+      };
+      const { el } = await setup({ ...base, role: 'ROOT', protected: true }, [session]);
+
+      expect(el.querySelector('[data-testid="session-row"]')).not.toBeNull();
+      expect(el.querySelectorAll('button')).toHaveLength(0);
+    });
   });
 });
