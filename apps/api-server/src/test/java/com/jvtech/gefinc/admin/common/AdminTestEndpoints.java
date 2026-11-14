@@ -13,15 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Endpoints só de teste sob {@code /admin/_test}: permitem exercitar reautenticação e limites de
- * taxa antes de existirem os controladores reais do painel. Não há regra de papel ainda (a Fase 2
- * não a implementa): "administrador" aqui é qualquer usuário autenticado criado com {@code
- * AdminSeed}.
+ * taxa antes de existirem os controladores reais do painel. Como todo controlador sob {@code
+ * /admin}, é exclusivo de administradores ({@link AdminOnly}).
  */
 @TestConfiguration
 public class AdminTestEndpoints {
 
   @RestController
   @RequestMapping("/admin/_test")
+  @AdminOnly
   public static class TestController {
 
     private final AdminActionExecutor executor;
