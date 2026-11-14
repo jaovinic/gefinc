@@ -44,8 +44,11 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 @Import(AdminTestEndpoints.class)
 class AdminAccessIT extends IntegrationTestBase {
 
-  /** Rotas esperadas hoje: as 4 de teste e a troca de papel; o número só cresce nas próximas US. */
-  private static final int MINIMUM_ROUTES = 5;
+  /**
+   * Rotas esperadas hoje: as 4 de teste, a troca de papel e a lista e o detalhe de usuários; o
+   * número só cresce nas próximas US.
+   */
+  private static final int MINIMUM_ROUTES = 7;
 
   private static final String DENIED = "gefinc.admin.access.denied";
   private static final String IP = "198.51.100.20";

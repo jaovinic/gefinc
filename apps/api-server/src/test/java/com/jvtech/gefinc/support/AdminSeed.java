@@ -1,5 +1,8 @@
 package com.jvtech.gefinc.support;
 
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,6 +102,49 @@ public final class AdminSeed {
           allowRootChange();
           jdbc.update("UPDATE users SET role = 'ROOT' WHERE lower(email) = lower(?)", email);
         });
+  }
+
+  /** Nome de exibição direto na coluna. */
+  public void setName(long id, String name) {
+    jdbc.update("UPDATE users SET name = ? WHERE id = ?", name, id);
+  }
+
+  /** Datas de criação e do último acesso direto nas colunas (o último acesso pode ser nulo). */
+  public void setDates(long id, Instant createdAt, Instant lastAccessAt) {
+    jdbc.update(
+        "UPDATE users SET created_at = ?, last_access_at = ? WHERE id = ?",
+        Timestamp.from(createdAt),
+        lastAccessAt == null ? null : Timestamp.from(lastAccessAt),
+        id);
+  }
+
+  /** Marca a conta como suspensa (só a coluna: a ação de suspender é outra história). */
+  public void suspend(long id, Instant at) {
+    jdbc.update("UPDATE users SET suspended_at = ? WHERE id = ?", Timestamp.from(at), id);
+  }
+
+  /**
+   * Agenda a exclusão pedida pelo próprio usuário (30 dias), com o livro-razão e as quatro colunas
+   * coerentes, como o autoatendimento deixa.
+   */
+  public void scheduleDeletion(long id, Instant requestedAt) {
+    Instant dueAt = requestedAt.plus(Duration.ofDays(30));
+    Long requestId =
+        jdbc.queryForObject(
+            "INSERT INTO account_deletion_requests (user_id, origin, mode, grace_days, requested_at,"
+                + " due_at, status, notice_state) VALUES (?, 'USER', 'GRACE', 30, ?, ?, 'SCHEDULED',"
+                + " 'NOT_APPLICABLE') RETURNING id",
+            Long.class,
+            id,
+            Timestamp.from(requestedAt),
+            Timestamp.from(dueAt));
+    jdbc.update(
+        "UPDATE users SET deletion_requested_at = ?, deletion_due_at = ?, deletion_origin = 'USER',"
+            + " deletion_request_id = ? WHERE id = ?",
+        Timestamp.from(requestedAt),
+        Timestamp.from(dueAt),
+        requestId,
+        id);
   }
 
   private void allowRootChange() {
