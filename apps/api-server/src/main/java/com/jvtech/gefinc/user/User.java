@@ -2,13 +2,22 @@ package com.jvtech.gefinc.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.DynamicUpdate;
 
+/**
+ * {@code @DynamicUpdate}: o UPDATE grava só as colunas alteradas, então um login ou renovação
+ * concorrente não sobrescreve {@code role}, {@code suspended_at} ou {@code token_version} com
+ * valores lidos antes (e o gatilho do raiz só vê {@code role} quando ele muda de fato).
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "users")
 public class User {
 
@@ -42,6 +51,16 @@ public class User {
 
   @Column(name = "token_version", nullable = false)
   private int tokenVersion;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 5)
+  private UserRole role = UserRole.USER;
+
+  @Column(name = "suspended_at")
+  private Instant suspendedAt;
+
+  @Column(name = "last_access_at")
+  private Instant lastAccessAt;
 
   protected User() {}
 
@@ -98,6 +117,41 @@ public class User {
 
   public boolean isDeletionPending() {
     return deletionRequestedAt != null;
+  }
+
+  public UserRole getRole() {
+    return role;
+  }
+
+  public Instant getSuspendedAt() {
+    return suspendedAt;
+  }
+
+  public Instant getLastAccessAt() {
+    return lastAccessAt;
+  }
+
+  public boolean isSuspended() {
+    return suspendedAt != null;
+  }
+
+  /** Conta utilizável: sem suspensão e sem exclusão pendente. */
+  public boolean isActive() {
+    return !isSuspended() && !isDeletionPending();
+  }
+
+  /** Concede o perfil de administrador a um usuário comum; administrador e raiz não mudam. */
+  public void grantAdmin() {
+    if (role == UserRole.USER) {
+      this.role = UserRole.ADMIN;
+    }
+  }
+
+  /** Retira o perfil de administrador; o raiz nunca é rebaixado por aqui. */
+  public void revokeAdmin() {
+    if (role == UserRole.ADMIN) {
+      this.role = UserRole.USER;
+    }
   }
 
   /** Troca a senha e invalida de imediato os tokens de acesso já emitidos. */
