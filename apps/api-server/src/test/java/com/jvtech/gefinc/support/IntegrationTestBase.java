@@ -36,7 +36,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * de {@code TRUNCATE} da auditoria) não impedem a limpeza. O {@code SET LOCAL} é desfeito sozinho
  * no fim da transação, de modo que a conexão devolvida ao pool nunca fica em modo {@code replica} e
  * os testes de gatilho não passam em falso. O usuário do contêiner é superusuário, requisito do
- * parâmetro.
+ * parâmetro. Depois do reset, {@link AdminSeed#restore} recoloca as sementes das migrações (motivos
+ * de exclusão e parâmetros), que o {@code TRUNCATE} apaga.
+ *
+ * <p>Usuários criados direto no banco por {@code AdminSeed} não passam pelo cadastro (sem
+ * categorias padrão); use {@code TestUsers.registerAndLogin} quando o teste precisar de dados
+ * financeiros.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -80,6 +85,7 @@ public abstract class IntegrationTestBase {
     passwordResetRateLimiter.clear();
     loginAttemptLimiter.clear();
     truncateAllTables();
+    AdminSeed.restore(jdbc);
     GREEN_MAIL.purgeEmailFromAllMailboxes();
   }
 

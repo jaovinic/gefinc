@@ -26,6 +26,25 @@ class IntegrationTestBaseResetIT extends IntegrationTestBase {
   private String password;
 
   @Test
+  void resetRestauraAsSementesDasMigracoes() throws Exception {
+    jdbc.update("UPDATE system_parameters SET value = 'false' WHERE key = 'SIGNUPS_OPEN'");
+    jdbc.update("UPDATE deletion_reasons SET active = false, name = 'Alterado' WHERE id = 1");
+    jdbc.update("INSERT INTO deletion_reasons (name, message) VALUES ('Extra', 'm')");
+
+    resetState();
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT value FROM system_parameters WHERE key = 'SIGNUPS_OPEN'", String.class))
+        .isEqualTo("true");
+    assertThat(jdbc.queryForList("SELECT name FROM deletion_reasons ORDER BY id", String.class))
+        .containsExactlyElementsOf(
+            AdminSeed.DELETION_REASONS.stream().map(AdminSeed.Reason::name).toList());
+    assertThat(jdbc.queryForObject("SELECT min(id) FROM deletion_reasons", Long.class))
+        .isEqualTo(1L);
+  }
+
+  @Test
   void resetLimpaTabelaComGatilhoDeTruncateESessaoVoltaAoModoNormal() throws Exception {
     jdbc.execute("CREATE TABLE zz_reset_probe (id INT PRIMARY KEY)");
     try {
