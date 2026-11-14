@@ -28,7 +28,7 @@ public class PasswordResetMailListener {
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
   public void on(PasswordResetMailRequested event) {
     try {
-      mail.sendPasswordReset(event.to(), event.link());
+      mail.sendPasswordReset(event.to(), event.link(), event.userId());
     } catch (RuntimeException e) {
       // Sem a mensagem da exceção: ela poderia conter o destinatário ou o link.
       log.error(

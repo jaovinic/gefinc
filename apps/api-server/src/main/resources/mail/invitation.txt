@@ -1,0 +1,11 @@
+Olá,
+
+Você foi convidado(a) a criar uma conta no GEFINC.
+
+Para concluir o cadastro, acesse o link abaixo. Ele é válido por {{validade}} e só pode ser usado uma vez:
+
+{{link}}
+
+Se você não esperava este convite, ignore esta mensagem: nenhuma conta será criada.
+
+Equipe GEFINC

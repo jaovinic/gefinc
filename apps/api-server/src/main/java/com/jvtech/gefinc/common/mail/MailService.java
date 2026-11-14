@@ -1,29 +1,31 @@
 package com.jvtech.gefinc.common.mail;
 
 import com.jvtech.gefinc.common.config.AppProperties;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
+import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import org.eclipse.angus.mail.smtp.SMTPAddressFailedException;
 import org.eclipse.angus.mail.smtp.SMTPSendFailedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Service;
 
 /**
- * Envio de e-mails transacionais em português. Falhas transitórias de envio ({@link
- * MailSendException}: conexão, timeout, SMTP 4xx) são re-tentadas um número limitado de vezes;
- * falhas de autenticação e rejeições permanentes (SMTP 5xx) não. Ao fim, a falha é registrada sem
- * dados pessoais, contada e nunca propagada.
+ * Envio de e-mails transacionais em português. No modo {@link DeliveryMode#WITH_RETRY}, falhas
+ * transitórias de envio ({@link MailSendException}: conexão, timeout, SMTP 4xx) são re-tentadas um
+ * número limitado de vezes; no modo {@link DeliveryMode#SYNC_ONCE} há uma única tentativa. Falhas
+ * de autenticação e rejeições permanentes (SMTP 5xx) nunca são re-tentadas. Ao fim, a falha é
+ * registrada sem dados pessoais, contada e devolvida como {@link MailOutcome}: o envio nunca lança
+ * por falha de e-mail. Os {@link MailDeliveryListener} recebem o resultado final uma única vez.
  */
 @Service
 public class MailService {
@@ -32,65 +34,172 @@ public class MailService {
 
   private static final Pattern EMAIL_ADDRESS = Pattern.compile("[^\\s<>\"',;:]+@[^\\s<>\"',;]+");
   private static final int MAX_CAUSE_LENGTH = 200;
+  private static final String PASSWORD_RESET_SUBJECT = "GEFINC: redefinição de senha";
 
   private final JavaMailSender sender;
   private final AppProperties properties;
   private final int maxAttempts;
   private final Duration retryBackoff;
   private final MailMetrics metrics;
-  private final String passwordResetTemplate;
+  private final List<MailDeliveryListener> listeners;
 
   public MailService(
       JavaMailSender sender,
       AppProperties properties,
       @Value("${app.mail.max-attempts:3}") int maxAttempts,
       @Value("${app.mail.retry-backoff:1s}") Duration retryBackoff,
-      MailMetrics metrics) {
+      MailMetrics metrics,
+      List<MailDeliveryListener> listeners) {
     this.sender = sender;
     this.properties = properties;
     this.maxAttempts = Math.max(1, maxAttempts);
     this.retryBackoff = retryBackoff;
     this.metrics = metrics;
-    this.passwordResetTemplate = load("mail/password-reset.txt");
+    this.listeners = List.copyOf(listeners);
   }
 
+  /** Atalho do e-mail de redefinição de senha, sem usuário associado, com re-tentativas. */
   public void sendPasswordReset(String to, String link) {
+    sendPasswordReset(to, link, null);
+  }
+
+  public MailOutcome sendPasswordReset(String to, String link, Long userId) {
+    return send(
+        new OutgoingMail(
+            MailKind.PASSWORD_RESET,
+            to,
+            PASSWORD_RESET_SUBJECT,
+            MailTemplates.render("password-reset", Map.of("link", link)),
+            userId),
+        DeliveryMode.WITH_RETRY);
+  }
+
+  /** Envia e devolve o resultado final; nunca lança por falha de e-mail. */
+  public MailOutcome send(OutgoingMail mail, DeliveryMode mode) {
+    MailOutcome outcome = deliver(mail, mode);
+    notifyListeners(mail, outcome);
+    return outcome;
+  }
+
+  private MailOutcome deliver(OutgoingMail mail, DeliveryMode mode) {
+    if (notConfigured()) {
+      metrics.failed(MailMetrics.FailureReason.OTHER);
+      log.error("E-mail não enviado: o envio de e-mail não está configurado.");
+      return MailOutcome.failed(MailFailureReason.NOT_CONFIGURED, 0);
+    }
     SimpleMailMessage message = new SimpleMailMessage();
     message.setFrom(properties.mailFrom());
-    message.setTo(to);
-    message.setSubject("GEFINC: redefinição de senha");
-    message.setText(passwordResetTemplate.replace("{{link}}", link));
+    message.setTo(mail.to());
+    message.setSubject(mail.subject());
+    message.setText(mail.body());
+    String label = describe(mail.kind());
     for (int attempt = 1; ; attempt++) {
       try {
         sender.send(message);
-        return;
+        return MailOutcome.sent(attempt);
       } catch (MailException e) {
         // A resposta da API não pode variar: apenas registramos a falha, sem o endereço.
         boolean transientFailure = e instanceof MailSendException && !isPermanentRejection(e);
-        boolean retry = transientFailure && attempt < maxAttempts;
+        boolean retry =
+            mode == DeliveryMode.WITH_RETRY && transientFailure && attempt < maxAttempts;
         if (!retry) {
           metrics.failed(failureReason(e, transientFailure));
           log.error(
-              "Falha ao enviar e-mail de redefinição de senha após {} tentativa(s): {} (causa: {})",
+              "Falha ao enviar e-mail {} após {} tentativa(s): {} (causa: {})",
+              label,
               attempt,
               e.getClass().getSimpleName(),
-              describeRootCause(e, to));
-          return;
+              describeRootCause(e, mail.to()));
+          return MailOutcome.failed(historyReason(e, transientFailure), attempt);
         }
         log.warn(
-            "Falha transitória ao enviar e-mail de redefinição de senha (tentativa {}/{}): {}"
-                + " (causa: {})",
+            "Falha transitória ao enviar e-mail {} (tentativa {}/{}): {} (causa: {})",
+            label,
             attempt,
             maxAttempts,
             e.getClass().getSimpleName(),
-            describeRootCause(e, to));
+            describeRootCause(e, mail.to()));
         if (!pause(retryBackoff.multipliedBy(attempt))) {
           metrics.failed(MailMetrics.FailureReason.INTERRUPTED);
-          log.error("Envio de e-mail de redefinição de senha interrompido durante a espera");
-          return;
+          log.error("Envio de e-mail {} interrompido durante a espera", label);
+          return MailOutcome.failed(MailFailureReason.OTHER, attempt);
         }
+      } catch (RuntimeException e) {
+        // Nunca propaga nem registra a mensagem: ela poderia conter o destinatário.
+        metrics.failed(MailMetrics.FailureReason.OTHER);
+        log.error(
+            "Falha inesperada ao enviar e-mail {} após {} tentativa(s): {}",
+            label,
+            attempt,
+            e.getClass().getSimpleName());
+        return MailOutcome.failed(MailFailureReason.OTHER, attempt);
       }
     }
+  }
+
+  private void notifyListeners(OutgoingMail mail, MailOutcome outcome) {
+    for (MailDeliveryListener listener : listeners) {
+      try {
+        listener.onDelivery(mail, outcome);
+      } catch (RuntimeException e) {
+        // Só a classe: a mensagem poderia conter destinatário, link ou código.
+        log.error(
+            "Falha ao notificar o resultado do envio de e-mail: {}", e.getClass().getSimpleName());
+      }
+    }
+  }
+
+  /**
+   * Sem remetente, ou com um {@link JavaMailSenderImpl} cujo servidor foi informado em branco.
+   * Servidor nulo não conta: o sender pode ser um dublê ou ter o servidor definido por outros
+   * meios.
+   */
+  private boolean notConfigured() {
+    String from = properties.mailFrom();
+    if (from == null || from.isBlank()) {
+      return true;
+    }
+    return sender instanceof JavaMailSenderImpl impl
+        && impl.getHost() != null
+        && impl.getHost().isBlank();
+  }
+
+  private static String describe(MailKind kind) {
+    return kind == MailKind.PASSWORD_RESET
+        ? "de redefinição de senha"
+        : "(" + kind.name().toLowerCase(java.util.Locale.ROOT) + ")";
+  }
+
+  /** Motivo gravado no histórico de envios (mais fino que o rótulo da métrica). */
+  private static MailFailureReason historyReason(MailException e, boolean transientFailure) {
+    if (e instanceof MailAuthenticationException) {
+      return MailFailureReason.AUTHENTICATION;
+    }
+    if (isPermanentRejection(e)) {
+      return MailFailureReason.PERMANENT_REJECTION;
+    }
+    if (hasTimeout(e)) {
+      return MailFailureReason.TIMEOUT;
+    }
+    return transientFailure ? MailFailureReason.TRANSIENT_EXHAUSTED : MailFailureReason.OTHER;
+  }
+
+  private static boolean hasTimeout(Throwable error) {
+    Throwable current = error;
+    for (int depth = 0; current != null && depth < 10; depth++) {
+      if (current instanceof SocketTimeoutException) {
+        return true;
+      }
+      if (current instanceof MailSendException sendError) {
+        for (Exception failure : sendError.getMessageExceptions()) {
+          if (failure != null && hasTimeout(failure)) {
+            return true;
+          }
+        }
+      }
+      current = current.getCause() == current ? null : current.getCause();
+    }
+    return false;
   }
 
   private static MailMetrics.FailureReason failureReason(
@@ -168,14 +277,5 @@ public class MailService {
     }
     String type = root.getClass().getSimpleName();
     return message.isEmpty() ? type : type + ": " + message;
-  }
-
-  private static String load(String path) {
-    try {
-      return new String(
-          new ClassPathResource(path).getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
   }
 }

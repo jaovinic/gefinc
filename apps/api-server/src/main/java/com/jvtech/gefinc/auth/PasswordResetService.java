@@ -71,7 +71,9 @@ public class PasswordResetService {
                       user.getId(), TokenService.hash(raw), now.plus(LINK_VALIDITY), now));
               events.publishEvent(
                   new PasswordResetMailRequested(
-                      user.getEmail(), properties.baseUrl() + "/reset-password?token=" + raw));
+                      user.getEmail(),
+                      properties.baseUrl() + "/reset-password?token=" + raw,
+                      user.getId()));
             });
   }
 

@@ -1,0 +1,7 @@
+Olá,
+
+A sua conta GEFINC foi excluída por um administrador do serviço e todos os dados foram apagados definitivamente.
+
+{{mensagem}}
+
+Equipe GEFINC
