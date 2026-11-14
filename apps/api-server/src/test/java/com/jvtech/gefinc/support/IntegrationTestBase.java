@@ -7,6 +7,8 @@ import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.util.ServerSetupTest;
 import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.auth.PasswordResetRateLimiter;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -76,6 +78,18 @@ public abstract class IntegrationTestBase {
   @Autowired private ThreadPoolTaskExecutor mailExecutor;
   @Autowired private PlatformTransactionManager transactionManager;
   @Autowired private PasswordEncoder passwordEncoder;
+
+  @Autowired private MeterRegistry meterRegistry;
+
+  /**
+   * Valor atual de um contador Micrometer (0 se ainda não existe). O registro não é limpo entre os
+   * testes: compare por diferença (antes e depois) e os serviços devem obter o contador sob demanda
+   * ({@code registry.counter(...)}), nunca guardar a instância.
+   */
+  protected double counter(String name, String... tags) {
+    Counter counter = meterRegistry.find(name).tags(tags).counter();
+    return counter == null ? 0 : counter.count();
+  }
 
   /** Cria usuários, administradores e o raiz direto no banco. */
   protected AdminSeed seed;
