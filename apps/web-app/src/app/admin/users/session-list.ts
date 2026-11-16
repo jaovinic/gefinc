@@ -113,6 +113,9 @@ export class SessionList {
   protected readonly heading = computed(() => (this.pending()?.kind === 'all' ? 'Encerrar todas as sessões' : 'Encerrar sessão'));
   protected readonly effect = computed(() => {
     const pending = this.pending();
+    if (pending?.kind === 'all' && this.sessions().length === 1) {
+      return 'Encerra a única sessão aberta agora: o usuário é desconectado na próxima ação e precisa entrar de novo. Ele não é avisado.';
+    }
     if (pending?.kind === 'all') {
       return `Encerra todas as ${this.sessions().length} sessões abertas agora: o usuário é desconectado na próxima ação, em todos os dispositivos, e precisa entrar de novo. Ele não é avisado.`;
     }

@@ -186,6 +186,18 @@ describe('SessionList', () => {
     expect(rows(el)).toHaveLength(0);
   });
 
+  it('Encerrar todas com uma só sessão diz "a única sessão aberta", sem plural', async () => {
+    const { fixture, el } = await setup([recent]);
+
+    button(el, 'revoke-all')!.click();
+    await settle(fixture);
+    const effect = text(el.querySelector('[data-testid="action-effect"]'));
+
+    expect(effect).toContain('Encerra a única sessão aberta agora');
+    expect(effect).not.toContain('todas as 1');
+    expect(effect).not.toContain('1 sessões');
+  });
+
   it('falha ao encerrar aparece dentro do diálogo, que continua aberto', async () => {
     const { fixture, host, el } = await setup();
 
