@@ -36,9 +36,16 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> 
       @Param("device") String device,
       @Param("kind") String kind);
 
-  /** Renovação: marca o uso e desliza a validade. Devolve 0 se a sessão não tem linha. */
+  /**
+   * Renovação: marca o uso e desliza a validade, só de sessão aberta (não encerrada e não
+   * expirada). Devolve 0 se a sessão não tem linha OU se está encerrada ou expirada; quem chama
+   * distingue os dois casos com {@code existsById}. O filtro vive no próprio {@code UPDATE}, então
+   * uma sessão encerrada por outra transação enquanto esta esperava a linha também dá 0.
+   */
   @Modifying
-  @Query("update AuthSession s set s.lastUsedAt = :now, s.expiresAt = :expiresAt where s.id = :id")
+  @Query(
+      "update AuthSession s set s.lastUsedAt = :now, s.expiresAt = :expiresAt"
+          + " where s.id = :id and s.revokedAt is null and s.expiresAt > :now")
   int touch(@Param("id") UUID id, @Param("now") Instant now, @Param("expiresAt") Instant expiresAt);
 
   @Modifying

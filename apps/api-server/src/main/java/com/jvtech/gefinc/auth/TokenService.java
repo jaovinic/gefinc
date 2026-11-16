@@ -73,7 +73,7 @@ public class TokenService {
   public Issued issueNewFamily(long userId) {
     Instant now = clock.instant();
     UUID familyId = UUID.randomUUID();
-    Stored stored = store(userId, familyId, now);
+    Stored stored = store(userId, familyId, now, now.plus(properties.security().refreshTokenTtl()));
     insertSession(familyId, userId, now, stored.expiresAt());
     return new Issued(familyId, stored.raw());
   }
@@ -92,7 +92,8 @@ public class TokenService {
    * quando o token é conhecido, mesmo ao recusar (para a auditoria de quem tenta reverter uma
    * decisão administrativa): token desconhecido, expirado ou já rotacionado (nesse último caso a
    * família inteira é revogada). Aceitar marca o uso da sessão e desliza a validade; uma família
-   * anterior à tabela de sessões ganha a linha aqui.
+   * anterior à tabela de sessões ganha a linha aqui. Sessão encerrada ou expirada na tabela recusa
+   * (falha fechada) e revoga a família, sem emitir token.
    */
   @Transactional
   public Rotation rotate(String rawToken) {
@@ -110,11 +111,18 @@ public class TokenService {
     if (current.isExpired(now)) {
       return Rotation.refused(current.getUserId(), current.getFamilyId());
     }
-    Stored next = store(current.getUserId(), current.getFamilyId(), now);
-    current.revoke(now, next.id());
-    if (sessions.touch(current.getFamilyId(), now, next.expiresAt()) == 0) {
-      insertSession(current.getFamilyId(), current.getUserId(), now, next.expiresAt());
+    Instant nextExpiresAt = now.plus(properties.security().refreshTokenTtl());
+    // Falha fechada: a sessão encerrada ou expirada não renova, mesmo com o token ainda válido. Só
+    // a família sem linha em auth_sessions (anterior à tabela) ganha a linha e segue.
+    if (sessions.touch(current.getFamilyId(), now, nextExpiresAt) == 0) {
+      if (sessions.existsById(current.getFamilyId())) {
+        repository.revokeFamily(current.getFamilyId(), now);
+        return Rotation.refused(current.getUserId(), current.getFamilyId());
+      }
+      insertSession(current.getFamilyId(), current.getUserId(), now, nextExpiresAt);
     }
+    Stored next = store(current.getUserId(), current.getFamilyId(), now, nextExpiresAt);
+    current.revoke(now, next.id());
     return Rotation.accepted(current.getUserId(), current.getFamilyId(), next.raw());
   }
 
@@ -148,9 +156,8 @@ public class TokenService {
         familyId, userId, now, expiresAt, origin.ip(), origin.deviceLabel(), origin.clientKind());
   }
 
-  private Stored store(long userId, UUID familyId, Instant now) {
+  private Stored store(long userId, UUID familyId, Instant now, Instant expiresAt) {
     String raw = newRawToken();
-    Instant expiresAt = now.plus(properties.security().refreshTokenTtl());
     RefreshToken token = new RefreshToken(userId, familyId, hash(raw), expiresAt, now);
     repository.saveAndFlush(token);
     return new Stored(token.getId(), raw, expiresAt);
