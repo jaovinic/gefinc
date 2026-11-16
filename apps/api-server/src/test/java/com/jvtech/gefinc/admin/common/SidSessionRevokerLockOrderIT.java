@@ -87,17 +87,23 @@ class SidSessionRevokerLockOrderIT extends IntegrationTestBase {
     }
   }
 
-  private void awaitBlockedOnLock() {
-    await()
+  /**
+   * Espera até que alguma consulta que COMEÇA por {@code queryPrefix} esteja bloqueada numa trava e
+   * devolve o pid dela (uma espera de outra origem não conta).
+   */
+  private int awaitBlockedOnLock(String queryPrefix) {
+    return await()
         .atMost(Duration.ofSeconds(15))
         .pollInterval(Duration.ofMillis(20))
         .until(
             () ->
-                jdbc.queryForObject(
-                        "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"
-                            + " AND wait_event_type = 'Lock'",
-                        Long.class)
-                    > 0);
+                jdbc.queryForList(
+                    "SELECT pid FROM pg_stat_activity WHERE datname = current_database()"
+                        + " AND wait_event_type = 'Lock' AND query LIKE ?",
+                    Integer.class,
+                    queryPrefix + "%"),
+            pids -> !pids.isEmpty())
+        .get(0);
   }
 
   private void assertSessionFree() {
@@ -127,7 +133,7 @@ class SidSessionRevokerLockOrderIT extends IntegrationTestBase {
       try {
         lockToken(holder);
         Future<?> revocation = pool.submit(() -> revokeCurrentAs(principal));
-        awaitBlockedOnLock();
+        awaitBlockedOnLock("UPDATE refresh_tokens");
         try {
           assertSessionFree();
           touchSession(holder);
@@ -276,17 +282,15 @@ class SidSessionRevokerLockOrderIT extends IntegrationTestBase {
                                 "SELECT id FROM users WHERE id = ? FOR UPDATE", admin.id());
                             revokeCurrentAs(new AuthenticatedUser(admin.id(), "ADMIN", null));
                           }));
-      awaitBlockedOnLock();
-      assertThat(
-              jdbc.queryForList(
-                  "SELECT query FROM pg_stat_activity WHERE datname = current_database()"
-                      + " AND wait_event_type = 'Lock'",
-                  String.class))
-          .anyMatch(query -> query.startsWith("UPDATE users SET token_version"));
-
-      jdbc.queryForList(
-          "SELECT pg_cancel_backend(pid) FROM pg_stat_activity"
-              + " WHERE datname = current_database() AND wait_event_type = 'Lock'");
+      int blockedPid = awaitBlockedOnLock("UPDATE users SET token_version");
+      try {
+        assertThat(
+                jdbc.queryForObject(
+                    "SELECT query FROM pg_stat_activity WHERE pid = ?", String.class, blockedPid))
+            .startsWith("UPDATE users SET token_version");
+      } finally {
+        jdbc.queryForObject("SELECT pg_cancel_backend(?)", Boolean.class, blockedPid);
+      }
 
       org.assertj.core.api.Assertions.assertThatThrownBy(() -> outer.get(30, TimeUnit.SECONDS))
           .isInstanceOf(ExecutionException.class);
