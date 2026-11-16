@@ -63,6 +63,12 @@ public class AdminActionExecutor {
   public <T> T run(AuditContext ctx, Supplier<T> body) {
     long adminId = CurrentUser.id();
     try {
+      // O PostgreSQL recusa NUL em texto: a justificativa com NUL é recusada antes de qualquer
+      // efeito.
+      if (AuditEntry.hasNul(ctx.reasonText())) {
+        throw ApiException.validation("Há campos inválidos.")
+            .withFieldError("reason", "O texto contém caracteres inválidos.");
+      }
       return transaction.execute(
           status -> {
             T result = body.get();
@@ -103,7 +109,7 @@ public class AdminActionExecutor {
               .actor(ActorKind.ADMIN, adminId)
               .target(refusal.code() == ErrorCode.NOT_FOUND ? null : ctx.targetUserId())
               .subject(ctx.subject())
-              .reasonText(ctx.reasonText())
+              .reasonText(AuditEntry.hasNul(ctx.reasonText()) ? null : ctx.reasonText())
               .refusal(refusal.code().name())
               .build();
       if (refusal.code() == ErrorCode.REAUTH_FAILED) {

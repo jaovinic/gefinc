@@ -99,6 +99,28 @@ class UserSuspensionIT extends IntegrationTestBase {
   }
 
   @Test
+  void motivoComCaractereNulDa422SemSuspenderERegistraARecusaSemOTexto() throws Exception {
+    SeededUser target = seed.createUser("alvo@teste.com");
+    double failedBefore = counter("gefinc.admin.audit.refusal_failed");
+
+    api.suspendRaw(admin, target.id(), "{\"reason\":\"ab\\u0000cd\"}")
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+        .andExpect(jsonPath("$.errors[0].field").value("reason"))
+        .andExpect(responseMatchesContract());
+
+    assertThat(suspended(target.id())).isFalse();
+    Map<String, Object> row = audit("USER_SUSPENDED");
+    assertThat(row)
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "VALIDATION_ERROR")
+        .containsEntry("target_user_id", target.id());
+    assertThat(row.get("reason_text")).isNull();
+    assertThat(auditCount("USER_SUSPENDED")).isEqualTo(1);
+    assertThat(counter("gefinc.admin.audit.refusal_failed") - failedBefore).isZero();
+  }
+
+  @Test
   void motivoFicaSoNaAuditoriaComAtorEAlvo() throws Exception {
     SeededUser target = seed.createUser("alvo@teste.com");
 

@@ -24,7 +24,10 @@ public final class AuditDetails {
     if (value == null) {
       throw new IllegalArgumentException("Valor nulo em detalhe de auditoria.");
     }
-    if (value.length() > MAX_VALUE_LENGTH || value.contains("@") || value.contains("://")) {
+    if (AuditEntry.hasNul(value)
+        || value.length() > MAX_VALUE_LENGTH
+        || value.contains("@")
+        || value.contains("://")) {
       throw new IllegalArgumentException("Valor não permitido em detalhe de auditoria.");
     }
     values.put(key.json(), value);

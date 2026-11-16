@@ -366,6 +366,48 @@ class AuditServiceIT extends IntegrationTestBase {
   }
 
   @Test
+  void justificativaComNulDa422SemExecutarACaoERegistraARecusaSemOTexto() {
+    SeededUser admin = seed.createAdmin("adm@example.com");
+    SeededUser target = seed.createUser("alvo@example.com");
+    authenticateAs(admin.id());
+    AuditContext ctx =
+        new AuditContext(
+            AuditAction.USER_SUSPENDED, target.id(), null, "ab\u0000cd", AuditDetails::of);
+    java.util.concurrent.atomic.AtomicBoolean executed =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+    double before = counter("gefinc.admin.audit.refusal_failed");
+
+    assertThatThrownBy(
+            () ->
+                executor.run(
+                    ctx,
+                    () -> {
+                      executed.set(true);
+                      jdbc.update("UPDATE users SET name = 'Parcial' WHERE id = ?", target.id());
+                      return null;
+                    }))
+        .isInstanceOfSatisfying(
+            ApiException.class,
+            e -> {
+              assertThat(e.code()).isEqualTo(ErrorCode.VALIDATION_ERROR);
+              assertThat(e.errors()).extracting(m -> m.get("field")).containsExactly("reason");
+            });
+
+    assertThat(executed).isFalse();
+    assertThat(
+            jdbc.queryForObject("SELECT name FROM users WHERE id = ?", String.class, target.id()))
+        .isNull();
+    Map<String, Object> row = jdbc.queryForMap("SELECT * FROM audit_log");
+    assertThat(row)
+        .containsEntry("action", "USER_SUSPENDED")
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "VALIDATION_ERROR")
+        .containsEntry("target_user_id", target.id());
+    assertThat(row.get("reason_text")).isNull();
+    assertThat(counter("gefinc.admin.audit.refusal_failed") - before).isZero();
+  }
+
+  @Test
   void recordRefusalPersisteMesmoQuandoATransacaoExternaFazRollback() {
     SeededUser admin = seed.createAdmin("adm@example.com");
     AuditEntry entry =

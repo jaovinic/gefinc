@@ -1,5 +1,6 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.common.validation.NoNul;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -25,7 +26,7 @@ public final class AuthDtos {
   }
 
   public record LoginRequest(
-      @NotBlank(message = "Informe o e-mail.") String email,
+      @NotBlank(message = "Informe o e-mail.") @NoNul String email,
       @NotBlank(message = "Informe a senha.") String password) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
@@ -69,7 +70,7 @@ public final class AuthDtos {
   }
 
   public record UpdateProfileRequest(
-      @Size(max = 80, message = "O nome pode ter no máximo 80 caracteres.") String name) {
+      @Size(max = 80, message = "O nome pode ter no máximo 80 caracteres.") @NoNul String name) {
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {

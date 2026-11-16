@@ -1,5 +1,7 @@
 package com.jvtech.gefinc.admin.audit;
 
+import com.jvtech.gefinc.common.error.ApiException;
+
 /**
  * Registro a gravar na trilha. {@code reasonText} é a justificativa informada pelo administrador (a
  * única parte livre); {@code subject} é o alvo que não é usuário (chave do parâmetro, id do
@@ -25,9 +27,21 @@ public record AuditEntry(
         || refusalCode != null && refusalCode.length() > 32) {
       throw new IllegalArgumentException("Campo de auditoria acima do tamanho permitido.");
     }
+    if (hasNul(subject) || hasNul(refusalCode)) {
+      throw new IllegalArgumentException("Campo de auditoria com caractere inválido.");
+    }
+    if (hasNul(reasonText)) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError("reason", "O texto contém caracteres inválidos.");
+    }
     if (details == null) {
       details = AuditDetails.of();
     }
+  }
+
+  /** O PostgreSQL recusa o caractere NUL em texto; ele nunca pode chegar à trilha. */
+  public static boolean hasNul(String value) {
+    return value != null && value.indexOf('\u0000') >= 0;
   }
 
   public static Builder builder(AuditAction action) {
