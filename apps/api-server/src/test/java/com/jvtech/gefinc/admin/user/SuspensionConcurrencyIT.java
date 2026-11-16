@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +42,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * suspensão não a reativam nem deixam token de acesso válido.
  */
 class SuspensionConcurrencyIT extends IntegrationTestBase {
+
+  /** Operações de login e renovação que precisam ter começado antes de a suspensão disparar. */
+  private static final int STARTED_BEFORE = 8;
 
   @Autowired private DataSource dataSource;
   @Autowired private UserRepository users;
@@ -166,6 +170,9 @@ class SuspensionConcurrencyIT extends IntegrationTestBase {
         new TestUsers(mockMvc, objectMapper).login("alvo@teste.com", TestUsers.PASSWORD);
     ConcurrentLinkedQueue<String> accessTokens = new ConcurrentLinkedQueue<>();
     accessTokens.add(first.get("accessToken").asText());
+    ConcurrentLinkedQueue<Integer> statuses = new ConcurrentLinkedQueue<>();
+    // Operações já iniciadas: a suspensão só dispara depois de N, sem depender de relógio.
+    AtomicInteger started = new AtomicInteger();
     CountDownLatch go = new CountDownLatch(1);
     int workers = 4;
     ExecutorService pool = Executors.newFixedThreadPool(workers + 1);
@@ -178,6 +185,7 @@ class SuspensionConcurrencyIT extends IntegrationTestBase {
                 () -> {
                   go.await();
                   for (int i = 0; i < 12; i++) {
+                    started.incrementAndGet();
                     var result =
                         refresher
                             ? mockMvc
@@ -191,6 +199,7 @@ class SuspensionConcurrencyIT extends IntegrationTestBase {
                                                     first.get("refreshToken").asText()))))
                                 .andReturn()
                             : api.login("alvo@teste.com", TestUsers.PASSWORD).andReturn();
+                    statuses.add(result.getResponse().getStatus());
                     if (result.getResponse().getStatus() == 200) {
                       accessTokens.add(
                           objectMapper
@@ -206,7 +215,7 @@ class SuspensionConcurrencyIT extends IntegrationTestBase {
           pool.submit(
               () -> {
                 go.await();
-                Thread.sleep(30);
+                await().atMost(Duration.ofSeconds(30)).until(() -> started.get() >= STARTED_BEFORE);
                 return api.suspend(adminToken, target.id(), "Motivo")
                     .andReturn()
                     .getResponse()
@@ -220,6 +229,9 @@ class SuspensionConcurrencyIT extends IntegrationTestBase {
     } finally {
       pool.shutdownNow();
     }
+
+    // Nenhuma resposta 5xx (deadlock, por exemplo): só sucesso, recusa ou limite de tentativas.
+    assertThat(statuses).hasSize(48).allSatisfy(code -> assertThat(code).isIn(200, 401, 403, 429));
 
     assertThat(
             jdbc.queryForObject(
