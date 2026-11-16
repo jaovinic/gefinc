@@ -2,21 +2,33 @@ package com.jvtech.gefinc.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jvtech.gefinc.admin.audit.AuditClientView;
+import com.jvtech.gefinc.admin.audit.AuditEntryView;
+import com.jvtech.gefinc.admin.audit.AuditPageView;
 import java.io.IOException;
 import java.io.Reader;
+import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * O {@code AdminUserDetail} é plano (o validador de contrato recusa {@code allOf} entre objetos sem
- * {@code additionalProperties}) e repete os campos de {@code AdminUserRow}. Sem {@code allOf} nada
- * impede os dois de se afastarem; este teste exige que o detalhe contenha todas as propriedades da
- * linha, com a mesma definição, e que todo campo obrigatório da linha seja obrigatório no detalhe.
+ * Paridade do contrato: o {@code AdminUserDetail} contém tudo que o {@code AdminUserRow} tem e os
+ * DTOs da auditoria ({@code AuditEntryView}, {@code AuditClientView}, {@code AuditPageView}) têm
+ * exatamente as propriedades das schemas {@code AuditEntry}, {@code AuditClient} e {@code
+ * AuditPage}, com o mesmo conjunto de campos obrigatórios presentes.
+ *
+ * <p>O {@code AdminUserDetail} é plano (o validador de contrato recusa {@code allOf} entre objetos
+ * sem {@code additionalProperties}) e repete os campos de {@code AdminUserRow}. Sem {@code allOf}
+ * nada impede os dois de se afastarem; este teste exige que o detalhe contenha todas as
+ * propriedades da linha, com a mesma definição, e que todo campo obrigatório da linha seja
+ * obrigatório no detalhe.
  */
 class OpenApiSchemaParityTest {
 
@@ -67,6 +79,50 @@ class OpenApiSchemaParityTest {
     assertThat(row).isNotNull();
     assertThat(detail).isNotNull();
     assertThat(divergences(row, detail)).isEmpty();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Set<String> propertyNames(Map<String, Object> schema) {
+    return ((Map<String, Object>) schema.get("properties")).keySet();
+  }
+
+  @SuppressWarnings("unchecked")
+  private static List<String> required(Map<String, Object> schema) {
+    return (List<String>) schema.getOrDefault("required", List.of());
+  }
+
+  private static List<String> components(Class<? extends Record> type) {
+    return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toList();
+  }
+
+  private void assertRecordMatchesSchema(String schemaName, Class<? extends Record> type)
+      throws IOException {
+    Map<String, Object> schema = schema(schemaName);
+
+    assertThat(schema).as("schema %s", schemaName).isNotNull();
+    assertThat(propertyNames(schema))
+        .as("propriedades de %s x componentes de %s", schemaName, type.getSimpleName())
+        .containsExactlyInAnyOrderElementsOf(components(type));
+    assertThat(components(type)).containsAll(required(schema));
+  }
+
+  @Test
+  void asSchemasDaAuditoriaTemAsMesmasPropriedadesDosRecordsDaApi() throws IOException {
+    assertRecordMatchesSchema("AuditEntry", AuditEntryView.class);
+    assertRecordMatchesSchema("AuditClient", AuditClientView.class);
+    assertRecordMatchesSchema("AuditPage", AuditPageView.class);
+  }
+
+  @Test
+  void aSchemaAuditEntryTemOClientOpcionalEIpEDispositivoSoNele() throws IOException {
+    Map<String, Object> entry = schema("AuditEntry");
+    Map<String, Object> client = schema("AuditClient");
+
+    assertThat(propertyNames(entry)).contains("client");
+    assertThat(required(entry)).doesNotContain("client");
+    assertThat(required(client)).containsExactly("ref");
+    assertThat(propertyNames(client)).containsExactlyInAnyOrder("ref", "ip", "device");
+    assertThat(propertyNames(entry)).doesNotContain("ip", "device", "clientRef");
   }
 
   @Test

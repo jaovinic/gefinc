@@ -51,6 +51,18 @@ class NulInputIT extends IntegrationTestBase {
     return Stream.of(
         arguments("GET /admin/users?q=%00", t -> t.adminGet("/admin/users").param("q", "\u0000")),
         arguments(
+            "GET /admin/audit?action=%00",
+            t -> t.adminGet("/admin/audit").param("action", "\u0000")),
+        arguments(
+            "GET /admin/audit?result=%00",
+            t -> t.adminGet("/admin/audit").param("result", "\u0000")),
+        arguments(
+            "GET /admin/audit?cursor=%00",
+            t -> t.adminGet("/admin/audit").param("cursor", "\u0000")),
+        arguments(
+            "GET /admin/audit?cursor=NUL no meio",
+            t -> t.adminGet("/admin/audit").param("cursor", "MTIz\u0000NDU2")),
+        arguments(
             "POST /admin/users/{id}/suspend",
             t ->
                 t.adminPost(

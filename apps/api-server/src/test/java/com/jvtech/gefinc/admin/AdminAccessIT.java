@@ -46,10 +46,10 @@ class AdminAccessIT extends IntegrationTestBase {
 
   /**
    * Rotas esperadas hoje: as 4 de teste, a troca de papel, a lista e o detalhe de usuários e as 6
-   * da US3 (sessões: listar, encerrar uma e encerrar todas; suspender; reativar; bloqueio de
-   * login); o número só cresce nas próximas US.
+   * da US3 (sessões: listar, encerrar uma e encerrar todas; suspender; reativar; bloqueio de login)
+   * e as 2 da US5 (lista e detalhe da auditoria); o número só cresce nas próximas US.
    */
-  private static final int MINIMUM_ROUTES = 13;
+  private static final int MINIMUM_ROUTES = 15;
 
   private static final String DENIED = "gefinc.admin.access.denied";
   private static final String IP = "198.51.100.20";

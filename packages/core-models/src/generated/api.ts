@@ -4341,8 +4341,9 @@ export interface components {
             /** Format: int64 */
             userId?: number;
             /**
-             * @description E-mail ou nome vivos; `anônimo-` e 8 hexadecimais se a conta foi removida; `visitante` (com o
-             *     IP apenas enquanto em claro, até 90 dias) para quem não estava autenticado.
+             * @description E-mail ou nome vivos; `anônimo-` e 8 hexadecimais se a conta foi removida; `visitante` para
+             *     quem não estava autenticado; `sistema` para ações automáticas. Nunca carrega IP: o IP e o
+             *     dispositivo de uma tentativa ficam em `AuditEntry.client`, só no detalhe.
              */
             label: string;
         };
@@ -4517,6 +4518,25 @@ export interface components {
             details?: {
                 [key: string]: unknown;
             };
+            client?: components["schemas"]["AuditClient"];
+        };
+        /**
+         * @description Origem de uma tentativa (acesso negado, recusa de reautenticação ou de reverter decisão). Só vem
+         *     em `GET /admin/audit/{auditId}`, nunca na lista nem no histórico do usuário.
+         */
+        AuditClient: {
+            /**
+             * @description Identificador anônimo e estável do IP (`anônimo-` e 8 hexadecimais): tentativas do mesmo IP
+             *     têm o mesmo `ref`, mesmo depois de o IP ser apagado. Não é reversível.
+             */
+            ref: string;
+            /**
+             * @description IP real. Presente só no detalhe e só enquanto existir: apagado com a exclusão da conta e,
+             *     para visitantes sem conta, depois de 90 dias.
+             */
+            ip?: string;
+            /** @description Rótulo grosseiro do dispositivo (navegador e sistema); some junto com o IP */
+            device?: string;
         };
         AuditPage: {
             content: components["schemas"]["AuditEntry"][];

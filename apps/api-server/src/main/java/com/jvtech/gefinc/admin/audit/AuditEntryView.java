@@ -19,7 +19,8 @@ public record AuditEntryView(
     String reason,
     String refusalCode,
     String summary,
-    Map<String, Object> details) {
+    Map<String, Object> details,
+    AuditClientView client) {
 
   /** Sem justificativa, rótulos nem detalhes em logs. */
   @Override

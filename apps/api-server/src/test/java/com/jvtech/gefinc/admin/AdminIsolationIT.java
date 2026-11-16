@@ -94,6 +94,9 @@ class AdminIsolationIT extends IntegrationTestBase {
   private long anaTransaction;
   private long anaTransfer;
   private long adminId;
+  private long auditSuspension;
+  private long auditAttempt;
+  private long auditParameter;
 
   @BeforeEach
   void init() throws Exception {
@@ -114,6 +117,44 @@ class AdminIsolationIT extends IntegrationTestBase {
     JsonNode transaction = api.get(ana, "/transactions").path("content").get(0);
     anaGroup = transaction.get("groupId").asLong();
     anaTransaction = transaction.get("id").asLong();
+    seedAudit();
+  }
+
+  /**
+   * Trilha semeada para a varredura: uma ação com justificativa, uma tentativa negada com IP e
+   * dispositivo (o detalhe mostra o {@code client}) e uma troca de parâmetro com detalhes.
+   */
+  private void seedAudit() {
+    auditSuspension =
+        jdbc.queryForObject(
+            "INSERT INTO audit_log (occurred_at, action, result, actor_kind, actor_user_id,"
+                + " target_user_id, reason_text, details) VALUES (now(), 'USER_SUSPENDED',"
+                + " 'SUCCESS', 'ADMIN', ?, ?, 'Pedido do suporte, chamado 12', '{}'::jsonb)"
+                + " RETURNING id",
+            Long.class,
+            adminId,
+            ana.id());
+    auditAttempt =
+        jdbc.queryForObject(
+            "INSERT INTO audit_log (occurred_at, action, result, actor_kind, actor_user_id,"
+                + " target_user_id, refusal_code, details, client_ref) VALUES (now(),"
+                + " 'REVERT_ATTEMPT', 'REFUSED', 'USER', ?, ?, 'ACCOUNT_SUSPENDED', '{}'::jsonb,"
+                + " 'abcdef0123456789abcdef0123456789') RETURNING id",
+            Long.class,
+            bia.id(),
+            bia.id());
+    jdbc.update(
+        "INSERT INTO audit_log_client (audit_id, user_id, ip, device_label) VALUES (?, ?,"
+            + " '203.0.113.50', 'Firefox em Linux')",
+        auditAttempt,
+        bia.id());
+    auditParameter =
+        jdbc.queryForObject(
+            "INSERT INTO audit_log (occurred_at, action, result, actor_kind, actor_user_id,"
+                + " subject, details) VALUES (now(), 'PARAMETER_CHANGED', 'SUCCESS', 'ADMIN', ?,"
+                + " 'SIGNUPS_OPEN', '{\"from\":\"true\",\"to\":\"false\"}'::jsonb) RETURNING id",
+            Long.class,
+            adminId);
   }
 
   /** Conta corrente, carteira, cartão, categoria, um lançamento e uma transferência do usuário. */
@@ -170,6 +211,20 @@ class AdminIsolationIT extends IntegrationTestBase {
             "/admin/users/" + ana.id() + "/sessions",
             "/admin/users/" + bia.id() + "/sessions",
             "/admin/users/" + adminId + "/sessions"));
+    map.put(
+        "/admin/audit",
+        List.of(
+            "/admin/audit",
+            "/admin/audit?limit=100",
+            "/admin/audit?actorId=" + adminId,
+            "/admin/audit?targetUserId=" + ana.id(),
+            "/admin/audit?result=REFUSED&action=REVERT_ATTEMPT"));
+    map.put(
+        "/admin/audit/{auditId}",
+        List.of(
+            "/admin/audit/" + auditSuspension,
+            "/admin/audit/" + auditAttempt,
+            "/admin/audit/" + auditParameter));
     return map;
   }
 
@@ -238,7 +293,7 @@ class AdminIsolationIT extends IntegrationTestBase {
         visited++;
       }
     }
-    assertThat(visited).isGreaterThanOrEqualTo(8);
+    assertThat(visited).isGreaterThanOrEqualTo(16);
   }
 
   private static void collectFieldNames(JsonNode node, Set<String> names) {

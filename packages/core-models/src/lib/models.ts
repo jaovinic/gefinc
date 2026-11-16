@@ -80,6 +80,7 @@ export type DeletionOutcome = Schemas['DeletionOutcome'];
 export type AuditAction = Schemas['AuditAction'];
 export type AuditResult = Schemas['AuditResult'];
 export type AuditEntry = Schemas['AuditEntry'];
+export type AuditClient = Schemas['AuditClient'];
 export type AuditPage = Schemas['AuditPage'];
 export type SystemHealth = Schemas['SystemHealth'];
 export type DayCount = Schemas['DayCount'];
