@@ -1,7 +1,16 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import type { AdminSession, AdminUserDetail, AdminUserPage, RoleChangeRequest } from '@gefinc/core-models';
+import type {
+  AdminSession,
+  AdminUserDetail,
+  AdminUserPage,
+  AuditAction,
+  AuditEntry,
+  AuditPage,
+  AuditResult,
+  RoleChangeRequest,
+} from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService, toProblem } from '@gefinc/ui-shared';
 import { Observable, catchError, throwError } from 'rxjs';
 
@@ -18,6 +27,18 @@ export interface AdminUserListParams {
   dir?: AdminSortDirection;
   page?: number;
   size?: number;
+}
+
+/** Parâmetros da consulta da auditoria (`GET /admin/audit`); ausentes não vão na URL. */
+export interface AdminAuditListParams {
+  from?: string;
+  to?: string;
+  actorId?: number;
+  targetUserId?: number;
+  action?: AuditAction;
+  result?: AuditResult;
+  cursor?: string;
+  limit?: number;
 }
 
 /**
@@ -98,6 +119,41 @@ export class AdminApi {
   /** Retira o bloqueio temporário por tentativas de login. */
   clearLoginLock(userId: number): Observable<void> {
     return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/login-lock`));
+  }
+
+  /** Página da trilha de auditoria (somente leitura, paginada por cursor opaco). */
+  listAudit(params: AdminAuditListParams = {}): Observable<AuditPage> {
+    let query = new HttpParams();
+    if (params.from?.trim()) {
+      query = query.set('from', params.from.trim());
+    }
+    if (params.to?.trim()) {
+      query = query.set('to', params.to.trim());
+    }
+    if (params.actorId !== undefined) {
+      query = query.set('actorId', params.actorId);
+    }
+    if (params.targetUserId !== undefined) {
+      query = query.set('targetUserId', params.targetUserId);
+    }
+    if (params.action) {
+      query = query.set('action', params.action);
+    }
+    if (params.result) {
+      query = query.set('result', params.result);
+    }
+    if (params.cursor?.trim()) {
+      query = query.set('cursor', params.cursor.trim());
+    }
+    if (params.limit !== undefined) {
+      query = query.set('limit', params.limit);
+    }
+    return this.guarded(this.http.get<AuditPage>(`${this.base}/admin/audit`, { params: query }));
+  }
+
+  /** Detalhe de um registro da auditoria (`GET /admin/audit/{auditId}`). */
+  getAuditEntry(id: number): Observable<AuditEntry> {
+    return this.guarded(this.http.get<AuditEntry>(`${this.base}/admin/audit/${id}`));
   }
 
   private guarded<T>(request: Observable<T>): Observable<T> {

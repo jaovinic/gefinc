@@ -33,6 +33,7 @@ describe('Shell (menu lateral)', () => {
           { path: 'settings', component: Page },
           { path: 'login', component: Page },
           { path: 'admin/users', component: Page },
+          { path: 'admin/audit', component: Page },
         ]),
         { provide: SessionService, useValue: { logout, isAdmin: signal(admin) } },
         { provide: CurrentUser, useValue: currentUser },

@@ -13,6 +13,7 @@ export const adminRoutes: Route[] = [
       { path: '', pathMatch: 'full', redirectTo: 'users' },
       { path: 'users', loadComponent: () => import('./users/user-list').then((m) => m.UserList) },
       { path: 'users/:id', loadComponent: () => import('./users/user-detail').then((m) => m.UserDetail) },
+      { path: 'audit', loadComponent: () => import('./audit/audit-list').then((m) => m.AuditList) },
     ],
   },
 ];

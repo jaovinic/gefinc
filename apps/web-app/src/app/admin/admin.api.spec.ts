@@ -252,4 +252,58 @@ describe('AdminApi', () => {
       expect(navigate).not.toHaveBeenCalled();
     });
   });
+
+  describe('auditoria (listAudit e getAuditEntry)', () => {
+    it('listAudit envia só os parâmetros informados', () => {
+      api
+        .listAudit({
+          from: '2026-10-01T00:00:00Z',
+          to: '2026-10-02T00:00:00Z',
+          actorId: 2,
+          targetUserId: 7,
+          action: 'USER_SUSPENDED',
+          result: 'SUCCESS',
+          cursor: 'abc',
+          limit: 50,
+        })
+        .subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/audit');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('from')).toBe('2026-10-01T00:00:00Z');
+      expect(req.request.params.get('to')).toBe('2026-10-02T00:00:00Z');
+      expect(req.request.params.get('actorId')).toBe('2');
+      expect(req.request.params.get('targetUserId')).toBe('7');
+      expect(req.request.params.get('action')).toBe('USER_SUSPENDED');
+      expect(req.request.params.get('result')).toBe('SUCCESS');
+      expect(req.request.params.get('cursor')).toBe('abc');
+      expect(req.request.params.get('limit')).toBe('50');
+      req.flush({ content: [] });
+    });
+
+    it('listAudit sem filtros não envia parâmetros na URL', () => {
+      api.listAudit().subscribe();
+
+      const req = http.expectOne('/api/v1/admin/audit');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush({ content: [] });
+    });
+
+    it('getAuditEntry pede o detalhe pelo id', () => {
+      let id = 0;
+      api.getAuditEntry(42).subscribe((entry) => (id = entry.id));
+
+      const req = http.expectOne('/api/v1/admin/audit/42');
+      expect(req.request.method).toBe('GET');
+      req.flush({
+        id: 42,
+        occurredAt: '2026-10-01T12:00:00Z',
+        action: 'USER_SUSPENDED',
+        result: 'SUCCESS',
+        actor: { userId: 1, label: 'adm@teste.com' },
+        summary: 'Usuário suspenso',
+      });
+      expect(id).toBe(42);
+    });
+  });
 });
