@@ -33,8 +33,12 @@ import { AuthCard } from '../auth-card';
         <section class="space-y-2" aria-labelledby="privacy-how-long">
           <h2 id="privacy-how-long" class="text-title-sm font-semibold">Por quanto tempo</h2>
           <p>
-            Os dados da sessão ficam enquanto ela estiver aberta e por mais alguns dias depois de encerrada ou
+            Os dados da sessão ficam enquanto ela estiver aberta e por mais 30 dias depois de encerrada ou
             expirada. Registros de acesso de visitantes (quem não tem conta) são guardados por até 90 dias.
+          </p>
+          <p>
+            O IP de tentativas de acesso negadas feitas por quem tem conta fica enquanto a conta existir e é
+            apagado junto com a conta, quando você a exclui. A limpeza de 90 dias só atinge visitantes.
           </p>
         </section>
 

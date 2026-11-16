@@ -34,6 +34,17 @@ describe('PrivacyNoticePage', () => {
     expect(content).toContain('apagados');
   });
 
+  it('diz o prazo exato das sessões encerradas (30 dias) e o que vale para quem tem conta', async () => {
+    const { el } = await setup();
+    const content = text(el);
+
+    expect(content).toContain('por mais 30 dias depois de encerrada ou expirada');
+    expect(content).not.toContain('alguns dias');
+    expect(content).toContain('enquanto a conta existir');
+    expect(content).toContain('apagado junto com a conta');
+    expect(content).toContain('só atinge visitantes');
+  });
+
   it('nunca guarda o texto bruto do navegador e diz isso', async () => {
     const { el } = await setup();
 
