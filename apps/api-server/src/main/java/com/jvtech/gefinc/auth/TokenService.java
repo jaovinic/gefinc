@@ -79,6 +79,15 @@ public class TokenService {
   }
 
   /**
+   * Dono do token apresentado, só leitura e sem trava. Quem vai renovar trava o usuário com ele
+   * antes de {@link #rotate}, para respeitar a ordem global de travas (usuário, depois tokens).
+   */
+  @Transactional(readOnly = true)
+  public Optional<Long> ownerOf(String rawToken) {
+    return repository.findOwnerByTokenHash(hash(rawToken));
+  }
+
+  /**
    * Troca o token apresentado por um novo da mesma família. Sempre devolve o dono e a família
    * quando o token é conhecido, mesmo ao recusar (para a auditoria de quem tenta reverter uma
    * decisão administrativa): token desconhecido, expirado ou já rotacionado (nesse último caso a

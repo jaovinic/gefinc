@@ -12,8 +12,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
+  /** Com trava de escrita na linha do token: só depois de travar o usuário (ver AdminPolicy). */
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+  /** Dono do token, só leitura e sem trava: serve para travar o usuário antes do token. */
+  @Query("select t.userId from RefreshToken t where t.tokenHash = :tokenHash")
+  Optional<Long> findOwnerByTokenHash(@Param("tokenHash") String tokenHash);
 
   @Modifying
   @Query(

@@ -15,6 +15,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("select u from User u where lower(u.email) = lower(:email)")
   Optional<User> findByEmail(@Param("email") String email);
 
+  /** Como {@link #findByEmail}, com trava de escrita (ordem global de travas, ver AdminPolicy). */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select u from User u where lower(u.email) = lower(:email)")
+  Optional<User> findByEmailForUpdate(@Param("email") String email);
+
   @Query("select count(u) > 0 from User u where lower(u.email) = lower(:email)")
   boolean existsByEmail(@Param("email") String email);
 

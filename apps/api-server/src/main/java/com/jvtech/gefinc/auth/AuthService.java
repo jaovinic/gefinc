@@ -83,6 +83,8 @@ public class AuthService {
    */
   @Transactional(noRollbackFor = ApiException.class)
   public Optional<Session> refresh(String rawRefreshToken) {
+    // Ordem global de travas: o usuário antes dos tokens (a ação administrativa faz o mesmo).
+    tokens.ownerOf(rawRefreshToken).ifPresent(users::findForUpdate);
     TokenService.Rotation rotation = tokens.rotate(rawRefreshToken);
     if (!rotation.accepted()) {
       if (rotation.userId() != null) {

@@ -9,6 +9,7 @@ import com.jvtech.gefinc.user.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -80,9 +81,14 @@ public class PasswordResetService {
   @Transactional
   public void confirm(String rawToken, String newPassword) {
     Instant now = clock.instant();
+    String tokenHash = TokenService.hash(rawToken);
+    // Ordem global de travas (ver AdminPolicy): o usuário antes do link, e o link já relido sob a
+    // trava, então um uso concorrente do mesmo link é visto como usado.
+    Optional<User> owner =
+        resetTokens.findOwnerByTokenHash(tokenHash).flatMap(users::findForUpdate);
     PasswordResetToken token =
-        resetTokens
-            .findByTokenHash(TokenService.hash(rawToken))
+        owner
+            .flatMap(user -> resetTokens.findByTokenHash(tokenHash))
             .filter(t -> t.isUsable(now))
             .orElseThrow(
                 () ->
@@ -95,7 +101,7 @@ public class PasswordResetService {
             reason -> {
               throw ApiException.validation(reason);
             });
-    User user = users.findById(token.getUserId()).orElseThrow();
+    User user = owner.orElseThrow();
     user.changePassword(encoder.encode(newPassword));
     token.markUsed(now);
     resetTokens.invalidateOpenTokens(user.getId(), now);

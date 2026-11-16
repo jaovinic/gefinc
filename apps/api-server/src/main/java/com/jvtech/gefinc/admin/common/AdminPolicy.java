@@ -18,6 +18,23 @@ import org.springframework.transaction.annotation.Transactional;
  * sem administrador (R14). A ordem das checagens é fixa: raiz, si mesmo, alvo ativo (só para
  * conceder) e último administrador. Quem chama toma antes a trava de linha do alvo ({@code
  * findForUpdate}): linha primeiro, trava consultiva depois, em todos os caminhos.
+ *
+ * <p><b>Ordem global de travas</b> (toda transação que escreve em mais de uma destas tabelas segue
+ * esta ordem, senão duas requisições se esperam e o PostgreSQL derruba uma com {@code 40P01}):
+ *
+ * <ol>
+ *   <li>{@code users} (linha do usuário, por {@code findForUpdate}, ou {@code UPDATE});
+ *   <li>trava consultiva {@value #LOCK_NAME};
+ *   <li>{@code refresh_tokens};
+ *   <li>{@code auth_sessions};
+ *   <li>{@code password_reset_tokens} e {@code account_deletion_requests}.
+ * </ol>
+ *
+ * Quem começa por um token (renovação, redefinição de senha) descobre o dono sem travar e trava o
+ * usuário antes de travar o token; cancelar a exclusão trava o usuário antes do livro-razão. O
+ * login lê o usuário sem trava, mas só escreve depois (o {@code UPDATE} de último acesso já é o
+ * primeiro passo da ordem), e o logout só toca {@code refresh_tokens} e {@code auth_sessions}, na
+ * mesma ordem relativa.
  */
 @Component
 public class AdminPolicy {

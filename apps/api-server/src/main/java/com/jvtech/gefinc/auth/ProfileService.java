@@ -64,7 +64,15 @@ public class ProfileService {
   @Transactional
   public AuthService.Session changePassword(
       long userId, String currentPassword, String newPassword) {
-    User user = load(userId);
+    // Usuário travado antes de tocar nos tokens (ordem global de travas), já com o estado vigente.
+    User user =
+        users
+            .findForUpdate(userId)
+            .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "Sessão expirada."));
+    if (user.isSuspended() || user.isDeletionPending()) {
+      // Suspensa ou excluída enquanto esperava: a sessão já não vale, como no filtro de acesso.
+      throw new ApiException(ErrorCode.UNAUTHORIZED, "Sessão expirada.");
+    }
     if (!auth.matches(currentPassword, user.getPasswordHash())) {
       throw ApiException.validation("Há campos inválidos.")
           .withFieldError("currentPassword", "A senha atual está incorreta.");

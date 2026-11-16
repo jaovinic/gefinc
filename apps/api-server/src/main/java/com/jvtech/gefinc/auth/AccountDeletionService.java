@@ -97,7 +97,8 @@ public class AccountDeletionService {
   public void cancel(String email, String password, String clientIp) {
     // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
     limiter.checkAllowed(email, clientIp);
-    User user = users.findByEmail(email.strip()).orElse(null);
+    // Usuário travado antes do livro-razão (ordem global de travas), já com o estado vigente.
+    User user = users.findByEmailForUpdate(email.strip()).orElse(null);
     if (user == null || !auth.matches(password, user.getPasswordHash())) {
       limiter.recordFailure(email, clientIp);
       throw AuthService.invalidCredentials();
