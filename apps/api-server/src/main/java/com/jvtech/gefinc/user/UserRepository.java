@@ -20,6 +20,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("select u from User u where lower(u.email) = lower(:email)")
   Optional<User> findByEmailForUpdate(@Param("email") String email);
 
+  /**
+   * Só o hash da senha, sem trava e sem carregar a entidade (o Hibernate não a sobrescreveria com o
+   * estado vigente na consulta com trava que vem depois). Para conferir a senha antes de travar.
+   */
+  @Query("select u.passwordHash from User u where lower(u.email) = lower(:email)")
+  Optional<String> findPasswordHashByEmail(@Param("email") String email);
+
   @Query("select count(u) > 0 from User u where lower(u.email) = lower(:email)")
   boolean existsByEmail(@Param("email") String email);
 

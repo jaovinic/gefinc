@@ -97,9 +97,18 @@ public class AccountDeletionService {
   public void cancel(String email, String password, String clientIp) {
     // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
     limiter.checkAllowed(email, clientIp);
-    // Usuário travado antes do livro-razão (ordem global de travas), já com o estado vigente.
-    User user = users.findByEmailForUpdate(email.strip()).orElse(null);
-    if (user == null || !auth.matches(password, user.getPasswordHash())) {
+    String key = email.strip();
+    // A senha (BCrypt, caro) é conferida SEM a trava: a rota não tem autenticação e a linha do
+    // usuário não pode ficar segurada durante o hash.
+    String verifiedHash = users.findPasswordHashByEmail(key).orElse(null);
+    if (verifiedHash == null || !auth.matches(password, verifiedHash)) {
+      limiter.recordFailure(email, clientIp);
+      throw AuthService.invalidCredentials();
+    }
+    // Usuário travado antes do livro-razão (ordem global de travas), já com o estado vigente: a
+    // conta pode ter sido apagada, suspensa ou ter trocado de senha enquanto o hash era conferido.
+    User user = users.findByEmailForUpdate(key).orElse(null);
+    if (user == null || !verifiedHash.equals(user.getPasswordHash())) {
       limiter.recordFailure(email, clientIp);
       throw AuthService.invalidCredentials();
     }

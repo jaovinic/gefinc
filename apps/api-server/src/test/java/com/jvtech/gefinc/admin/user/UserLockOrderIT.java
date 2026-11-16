@@ -103,6 +103,16 @@ class UserLockOrderIT extends IntegrationTestBase {
 
   /** Executa a requisição enquanto a conexão "administrador" segura o usuário; devolve o status. */
   private int race(Callable<Integer> request, Runnable whileWaiting) throws Exception {
+    return race(request, whileWaiting, this::adminSuspends);
+  }
+
+  @FunctionalInterface
+  private interface AdminAction {
+    void run(Connection admin) throws SQLException;
+  }
+
+  private int race(Callable<Integer> request, Runnable whileWaiting, AdminAction action)
+      throws Exception {
     ExecutorService pool = Executors.newSingleThreadExecutor();
     try (Connection admin = dataSource.getConnection()) {
       admin.setAutoCommit(false);
@@ -113,7 +123,7 @@ class UserLockOrderIT extends IntegrationTestBase {
         try {
           whileWaiting.run();
         } finally {
-          adminSuspends(admin);
+          action.run(admin);
           admin.commit();
         }
         return response.get(30, TimeUnit.SECONDS);
@@ -273,5 +283,75 @@ class UserLockOrderIT extends IntegrationTestBase {
                 String.class,
                 user.id()))
         .isEqualTo("SCHEDULED");
+  }
+
+  private Callable<Integer> cancelRequest(String password) {
+    return () ->
+        mockMvc
+            .perform(
+                post("/auth/account-deletion/cancel")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            Map.of("email", "alvo@teste.com", "password", password))))
+            .andReturn()
+            .getResponse()
+            .getStatus();
+  }
+
+  private String deletionStatus() {
+    return jdbc.queryForObject(
+        "SELECT status FROM account_deletion_requests WHERE user_id = ?", String.class, user.id());
+  }
+
+  /**
+   * A senha é conferida (BCrypt, caro) SEM a trava do usuário: numa rota sem autenticação, quem
+   * erra a senha em massa não pode ficar segurando a linha. Com o usuário travado por outra
+   * conexão, a senha errada é recusada sem esperar.
+   */
+  @Test
+  void cancelamentoComSenhaErradaNaoEsperaATravaDoUsuario() throws Exception {
+    init();
+    seed.scheduleDeletion(user.id(), clock.instant());
+    ExecutorService pool = Executors.newSingleThreadExecutor();
+    try (Connection admin = dataSource.getConnection()) {
+      admin.setAutoCommit(false);
+      try {
+        lockUser(admin);
+        Future<Integer> response = pool.submit(cancelRequest("senha-errada-999"));
+
+        assertThat(response.get(10, TimeUnit.SECONDS)).isEqualTo(401);
+      } finally {
+        admin.rollback();
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+    assertThat(deletionStatus()).isEqualTo("SCHEDULED");
+  }
+
+  /**
+   * A senha conferida antes da trava vale só para o hash lido: se mudou enquanto esperava, recusa.
+   */
+  @Test
+  void cancelamentoReconfereASenhaDepoisDaTravaQuandoOHashMudou() throws Exception {
+    init();
+    seed.scheduleDeletion(user.id(), clock.instant());
+
+    int status =
+        race(
+            cancelRequest(TestUsers.PASSWORD),
+            () -> assertFree("account_deletion_requests", "user_id", user.id()),
+            admin -> {
+              try (PreparedStatement statement =
+                  admin.prepareStatement("UPDATE users SET password_hash = ? WHERE id = ?")) {
+                statement.setString(1, "hash-trocado-durante-a-espera");
+                statement.setLong(2, user.id());
+                statement.executeUpdate();
+              }
+            });
+
+    assertThat(status).isEqualTo(401);
+    assertThat(deletionStatus()).isEqualTo("SCHEDULED");
   }
 }
