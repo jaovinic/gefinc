@@ -70,6 +70,14 @@ export function messageFor(problem: ApiProblem): string {
       return problem.detail ?? 'A conta está suspensa ou aguardando exclusão e não pode receber esta ação.';
     case ERROR_CODES.staleVersion:
       return 'Este registro foi alterado em outro dispositivo. Recarregue para ver a versão atual.';
+    case ADMIN_ERROR_CODES.maintenance:
+      return (typeof problem.extras['message'] === 'string' && (problem.extras['message'] as string).trim().length > 0)
+        ? (problem.extras['message'] as string)
+        : (problem.detail ?? 'O sistema está em manutenção no momento. Tente novamente mais tarde.');
+    case ADMIN_ERROR_CODES.signupsClosed:
+      return 'Novos cadastros estão temporariamente encerrados.';
+    case ADMIN_ERROR_CODES.invalidConfirmation:
+      return problem.detail ?? 'Confirmação inválida.';
     default:
       break;
   }

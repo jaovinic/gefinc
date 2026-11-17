@@ -6,6 +6,7 @@ import { AccountChip, Icon, Logo, Sheet } from '@gefinc/ui-shared';
 import { filter, map } from 'rxjs';
 import { LogoutAction } from '../core/logout';
 import { OfflineBanner } from '../offline/offline-banner';
+import { MaintenanceBanner } from './maintenance-banner';
 import { MoreMenu } from './more-menu';
 
 interface Tab {
@@ -34,7 +35,7 @@ const TABS: Tab[] = [
  */
 @Component({
   selector: 'gef-mobile-shell',
-  imports: [AccountChip, Icon, Logo, MoreMenu, OfflineBanner, RouterOutlet, RouterLink, RouterLinkActive, Sheet],
+  imports: [AccountChip, Icon, Logo, MaintenanceBanner, MoreMenu, OfflineBanner, RouterOutlet, RouterLink, RouterLinkActive, Sheet],
   template: `
     <div class="gef-shell">
       <header class="gef-app-header">
@@ -48,6 +49,7 @@ const TABS: Tab[] = [
         />
       </header>
       <gef-offline-banner />
+      <gef-maintenance-banner />
       <main class="gef-shell-main gef-page"><router-outlet /></main>
       <nav
         class="gef-tabbar"

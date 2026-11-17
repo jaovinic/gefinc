@@ -1,7 +1,7 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { AuthApi, SessionService, messageFor, toProblem } from '../../api';
+import { AuthApi, SessionService, SystemApi, messageFor, toProblem } from '../../api';
 import { isoToBR } from '@gefinc/utils';
 import { switchMap } from 'rxjs';
 import { AuthCard } from '../auth-card';
@@ -11,6 +11,12 @@ import { AuthCard } from '../auth-card';
   imports: [ReactiveFormsModule, RouterLink, AuthCard],
   template: `
     <gef-auth-card heading="Entrar">
+      @if (maintenanceMessage(); as maintMsg) {
+        <div class="gef-alert-warning mb-4" role="alert" data-testid="maintenance-banner">
+          <p class="font-medium">Sistema em manutenção</p>
+          <p class="mt-1 text-sm">{{ maintMsg }}</p>
+        </div>
+      }
       @if (pendingDeletionDate(); as date) {
         <div class="gef-alert-warning mb-4" role="alert">
           <p>A exclusão desta conta está agendada para {{ date }}.</p>
@@ -51,10 +57,11 @@ import { AuthCard } from '../auth-card';
     </gef-auth-card>
   `,
 })
-export class Login {
+export class Login implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly session = inject(SessionService);
   private readonly api = inject(AuthApi);
+  private readonly systemApi = inject(SystemApi);
   private readonly router = inject(Router);
 
   protected readonly form = this.fb.nonNullable.group({
@@ -64,6 +71,20 @@ export class Login {
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected readonly pendingDeletionDate = signal<string | null>(null);
+  protected readonly maintenanceMessage = signal<string | null>(null);
+
+  ngOnInit(): void {
+    this.systemApi.status().subscribe({
+      next: (s) => {
+        if (s.maintenance) {
+          this.maintenanceMessage.set(s.message || 'Sistema em manutenção no momento.');
+        }
+      },
+      error: () => {
+        // Silencioso se status falhar
+      },
+    });
+  }
 
   protected submit(): void {
     if (this.form.invalid) {

@@ -170,4 +170,50 @@ describe('authInterceptor', () => {
 
     expect(notices.message()).toBeNull();
   });
+
+  it('503 MAINTENANCE durante renovação não encerra a sessão nem chama expire()', () => {
+    const store = new FakeMobileStore();
+    const { http, ctrl, session, redirect } = setup('mobile', store);
+    session.authenticated.set(true);
+    let status = 0;
+    let errorCode = '';
+
+    http.get(`${BASE}/accounts`).subscribe({
+      error: (e) => {
+        status = e.status;
+        errorCode = e.error?.code;
+      },
+    });
+
+    ctrl.expectOne(`${BASE}/accounts`).flush({}, { status: 401, statusText: 'Unauthorized' });
+    ctrl
+      .expectOne(`${BASE}/auth/refresh`)
+      .flush({ code: 'MAINTENANCE', message: 'Sistema em manutenção' }, { status: 503, statusText: 'Service Unavailable' });
+
+    expect(status).toBe(503);
+    expect(errorCode).toBe('MAINTENANCE');
+    expect(redirect).not.toHaveBeenCalled();
+    expect(session.authenticated()).toBe(true);
+    expect(store.access).toBe('acesso-1');
+  });
+
+  it('403 sob /admin e 429 passam sem tentar renovação nem expirar a sessão', () => {
+    const store = new FakeMobileStore();
+    const { http, ctrl, session, redirect } = setup('mobile', store);
+    session.authenticated.set(true);
+    let err403 = 0;
+    let err429 = 0;
+
+    http.get(`${BASE}/admin/users`).subscribe({ error: (e) => (err403 = e.status) });
+    ctrl.expectOne(`${BASE}/admin/users`).flush({ code: 'FORBIDDEN' }, { status: 403, statusText: 'Forbidden' });
+    expect(err403).toBe(403);
+
+    http.post(`${BASE}/accounts`, {}).subscribe({ error: (e) => (err429 = e.status) });
+    ctrl.expectOne(`${BASE}/accounts`).flush({ code: 'TOO_MANY_REQUESTS' }, { status: 429, statusText: 'Too Many Requests' });
+    expect(err429).toBe(429);
+
+    ctrl.expectNone(`${BASE}/auth/refresh`);
+    expect(redirect).not.toHaveBeenCalled();
+    expect(session.authenticated()).toBe(true);
+  });
 });

@@ -4,11 +4,18 @@ import { API, configureAuthTesting, submit, type } from '../testing/auth-testing
 import { Login } from './login';
 
 describe('Login', () => {
-  async function setup() {
+  async function setup(statusResponse?: { maintenance: boolean; message?: string; signupsOpen: boolean }) {
     const ctx = configureAuthTesting();
     const fixture = TestBed.createComponent(Login);
     fixture.detectChanges();
     await fixture.whenStable();
+
+    const statusReqs = ctx.http.match(`${API}/system/status`);
+    if (statusReqs.length > 0) {
+      statusReqs[0].flush(statusResponse ?? { maintenance: false, signupsOpen: true });
+      fixture.detectChanges();
+    }
+
     return { ...ctx, fixture, el: fixture.nativeElement as HTMLElement };
   }
 
@@ -108,5 +115,35 @@ describe('Login', () => {
     const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/privacidade');
     expect(link.textContent).toContain('Privacidade');
+  });
+
+  it('mostra faixa de manutenção quando GET /system/status retorna maintenance: true', async () => {
+    const { el } = await setup({
+      maintenance: true,
+      message: 'Sistema em manutenção para atualização programada.',
+      signupsOpen: false,
+    });
+
+    const banner = el.querySelector('[data-testid="maintenance-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('Sistema em manutenção');
+    expect(banner?.textContent).toContain('atualização programada');
+  });
+
+  it('login retornando 503 com MAINTENANCE mostra a mensagem da manutenção no alerta de erro', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        { code: 'MAINTENANCE', message: 'Serviço indisponível temporariamente. Volte em 15 minutos.' },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Serviço indisponível temporariamente. Volte em 15 minutos.');
   });
 });
