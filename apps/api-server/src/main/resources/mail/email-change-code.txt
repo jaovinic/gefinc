@@ -1,0 +1,9 @@
+Olá,
+
+Recebemos um pedido para usar este endereço de e-mail na sua conta GEFINC.
+
+O código de confirmação é {{codigo}}. Ele é válido por {{validade}}.
+
+Informe o código somente se você mesmo(a) pediu a troca. Se não foi você, ignore esta mensagem.
+
+Equipe GEFINC

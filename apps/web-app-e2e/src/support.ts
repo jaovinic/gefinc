@@ -1,3 +1,6 @@
+/// <reference types="node" />
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
 import { Locator, APIRequestContext, Page, expect } from '@playwright/test';
 
 const MAILPIT = 'http://localhost:8025/api/v1';
@@ -5,6 +8,44 @@ export const PASSWORD = 'senha-forte-123';
 
 export function uniqueEmail(): string {
   return `ana.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+}
+
+/** API local do E2E (a mesma de `playwright.config.mts`). */
+export const API = 'http://localhost:8080/api/v1';
+
+const SAFE_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$/;
+
+/**
+ * Promove o usuário a administrador raiz como o dono da implantação faz (roteiro do `quickstart.md`):
+ * `SET LOCAL gefinc.allow_root_change` em uma transação, direto no banco do `docker compose`. O e-mail
+ * vai como variável do psql (`-v email=...`, lida com `:'email'`), nunca concatenado ao SQL, e o script
+ * segue pela entrada padrão porque o psql não interpola variáveis em `-c`.
+ */
+export function promoteToRoot(email: string): void {
+  if (!SAFE_EMAIL.test(email)) {
+    throw new Error('E-mail inválido para a promoção a raiz.');
+  }
+  const script = [
+    'BEGIN;',
+    "SET LOCAL gefinc.allow_root_change = 'on';",
+    "UPDATE users SET role = 'ROOT' WHERE lower(email) = lower(:'email') RETURNING id;",
+    'COMMIT;',
+  ].join('\n');
+  const output = execFileSync(
+    'docker',
+    ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'gefinc', '-d', 'gefinc', '-q', '-tA', '-v', 'ON_ERROR_STOP=1', '-v', `email=${email}`],
+    { cwd: resolve(__dirname, '../../..'), input: script, encoding: 'utf8' },
+  );
+  if (!/^\d+$/m.test(output)) {
+    throw new Error('Nenhum usuário foi promovido: confira o e-mail.');
+  }
+}
+
+/** Entra pela API e devolve o token de acesso (para chamadas diretas de teste). */
+export async function apiLogin(request: APIRequestContext, email: string, password = PASSWORD): Promise<string> {
+  const response = await request.post(`${API}/auth/login`, { data: { email, password }, headers: { 'X-Client': 'web' } });
+  expect(response.ok()).toBe(true);
+  return (await response.json()).accessToken as string;
 }
 
 /** Espera o formulário de acesso ser ligado ao Angular (classe ng-pristine): preencher antes disso é perdido pela primeira detecção. */

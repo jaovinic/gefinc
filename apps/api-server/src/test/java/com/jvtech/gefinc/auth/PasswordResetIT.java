@@ -79,6 +79,13 @@ class PasswordResetIT extends IntegrationTestBase {
     assertThat(message.getAllRecipients()[0].toString()).isEqualTo("ana@example.com");
     assertThat(String.valueOf(message.getContent()))
         .contains("http://localhost:4200/reset-password");
+    awaitPendingMails();
+    Map<String, Object> delivery = jdbc.queryForMap("SELECT * FROM email_deliveries");
+    assertThat(delivery)
+        .containsEntry("kind", "PASSWORD_RESET")
+        .containsEntry("status", "SENT")
+        .containsEntry("recipient_email", "ana@example.com")
+        .containsEntry("attempts", 1);
   }
 
   @Test
@@ -90,6 +97,8 @@ class PasswordResetIT extends IntegrationTestBase {
     assertThat(jdbc.queryForObject("SELECT count(*) FROM password_reset_tokens", Integer.class))
         .isZero();
     assertThat(GREEN_MAIL.waitForIncomingEmail(500, 1)).isFalse();
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM email_deliveries", Integer.class))
+        .isZero();
   }
 
   @Test

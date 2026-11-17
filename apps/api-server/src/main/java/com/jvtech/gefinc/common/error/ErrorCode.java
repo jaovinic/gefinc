@@ -27,6 +27,22 @@ public enum ErrorCode {
   IDEMPOTENCY_IN_PROGRESS(HttpStatus.CONFLICT, "Operação em processamento"),
   IDEMPOTENCY_KEY_REUSED(
       HttpStatus.UNPROCESSABLE_ENTITY, "Chave de idempotência usada em outra operação"),
+  ACCOUNT_SUSPENDED(HttpStatus.FORBIDDEN, "Conta suspensa"),
+  ADMIN_DECISION_LOCKED(HttpStatus.FORBIDDEN, "Decisão administrativa em vigor"),
+  MAINTENANCE(HttpStatus.SERVICE_UNAVAILABLE, "Sistema em manutenção"),
+  SIGNUPS_CLOSED(HttpStatus.FORBIDDEN, "Cadastros encerrados"),
+  ROOT_PROTECTED(HttpStatus.FORBIDDEN, "Administrador raiz protegido"),
+  LAST_ADMIN(HttpStatus.CONFLICT, "Último administrador ativo"),
+  SELF_ACTION_FORBIDDEN(HttpStatus.CONFLICT, "Ação não permitida na própria conta"),
+  REAUTH_FAILED(HttpStatus.FORBIDDEN, "Senha de confirmação incorreta"),
+  INVALID_CONFIRMATION(HttpStatus.UNPROCESSABLE_ENTITY, "Confirmação inválida"),
+  MAIL_DELIVERY_FAILED(HttpStatus.BAD_GATEWAY, "Falha no envio do e-mail"),
+  INVITATION_EXPIRED(HttpStatus.GONE, "Convite inválido ou expirado"),
+  DELETION_ALREADY_EXECUTED(HttpStatus.CONFLICT, "Exclusão já executada"),
+  ACCOUNT_NOT_USABLE(HttpStatus.CONFLICT, "Conta indisponível para a operação"),
+  EMAIL_CHANGE_CODE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "Código de confirmação inválido"),
+  REASON_NAME_TAKEN(HttpStatus.CONFLICT, "Já existe um motivo com este nome"),
+  LAST_ACTIVE_REASON(HttpStatus.CONFLICT, "Último motivo ativo"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno");
 
   private final HttpStatus status;

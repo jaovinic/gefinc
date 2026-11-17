@@ -13,6 +13,7 @@ import { ConfirmDialog } from './confirm-dialog';
       [busy]="busy()"
       [error]="error()"
       [blocked]="blocked()"
+      [confirmIcon]="icon()"
       (confirmed)="confirmed()"
       (cancelled)="cancelled()"
     >
@@ -26,6 +27,7 @@ class Host {
   readonly busy = signal(false);
   readonly error = signal<string | null>(null);
   readonly blocked = signal<string | null>(null);
+  readonly icon = signal<string | null>(null);
   readonly confirmed = jest.fn();
   readonly cancelled = jest.fn();
 }
@@ -88,6 +90,19 @@ describe('ConfirmDialog', () => {
     (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
     expect(host.confirmed).not.toHaveBeenCalled();
     expect(host.cancelled).not.toHaveBeenCalled();
+  });
+
+  it('o botão da ação pode ter um ícone ao lado do texto, sem trocar o texto', async () => {
+    const { el } = await setup((h) => h.icon.set('alert'));
+
+    expect(confirm(el)?.querySelector('gef-icon')).not.toBeNull();
+    expect(confirm(el)?.textContent?.trim()).toBe('Excluir conta "Nubank"');
+  });
+
+  it('sem ícone informado o botão continua só com o texto', async () => {
+    const { el } = await setup();
+
+    expect(confirm(el)?.querySelector('gef-icon')).toBeNull();
   });
 
   it('mostra o erro dentro do diálogo, sem fechá-lo', async () => {

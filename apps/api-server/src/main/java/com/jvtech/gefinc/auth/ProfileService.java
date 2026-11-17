@@ -1,11 +1,14 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.deletion.UserNoticeService;
+import com.jvtech.gefinc.auth.AuthDtos.UserNoticeDto;
 import com.jvtech.gefinc.auth.AuthDtos.UserProfile;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.JwtService;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
+import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ public class ProfileService {
   private final PasswordEncoder encoder;
   private final JwtService jwt;
   private final TokenService tokens;
+  private final UserNoticeService userNoticeService;
 
   public ProfileService(
       UserRepository users,
@@ -27,22 +31,36 @@ public class ProfileService {
       PasswordPolicy policy,
       PasswordEncoder encoder,
       JwtService jwt,
-      TokenService tokens) {
+      TokenService tokens,
+      UserNoticeService userNoticeService) {
     this.users = users;
     this.auth = auth;
     this.policy = policy;
     this.encoder = encoder;
     this.jwt = jwt;
     this.tokens = tokens;
+    this.userNoticeService = userNoticeService;
   }
 
   static UserProfile toProfile(User user) {
-    return new UserProfile(user.getId(), user.getEmail(), user.getName(), user.getCreatedAt());
+    return toProfile(user, null);
   }
 
-  @Transactional(readOnly = true)
+  static UserProfile toProfile(User user, List<UserNoticeDto> notices) {
+    return new UserProfile(
+        user.getId(),
+        user.getEmail(),
+        user.getName(),
+        user.getCreatedAt(),
+        user.getRole().isAdmin(),
+        notices != null && !notices.isEmpty() ? notices : null);
+  }
+
+  @Transactional
   public UserProfile get(long userId) {
-    return toProfile(load(userId));
+    User user = load(userId);
+    List<UserNoticeDto> notices = userNoticeService.deliverNotices(user);
+    return toProfile(user, notices);
   }
 
   @Transactional
@@ -59,7 +77,15 @@ public class ProfileService {
   @Transactional
   public AuthService.Session changePassword(
       long userId, String currentPassword, String newPassword) {
-    User user = load(userId);
+    // Usuário travado antes de tocar nos tokens (ordem global de travas), já com o estado vigente.
+    User user =
+        users
+            .findForUpdate(userId)
+            .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "Sessão expirada."));
+    if (user.isSuspended() || user.isDeletionPending()) {
+      // Suspensa ou excluída enquanto esperava: a sessão já não vale, como no filtro de acesso.
+      throw new ApiException(ErrorCode.UNAUTHORIZED, "Sessão expirada.");
+    }
     if (!auth.matches(currentPassword, user.getPasswordHash())) {
       throw ApiException.validation("Há campos inválidos.")
           .withFieldError("currentPassword", "A senha atual está incorreta.");
@@ -76,11 +102,12 @@ public class ProfileService {
           .withFieldError("newPassword", "A nova senha deve ser diferente da atual.");
     }
     user.changePassword(encoder.encode(newPassword));
-    tokens.revokeAllOfUser(userId);
+    tokens.revokeAllOfUser(userId, RevokedBy.USER);
+    TokenService.Issued issued = tokens.issueNewFamily(userId);
     return new AuthService.Session(
-        jwt.issueAccessToken(user.getId(), user.getTokenVersion()),
+        jwt.issueAccessToken(user.getId(), user.getTokenVersion(), issued.familyId()),
         jwt.accessTokenTtlSeconds(),
-        tokens.issueNewFamily(userId));
+        issued.rawToken());
   }
 
   private User load(long userId) {

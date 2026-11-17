@@ -2,6 +2,8 @@ package com.jvtech.gefinc.support;
 
 import com.atlassian.oai.validator.OpenApiInteractionValidator;
 import com.atlassian.oai.validator.mockmvc.OpenApiValidationMatchers;
+import com.atlassian.oai.validator.report.LevelResolver;
+import com.atlassian.oai.validator.report.ValidationReport;
 import java.nio.file.Path;
 import org.springframework.test.web.servlet.ResultMatcher;
 
@@ -22,10 +24,25 @@ public final class ContractAssertions {
           .withBasePathOverride("")
           .build();
 
+  /** Ignora a validação da requisição: serve a testes que enviam, de propósito, corpo inválido. */
+  private static final OpenApiInteractionValidator RESPONSE_ONLY_VALIDATOR =
+      OpenApiInteractionValidator.createForSpecificationUrl(SPEC.toUri().toString())
+          .withBasePathOverride("")
+          .withLevelResolver(
+              LevelResolver.create()
+                  .withLevel("validation.request", ValidationReport.Level.IGNORE)
+                  .build())
+          .build();
+
   private ContractAssertions() {}
 
   public static OpenApiInteractionValidator validator() {
     return VALIDATOR;
+  }
+
+  /** Verifica só a resposta; a requisição pode violar o contrato de propósito. */
+  public static ResultMatcher responseMatchesContract() {
+    return OpenApiValidationMatchers.openApi().isValid(RESPONSE_ONLY_VALIDATOR);
   }
 
   /** Verifica que a interação (requisição e resposta) respeita o contrato. */

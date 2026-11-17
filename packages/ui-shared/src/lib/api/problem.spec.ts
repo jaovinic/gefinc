@@ -42,4 +42,35 @@ describe('problem', () => {
     expect(isOfflineProblem(toProblem(http(500, {})))).toBe(false);
     expect(isOfflineProblem(toProblem(http(409, { code: 'OFFLINE_NO_DATA' })))).toBe(false);
   });
+
+  it('conta suspensa manda procurar o suporte e nunca mostra motivo', () => {
+    const problem = toProblem(
+      http(403, { code: 'ACCOUNT_SUSPENDED', detail: 'Sua conta está suspensa.', supportHint: 'Fale com o suporte.', reason: 'segredo' }),
+    );
+    expect(messageFor(problem)).toBe('Conta suspensa. Procure o suporte.');
+    expect(messageFor(problem)).not.toContain('segredo');
+  });
+
+  it('decisão administrativa em vigor explica que não se desfaz por aqui', () => {
+    const message = messageFor(toProblem(http(403, { code: 'ADMIN_DECISION_LOCKED' })));
+    expect(message).toContain('administração');
+    expect(message).toContain('suporte');
+  });
+
+  it('recusas de regra do painel mostram a mensagem do servidor, nunca a de sessão expirada', () => {
+    expect(messageFor(toProblem(http(403, { code: 'REAUTH_FAILED', detail: 'Senha incorreta.' })))).toBe('Senha incorreta.');
+    expect(messageFor(toProblem(http(409, { code: 'SELF_ACTION_FORBIDDEN', detail: 'Esta ação não pode ser aplicada à própria conta.' })))).toBe(
+      'Esta ação não pode ser aplicada à própria conta.',
+    );
+    expect(messageFor(toProblem(http(409, { code: 'ACCOUNT_NOT_USABLE' })))).toContain('suspensa ou aguardando exclusão');
+  });
+
+  it('falha no envio de e-mail (502 MAIL_DELIVERY_FAILED) mostra mensagem clara e não o erro genérico 500', () => {
+    expect(messageFor(toProblem(http(502, { code: 'MAIL_DELIVERY_FAILED' })))).toBe(
+      'Não foi possível enviar o e-mail de redefinição. Nada foi alterado; tente novamente.',
+    );
+    expect(messageFor(toProblem(http(502, { code: 'MAIL_DELIVERY_FAILED', detail: 'Servidor de e-mail indisponível.' })))).toBe(
+      'Servidor de e-mail indisponível.',
+    );
+  });
 });

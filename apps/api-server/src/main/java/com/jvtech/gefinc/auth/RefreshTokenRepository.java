@@ -12,8 +12,13 @@ import org.springframework.data.repository.query.Param;
 
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
+  /** Com trava de escrita na linha do token: só depois de travar o usuário (ver AdminPolicy). */
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<RefreshToken> findByTokenHash(String tokenHash);
+
+  /** Dono do token, só leitura e sem trava: serve para travar o usuário antes do token. */
+  @Query("select t.userId from RefreshToken t where t.tokenHash = :tokenHash")
+  Optional<Long> findOwnerByTokenHash(@Param("tokenHash") String tokenHash);
 
   @Modifying
   @Query(
@@ -26,4 +31,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
       "update RefreshToken t set t.revokedAt = :now"
           + " where t.userId = :userId and t.revokedAt is null")
   int revokeAllOfUser(@Param("userId") long userId, @Param("now") Instant now);
+
+  @Modifying
+  @Query(
+      "update RefreshToken t set t.revokedAt = :now"
+          + " where t.revokedAt is null"
+          + " and (:mySessionId is null or t.familyId <> :mySessionId)"
+          + " and t.userId not in (select u.id from User u where u.role = com.jvtech.gefinc.user.UserRole.ROOT)")
+  int revokeAllGlobal(@Param("now") Instant now, @Param("mySessionId") UUID mySessionId);
 }

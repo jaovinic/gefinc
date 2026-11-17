@@ -1,9 +1,16 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
+import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
+import com.jvtech.gefinc.admin.common.AdminPolicy;
+import com.jvtech.gefinc.admin.deletion.AccountErasureService;
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.Pseudonymizer;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
+import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -20,56 +27,123 @@ public class AccountDeletionService {
   private final TokenService tokens;
   private final Clock clock;
   private final LoginAttemptLimiter limiter;
+  private final DeletionLedger ledger;
+  private final AccountErasureService erasureService;
+  private final Pseudonymizer pseudonymizer;
+  private final AdminPolicy adminPolicy;
+  private final AdminDecisionAuditor decisions;
+  private final MaintenanceGuard maintenanceGuard;
 
   public AccountDeletionService(
       UserRepository users,
       AuthService auth,
       TokenService tokens,
       Clock clock,
-      LoginAttemptLimiter limiter) {
+      LoginAttemptLimiter limiter,
+      DeletionLedger ledger,
+      AccountErasureService erasureService,
+      Pseudonymizer pseudonymizer,
+      AdminPolicy adminPolicy,
+      AdminDecisionAuditor decisions,
+      MaintenanceGuard maintenanceGuard) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
     this.clock = clock;
     this.limiter = limiter;
+    this.ledger = ledger;
+    this.erasureService = erasureService;
+    this.pseudonymizer = pseudonymizer;
+    this.adminPolicy = adminPolicy;
+    this.decisions = decisions;
+    this.maintenanceGuard = maintenanceGuard;
   }
 
-  /** Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. */
+  /**
+   * Agenda a exclusão, encerra todas as sessões na hora e devolve a data limite para desistir. A
+   * linha do usuário é travada antes da trava consultiva dos administradores (a mesma ordem de
+   * {@code AdminRoleService}: linha, depois trava), o que evita deadlock com a retirada do perfil e
+   * garante que o papel lido pela guarda é o vigente.
+   */
   @Transactional
   public LocalDate request(long userId, String password) {
-    User user = users.findById(userId).orElseThrow(AuthService::invalidCredentials);
+    User user = users.findForUpdate(userId).orElseThrow(AuthService::invalidCredentials);
     if (!auth.matches(password, user.getPasswordHash())) {
       throw AuthService.invalidCredentials();
     }
-    user.requestDeletion(clock.instant());
-    tokens.revokeAllOfUser(userId);
+    requireDeletable(user);
+    Instant now = clock.instant();
+    Instant dueAt = now.plus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
+    // O livro-razão é gravado antes: a coluna deletion_request_id de users referencia a linha.
+    long requestId = ledger.openUserRequest(userId, pseudonymizer.userRef(userId), now, dueAt);
+    user.scheduleDeletion(now, dueAt, requestId);
+    tokens.revokeAllOfUser(userId, RevokedBy.USER);
     return auth.deletionDate(user);
   }
 
-  /** Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). */
+  /**
+   * Guarda mínima do autoatendimento (US1.6): o raiz nunca se exclui (a restrição do banco o
+   * recusaria) e o administrador não deixa o sistema sem administrador ativo (sob a trava
+   * consultiva do conjunto de administradores).
+   */
+  private void requireDeletable(User user) {
+    if (user.getRole() == UserRole.ROOT) {
+      throw new ApiException(
+          ErrorCode.ROOT_PROTECTED, "O administrador raiz não pode excluir a própria conta.");
+    }
+    if (user.getRole().isAdmin() && user.isActive()) {
+      adminPolicy.requireAnotherActiveAdmin(user.getId());
+    }
+  }
+
+  /**
+   * Cancela a exclusão pendente a partir das credenciais (o usuário não tem sessão). Conta suspensa
+   * não cancela nada ({@code ACCOUNT_SUSPENDED}) e exclusão pedida por administrador não se reverte
+   * ({@code ADMIN_DECISION_LOCKED}); as duas recusas viram {@code REVERT_ATTEMPT}, deduplicado.
+   */
   @Transactional
   public void cancel(String email, String password, String clientIp) {
+    maintenanceGuard.checkMaintenance();
     // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
     limiter.checkAllowed(email, clientIp);
-    User user = users.findByEmail(email.strip()).orElse(null);
-    if (user == null || !auth.matches(password, user.getPasswordHash())) {
+    String key = email.strip();
+    // A senha (BCrypt, caro) é conferida SEM a trava: a rota não tem autenticação e a linha do
+    // usuário não pode ficar segurada durante o hash.
+    String verifiedHash = users.findPasswordHashByEmail(key).orElse(null);
+    if (verifiedHash == null || !auth.matches(password, verifiedHash)) {
+      limiter.recordFailure(email, clientIp);
+      throw AuthService.invalidCredentials();
+    }
+    // Usuário travado antes do livro-razão (ordem global de travas), já com o estado vigente: a
+    // conta pode ter sido apagada, suspensa ou ter trocado de senha enquanto o hash era conferido.
+    User user = users.findByEmailForUpdate(key).orElse(null);
+    if (user == null || !verifiedHash.equals(user.getPasswordHash())) {
       limiter.recordFailure(email, clientIp);
       throw AuthService.invalidCredentials();
     }
     limiter.recordSuccess(email);
+    if (user.isSuspended()) {
+      decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
+      throw AuthService.accountSuspended();
+    }
     if (!user.isDeletionPending()) {
       throw new ApiException(
           ErrorCode.NO_PENDING_DELETION, "Não há exclusão pendente nesta conta.");
     }
+    if (user.isDeletionByAdmin()) {
+      decisions.revertAttempt(user.getId(), Decision.ADMIN_DELETION);
+      throw AuthService.adminDecisionLocked();
+    }
+    ledger.markCanceled(user.getDeletionRequestId(), clock.instant());
     user.cancelDeletion();
   }
 
   /**
-   * Apaga definitivamente as contas com a carência vencida (o banco remove os dados em cascata).
+   * Apaga definitivamente as contas com a carência vencida (o banco remove os dados em cascata e a
+   * anonimização LGPD é concluída).
    */
   @Transactional
   public int deleteExpired() {
-    Instant limit = clock.instant().minus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
-    return users.deleteExpiredDeletions(limit);
+    return erasureService.eraseExpiredDue();
   }
 }

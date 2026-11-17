@@ -1,0 +1,441 @@
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { API_BASE_URL, CurrentUser, NoticeService, messageFor, toProblem } from '@gefinc/ui-shared';
+import { AdminApi } from './admin.api';
+
+describe('AdminApi', () => {
+  const clear = jest.fn();
+  const load = jest.fn();
+  const toast = jest.fn();
+  let http: HttpTestingController;
+  let api: AdminApi;
+  let navigate: jest.SpyInstance;
+
+  beforeEach(() => {
+    clear.mockReset();
+    load.mockReset();
+    toast.mockReset();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: API_BASE_URL, useValue: '/api/v1' },
+        { provide: CurrentUser, useValue: { clear, load } },
+        { provide: NoticeService, useValue: { toast } },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    api = TestBed.inject(AdminApi);
+    navigate = jest.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+  });
+
+  afterEach(() => http.verify());
+
+  function problem(status: number, code: string, extra: Record<string, unknown> = {}) {
+    return { status, statusText: code, headers: { 'Content-Type': 'application/problem+json' }, body: { status, code, ...extra } };
+  }
+
+  it('setRole envia PUT com perfil e senha do administrador e termina sem corpo', () => {
+    let done = false;
+    api.setRole(7, 'ADMIN', 'minha-senha').subscribe(() => (done = true));
+
+    const req = http.expectOne('/api/v1/admin/users/7/role');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ role: 'ADMIN', password: 'minha-senha' });
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(done).toBe(true);
+    expect(clear).not.toHaveBeenCalled();
+  });
+
+  it('REAUTH_FAILED chega como 403 problem+json (nunca 401) e não derruba a sessão', () => {
+    let error: unknown;
+    api.setRole(7, 'USER', 'errada').subscribe({ error: (e: unknown) => (error = e) });
+
+    const req = http.expectOne('/api/v1/admin/users/7/role');
+    const { body, ...init } = problem(403, 'REAUTH_FAILED', { detail: 'Senha incorreta.' });
+    req.flush(body, init);
+
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect((error as HttpErrorResponse).status).toBe(403);
+    expect(toProblem(error).code).toBe('REAUTH_FAILED');
+    expect(messageFor(toProblem(error))).toBe('Senha incorreta.');
+    expect(clear).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [403, 'ROOT_PROTECTED'],
+    [409, 'LAST_ADMIN'],
+    [409, 'SELF_ACTION_FORBIDDEN'],
+    [409, 'ACCOUNT_NOT_USABLE'],
+    [422, 'VALIDATION_ERROR'],
+  ])('recusa de regra %s %s é repassada à tela sem efeitos colaterais', (status, code) => {
+    let error: unknown;
+    api.setRole(7, 'USER', 'senha').subscribe({ error: (e: unknown) => (error = e) });
+
+    const { body, ...init } = problem(status, code);
+    http.expectOne('/api/v1/admin/users/7/role').flush(body, init);
+
+    expect(toProblem(error)).toMatchObject({ status, code });
+    expect(clear).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('403 FORBIDDEN (perfil retirado no meio da sessão) renova o perfil, avisa e volta para /', () => {
+    let error: unknown;
+    api.setRole(7, 'USER', 'senha').subscribe({ error: (e: unknown) => (error = e) });
+
+    const { body, ...init } = problem(403, 'FORBIDDEN');
+    http.expectOne('/api/v1/admin/users/7/role').flush(body, init);
+
+    expect(clear).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(load.mock.invocationCallOrder[0]);
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining('administração'));
+    expect(navigate).toHaveBeenCalledWith('/');
+    expect(toProblem(error).code).toBe('FORBIDDEN');
+  });
+
+  it('falha de rede é repassada sem tratá-la como perda de acesso', () => {
+    let error: unknown;
+    api.setRole(7, 'USER', 'senha').subscribe({ error: (e: unknown) => (error = e) });
+
+    http.expectOne('/api/v1/admin/users/7/role').error(new ProgressEvent('error'));
+
+    expect(toProblem(error).status).toBe(0);
+    expect(clear).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  describe('listUsers', () => {
+    const empty = { content: [], page: 0, size: 25, totalElements: 0, counts: { active: 0, suspended: 0, deletionPending: 0, admin: 0 } };
+
+    it('só manda os parâmetros preenchidos', () => {
+      api.listUsers({ q: '  joão  ', status: 'SUSPENDED', sort: 'lastAccessAt', dir: 'asc', page: 2, size: 25 }).subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/users');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('q')).toBe('joão');
+      expect(req.request.params.get('status')).toBe('SUSPENDED');
+      expect(req.request.params.get('sort')).toBe('lastAccessAt');
+      expect(req.request.params.get('dir')).toBe('asc');
+      expect(req.request.params.get('page')).toBe('2');
+      expect(req.request.params.get('size')).toBe('25');
+      req.flush(empty);
+    });
+
+    it('sem filtros não manda q nem status; busca só com espaços também não', () => {
+      api.listUsers({ q: '   ', page: 0 }).subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/users');
+      expect(req.request.params.keys()).toEqual(['page']);
+      req.flush(empty);
+    });
+
+    it('sem parâmetros nenhum vai na URL', () => {
+      api.listUsers().subscribe();
+
+      const req = http.expectOne('/api/v1/admin/users');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush(empty);
+    });
+
+    it('mapeia o problem+json da recusa (422) sem tratar como sessão expirada', () => {
+      let error: unknown;
+      api.listUsers({ size: 101 }).subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(422, 'VALIDATION_ERROR', { errors: [{ field: 'size', message: 'Tamanho inválido.' }] });
+      http.expectOne((r) => r.url === '/api/v1/admin/users').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 422, code: 'VALIDATION_ERROR', fieldErrors: { size: 'Tamanho inválido.' } });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('403 FORBIDDEN (perfil retirado) renova o perfil e volta para /; não vira "sessão expirada"', () => {
+      let error: unknown;
+      api.listUsers().subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(403, 'FORBIDDEN');
+      http.expectOne('/api/v1/admin/users').flush(body, init);
+
+      expect(clear).toHaveBeenCalledTimes(1);
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(navigate).toHaveBeenCalledWith('/');
+      expect(toProblem(error)).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    });
+  });
+
+  describe('getUser', () => {
+    it('pede o detalhe pelo id', () => {
+      let id = 0;
+      api.getUser(7).subscribe((detail) => (id = detail.id));
+
+      const req = http.expectOne('/api/v1/admin/users/7');
+      expect(req.request.method).toBe('GET');
+      req.flush({ id: 7, email: 'a@teste.com', createdAt: '2026-11-14T00:00:00Z', role: 'USER', suspended: false, deletionPending: false, openSessions: 0, protected: false, recentActions: [] });
+      expect(id).toBe(7);
+    });
+
+    it('404 chega à tela como problema NOT_FOUND, sem efeitos colaterais', () => {
+      let error: unknown;
+      api.getUser(999).subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(404, 'NOT_FOUND');
+      http.expectOne('/api/v1/admin/users/999').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 404, code: 'NOT_FOUND' });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('sessões, suspensão e bloqueio de login', () => {
+    it('lista as sessões do usuário', () => {
+      let count = 0;
+      api.listSessions(7).subscribe((sessions) => (count = sessions.length));
+
+      const req = http.expectOne('/api/v1/admin/users/7/sessions');
+      expect(req.request.method).toBe('GET');
+      req.flush([{ id: 'a', startedAt: '2026-11-14T00:00:00Z', lastUsedAt: '2026-11-14T00:00:00Z', current: false }]);
+      expect(count).toBe(1);
+    });
+
+    it('encerra uma sessão e todas', () => {
+      api.revokeSession(7, 'abc-1').subscribe();
+      const one = http.expectOne('/api/v1/admin/users/7/sessions/abc-1');
+      expect(one.request.method).toBe('DELETE');
+      one.flush(null, { status: 204, statusText: 'No Content' });
+
+      api.revokeAllSessions(7).subscribe();
+      const all = http.expectOne('/api/v1/admin/users/7/sessions');
+      expect(all.request.method).toBe('DELETE');
+      all.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('suspende com o motivo no corpo', () => {
+      api.suspend(7, 'Uso indevido').subscribe();
+
+      const req = http.expectOne('/api/v1/admin/users/7/suspend');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ reason: 'Uso indevido' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('reativa e retira o bloqueio de login', () => {
+      api.reactivate(7).subscribe();
+      const reactivate = http.expectOne('/api/v1/admin/users/7/reactivate');
+      expect(reactivate.request.method).toBe('POST');
+      reactivate.flush(null, { status: 204, statusText: 'No Content' });
+
+      api.clearLoginLock(7).subscribe();
+      const lock = http.expectOne('/api/v1/admin/users/7/login-lock');
+      expect(lock.request.method).toBe('DELETE');
+      lock.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('recusa de regra (409 SELF_ACTION_FORBIDDEN) chega à tela sem virar sessão expirada', () => {
+      let error: unknown;
+      api.suspend(7, 'x').subscribe({ error: (e: unknown) => (error = e) });
+
+      const { body, ...init } = problem(409, 'SELF_ACTION_FORBIDDEN');
+      http.expectOne('/api/v1/admin/users/7/suspend').flush(body, init);
+
+      expect(toProblem(error)).toMatchObject({ status: 409, code: 'SELF_ACTION_FORBIDDEN' });
+      expect(clear).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('reenvia e força a redefinição de senha e reenvia falha do histórico', () => {
+      api.sendPasswordReset(7).subscribe();
+      const sendReq = http.expectOne('/api/v1/admin/users/7/password-reset/send');
+      expect(sendReq.request.method).toBe('POST');
+      sendReq.flush(null, { status: 202, statusText: 'Accepted' });
+
+      api.forcePasswordReset(7, 'senha-admin').subscribe();
+      const forceReq = http.expectOne('/api/v1/admin/users/7/password-reset/force');
+      expect(forceReq.request.method).toBe('POST');
+      expect(forceReq.request.body).toEqual({ password: 'senha-admin' });
+      forceReq.flush(null, { status: 202, statusText: 'Accepted' });
+
+      api.resendEmailDelivery(42).subscribe();
+      const deliveryReq = http.expectOne('/api/v1/admin/email/deliveries/42/resend');
+      expect(deliveryReq.request.method).toBe('POST');
+      deliveryReq.flush(null, { status: 202, statusText: 'Accepted' });
+    });
+  });
+
+  describe('auditoria (listAudit e getAuditEntry)', () => {
+    it('listAudit envia só os parâmetros informados', () => {
+      api
+        .listAudit({
+          from: '2026-10-01T00:00:00Z',
+          to: '2026-10-02T00:00:00Z',
+          actorId: 2,
+          targetUserId: 7,
+          action: 'USER_SUSPENDED',
+          result: 'SUCCESS',
+          cursor: 'abc',
+          limit: 50,
+        })
+        .subscribe();
+
+      const req = http.expectOne((r) => r.url === '/api/v1/admin/audit');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('from')).toBe('2026-10-01T00:00:00Z');
+      expect(req.request.params.get('to')).toBe('2026-10-02T00:00:00Z');
+      expect(req.request.params.get('actorId')).toBe('2');
+      expect(req.request.params.get('targetUserId')).toBe('7');
+      expect(req.request.params.get('action')).toBe('USER_SUSPENDED');
+      expect(req.request.params.get('result')).toBe('SUCCESS');
+      expect(req.request.params.get('cursor')).toBe('abc');
+      expect(req.request.params.get('limit')).toBe('50');
+      req.flush({ content: [] });
+    });
+
+    it('listAudit sem filtros não envia parâmetros na URL', () => {
+      api.listAudit().subscribe();
+
+      const req = http.expectOne('/api/v1/admin/audit');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush({ content: [] });
+    });
+
+    it('getAuditEntry pede o detalhe pelo id', () => {
+      let id = 0;
+      api.getAuditEntry(42).subscribe((entry) => (id = entry.id));
+
+      const req = http.expectOne('/api/v1/admin/audit/42');
+      expect(req.request.method).toBe('GET');
+      req.flush({
+        id: 42,
+        occurredAt: '2026-10-01T12:00:00Z',
+        action: 'USER_SUSPENDED',
+        result: 'SUCCESS',
+        actor: { userId: 1, label: 'adm@teste.com' },
+        summary: 'Usuário suspenso',
+      });
+      expect(id).toBe(42);
+    });
+
+    it('parâmetros globais, modo de manutenção e revogação global de sessões', () => {
+      api.getParameters().subscribe();
+      const getParams = http.expectOne('/api/v1/admin/parameters');
+      expect(getParams.request.method).toBe('GET');
+      getParams.flush({
+        signupsOpen: { value: true, updatedAt: null, updatedBy: null },
+        maintenance: { enabled: false, message: null, updatedAt: null, updatedBy: null },
+        readOnly: [],
+      });
+
+      api.setSignupsOpen(false).subscribe();
+      const putSignups = http.expectOne('/api/v1/admin/parameters/signups-open');
+      expect(putSignups.request.method).toBe('PUT');
+      expect(putSignups.request.body).toEqual({ open: false });
+      putSignups.flush(null);
+
+      api.setMaintenance(true, 'Manutenção programada').subscribe();
+      const putMaint = http.expectOne('/api/v1/admin/parameters/maintenance');
+      expect(putMaint.request.method).toBe('PUT');
+      expect(putMaint.request.body).toEqual({ enabled: true, message: 'Manutenção programada' });
+      putMaint.flush(null);
+
+      api.revokeAllGlobalSessions('senhaAdm', 'ENCERRAR').subscribe();
+      const revokeAll = http.expectOne('/api/v1/admin/sessions/revoke-all');
+      expect(revokeAll.request.method).toBe('POST');
+      expect(revokeAll.request.body).toEqual({ password: 'senhaAdm', confirmWord: 'ENCERRAR' });
+      revokeAll.flush({ revoked: 12 });
+    });
+
+    it('exclusão de usuários e cancelamento chamam POST e DELETE /admin/users/{id}/deletion', () => {
+      let outcomeStatus = '';
+      api
+        .requestDeletion(99, {
+          reasonId: 1,
+          justification: 'Solicitação LGPD',
+          mode: 'GRACE',
+          days: 15,
+          confirmEmail: 'alvo@teste.com',
+          password: 'senha',
+        })
+        .subscribe((res) => (outcomeStatus = res.status));
+
+      const postDel = http.expectOne('/api/v1/admin/users/99/deletion');
+      expect(postDel.request.method).toBe('POST');
+      expect(postDel.request.body).toEqual({
+        reasonId: 1,
+        justification: 'Solicitação LGPD',
+        mode: 'GRACE',
+        days: 15,
+        confirmEmail: 'alvo@teste.com',
+        password: 'senha',
+      });
+      postDel.flush({ status: 'SCHEDULED', dueAt: '2026-11-01T00:00:00Z', noticeState: 'SENT' });
+      expect(outcomeStatus).toBe('SCHEDULED');
+
+      let canceled = false;
+      api.cancelDeletion(99).subscribe(() => (canceled = true));
+      const delDel = http.expectOne('/api/v1/admin/users/99/deletion');
+      expect(delDel.request.method).toBe('DELETE');
+      delDel.flush(null);
+      expect(canceled).toBe(true);
+    });
+
+    it('gestão de motivos de exclusão (listar, criar, atualizar, desativar, reativar)', () => {
+      api.listDeletionReasons().subscribe();
+      const getReasons = http.expectOne('/api/v1/admin/deletion-reasons');
+      expect(getReasons.request.method).toBe('GET');
+      getReasons.flush([{ id: 1, name: 'Titular', message: 'Msg', active: true, initial: true }]);
+
+      api.createDeletionReason({ name: 'Fraude', message: 'Mensagem genérica' }).subscribe();
+      const postReason = http.expectOne('/api/v1/admin/deletion-reasons');
+      expect(postReason.request.method).toBe('POST');
+      expect(postReason.request.body).toEqual({ name: 'Fraude', message: 'Mensagem genérica' });
+      postReason.flush({ id: 5, name: 'Fraude', message: 'Mensagem genérica', active: true, initial: false });
+
+      api.updateDeletionReason(5, { name: 'Fraude comprovada', message: 'Nova msg' }).subscribe();
+      const putReason = http.expectOne('/api/v1/admin/deletion-reasons/5');
+      expect(putReason.request.method).toBe('PUT');
+      expect(putReason.request.body).toEqual({ name: 'Fraude comprovada', message: 'Nova msg' });
+      putReason.flush({ id: 5, name: 'Fraude comprovada', message: 'Nova msg', active: true, initial: false });
+
+      api.deactivateDeletionReason(5).subscribe();
+      const deactReason = http.expectOne('/api/v1/admin/deletion-reasons/5/deactivate');
+      expect(deactReason.request.method).toBe('POST');
+      deactReason.flush(null);
+
+      api.activateDeletionReason(5).subscribe();
+      const actReason = http.expectOne('/api/v1/admin/deletion-reasons/5/activate');
+      expect(actReason.request.method).toBe('POST');
+      actReason.flush(null);
+    });
+
+    it('comunicações pendentes e alertas operacionais', () => {
+      api.listPendingCommunications().subscribe();
+      const getPending = http.expectOne('/api/v1/admin/communications/pending');
+      expect(getPending.request.method).toBe('GET');
+      getPending.flush([{ id: 1, kind: 'DELETION_NOTICE', targetLabel: 'alvo@teste.com' }]);
+
+      api.resendPendingCommunication(1).subscribe();
+      const resend = http.expectOne('/api/v1/admin/communications/pending/1/resend');
+      expect(resend.request.method).toBe('POST');
+      resend.flush({ state: 'DELIVERED' });
+
+      api.discardPendingCommunication(1).subscribe();
+      const discard = http.expectOne('/api/v1/admin/communications/pending/1/discard');
+      expect(discard.request.method).toBe('POST');
+      discard.flush(null);
+
+      api.getAlerts().subscribe();
+      const getAlerts = http.expectOne('/api/v1/admin/alerts');
+      expect(getAlerts.request.method).toBe('GET');
+      getAlerts.flush({ pendingCommunications: 3 });
+    });
+  });
+});

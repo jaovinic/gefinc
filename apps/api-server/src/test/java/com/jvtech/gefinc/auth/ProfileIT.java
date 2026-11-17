@@ -40,6 +40,40 @@ class ProfileIT extends IntegrationTestBase {
   }
 
   @Test
+  void perfilIndicaSeOUsuarioEAdministrador() throws Exception {
+    api.call(ana, HttpMethod.GET, "/auth/me", null)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.admin").value(false));
+
+    seed.createAdmin("adm@example.com");
+    TestUser admin =
+        new TestUser(
+            0L,
+            "adm@example.com",
+            users.login("adm@example.com", TestUsers.PASSWORD).get("accessToken").asText());
+    api.call(admin, HttpMethod.GET, "/auth/me", null)
+        .andExpect(status().isOk())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.admin").value(true));
+
+    seed.createRoot("raiz@example.com");
+    TestUser root =
+        new TestUser(
+            0L,
+            "raiz@example.com",
+            users.login("raiz@example.com", TestUsers.PASSWORD).get("accessToken").asText());
+    api.call(root, HttpMethod.GET, "/auth/me", null).andExpect(jsonPath("$.admin").value(true));
+  }
+
+  @Test
+  void perfilAtualizadoPeloNomeTambemTrazOIndicadorDeAdministrador() throws Exception {
+    api.call(ana, HttpMethod.PATCH, "/auth/me", Map.of("name", "Ana"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.admin").value(false));
+  }
+
+  @Test
   void alteraEApagaOnomeDeExibicao() throws Exception {
     api.call(ana, HttpMethod.PATCH, "/auth/me", Map.of("name", "  Ana Souza "))
         .andExpect(status().isOk())

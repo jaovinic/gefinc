@@ -54,6 +54,60 @@ export type Balances = Schemas['Balances'];
 export type CashflowMonth = Schemas['CashflowMonth'];
 export type DueSummary = Schemas['DueSummary'];
 
+// Painel administrativo (feature 005)
+export type SystemStatus = Schemas['SystemStatus'];
+export type InvitationPreview = Schemas['InvitationPreview'];
+export type AcceptInvitationRequest = Schemas['AcceptInvitationRequest'];
+export type UserNotice = Schemas['UserNotice'];
+export type MaintenanceProblem = Schemas['MaintenanceProblem'];
+export type Party = Schemas['Party'];
+export type AdminRole = Schemas['AdminRole'];
+export type AdminUserRow = Schemas['AdminUserRow'];
+export type AdminUserCounts = Schemas['AdminUserCounts'];
+export type AdminUserPage = Schemas['AdminUserPage'];
+export type AdminLoginLock = Schemas['AdminLoginLock'];
+export type AdminDeletionInfo = Schemas['AdminDeletionInfo'];
+export type PendingEmailChange = Schemas['PendingEmailChange'];
+export type AdminUserDetail = Schemas['AdminUserDetail'];
+export type AdminSession = Schemas['AdminSession'];
+export type AdminRenameRequest = Schemas['AdminRenameRequest'];
+export type SuspendRequest = Schemas['SuspendRequest'];
+export type RoleChangeRequest = Schemas['RoleChangeRequest'];
+export type ForcePasswordResetRequest = Schemas['ForcePasswordResetRequest'];
+export type EmailChangeRequest = Schemas['EmailChangeRequest'];
+export type EmailChangeConfirmRequest = Schemas['EmailChangeConfirmRequest'];
+export type DeletionRequest = Schemas['DeletionRequest'];
+export type DeletionOutcome = Schemas['DeletionOutcome'];
+export type AuditAction = Schemas['AuditAction'];
+export type AuditResult = Schemas['AuditResult'];
+export type AuditEntry = Schemas['AuditEntry'];
+export type AuditClient = Schemas['AuditClient'];
+export type AuditPage = Schemas['AuditPage'];
+export type SystemHealth = Schemas['SystemHealth'];
+export type DayCount = Schemas['DayCount'];
+export type UsageStats = Schemas['UsageStats'];
+export type AdminAlerts = Schemas['AdminAlerts'];
+export type EmailKind = Schemas['EmailKind'];
+export type EmailFailureReason = Schemas['EmailFailureReason'];
+export type EmailConfig = Schemas['EmailConfig'];
+export type EmailTestResult = Schemas['EmailTestResult'];
+export type EmailDelivery = Schemas['EmailDelivery'];
+export type EmailDeliveryPage = Schemas['EmailDeliveryPage'];
+export type PendingCommunication = Schemas['PendingCommunication'];
+export type ResendResult = Schemas['ResendResult'];
+export type InvitationStatus = Schemas['InvitationStatus'];
+export type InvitationRequest = Schemas['InvitationRequest'];
+export type Invitation = Schemas['Invitation'];
+export type DeletionReason = Schemas['DeletionReason'];
+export type DeletionReasonInput = Schemas['DeletionReasonInput'];
+export type EditableParameter = Schemas['EditableParameter'];
+export type ReadOnlyParameter = Schemas['ReadOnlyParameter'];
+export type Parameters = Schemas['Parameters'];
+export type SignupsOpenRequest = Schemas['SignupsOpenRequest'];
+export type MaintenanceRequest = Schemas['MaintenanceRequest'];
+export type RevokeAllRequest = Schemas['RevokeAllRequest'];
+export type RevokeAllResult = Schemas['RevokeAllResult'];
+
 /** Valores dos enums para uso em tempo de execução (listas, selects, validações). */
 export const ACCOUNT_TYPES = ['CHECKING', 'CASH', 'CREDIT_CARD'] as const satisfies readonly AccountType[];
 export const HOLDER_TYPES = ['PF', 'PJ'] as const satisfies readonly HolderType[];
@@ -91,4 +145,24 @@ export const ERROR_CODES = {
   invoiceBalanceViolation: 'INVOICE_BALANCE_VIOLATION',
   invalidResetToken: 'INVALID_RESET_TOKEN',
   staleVersion: 'STALE_VERSION',
+} as const;
+
+/** Códigos de erro do painel administrativo (`Problem.code`); recusas de regra nunca usam 401. */
+export const ADMIN_ERROR_CODES = {
+  accountNotUsable: 'ACCOUNT_NOT_USABLE',
+  accountSuspended: 'ACCOUNT_SUSPENDED',
+  adminDecisionLocked: 'ADMIN_DECISION_LOCKED',
+  deletionAlreadyExecuted: 'DELETION_ALREADY_EXECUTED',
+  emailChangeCodeInvalid: 'EMAIL_CHANGE_CODE_INVALID',
+  invalidConfirmation: 'INVALID_CONFIRMATION',
+  invitationExpired: 'INVITATION_EXPIRED',
+  lastActiveReason: 'LAST_ACTIVE_REASON',
+  lastAdmin: 'LAST_ADMIN',
+  mailDeliveryFailed: 'MAIL_DELIVERY_FAILED',
+  maintenance: 'MAINTENANCE',
+  reasonNameTaken: 'REASON_NAME_TAKEN',
+  reauthFailed: 'REAUTH_FAILED',
+  rootProtected: 'ROOT_PROTECTED',
+  selfActionForbidden: 'SELF_ACTION_FORBIDDEN',
+  signupsClosed: 'SIGNUPS_CLOSED',
 } as const;

@@ -171,7 +171,11 @@ class PasswordResetMailDeliveryIT extends IntegrationTestBase {
     requestReset();
 
     verify(sender, timeout(5000).times(3)).send(any(SimpleMailMessage.class));
+    awaitPendingMails();
     assertThat(errors()).isEmpty();
+    assertThat(jdbc.queryForMap("SELECT status, attempts FROM email_deliveries"))
+        .containsEntry("status", "SENT")
+        .containsEntry("attempts", 3);
   }
 
   @Test
@@ -187,10 +191,15 @@ class PasswordResetMailDeliveryIT extends IntegrationTestBase {
         .during(Duration.ofMillis(300))
         .atMost(Duration.ofSeconds(3))
         .untilAsserted(() -> verify(sender, times(1)).send(any(SimpleMailMessage.class)));
+    awaitPendingMails();
     assertThat(errors()).hasSize(1);
     assertThat(errors().get(0).getFormattedMessage())
         .contains("MailAuthenticationException")
         .doesNotContain(EMAIL);
+    assertThat(jdbc.queryForMap("SELECT status, failure_reason, attempts FROM email_deliveries"))
+        .containsEntry("status", "FAILED")
+        .containsEntry("failure_reason", "AUTHENTICATION")
+        .containsEntry("attempts", 1);
   }
 
   @Test
@@ -201,10 +210,15 @@ class PasswordResetMailDeliveryIT extends IntegrationTestBase {
 
     verify(sender, timeout(5000).times(3)).send(any(SimpleMailMessage.class));
     await().atMost(Duration.ofSeconds(5)).until(() -> !errors().isEmpty());
+    awaitPendingMails();
     assertThat(errors()).hasSize(1);
     assertThat(errors().get(0).getFormattedMessage())
         .contains("MailSendException", "3 tentativa(s)")
         .doesNotContain(EMAIL);
+    assertThat(jdbc.queryForMap("SELECT status, failure_reason, attempts FROM email_deliveries"))
+        .containsEntry("status", "FAILED")
+        .containsEntry("failure_reason", "TRANSIENT_EXHAUSTED")
+        .containsEntry("attempts", 3);
   }
 
   @Test

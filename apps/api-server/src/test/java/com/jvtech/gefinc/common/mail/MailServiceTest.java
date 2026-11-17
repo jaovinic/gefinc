@@ -96,12 +96,34 @@ class MailServiceTest {
   private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
   private MailService service(JavaMailSender sender) {
+    return service(sender, REMETENTE);
+  }
+
+  private MailService service(
+      JavaMailSender sender, String from, MailDeliveryListener... listeners) {
     return new MailService(
         sender,
-        new AppProperties("America/Sao_Paulo", "http://localhost:4200", REMETENTE, null),
+        new AppProperties("America/Sao_Paulo", "http://localhost:4200", from, null, null, null),
         3,
         Duration.ofMillis(10),
-        new MailMetrics(registry));
+        new MailMetrics(registry),
+        List.of(listeners));
+  }
+
+  private static OutgoingMail mail(MailKind kind) {
+    return new OutgoingMail(kind, DESTINATARIO, "GEFINC: assunto", "Corpo " + LINK, 7L);
+  }
+
+  /** Ouvinte que guarda cada chamada. */
+  private static final class RecordingListener implements MailDeliveryListener {
+    final List<OutgoingMail> mails = new java.util.ArrayList<>();
+    final List<MailOutcome> outcomes = new java.util.ArrayList<>();
+
+    @Override
+    public void onDelivery(OutgoingMail mail, MailOutcome outcome) {
+      mails.add(mail);
+      outcomes.add(outcome);
+    }
   }
 
   private double failures(String reason) {
@@ -126,7 +148,7 @@ class MailServiceTest {
   }
 
   /** Sender que falha conforme o número da tentativa (1, 2, ...) e conta as chamadas. */
-  private static final class ScriptedSender extends JavaMailSenderImpl {
+  private static class ScriptedSender extends JavaMailSenderImpl {
     final AtomicInteger attempts = new AtomicInteger();
     private final IntFunction<MailException> failureFor;
 
@@ -393,6 +415,213 @@ class MailServiceTest {
         .sendPasswordReset(DESTINATARIO, LINK);
 
     assertThat(registry.find(MailMetrics.FAILED).counters()).isEmpty();
+  }
+
+  @Test
+  void sendDevolveOResultadoEnviadoComOTotalDeTentativas() {
+    ScriptedSender sender =
+        new ScriptedSender(n -> n < 3 ? new MailSendException("conexao recusada") : null);
+
+    MailOutcome outcome = service(sender).send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY);
+
+    assertThat(outcome).isEqualTo(MailOutcome.sent(3));
+    assertThat(outcome.sent()).isTrue();
+    assertThat(outcome.reason()).isNull();
+    assertThat(errors()).isEmpty();
+  }
+
+  @Test
+  void enviaRealmenteOAssuntoEOCorpoDoEmailGenerico() throws Exception {
+    withSender(
+        new String[] {},
+        sender -> {
+          MailOutcome outcome =
+              service(sender).send(mail(MailKind.INVITATION), DeliveryMode.SYNC_ONCE);
+
+          assertThat(outcome.sent()).isTrue();
+          assertThat(GREEN_MAIL.waitForIncomingEmail(5000, 1)).isTrue();
+          MimeMessage message = GREEN_MAIL.getReceivedMessages()[0];
+          assertThat(message.getSubject()).isEqualTo("GEFINC: assunto");
+          assertThat(String.valueOf(message.getContent())).contains("Corpo " + LINK);
+          assertThat(message.getFrom()[0].toString()).isEqualTo(REMETENTE);
+        });
+  }
+
+  @Test
+  void syncOnceFazUmaUnicaTentativaMesmoEmFalhaTransitoria() {
+    ScriptedSender sender = new ScriptedSender(n -> new MailSendException("indisponivel"));
+
+    MailOutcome outcome = service(sender).send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+
+    assertThat(sender.attempts).hasValue(1);
+    assertThat(outcome).isEqualTo(MailOutcome.failed(MailFailureReason.TRANSIENT_EXHAUSTED, 1));
+    assertThat(logs()).hasSize(1);
+    assertThat(errors().get(0)).contains("1 tentativa(s)");
+    assertThat(failures("retries_exhausted")).isEqualTo(1);
+  }
+
+  @Test
+  void withRetryEsgotadoViraTransientExhaustedComTresTentativas() {
+    ScriptedSender sender = new ScriptedSender(n -> new MailSendException("indisponivel"));
+
+    MailOutcome outcome = service(sender).send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY);
+
+    assertThat(outcome).isEqualTo(MailOutcome.failed(MailFailureReason.TRANSIENT_EXHAUSTED, 3));
+  }
+
+  @Test
+  void mapeiaCadaFalhaParaOMotivoDoHistorico() {
+    assertThat(
+            service(new ScriptedSender(n -> new MailAuthenticationException("recusada")))
+                .send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY))
+        .isEqualTo(MailOutcome.failed(MailFailureReason.AUTHENTICATION, 1));
+    assertThat(
+            service(new ScriptedSender(n -> rejectedWith(550)))
+                .send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY))
+        .isEqualTo(MailOutcome.failed(MailFailureReason.PERMANENT_REJECTION, 1));
+    assertThat(
+            service(new ScriptedSender(n -> new org.springframework.mail.MailParseException("x")))
+                .send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY))
+        .isEqualTo(MailOutcome.failed(MailFailureReason.OTHER, 1));
+    assertThat(failures("authentication")).isEqualTo(1);
+    assertThat(failures("permanent_rejection")).isEqualTo(1);
+    assertThat(failures("other")).isEqualTo(1);
+  }
+
+  @Test
+  void timeoutDeLeituraViraTimeoutInclusiveEmSyncOnce() {
+    MailSendException timeout =
+        new MailSendException("falha", new java.net.SocketTimeoutException("Read timed out"));
+
+    MailOutcome once =
+        service(new ScriptedSender(n -> timeout)).send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+    MailOutcome retried =
+        service(new ScriptedSender(n -> timeout))
+            .send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY);
+
+    assertThat(once).isEqualTo(MailOutcome.failed(MailFailureReason.TIMEOUT, 1));
+    assertThat(retried).isEqualTo(MailOutcome.failed(MailFailureReason.TIMEOUT, 3));
+  }
+
+  @Test
+  void semRemetenteOuSemServidorConfiguradoNaoTentaEnviar() {
+    ScriptedSender noFrom = new ScriptedSender(n -> null);
+    JavaMailSenderImpl blankHost =
+        new JavaMailSenderImpl() {
+          @Override
+          public void send(SimpleMailMessage message) {
+            throw new AssertionError("não deveria enviar");
+          }
+        };
+    blankHost.setHost("  ");
+
+    MailOutcome withoutFrom =
+        service(noFrom, "  ").send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+    MailOutcome withoutHost = service(blankHost).send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+
+    assertThat(withoutFrom).isEqualTo(MailOutcome.failed(MailFailureReason.NOT_CONFIGURED, 0));
+    assertThat(withoutHost).isEqualTo(MailOutcome.failed(MailFailureReason.NOT_CONFIGURED, 0));
+    assertThat(noFrom.attempts).hasValue(0);
+    assertThat(logs()).allSatisfy(l -> assertThat(l).doesNotContain(DESTINATARIO));
+  }
+
+  @Test
+  void servidorNuloNaoContaComoNaoConfigurado() {
+    ScriptedSender nullHost = new ScriptedSender(n -> null);
+
+    MailOutcome outcome = service(nullHost).send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+
+    assertThat(outcome).isEqualTo(MailOutcome.sent(1));
+  }
+
+  @Test
+  void excecaoInesperadaDoSenderTambemNaoEPropagada() {
+    ScriptedSender sender =
+        new ScriptedSender(n -> null) {
+          @Override
+          public void send(SimpleMailMessage message) {
+            throw new IllegalStateException("inesperado " + DESTINATARIO);
+          }
+        };
+
+    MailOutcome outcome = service(sender).send(mail(MailKind.TEST), DeliveryMode.WITH_RETRY);
+
+    assertThat(outcome).isEqualTo(MailOutcome.failed(MailFailureReason.OTHER, 1));
+    assertThat(logs()).hasSize(1).allSatisfy(l -> assertThat(l).doesNotContain(DESTINATARIO));
+  }
+
+  @Test
+  void ouvinteRecebeUmaUnicaChamadaComOResultadoFinal() {
+    RecordingListener listener = new RecordingListener();
+    ScriptedSender sender =
+        new ScriptedSender(n -> n < 3 ? new MailSendException("conexao recusada") : null);
+
+    service(sender, REMETENTE, listener)
+        .send(mail(MailKind.PASSWORD_RESET), DeliveryMode.WITH_RETRY);
+
+    assertThat(listener.mails).hasSize(1);
+    assertThat(listener.mails.get(0).kind()).isEqualTo(MailKind.PASSWORD_RESET);
+    assertThat(listener.mails.get(0).userId()).isEqualTo(7L);
+    assertThat(listener.outcomes).containsExactly(MailOutcome.sent(3));
+  }
+
+  @Test
+  void ouvinteTambemRecebeAFalhaFinal() {
+    RecordingListener listener = new RecordingListener();
+
+    service(new ScriptedSender(n -> new MailAuthenticationException("x")), REMETENTE, listener)
+        .send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+
+    assertThat(listener.outcomes)
+        .containsExactly(MailOutcome.failed(MailFailureReason.AUTHENTICATION, 1));
+  }
+
+  @Test
+  void falhaDoOuvinteNaoAlteraOResultadoNemVazaDados() {
+    RecordingListener second = new RecordingListener();
+    MailDeliveryListener broken =
+        (mail, outcome) -> {
+          throw new IllegalStateException("erro com " + DESTINATARIO + " e " + LINK);
+        };
+
+    MailOutcome outcome =
+        service(new ScriptedSender(n -> null), REMETENTE, broken, second)
+            .send(mail(MailKind.TEST), DeliveryMode.SYNC_ONCE);
+
+    assertThat(outcome).isEqualTo(MailOutcome.sent(1));
+    assertThat(second.outcomes).hasSize(1);
+    assertThat(errors()).hasSize(1);
+    assertThat(errors().get(0)).contains("IllegalStateException");
+    assertThat(logs())
+        .allSatisfy(l -> assertThat(l).doesNotContain(DESTINATARIO).doesNotContain(LINK));
+    assertThat(appender.list.get(0).getThrowableProxy()).isNull();
+  }
+
+  @Test
+  void sendPasswordResetContinuaUsandoORotuloEOModelo() throws Exception {
+    withSender(
+        new String[] {},
+        sender -> {
+          service(sender).sendPasswordReset(DESTINATARIO, LINK);
+
+          assertThat(GREEN_MAIL.waitForIncomingEmail(5000, 1)).isTrue();
+          MimeMessage message = GREEN_MAIL.getReceivedMessages()[0];
+          assertThat(message.getSubject()).isEqualTo("GEFINC: redefinição de senha");
+          assertThat(String.valueOf(message.getContent())).contains(LINK).doesNotContain("{{");
+        });
+  }
+
+  @Test
+  void representacaoTextualNaoExpoeDestinatarioNemConteudo() {
+    OutgoingMail mail = mail(MailKind.INVITATION);
+
+    assertThat(mail.toString())
+        .doesNotContain(DESTINATARIO)
+        .doesNotContain(LINK)
+        .doesNotContain("Corpo")
+        .doesNotContain("assunto");
+    assertThat(MailOutcome.failed(MailFailureReason.TIMEOUT, 2).toString())
+        .doesNotContain(DESTINATARIO);
   }
 
   @FunctionalInterface

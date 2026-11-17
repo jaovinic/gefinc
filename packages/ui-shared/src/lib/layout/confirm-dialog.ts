@@ -1,4 +1,5 @@
 import { Component, input, output } from '@angular/core';
+import { Icon } from '../icons/icon';
 import { Sheet } from './sheet';
 
 let nextId = 0;
@@ -13,7 +14,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-confirm-dialog',
-  imports: [Sheet],
+  imports: [Icon, Sheet],
   template: `
     <gef-sheet [role]="'alertdialog'" [heading]="heading()" [open]="open()" [dismissible]="!busy()" [describedBy]="descriptionId" initialFocus="[data-confirm-cancel]" (closed)="cancelled.emit()">
       <div [id]="descriptionId" class="space-y-2 text-body-base">
@@ -40,6 +41,9 @@ let nextId = 0;
             [disabled]="busy()"
             (click)="onConfirm()"
           >
+            @if (confirmIcon(); as name) {
+              <gef-icon class="mr-1 inline-block align-text-bottom" [name]="name" [size]="16" />
+            }
             {{ busy() ? busyLabel() : confirmLabel() }}
           </button>
         }
@@ -52,6 +56,8 @@ export class ConfirmDialog {
   readonly heading = input.required<string>();
   /** Rótulo do botão que executa a ação, com o alvo (ex.: `Excluir conta "Nubank"`). */
   readonly confirmLabel = input.required<string>();
+  /** Ícone ao lado do texto do botão que executa a ação (a ação nunca depende só do ícone). */
+  readonly confirmIcon = input<string | null>(null);
   readonly cancelLabel = input('Cancelar');
   /** Ação em andamento: trava os botões, o Escape e o fundo, e troca o texto do botão. */
   readonly busy = input(false);

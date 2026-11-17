@@ -2,12 +2,15 @@ import { Route } from '@angular/router';
 import {
   ProfilePage,
   ForgotPassword,
+  InvitationAccept,
   Login,
+  PrivacyNoticePage,
   Register,
   ResetPassword,
   DashboardPage,
   authGuard,
 } from '@gefinc/ui-shared';
+import { adminGuard } from './admin/admin.guard';
 import { Shell } from './layout/shell';
 
 /**
@@ -17,6 +20,8 @@ import { Shell } from './layout/shell';
 export const appRoutes: Route[] = [
   { path: 'login', component: Login },
   { path: 'register', component: Register },
+  { path: 'invitations/:token', component: InvitationAccept },
+  { path: 'convite/:token', redirectTo: 'invitations/:token' },
   {
     path: 'forgot-password',
     component: ForgotPassword,
@@ -25,6 +30,7 @@ export const appRoutes: Route[] = [
     path: 'reset-password',
     component: ResetPassword,
   },
+  { path: 'privacidade', component: PrivacyNoticePage },
   {
     path: '',
     component: Shell,
@@ -62,6 +68,11 @@ export const appRoutes: Route[] = [
       {
         path: 'settings',
         component: ProfilePage,
+      },
+      {
+        path: 'admin',
+        canActivate: [adminGuard],
+        loadChildren: () => import('./admin/admin.routes').then((m) => m.adminRoutes),
       },
     ],
   },

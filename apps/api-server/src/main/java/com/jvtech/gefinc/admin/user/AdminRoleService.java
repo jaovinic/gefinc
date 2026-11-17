@@ -1,0 +1,128 @@
+package com.jvtech.gefinc.admin.user;
+
+import com.jvtech.gefinc.admin.audit.AuditAction;
+import com.jvtech.gefinc.admin.audit.AuditDetails;
+import com.jvtech.gefinc.admin.audit.AuditKey;
+import com.jvtech.gefinc.admin.common.AdminActionExecutor;
+import com.jvtech.gefinc.admin.common.AdminActionExecutor.AuditContext;
+import com.jvtech.gefinc.admin.common.AdminPolicy;
+import com.jvtech.gefinc.admin.common.AdminPolicy.Action;
+import com.jvtech.gefinc.admin.common.AdminPolicy.Subject;
+import com.jvtech.gefinc.admin.common.Reauthenticator;
+import com.jvtech.gefinc.auth.RevokedBy;
+import com.jvtech.gefinc.auth.TokenService;
+import com.jvtech.gefinc.common.error.ApiException;
+import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.CurrentUser;
+import com.jvtech.gefinc.user.User;
+import com.jvtech.gefinc.user.UserRepository;
+import com.jvtech.gefinc.user.UserRole;
+import java.util.concurrent.atomic.AtomicReference;
+import org.springframework.stereotype.Service;
+
+/**
+ * Concede e retira o perfil de administrador. Toda tentativa é auditada ({@code ROLE_GRANTED} ou
+ * {@code ROLE_REVOKED}), inclusive as recusadas, e a mudança e a linha da trilha andam na mesma
+ * transação. A senha do administrador é conferida antes de qualquer leitura do alvo; o alvo é lido
+ * com bloqueio de escrita. Idempotente: repetir o pedido não muda nada e responde sucesso, com
+ * {@code from == to} na trilha. O papel só vale na requisição seguinte porque é lido do banco a
+ * cada requisição.
+ */
+@Service
+public class AdminRoleService {
+
+  private final AdminActionExecutor executor;
+  private final Reauthenticator reauthenticator;
+  private final AdminPolicy policy;
+  private final UserRepository users;
+  private final TokenService tokens;
+
+  public AdminRoleService(
+      AdminActionExecutor executor,
+      Reauthenticator reauthenticator,
+      AdminPolicy policy,
+      UserRepository users,
+      TokenService tokens) {
+    this.executor = executor;
+    this.reauthenticator = reauthenticator;
+    this.policy = policy;
+    this.users = users;
+    this.tokens = tokens;
+  }
+
+  /**
+   * {@code requestedRole}: {@code ADMIN} concede, {@code USER} retira. Qualquer outro valor
+   * (ausente, {@code ROOT}, desconhecido) é recusado com 422 dentro da ação auditada, como
+   * tentativa de concessão ({@code ROLE_GRANTED}): é isso que ele tentaria fazer. A trilha não
+   * guarda o valor enviado.
+   */
+  public void change(long targetId, String requestedRole, String password) {
+    UserRole requested = parse(requestedRole);
+    boolean grant = requested != UserRole.USER;
+    Action action = grant ? Action.GRANT_ADMIN : Action.REVOKE_ADMIN;
+    AuditAction auditAction = grant ? AuditAction.ROLE_GRANTED : AuditAction.ROLE_REVOKED;
+    long actorId = CurrentUser.id();
+    AtomicReference<UserRole> before = new AtomicReference<>();
+    AtomicReference<UserRole> after = new AtomicReference<>();
+
+    executor.run(
+        new AuditContext(
+            auditAction,
+            targetId,
+            null,
+            null,
+            () ->
+                AuditDetails.of()
+                    .put(AuditKey.FROM, before.get().name())
+                    .put(AuditKey.TO, after.get().name())),
+        () -> {
+          if (requested == null) {
+            throw invalidRole(requestedRole);
+          }
+          reauthenticator.verify(password);
+          User actor =
+              users
+                  .findById(actorId)
+                  .orElseThrow(() -> new ApiException(ErrorCode.FORBIDDEN, "Acesso negado."));
+          if ((actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.ROOT)
+              || !actor.isActive()) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "Acesso negado.");
+          }
+          User target =
+              users
+                  .findForUpdate(targetId)
+                  .orElseThrow(
+                      () -> new ApiException(ErrorCode.NOT_FOUND, "Usuário não encontrado."));
+          before.set(target.getRole());
+          policy.enforce(
+              action, new Subject(actorId, actor.getRole(), actor.isActive()), subject(target));
+          if (grant) {
+            target.grantAdmin();
+          } else {
+            if (target.getRole() == UserRole.ADMIN) {
+              tokens.revokeAllOfUser(targetId, RevokedBy.ADMIN);
+              target.revokeAccessTokens();
+            }
+            target.revokeAdmin();
+          }
+          after.set(target.getRole());
+          return null;
+        });
+  }
+
+  private static UserRole parse(String value) {
+    if ("USER".equals(value)) {
+      return UserRole.USER;
+    }
+    return "ADMIN".equals(value) ? UserRole.ADMIN : null;
+  }
+
+  private static ApiException invalidRole(String value) {
+    return ApiException.validation("Há campos inválidos.")
+        .withFieldError("role", value == null ? "Informe o perfil." : "Perfil inválido.");
+  }
+
+  private static Subject subject(User user) {
+    return new Subject(user.getId(), user.getRole(), user.isActive());
+  }
+}

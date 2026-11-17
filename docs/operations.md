@@ -29,16 +29,32 @@ tem limite próprio (3 pedidos por hora por e-mail).
 
 Pontos de atenção:
 
-- **IP real atrás de proxy:** por padrão a API usa o IP da conexão. Atrás de proxy ou balanceador, defina
-  `FORWARD_HEADERS_STRATEGY=native` para ler o `X-Forwarded-For`. Com a API exposta direto, mantenha
-  `none`: senão o cabeçalho pode ser forjado para escapar do limite por IP. Sem isso, todos os usuários
-  atrás do proxy dividiriam o mesmo IP e o limite de 20 falhas pegaria gente inocente.
+- **IP real atrás de proxy e isolamento seguro:** por padrão a API usa o IP direto da conexão TCP.
+  Atrás de proxies ou túneis (como Cloudflare Tunnel ou Caddy), mantenha `FORWARD_HEADERS_STRATEGY=none`
+  para que a API não confie cegamente em `X-Forwarded-For` forjável. A API lê o cabeçalho configurado
+  (`CLIENT_IP_HEADER`, padrão `CF-Connecting-IP`) **exclusivamente** quando a conexão física provém de um
+  endereço listado em `TRUSTED_PROXY_CIDRS` (ex.: o IP fixo do container `cloudflared` na rede Docker,
+  `172.28.0.10/32`). Se a requisição não vier de um proxy confiável, cabeçalhos de encaminhamento são
+  ignorados e o IP real da conexão direta é preservado. Sem configurar o proxy confiável, todos os clientes
+  compartilhariam o mesmo IP do túnel e o limitador de 20 falhas bloquearia múltiplos usuários legítimos.
 - **Bloqueio por terceiros:** quem sabe o e-mail de alguém pode gastar as 5 tentativas e travar o login
   dessa pessoa por até 15 minutos. É a troca aceita por proteger contra adivinhação de senha; o
   bloqueio some sozinho.
 - **Memória e uma instância:** as contagens ficam na memória da API; reiniciar zera e, com mais de uma
   instância, cada uma conta separado. Para escalar na horizontal, mover o contador para Redis ou tabela.
+- **Retirar o bloqueio pelo painel:** o administrador pode liberar o login de um e-mail na hora (zera só
+  a contagem do e-mail, nunca a do IP); a ação é auditada.
 - Backlog: avisar o titular por e-mail depois de várias falhas seguidas.
+
+## Sessões de autenticação
+
+Cada login abre uma sessão em `auth_sessions` (uma por família de tokens de renovação) com o IP, um
+rótulo grosseiro do dispositivo ("Chrome em Windows") e o tipo de cliente. São dado pessoal: aparecem só
+no painel administrativo e somem junto com o usuário. O token de acesso leva a claim `sid`; a API confere
+a sessão a cada requisição (uma consulta por chave primária, sem escrita), então encerrar uma sessão, todas
+ou suspender a conta vale na requisição seguinte. A validade da sessão desliza a cada renovação. Um job
+diário (3h45, America/Sao_Paulo) remove as sessões expiradas ou encerradas há mais de **30 dias**.
+Tokens de acesso emitidos antes das sessões existirem (sem `sid`) valem até expirar (15 minutos).
 
 ## Logs
 
@@ -140,6 +156,10 @@ Security e SQL em DEBUG. Por isso:
 |---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | Conexão com o PostgreSQL |
 | `JWT_SECRET` | Segredo de assinatura dos tokens de acesso (mínimo de 32 caracteres, único por ambiente) |
+| `PSEUDONYM_SECRET` | Segredo HMAC para pseudonimização de identificadores (mínimo de 32 bytes, obrigatório em produção, único por ambiente; não rotacionar) |
+| `FORWARD_HEADERS_STRATEGY` | Estratégia de cabeçalhos de rede (`none` em produção isolada atrás de túnel/proxy fixo) |
+| `TRUSTED_PROXY_CIDRS` | Lista de faixas CIDR de proxies confiáveis autorizados a repassar o IP do cliente (ex.: `172.28.0.10/32`) |
+| `CLIENT_IP_HEADER` | Cabeçalho HTTP do IP real repassado pelo proxy confiável (padrão `CF-Connecting-IP`) |
 | `SMTP_HOST`, `SMTP_PORT` | Servidor de e-mail da recuperação de senha (padrão de dev: `localhost:1025`, Mailpit) |
 | `SMTP_USER`, `SMTP_PASSWORD` | Login e chave SMTP do provedor (segredos: só no `.env` do servidor, nunca versionados nem em logs) |
 | `SMTP_AUTH` | `true` para autenticar no servidor SMTP (padrão `false`; o compose de produção usa `true`) |
@@ -205,6 +225,136 @@ APP_BASE_URL=<URL pública do front, sem barra final>
   `Falha ao enviar e-mail de redefinição de senha após N tentativa(s)` (nível ERROR, uma por pedido), que traz a
   classe da exceção e a causa raiz resumida, sem o e-mail do destinatário, o link nem segredos. As tentativas
   intermediárias aparecem como `Falha transitória ao enviar e-mail de redefinição de senha` (WARN).
+
+## Segredo de pseudonimização (`PSEUDONYM_SECRET`)
+
+O segredo de pseudonimização é uma chave simétrica usada para derivar HMACs (SHA-256) de identificadores
+pseudonimizados persistidos em logs de auditoria e tabelas de conformidade:
+- Identificadores de contas anonimizadas pós-exclusão (`anônimo-<8 hex>`);
+- Hashes de rastreabilidade de dispositivos e clientes (`client_ref`);
+- Hashes transitórios de validação de códigos (como os de troca de e-mail).
+
+Diretrizes operacionais obrigatórias:
+- **Tamanho mínimo:** deve ter **pelo menos 32 bytes** de entropia (recomendado: 48 bytes em base64, gerado
+  com `openssl rand -base64 48`). A API recusa iniciar se o segredo for mais curto ou ausente.
+- **Armazenamento:** guarde junto às credenciais de banco e ao `JWT_SECRET` no arquivo `.env` do servidor
+  (permissão `600`), nunca em controle de versão nem em logs.
+- **Não rotacionar:** o segredo **não deve ser rotacionado** em operação normal. A rotação altera o hash HMAC
+  gerado para um mesmo titular ou requisição, desvinculando novos registros de auditoria dos eventos passados
+  e quebrando a correlação legítima exigida por auditorias.
+- **Procedimento em caso de vazamento:** se o `PSEUDONYM_SECRET` for comprometido juntamente com acesso de leitura
+  à base de dados, um invasor que possua uma lista externa de e-mails de titulares pode recalcular os hashes e
+  reidentificar contas no histórico de auditoria. Caso ocorra vazamento comprovado:
+  1. Gere imediatamente uma nova chave (`openssl rand -base64 48`);
+  2. Atualize o `.env` no servidor de produção e reinicie o contêiner `api-server`;
+  3. Registre formalmente o incidente na governança de segurança, ciente de que as novas ações pseudonimizadas
+     passarão a ter identificadores gerados sob a nova chave, preservando os registros antigos inalterados no banco.
+
+## Administrador raiz e recuperação de acesso
+
+O papel `ROOT` possui salvaguardas invioláveis pelo painel administrativo (não pode ser suspenso, rebaixado,
+excluído, ter e-mail alterado nem ter sessões encerradas por outros administradores). Não existe endpoint na
+API para criar ou promover o primeiro administrador raiz: ele nasce **direto no banco de dados**, garantindo que
+a concessão de privilégio máximo exija acesso direto à infraestrutura do servidor.
+
+### Procedimento para criar o primeiro administrador raiz
+
+1. Crie uma conta comum através da tela de cadastro (`/register` ou `POST /auth/register`).
+2. Acesse o servidor e execute o script operacional seguro:
+   ```bash
+   tools/ops/promote-root.sh dono@exemplo.com
+   ```
+   O script confere a existência da conta, exibe o usuário e papel atual, solicita confirmação (`--yes` dispensa)
+   e roda a transação protegida.
+
+3. Alternativamente, execute via SQL nativo no cliente `psql` (o banco possui um gatilho de proteção que exige
+   a variável local de transação `gefinc.allow_root_change`):
+   ```bash
+   docker compose exec -T postgres psql -U gefinc -d gefinc -v ON_ERROR_STOP=1 -v email='dono@exemplo.com' <<'SQL'
+   BEGIN;
+   SET LOCAL gefinc.allow_root_change = 'on';
+   UPDATE users SET role = 'ROOT' WHERE lower(email) = lower(:'email') RETURNING id;
+   COMMIT;
+   SQL
+   ```
+   > Tentativas de alterar a coluna `role` para/de `ROOT` sem `SET LOCAL gefinc.allow_root_change = 'on'` são
+   > bloqueadas pelo gatilho do banco (`trg_protect_root_user`) com erro `42501 (permissão negada)`.
+
+### Procedimento para recuperação de acesso de administrador
+
+Se um administrador for suspenso por engano ou tiver o acesso bloqueado e não houver outro administrador
+ativo para reativá-lo pelo painel, o titular com acesso ao servidor pode recuperar a conta via banco:
+```bash
+docker compose exec -T postgres psql -U gefinc -d gefinc -v ON_ERROR_STOP=1 -v email='admin@exemplo.com' <<'SQL'
+BEGIN;
+SET LOCAL gefinc.allow_root_change = 'on';
+UPDATE users SET suspended_at = NULL, token_version = token_version + 1 WHERE lower(email) = lower(:'email') RETURNING id;
+COMMIT;
+SQL
+```
+O incremento de `token_version` invalida tokens residuais e exige novo login com as credenciais válidas.
+
+## Políticas de retenção de dados e expurgo
+
+O sistema aplica políticas rigorosas de retenção e expurgo programado para atender ao princípio de minimização
+de dados da LGPD (Lei Geral de Proteção de Dados):
+
+- **Contas excluídas:** carência de 1 a 30 dias (ou modo imediato solicitado por administrador com confirmação).
+  O `AccountDeletionJob` remove todos os dados do usuário em cascata e substitui identificadores por
+  `anônimo-<8 hex>` nos registros de auditoria mantidos.
+- **Backups do banco de dados:** guardados por no máximo **35 dias**, garantindo que nenhum backup contenha
+  dados pessoais 5 dias após a exclusão de uma conta com carência de 30 dias.
+- **Histórico de envios de e-mail (`email_deliveries`):** mantido por **90 dias**. O job diário
+  `EmailDeliveryPurgeJob` remove registros mais antigos sem afetar comunicações pendentes.
+- **IPs de visitantes em logs de auditoria (`audit_log_client.ip`):** mantidos por **90 dias**. O job diário
+  `AuditClientPurgeJob` zera o IP em claro de tentativas anônimas/visitantes, preservando a linha de auditoria
+  e o hash `client_ref` (SC-021).
+- **Endereço retido de comunicações pendentes (`pending_communications.retained_email`):** mantido por no máximo
+  **30 dias** após a remoção física da conta. O job diário `PendingCommunicationExpiryJob` descarta o endereço retido.
+- **Sessões de autenticação (`auth_sessions`):** mantidas por **30 dias** após encerramento ou expiração.
+  O job diário `AuthSessionCleanupJob` remove as sessões vencidas.
+
+## Rotinas agendadas (os 6 jobs do sistema)
+
+A API executa 6 jobs periódicos agendados via Spring `@Scheduled` para garantir a integridade dos dados e o cumprimento das políticas de retenção:
+
+| Job | Frequência | Horário / Expressão Cron | Função Principal |
+|---|---|---|---|
+| `AccountDeletionJob` | A cada 5 minutos | `0 */5 * * * *` | Executa exclusões de contas vencidas (`due_at <= now()`), remoção em cascata e anonimização em `audit_log`. |
+| `InvitationExpiryJob` | A cada hora | `0 0 * * * *` | Transiciona convites pendentes vencidos (> 7 dias) para `EXPIRED` e zera o e-mail em claro (`ck_inv_email`). |
+| `EmailDeliveryPurgeJob` | Diário | `0 0 3 * * *` (3h00) | Expurga do histórico de envios (`email_deliveries`) registros com mais de 90 dias de retenção. |
+| `AuditClientPurgeJob` | Diário | `0 15 3 * * *` (3h15) | Zera o IP em claro em `audit_log_client` de registros de visitantes com mais de 90 dias, mantendo o `client_ref`. |
+| `PendingCommunicationExpiryJob` | Diário | `0 30 3 * * *` (3h30) | Descarta comunicações pendentes de contas já excluídas retidas há mais de 30 dias, limpando o e-mail retido. |
+| `AuthSessionCleanupJob` | Diário | `0 45 3 * * *` (3h45) | Remove registros de sessões expiradas ou revogadas há mais de 30 dias em `auth_sessions`. |
+
+*(Nota: fora do módulo administrativo, o sistema mantém ainda `IdempotencyCleanupJob` às 3h30 para expurgo de chaves offline com mais de 7 dias e `FixedRecurrenceJob` para lançamentos recorrentes).*
+
+## Limitadores de taxa em memória (instância única, R13)
+
+Os limites de taxa protegem o sistema contra força bruta e abusos:
+- **Tentativas de login:** 5 falhas por e-mail, 20 falhas por IP (janela deslizante de 15 minutos).
+- **Ações administrativas destrutivas:** 10 requisições por 15 minutos por administrador (exclusão de usuários, revogação global de sessões).
+- **Recuperação de senha:** 3 solicitações por hora por e-mail.
+- **Operação em instância única (R13):** os limitadores são gerenciados em memória (`PerKeyRateLimiter`) via
+  `ConcurrentHashMap` com limpeza periódica de entradas expiradas. O estado é volátil e zera em reinícios da API.
+  Em arquiteturas de alta disponibilidade com múltiplas instâncias distribuídas, a coordenação de taxa deve ser
+  migrada para Redis ou tabela com expiração atômica.
+
+## Modo de manutenção e fechamento de cadastros
+
+Parâmetros operacionais configuráveis no painel administrativo (`/admin/parameters`) ou via endpoint:
+- **`MAINTENANCE_ENABLED` (`true`/`false`):** ativa o modo de manutenção global. Quando ativo, o filtro servlet
+  `MaintenanceFilter` intercepta todas as requisições de usuários comuns (`ROLE_USER`) e visitantes, respondendo
+  imediatamente `503 Service Unavailable` RFC 7807 (`code=MAINTENANCE`, cabeçalho `Retry-After: 300` e mensagem
+  em `extras.message`).
+  - **Isenções:** administradores (`ADMIN` e `ROOT`) operam normalmente em todas as rotas; requisições CORS
+    preflight (`OPTIONS`), `/actuator/health/**`, `/system/status`, `/auth/password-reset/**` e `/auth/logout`
+    permanecem sempre abertas.
+  - **Comportamento cliente:** a web exibe banner informativo; o aplicativo móvel exibe a barra de aviso no topo e
+    preserva integralmente as operações da fila offline em modo `PENDING` sem descartar alterações.
+- **`MAINTENANCE_MESSAGE` (até 280 caracteres):** mensagem explicativa customizada exibida para os usuários.
+- **`SIGNUPS_OPEN` (`true`/`false`):** quando desativado, recusa novos cadastros por conta própria (`POST /auth/register`
+  responde `403 SIGNUPS_CLOSED`), mas preserva a possibilidade de aceitar convites emitidos por administradores.
 
 ## Teste de carga
 

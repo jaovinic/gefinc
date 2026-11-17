@@ -1,5 +1,9 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.deletion.UserNoticeService;
+import com.jvtech.gefinc.admin.invitation.InvitationDtos.AcceptInvitationRequest;
+import com.jvtech.gefinc.admin.invitation.InvitationDtos.InvitationPreview;
+import com.jvtech.gefinc.admin.invitation.InvitationService;
 import com.jvtech.gefinc.auth.AuthDtos.AccountDeletionRequest;
 import com.jvtech.gefinc.auth.AuthDtos.ChangePasswordRequest;
 import com.jvtech.gefinc.auth.AuthDtos.DeletionScheduled;
@@ -14,6 +18,7 @@ import com.jvtech.gefinc.auth.AuthDtos.UserProfile;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.ClientIpResolver;
 import com.jvtech.gefinc.common.security.CurrentUser;
 import com.jvtech.gefinc.user.User;
 import jakarta.servlet.http.Cookie;
@@ -27,6 +32,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +56,9 @@ public class AuthController {
   private final AccountDeletionService deletion;
   private final ProfileService profile;
   private final AppProperties properties;
+  private final ClientIpResolver clientIp;
+  private final InvitationService invitationService;
+  private final UserNoticeService userNoticeService;
 
   public AuthController(
       RegistrationService registration,
@@ -57,13 +66,32 @@ public class AuthController {
       PasswordResetService passwordReset,
       AccountDeletionService deletion,
       ProfileService profile,
-      AppProperties properties) {
+      AppProperties properties,
+      ClientIpResolver clientIp,
+      InvitationService invitationService,
+      UserNoticeService userNoticeService) {
     this.registration = registration;
     this.auth = auth;
     this.passwordReset = passwordReset;
     this.deletion = deletion;
     this.profile = profile;
     this.properties = properties;
+    this.clientIp = clientIp;
+    this.invitationService = invitationService;
+    this.userNoticeService = userNoticeService;
+  }
+
+  @GetMapping("/invitations/{token}")
+  public InvitationPreview previewInvitation(@PathVariable("token") String token) {
+    return invitationService.preview(token);
+  }
+
+  @PostMapping("/invitations/{token}/accept")
+  @ResponseStatus(HttpStatus.CREATED)
+  public UserProfile acceptInvitation(
+      @PathVariable("token") String token, @Valid @RequestBody AcceptInvitationRequest body) {
+    User user = invitationService.accept(token, body.password(), body.name());
+    return ProfileService.toProfile(user);
   }
 
   @PostMapping("/register")
@@ -79,7 +107,7 @@ public class AuthController {
       HttpServletRequest request,
       HttpServletResponse response) {
     return respond(
-        auth.login(body.email(), body.password(), request.getRemoteAddr()), request, response);
+        auth.login(body.email(), body.password(), clientIp.resolve(request)), request, response);
   }
 
   @PostMapping("/refresh")
@@ -142,6 +170,15 @@ public class AuthController {
         response);
   }
 
+  @PostMapping({"/notices/{id}/dismiss", "/notices/{noticeId}/dismiss"})
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void dismissNotice(
+      @PathVariable(name = "id", required = false) Long id,
+      @PathVariable(name = "noticeId", required = false) Long noticeId) {
+    long targetId = id != null ? id : noticeId;
+    userNoticeService.dismiss(CurrentUser.id(), targetId);
+  }
+
   @PostMapping("/account-deletion")
   @ResponseStatus(HttpStatus.ACCEPTED)
   public DeletionScheduled requestAccountDeletion(@Valid @RequestBody AccountDeletionRequest body) {
@@ -152,7 +189,7 @@ public class AuthController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void cancelAccountDeletion(
       @Valid @RequestBody LoginRequest body, HttpServletRequest request) {
-    deletion.cancel(body.email(), body.password(), request.getRemoteAddr());
+    deletion.cancel(body.email(), body.password(), clientIp.resolve(request));
   }
 
   private TokenResponse respond(

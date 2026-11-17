@@ -17,7 +17,7 @@ public class AccountDeletionJob {
     this.service = service;
   }
 
-  @Scheduled(cron = "0 0 3 * * *", zone = "America/Sao_Paulo")
+  @Scheduled(cron = "0 */5 * * * *")
   public void run() {
     int deleted = service.deleteExpired();
     if (deleted > 0) {

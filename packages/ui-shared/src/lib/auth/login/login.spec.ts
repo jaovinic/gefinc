@@ -4,11 +4,18 @@ import { API, configureAuthTesting, submit, type } from '../testing/auth-testing
 import { Login } from './login';
 
 describe('Login', () => {
-  async function setup() {
+  async function setup(statusResponse?: { maintenance: boolean; message?: string; signupsOpen: boolean }) {
     const ctx = configureAuthTesting();
     const fixture = TestBed.createComponent(Login);
     fixture.detectChanges();
     await fixture.whenStable();
+
+    const statusReqs = ctx.http.match(`${API}/system/status`);
+    if (statusReqs.length > 0) {
+      statusReqs[0].flush(statusResponse ?? { maintenance: false, signupsOpen: true });
+      fixture.detectChanges();
+    }
+
     return { ...ctx, fixture, el: fixture.nativeElement as HTMLElement };
   }
 
@@ -82,5 +89,214 @@ describe('Login', () => {
     http.expectOne(`${API}/auth/login`).flush({ accessToken: 'abc', expiresIn: 900 });
     await fixture.whenStable();
     expect(navigateByUrl).toHaveBeenCalledWith('/');
+  });
+
+  it('conta suspensa com a senha certa mostra a orientação de procurar o suporte, sem o motivo', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        { code: 'ACCOUNT_SUSPENDED', detail: 'Sua conta está suspensa.', supportHint: 'Fale com o suporte.' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Conta suspensa. Procure o suporte.');
+    expect(el.textContent).not.toContain('agendada');
+    expect(el.querySelector('button.gef-btn-secondary[disabled]')).toBeNull();
+  });
+
+  it('tem o link do aviso de privacidade no rodapé', async () => {
+    const { el } = await setup();
+
+    const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('/privacidade');
+    expect(link.textContent).toContain('Privacidade');
+  });
+
+  it('mostra faixa de manutenção quando GET /system/status retorna maintenance: true', async () => {
+    const { el } = await setup({
+      maintenance: true,
+      message: 'Sistema em manutenção para atualização programada.',
+      signupsOpen: false,
+    });
+
+    const banner = el.querySelector('[data-testid="maintenance-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('Sistema em manutenção');
+    expect(banner?.textContent).toContain('atualização programada');
+  });
+
+  it('login retornando 503 com MAINTENANCE mostra a mensagem da manutenção no alerta de erro', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        { code: 'MAINTENANCE', message: 'Serviço indisponível temporariamente. Volte em 15 minutos.' },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[role="alert"]');
+    expect(alert?.textContent).toContain('Serviço indisponível temporariamente. Volte em 15 minutos.');
+  });
+
+  it('nunca mostra aviso antes de enviar as credenciais', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('[data-testid="cancellation-notice"]')).toBeNull();
+    expect(el.querySelector('[data-testid="deletion-warning"]')).toBeNull();
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('exclusão agendada pelo administrador mostra prazo, motivo genérico, suporte, ícone e role=alert, sem opção de cancelar', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        {
+          code: 'ACCOUNT_DELETION_PENDING',
+          deletionDate: '2026-12-15',
+          origin: 'ADMIN',
+          canCancel: false,
+          reasonMessage: 'Encerramento por descumprimento das regras de uso.',
+          supportHint: 'Procure o suporte para entender a situação da conta.',
+        },
+        { status: 423, statusText: 'Locked' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[data-testid="deletion-warning"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.getAttribute('role')).toBe('alert');
+    expect(alert?.querySelector('svg')).not.toBeNull();
+    expect(alert?.textContent).toContain('agendada para 15/12/2026');
+    expect(alert?.textContent).toContain('Encerramento por descumprimento das regras de uso.');
+    expect(alert?.textContent).toContain('Procure o suporte para entender a situação da conta.');
+
+    // SEM o botão "Cancelar a exclusão e entrar"
+    const cancelBtn = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Cancelar a exclusão'),
+    );
+    expect(cancelBtn).toBeUndefined();
+  });
+
+  it('exclusão agendada com canCancel=true mantém o botão "Cancelar a exclusão e entrar"', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        {
+          code: 'ACCOUNT_DELETION_PENDING',
+          deletionDate: '2026-12-20',
+          origin: 'USER',
+          canCancel: true,
+          supportHint: 'Entre com suas credenciais para cancelar a exclusão.',
+        },
+        { status: 423, statusText: 'Locked' },
+      );
+    fixture.detectChanges();
+
+    const alert = el.querySelector('[data-testid="deletion-warning"]');
+    expect(alert).not.toBeNull();
+    expect(alert?.textContent).toContain('agendada para 20/12/2026');
+
+    // COM o botão "Cancelar a exclusão e entrar"
+    const cancelBtn = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Cancelar a exclusão'),
+    );
+    expect(cancelBtn).toBeDefined();
+  });
+
+  it('aviso de cancelamento dispensável exibido no login em 423 com USER_REQUEST_CONTINUES e botão dispensar', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        {
+          code: 'ACCOUNT_DELETION_PENDING',
+          deletionDate: '2026-12-25',
+          origin: 'USER',
+          canCancel: true,
+          notices: [
+            {
+              id: 42,
+              kind: 'DELETION_CANCELED',
+              variant: 'USER_REQUEST_CONTINUES',
+              originalDeletionDate: '2026-12-25',
+              message:
+                'A exclusão administrativa desta conta foi cancelada. A sua solicitação de exclusão continua agendada para 25/12/2026.',
+            },
+          ],
+        },
+        { status: 423, statusText: 'Locked' },
+      );
+    fixture.detectChanges();
+
+    const noticeAlert = el.querySelector('[data-testid="cancellation-notice"]');
+    expect(noticeAlert).not.toBeNull();
+    expect(noticeAlert?.getAttribute('role')).toBe('alert');
+    expect(noticeAlert?.querySelector('svg')).not.toBeNull();
+    expect(noticeAlert?.textContent).toContain('A exclusão administrativa desta conta foi cancelada');
+    expect(noticeAlert?.textContent).toContain('continua agendada para 25/12/2026');
+
+    // Botão dispensar
+    const dismissBtn = el.querySelector('[data-testid="dismiss-notice"]') as HTMLButtonElement;
+    expect(dismissBtn).not.toBeNull();
+    dismissBtn.click();
+
+    // Faz a chamada de dispensa para a API
+    const dismissReq = http.expectOne(`${API}/auth/notices/42/dismiss`);
+    expect(dismissReq.request.method).toBe('POST');
+    dismissReq.flush(null, { status: 204, statusText: 'No Content' });
+
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="cancellation-notice"]')).toBeNull();
+  });
+
+  it('aviso de cancelamento exibido no login em 403 com STILL_BLOCKED', async () => {
+    const { el, http, fixture } = await setup();
+    await fill(el);
+    submit(el);
+
+    http
+      .expectOne(`${API}/auth/login`)
+      .flush(
+        {
+          code: 'ACCOUNT_SUSPENDED',
+          detail: 'Sua conta está suspensa.',
+          supportHint: 'Fale com o suporte.',
+          notices: [
+            {
+              id: 99,
+              kind: 'DELETION_CANCELED',
+              variant: 'STILL_BLOCKED',
+              message:
+                'A exclusão administrativa desta conta foi cancelada. Sua conta continua suspensa; entre em contato com o suporte.',
+            },
+          ],
+        },
+        { status: 403, statusText: 'Forbidden' },
+      );
+    fixture.detectChanges();
+
+    const noticeAlert = el.querySelector('[data-testid="cancellation-notice"]');
+    expect(noticeAlert).not.toBeNull();
+    expect(noticeAlert?.getAttribute('role')).toBe('alert');
+    expect(noticeAlert?.textContent).toContain('Sua conta continua suspensa; entre em contato com o suporte.');
   });
 });

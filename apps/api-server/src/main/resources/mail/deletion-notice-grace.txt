@@ -1,0 +1,9 @@
+Olá,
+
+A exclusão da sua conta GEFINC foi solicitada por um administrador do serviço e está agendada para {{data}}.
+
+{{mensagem}}
+
+Até essa data o acesso à conta fica bloqueado. Depois dela, todos os dados da conta serão apagados definitivamente.
+
+Equipe GEFINC

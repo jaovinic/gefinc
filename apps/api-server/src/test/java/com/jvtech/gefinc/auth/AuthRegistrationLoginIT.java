@@ -7,10 +7,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.jvtech.gefinc.support.IntegrationTestBase;
+import com.jvtech.gefinc.support.TestTokens;
 import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -162,5 +167,110 @@ class AuthRegistrationLoginIT extends IntegrationTestBase {
         .perform(post("/auth/logout").header(HttpHeaders.AUTHORIZATION, ana.bearer()))
         .andExpect(status().isNoContent());
     mockMvc.perform(post("/auth/logout")).andExpect(status().isUnauthorized());
+  }
+
+  private static final String CHROME_WINDOWS =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)"
+          + " Chrome/120.0.0.0 Safari/537.36";
+
+  @Test
+  void loginAbreUmaSessaoComIpRealRotuloEClaimSid() throws Exception {
+    new TestUsers(mockMvc, objectMapper).registerAndLogin("ana@example.com");
+    jdbc.update("DELETE FROM auth_sessions");
+    Instant now = clock.instant();
+
+    JsonNode login =
+        new TestUsers(mockMvc, objectMapper)
+            .loginFrom("ana@example.com", TestUsers.PASSWORD, "203.0.113.9", CHROME_WINDOWS);
+
+    UUID sid = TestTokens.sessionId(login.get("accessToken").asText());
+    assertThat(sid).isNotNull();
+    Map<String, Object> row = jdbc.queryForMap("SELECT * FROM auth_sessions");
+    assertThat(row.get("id")).isEqualTo(sid);
+    assertThat(row)
+        .containsEntry("client_ip", "203.0.113.9")
+        .containsEntry("device_label", "Chrome em Windows")
+        .containsEntry("client_kind", "OTHER");
+    assertThat(row.get("revoked_at")).isNull();
+    assertThat(row.get("revoked_by")).isNull();
+    assertThat(((Timestamp) row.get("created_at")).toInstant()).isEqualTo(now);
+    assertThat(((Timestamp) row.get("last_used_at")).toInstant()).isEqualTo(now);
+    assertThat(((Timestamp) row.get("expires_at")).toInstant()).isAfter(now);
+    // a sessão é a família do token de renovação emitido
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM refresh_tokens WHERE family_id = ?", Long.class, sid))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void loginPeloClienteWebGuardaOTipoWebECadaLoginTemASuaSessao() throws Exception {
+    new TestUsers(mockMvc, objectMapper).registerAndLogin("ana@example.com");
+    jdbc.update("DELETE FROM auth_sessions");
+    String body = json(Map.of("email", "ana@example.com", "password", TestUsers.PASSWORD));
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .header("X-Client", "web")
+                .header("User-Agent", CHROME_WINDOWS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isOk());
+    mockMvc
+        .perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+        .andExpect(status().isOk());
+
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Long.class)).isEqualTo(2);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM auth_sessions WHERE client_kind = 'WEB'", Long.class))
+        .isEqualTo(1);
+  }
+
+  @Test
+  void loginRecusadoNaoAbreSessao() throws Exception {
+    new TestUsers(mockMvc, objectMapper).registerAndLogin("ana@example.com");
+    jdbc.update("DELETE FROM auth_sessions");
+
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", "ana@example.com", "password", "senha-errada-999"))))
+        .andExpect(status().isUnauthorized());
+
+    assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Long.class)).isZero();
+  }
+
+  @Test
+  void loginComExclusaoPendenteResponde423ComCamposAditivosEValidos() throws Exception {
+    TestUsers testUsers = new TestUsers(mockMvc, objectMapper);
+    TestUsers.TestUser ana = testUsers.registerAndLogin("ana-del-regress@example.com");
+
+    // Solicita exclusão pelo autoatendimento
+    mockMvc
+        .perform(
+            post("/auth/account-deletion")
+                .header(HttpHeaders.AUTHORIZATION, ana.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("password", TestUsers.PASSWORD))))
+        .andExpect(status().isAccepted());
+
+    // Login com credenciais corretas responde 423 com os campos adicionais (aditivos, seguros para
+    // clientes legados)
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", ana.email(), "password", TestUsers.PASSWORD))))
+        .andExpect(status().isLocked())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.code").value("ACCOUNT_DELETION_PENDING"))
+        .andExpect(jsonPath("$.deletionDate").isNotEmpty())
+        .andExpect(jsonPath("$.origin").value("USER"))
+        .andExpect(jsonPath("$.canCancel").value(true))
+        .andExpect(jsonPath("$.supportHint").isNotEmpty())
+        .andExpect(jsonPath("$.accessToken").doesNotExist());
   }
 }

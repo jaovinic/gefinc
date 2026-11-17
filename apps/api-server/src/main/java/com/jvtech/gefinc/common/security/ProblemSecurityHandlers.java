@@ -1,6 +1,7 @@
 package com.jvtech.gefinc.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jvtech.gefinc.admin.common.AdminAccessAuditor;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.error.ProblemFactory;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,19 +13,26 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
-/** Respostas {@code problem+json} para falhas de autenticação (401) e autorização (403). */
+/**
+ * Respostas {@code problem+json} para falhas de autenticação (401) e autorização (403). Os acessos
+ * negados a {@code /admin/**} também são registrados por {@link AdminAccessAuditor}; a resposta é a
+ * mesma, genérica, para qualquer rota do painel, exista ela ou não.
+ */
 public class ProblemSecurityHandlers implements AuthenticationEntryPoint, AccessDeniedHandler {
 
   private final ObjectMapper objectMapper;
+  private final AdminAccessAuditor adminAccess;
 
-  public ProblemSecurityHandlers(ObjectMapper objectMapper) {
+  public ProblemSecurityHandlers(ObjectMapper objectMapper, AdminAccessAuditor adminAccess) {
     this.objectMapper = objectMapper;
+    this.adminAccess = adminAccess;
   }
 
   @Override
   public void commence(
       HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
       throws IOException {
+    auditAdminDenial(request);
     write(response, ErrorCode.UNAUTHORIZED, "Autenticação necessária ou expirada.");
   }
 
@@ -32,7 +40,14 @@ public class ProblemSecurityHandlers implements AuthenticationEntryPoint, Access
   public void handle(
       HttpServletRequest request, HttpServletResponse response, AccessDeniedException exception)
       throws IOException {
+    auditAdminDenial(request);
     write(response, ErrorCode.FORBIDDEN, "Acesso negado.");
+  }
+
+  private void auditAdminDenial(HttpServletRequest request) {
+    if (AdminAccessAuditor.isAdminPath(request)) {
+      adminAccess.denied(request);
+    }
   }
 
   private void write(HttpServletResponse response, ErrorCode code, String detail)

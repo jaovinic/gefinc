@@ -42,6 +42,29 @@ public final class TestUsers {
     return new TestUser(id, email, login(email, PASSWORD).get("accessToken").asText());
   }
 
+  /** Login vindo de um IP e de um navegador conhecidos (para a origem guardada na sessão). */
+  public JsonNode loginFrom(String email, String password, String ip, String userAgent)
+      throws Exception {
+    String body = mapper.writeValueAsString(Map.of("email", email, "password", password));
+    String response =
+        mockMvc
+            .perform(
+                post("/auth/login")
+                    .with(
+                        request -> {
+                          request.setRemoteAddr(ip);
+                          return request;
+                        })
+                    .header("User-Agent", userAgent)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return mapper.readTree(response);
+  }
+
   public JsonNode login(String email, String password) throws Exception {
     String body = mapper.writeValueAsString(Map.of("email", email, "password", password));
     String response =

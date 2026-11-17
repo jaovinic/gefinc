@@ -185,6 +185,32 @@ PK `(user_id, key)`, FK `user_id` com `ON DELETE CASCADE`, `state` (`IN_PROGRESS
 resposta guardada por 7 dias. Detalhes em `specs/002-mobile-feature-parity/data-model.md`. O
 endpoint `GET /due-summary` (feature 002) é só leitura sobre `transactions` e `invoice_payments`.
 
+### Extensões da feature 005 (painel administrativo, migrações V14 a V20) **[novo]**
+
+Definição completa, regras e máquinas de estado em `specs/005-admin-panel/data-model.md`. Nenhuma
+das tabelas abaixo guarda dado financeiro. Todas as migrações são aditivas e imutáveis.
+
+| Migração | Conteúdo |
+|---|---|
+| `V14` | `system_parameters` (chaves `SIGNUPS_OPEN`, `MAINTENANCE_ENABLED`, `MAINTENANCE_MESSAGE`, com sementes) e `deletion_reasons` (4 motivos iniciais) |
+| `V15` | `account_deletion_requests` (livro-razão das exclusões, sem FK para `users`) e `user_notices` |
+| `V16` | `users`: colunas `role`, `suspended_at`, `last_access_at`, `deletion_due_at`, `deletion_origin`, `deletion_request_id`; `CHECK`s de coerência da exclusão e do raiz; gatilho do administrador raiz; extensão `unaccent`; preenchimento das exclusões pendentes legadas |
+| `V17` | `auth_sessions` (uma por família de `refresh_tokens`, com preenchimento) |
+| `V18` | `audit_log` (imutável por gatilho: `UPDATE`, `DELETE` e `TRUNCATE` falham) e `audit_log_client` (IP e dispositivo, descartáveis) |
+| `V19` | `email_deliveries` (histórico de envios, sem conteúdo) e `pending_communications` |
+| `V20` | `invitations` e `pending_email_changes` |
+
+Desvios em relação a `specs/005-admin-panel/data-model.md`, decididos na Fase 2:
+
+- `account_deletion_requests.target_ref` é **anulável**. O preenchimento de `V16` não consegue
+  calcular o HMAC (o segredo `PSEUDONYM_SECRET` fica fora do banco), então o rótulo `anônimo-…` das
+  linhas legadas é derivado do `user_id` na leitura; as linhas novas gravam o valor.
+- O gatilho `trg_users_root_guard` dispara no `UPDATE` somente quando o papel (`role`) muda, e não
+  em toda atualização do raiz: o Hibernate grava todas as colunas mapeadas e bloquearia login,
+  troca de senha e revogação de sessões do próprio raiz.
+- O autoatendimento de exclusão já grava o livro-razão (`DeletionLedger`), porque
+  `ck_users_deletion_consistent` exige as quatro colunas de exclusão de `users` juntas.
+
 ## Fatura (visão derivada, sem tabela)
 
 Chave: `(account_id, invoice_month)`.

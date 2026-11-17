@@ -25,6 +25,17 @@ class SecurityHeadersIT extends IntegrationTestBase {
   }
 
   @Test
+  void hstsTambemSaiEmRequisicaoNaoSegura() throws Exception {
+    // Atrás do túnel o Tomcat não vê X-Forwarded-Proto (forward-headers-strategy=none): a
+    // requisição
+    // chega "não segura" e o HSTS precisa sair mesmo assim.
+    mockMvc
+        .perform(get("/actuator/health").secure(false))
+        .andExpect(status().isOk())
+        .andExpect(header().exists("Strict-Transport-Security"));
+  }
+
+  @Test
   void respostasDeErroDeAutenticacaoTambemTrazemOsCabecalhos() throws Exception {
     mockMvc
         .perform(get("/accounts"))

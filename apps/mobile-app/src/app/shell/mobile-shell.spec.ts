@@ -2,7 +2,8 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { CurrentUser } from '@gefinc/ui-shared';
+import { of } from 'rxjs';
+import { CurrentUser, SystemApi } from '@gefinc/ui-shared';
 import { LogoutAction } from '../core/logout';
 import { NetworkStatus } from '../offline/network-status';
 import { PendingQueue } from '../offline/pending-queue';
@@ -32,6 +33,7 @@ describe('shell do app móvel', () => {
       providers: [
         { provide: LogoutAction, useValue: logout },
         { provide: CurrentUser, useValue: currentUser },
+        { provide: SystemApi, useValue: { status: () => of({ maintenance: false, signupsOpen: true }) } },
         { provide: NetworkStatus, useValue: { online: signal(true) } },
         { provide: PendingQueue, useValue: { pendingCount: signal(0), rejected: signal([]) } },
         { provide: SyncEngine, useValue: { flush: jest.fn(), syncing: signal(false) } },

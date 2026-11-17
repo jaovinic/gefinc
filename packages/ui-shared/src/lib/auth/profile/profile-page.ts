@@ -1,5 +1,6 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { AuthApi, CurrentUser, NoticeService, SessionService, messageFor, passwordPolicyValidator, toProblem, userInitial } from '../../api';
 import { Icon } from '../../icons/icon';
 import { GlassToggle } from '../../theme/glass-toggle';
@@ -17,7 +18,7 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'gef-profile-page',
-  imports: [Avatar, DeleteAccount, GlassToggle, Icon, ReactiveFormsModule, ThemeToggle],
+  imports: [Avatar, DeleteAccount, GlassToggle, Icon, ReactiveFormsModule, RouterLink, ThemeToggle],
   template: `
     <section class="mx-auto max-w-2xl space-y-6">
       <h1 class="text-title-lg font-bold">Minha conta</h1>
@@ -114,6 +115,10 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
       </section>
 
       <ng-content />
+
+      <p class="text-body-base text-gefinc-muted">
+        <a class="underline underline-offset-2 hover:text-gefinc-text" routerLink="/privacidade" data-testid="privacy-link">Privacidade: o que guardamos das sessões</a>
+      </p>
 
       <gef-delete-account [embedded]="true" />
     </section>

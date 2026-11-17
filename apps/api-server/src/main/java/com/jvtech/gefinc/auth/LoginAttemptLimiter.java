@@ -1,14 +1,12 @@
 package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.common.error.TooManyRequestsException;
+import com.jvtech.gefinc.common.ratelimit.PerKeyRateLimiter;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,66 +25,53 @@ public class LoginAttemptLimiter {
   static final int EMAIL_LIMIT = 5;
   static final int IP_LIMIT = 20;
   static final Duration WINDOW = Duration.ofMinutes(15);
-  private static final int PRUNE_THRESHOLD = 10_000;
 
-  private final Clock clock;
-  private final Map<String, Deque<Instant>> byEmail = new HashMap<>();
-  private final Map<String, Deque<Instant>> byIp = new HashMap<>();
+  private final PerKeyRateLimiter byEmail;
+  private final PerKeyRateLimiter byIp;
 
   public LoginAttemptLimiter(Clock clock) {
-    this.clock = clock;
+    this.byEmail = new PerKeyRateLimiter(clock, EMAIL_LIMIT, WINDOW);
+    this.byIp = new PerKeyRateLimiter(clock, IP_LIMIT, WINDOW);
   }
 
   /** Lança {@link TooManyRequestsException} se o e-mail ou o IP já esgotou as tentativas. */
   public synchronized void checkAllowed(String email, String ip) {
-    Instant now = clock.instant();
-    long wait =
-        Math.max(
-            secondsUntilFree(byEmail, emailKey(email), EMAIL_LIMIT, now),
-            secondsUntilFree(byIp, ip, IP_LIMIT, now));
+    long wait = Math.max(byEmail.secondsUntilFree(emailKey(email)), byIp.secondsUntilFree(ip));
     if (wait > 0) {
       throw new TooManyRequestsException(
           "Muitas tentativas de login. Aguarde alguns minutos e tente novamente.", wait);
     }
   }
 
+  /**
+   * Até quando o e-mail está bloqueado por tentativas de login; vazio se não está. Só leitura (o
+   * painel mostra o bloqueio sem alterá-lo) e não depende do IP de quem tentou.
+   */
+  public synchronized Optional<Instant> lockedUntil(String email) {
+    return byEmail.blockedUntil(emailKey(email));
+  }
+
   public synchronized void recordFailure(String email, String ip) {
-    Instant now = clock.instant();
-    prune(byEmail, now);
-    prune(byIp, now);
-    byEmail.computeIfAbsent(emailKey(email), k -> new ArrayDeque<>()).addLast(now);
-    byIp.computeIfAbsent(ip, k -> new ArrayDeque<>()).addLast(now);
+    byEmail.record(emailKey(email));
+    byIp.record(ip);
   }
 
   public synchronized void recordSuccess(String email) {
-    byEmail.remove(emailKey(email));
+    byEmail.reset(emailKey(email));
+  }
+
+  /**
+   * Retira o bloqueio por tentativas do e-mail (ação do painel): zera só a contagem do e-mail,
+   * nunca a do IP. Idempotente.
+   */
+  public synchronized void clearLock(String email) {
+    byEmail.reset(emailKey(email));
   }
 
   /** Zera as contagens (usado pelos testes para isolar cenários). */
   public synchronized void clear() {
     byEmail.clear();
     byIp.clear();
-  }
-
-  private long secondsUntilFree(
-      Map<String, Deque<Instant>> failures, String key, int limit, Instant now) {
-    Deque<Instant> window = failures.get(key);
-    if (window == null) {
-      return 0;
-    }
-    while (!window.isEmpty() && !window.peekFirst().plus(WINDOW).isAfter(now)) {
-      window.pollFirst();
-    }
-    if (window.size() < limit) {
-      return 0;
-    }
-    return Duration.between(now, window.peekFirst().plus(WINDOW)).toSeconds() + 1;
-  }
-
-  private void prune(Map<String, Deque<Instant>> failures, Instant now) {
-    if (failures.size() > PRUNE_THRESHOLD) {
-      failures.values().removeIf(w -> w.isEmpty() || !w.peekLast().plus(WINDOW).isAfter(now));
-    }
   }
 
   private static String emailKey(String email) {

@@ -1,6 +1,8 @@
 package com.jvtech.gefinc.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jvtech.gefinc.admin.common.AdminAccessAuditor;
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.idempotency.IdempotencyFilter;
 import com.jvtech.gefinc.idempotency.IdempotencyService;
@@ -9,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -19,6 +22,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.util.matcher.AnyRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -26,6 +30,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /** Autenticação stateless por JWT, CORS restrito e cabeçalhos de segurança (Princípio III). */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
   private static final int DEFAULT_BCRYPT_STRENGTH = 12;
@@ -36,9 +41,11 @@ public class SecurityConfig {
       JwtService jwtService,
       TokenVersionLookup lookup,
       ObjectMapper mapper,
-      IdempotencyService idempotency)
+      IdempotencyService idempotency,
+      AdminAccessAuditor adminAccess,
+      MaintenanceGuard maintenanceGuard)
       throws Exception {
-    ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper);
+    ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper, adminAccess);
     http.csrf(AbstractHttpConfigurer::disable)
         .cors(Customizer.withDefaults())
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -51,10 +58,22 @@ public class SecurityConfig {
                         "/auth/refresh",
                         "/auth/password-reset/request",
                         "/auth/password-reset/confirm",
-                        "/auth/account-deletion/cancel")
+                        "/auth/account-deletion/cancel",
+                        "/auth/invitations/*/accept")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/system/status",
+                        "/auth/invitations/*")
                     .permitAll()
+                    // Fechado por padrão: toda rota sob /admin, existente ou não, exige o papel
+                    // (visitante 401, usuário comum 403, nunca 404 sob /admin). Exceção: a caixa
+                    // diferente (/ADMIN/...) dá 404 para usuário comum, como documentado no
+                    // tasks.md. @AdminOnly é a segunda camada.
+                    .requestMatchers("/admin/**")
+                    .hasRole("ADMIN")
                     .anyRequest()
                     .authenticated())
         .exceptionHandling(e -> e.authenticationEntryPoint(handlers).accessDeniedHandler(handlers))
@@ -64,10 +83,17 @@ public class SecurityConfig {
                     .contentTypeOptions(Customizer.withDefaults())
                     .referrerPolicy(
                         r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
-                    .httpStrictTransportSecurity(Customizer.withDefaults()))
+                    // Sempre emitido: com forward-headers-strategy=none o Tomcat não enxerga o
+                    // X-Forwarded-Proto do túnel e a requisição pareceria "não segura". O TLS
+                    // termina
+                    // no proxy; o cabeçalho é inofensivo sobre HTTP puro.
+                    .httpStrictTransportSecurity(
+                        hsts -> hsts.requestMatcher(AnyRequestMatcher.INSTANCE)))
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService, lookup),
             UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(
+            new MaintenanceFilter(maintenanceGuard, mapper), JwtAuthenticationFilter.class)
         .addFilterAfter(new IdempotencyFilter(idempotency, mapper), AuthorizationFilter.class);
     return http.build();
   }

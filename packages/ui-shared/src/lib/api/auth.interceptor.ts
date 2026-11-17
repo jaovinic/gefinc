@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { ERROR_CODES } from '@gefinc/core-models';
+import { ADMIN_ERROR_CODES, ERROR_CODES } from '@gefinc/core-models';
 import { catchError, switchMap, throwError } from 'rxjs';
 import { API_BASE_URL, CLIENT_KIND } from './api.tokens';
 import { NoticeService } from './notice.service';
@@ -59,7 +59,15 @@ function retryAfterRefresh(
 ) {
   return session.refresh().pipe(
     // Só a falha da renovação encerra a sessão; erros da nova tentativa seguem para o chamador.
-    catchError(() => {
+    // 503 MAINTENANCE durante renovação NÃO encerra a sessão nem expira o token.
+    catchError((refreshError: unknown) => {
+      if (
+        refreshError instanceof HttpErrorResponse &&
+        refreshError.status === 503 &&
+        (refreshError.error?.code === ADMIN_ERROR_CODES.maintenance || refreshError.error?.code === 'MAINTENANCE')
+      ) {
+        return throwError(() => refreshError);
+      }
       session.expire();
       return throwError(() => original);
     }),
