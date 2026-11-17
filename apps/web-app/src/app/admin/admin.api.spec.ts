@@ -323,5 +323,34 @@ describe('AdminApi', () => {
       });
       expect(id).toBe(42);
     });
+
+    it('parâmetros globais, modo de manutenção e revogação global de sessões', () => {
+      api.getParameters().subscribe();
+      const getParams = http.expectOne('/api/v1/admin/parameters');
+      expect(getParams.request.method).toBe('GET');
+      getParams.flush({
+        signupsOpen: { value: true, updatedAt: null, updatedBy: null },
+        maintenance: { enabled: false, message: null, updatedAt: null, updatedBy: null },
+        readOnly: [],
+      });
+
+      api.setSignupsOpen(false).subscribe();
+      const putSignups = http.expectOne('/api/v1/admin/parameters/signups-open');
+      expect(putSignups.request.method).toBe('PUT');
+      expect(putSignups.request.body).toEqual({ open: false });
+      putSignups.flush(null);
+
+      api.setMaintenance(true, 'Manutenção programada').subscribe();
+      const putMaint = http.expectOne('/api/v1/admin/parameters/maintenance');
+      expect(putMaint.request.method).toBe('PUT');
+      expect(putMaint.request.body).toEqual({ enabled: true, message: 'Manutenção programada' });
+      putMaint.flush(null);
+
+      api.revokeAllGlobalSessions('senhaAdm', 'ENCERRAR').subscribe();
+      const revokeAll = http.expectOne('/api/v1/admin/sessions/revoke-all');
+      expect(revokeAll.request.method).toBe('POST');
+      expect(revokeAll.request.body).toEqual({ password: 'senhaAdm', confirmWord: 'ENCERRAR' });
+      revokeAll.flush({ revoked: 12 });
+    });
   });
 });

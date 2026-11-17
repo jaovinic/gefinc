@@ -15,6 +15,7 @@ export const adminRoutes: Route[] = [
       { path: 'users/:id', loadComponent: () => import('./users/user-detail').then((m) => m.UserDetail) },
       { path: 'audit', loadComponent: () => import('./audit/audit-list').then((m) => m.AuditList) },
       { path: 'email', loadComponent: () => import('./email/email-page').then((m) => m.EmailPage) },
+      { path: 'settings', loadComponent: () => import('./settings/settings-page').then((m) => m.SettingsPage) },
     ],
   },
 ];

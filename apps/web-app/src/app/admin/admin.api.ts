@@ -54,6 +54,30 @@ export interface AdminEmailDeliveryParams {
   limit?: number;
 }
 
+export interface EditableParameter {
+  readonly key: 'SIGNUPS_OPEN' | 'MAINTENANCE_ENABLED' | 'MAINTENANCE_MESSAGE';
+  readonly value: string;
+  readonly updatedAt: string;
+  readonly updatedBy?: { readonly userId?: number; readonly label: string };
+  readonly editable: boolean;
+}
+
+export interface ReadOnlyParameter {
+  readonly key: string;
+  readonly value: string;
+  readonly label: string;
+  readonly editable: boolean;
+}
+
+export interface ParametersResponse {
+  readonly editable: readonly EditableParameter[];
+  readonly readOnly: readonly ReadOnlyParameter[];
+}
+
+export interface RevokeAllResult {
+  readonly revoked: number;
+}
+
 /**
  * Cliente das rotas `/admin/**`. As recusas de regra (`ROOT_PROTECTED`, `LAST_ADMIN`,
  * `REAUTH_FAILED`...) chegam como 403/409/422 `problem+json` e seguem para a tela, que as mostra; o
@@ -229,6 +253,28 @@ export class AdminApi {
       query = query.set('limit', params.limit);
     }
     return this.guarded(this.http.get<EmailDeliveryPage>(`${this.base}/admin/email/deliveries`, { params: query }));
+  }
+
+  /** Consulta os parâmetros globais do sistema (editáveis e somente leitura). */
+  getParameters(): Observable<ParametersResponse> {
+    return this.guarded(this.http.get<ParametersResponse>(`${this.base}/admin/parameters`));
+  }
+
+  /** Abre ou fecha novos cadastros no sistema. */
+  setSignupsOpen(open: boolean): Observable<void> {
+    return this.guarded(this.http.put<void>(`${this.base}/admin/parameters/signups-open`, { open }));
+  }
+
+  /** Ativa ou desativa o modo de manutenção com mensagem personalizada. */
+  setMaintenance(enabled: boolean, message?: string): Observable<void> {
+    return this.guarded(this.http.put<void>(`${this.base}/admin/parameters/maintenance`, { enabled, message }));
+  }
+
+  /** Encerra todas as sessões do sistema exceto a do administrador e raízes. */
+  revokeAllGlobalSessions(password: string, confirmWord: string): Observable<RevokeAllResult> {
+    return this.guarded(
+      this.http.post<RevokeAllResult>(`${this.base}/admin/sessions/revoke-all`, { password, confirmWord }),
+    );
   }
 
   private guarded<T>(request: Observable<T>): Observable<T> {
