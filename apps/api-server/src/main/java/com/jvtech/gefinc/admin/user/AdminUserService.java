@@ -15,6 +15,7 @@ import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserCounts;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserDetail;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserPage;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserRow;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.PendingEmailChangeView;
 import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
@@ -39,6 +40,7 @@ public class AdminUserService {
 
   private final AdminUserRepository adminUsers;
   private final UserRepository users;
+  private final PendingEmailChangeRepository pendingEmailChanges;
   private final AdminActionExecutor executor;
   private final AuditQueryService auditQuery;
   private final LoginAttemptLimiter loginLimiter;
@@ -48,6 +50,7 @@ public class AdminUserService {
   public AdminUserService(
       AdminUserRepository adminUsers,
       UserRepository users,
+      PendingEmailChangeRepository pendingEmailChanges,
       AdminActionExecutor executor,
       AuditQueryService auditQuery,
       LoginAttemptLimiter loginLimiter,
@@ -55,6 +58,7 @@ public class AdminUserService {
       Clock clock) {
     this.adminUsers = adminUsers;
     this.users = users;
+    this.pendingEmailChanges = pendingEmailChanges;
     this.executor = executor;
     this.auditQuery = auditQuery;
     this.loginLimiter = loginLimiter;
@@ -152,6 +156,15 @@ public class AdminUserService {
                 user.getDeletionOrigin(), user.getDeletionRequestedAt(), user.getDeletionDueAt())
             : null;
     List<AuditEntryView> recent = auditQuery.recentByTarget(userId, RECENT_ACTIONS);
+    PendingEmailChangeView pendingEmailChange =
+        pendingEmailChanges
+            .findPending(userId)
+            .filter(p -> !p.isExpired(clock.instant()))
+            .map(
+                p ->
+                    new PendingEmailChangeView(
+                        p.getNewEmail(), p.getExpiresAt(), p.getAttemptsLeft()))
+            .orElse(null);
     return new AdminUserDetail(
         user.getId(),
         user.getEmail(),
@@ -164,6 +177,7 @@ public class AdminUserService {
         adminUsers.countOpenSessions(userId, clock.instant()),
         lock,
         deletion,
+        pendingEmailChange,
         user.getRole() == UserRole.ROOT,
         recent);
   }

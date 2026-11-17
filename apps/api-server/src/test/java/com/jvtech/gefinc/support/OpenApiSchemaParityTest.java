@@ -9,7 +9,10 @@ import com.jvtech.gefinc.admin.email.EmailConfigView;
 import com.jvtech.gefinc.admin.email.EmailDeliveryPageView;
 import com.jvtech.gefinc.admin.email.EmailDeliveryView;
 import com.jvtech.gefinc.admin.email.EmailTestResultView;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.EmailChangeConfirmRequest;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.EmailChangeRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.ForcePasswordResetRequest;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.PendingEmailChangeView;
 import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.RecordComponent;
@@ -125,6 +128,13 @@ class OpenApiSchemaParityTest {
     assertRecordMatchesSchema("EmailTestResult", EmailTestResultView.class);
     assertRecordMatchesSchema("EmailDelivery", EmailDeliveryView.class);
     assertRecordMatchesSchema("EmailDeliveryPage", EmailDeliveryPageView.class);
+  }
+
+  @Test
+  void asSchemasDeTrocaDeEmailTemAsMesmasPropriedadesDosRecordsDaApi() throws IOException {
+    assertRecordMatchesSchema("PendingEmailChange", PendingEmailChangeView.class);
+    assertRecordMatchesSchema("EmailChangeRequest", EmailChangeRequest.class);
+    assertRecordMatchesSchema("EmailChangeConfirmRequest", EmailChangeConfirmRequest.class);
   }
 
   @Test

@@ -78,6 +78,12 @@ public class User {
     return email;
   }
 
+  /** Atualiza o e-mail da conta e invalida de imediato os tokens de acesso já emitidos. */
+  public void changeEmail(String newEmail) {
+    this.email = newEmail;
+    this.tokenVersion++;
+  }
+
   public String getName() {
     return name;
   }

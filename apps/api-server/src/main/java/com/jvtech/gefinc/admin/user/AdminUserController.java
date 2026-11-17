@@ -5,9 +5,13 @@ import com.jvtech.gefinc.admin.common.Destructive;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminSession;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserDetail;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserPage;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.EmailChangeConfirmRequest;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.EmailChangeRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.ForcePasswordResetRequest;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.PendingEmailChangeView;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.RoleChangeRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.SuspendRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,18 +36,21 @@ public class AdminUserController {
   private final AdminAccountService accounts;
   private final SessionAdmin sessions;
   private final AdminPasswordResetService passwordReset;
+  private final EmailChangeService emailChanges;
 
   public AdminUserController(
       AdminRoleService roles,
       AdminUserService users,
       AdminAccountService accounts,
       SessionAdmin sessions,
-      AdminPasswordResetService passwordReset) {
+      AdminPasswordResetService passwordReset,
+      EmailChangeService emailChanges) {
     this.roles = roles;
     this.users = users;
     this.accounts = accounts;
     this.sessions = sessions;
     this.passwordReset = passwordReset;
+    this.emailChanges = emailChanges;
   }
 
   /**
@@ -135,5 +142,34 @@ public class AdminUserController {
       @PathVariable("userId") long userId,
       @RequestBody(required = false) ForcePasswordResetRequest body) {
     passwordReset.force(userId, body == null ? null : body.password());
+  }
+
+  /**
+   * Solicita a troca de e-mail do usuário enviando o código de confirmação ao novo endereço. Não
+   * exige reautenticação por senha (FR-035).
+   */
+  @PostMapping("/{userId}/email-change")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public PendingEmailChangeView requestEmailChange(
+      @PathVariable("userId") long userId, @Valid @RequestBody EmailChangeRequest body) {
+    return emailChanges.request(userId, body.newEmail());
+  }
+
+  /**
+   * Confirma a troca de e-mail digitando o código numérico de 6 dígitos recebido pelo novo titular.
+   * Não exige reautenticação por senha (FR-035).
+   */
+  @PostMapping("/{userId}/email-change/confirm")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void confirmEmailChange(
+      @PathVariable("userId") long userId, @Valid @RequestBody EmailChangeConfirmRequest body) {
+    emailChanges.confirm(userId, body.code());
+  }
+
+  /** Cancela a troca de e-mail pendente do usuário. */
+  @DeleteMapping("/{userId}/email-change")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void cancelEmailChange(@PathVariable("userId") long userId) {
+    emailChanges.cancel(userId);
   }
 }

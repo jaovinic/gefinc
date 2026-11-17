@@ -3,6 +3,10 @@ package com.jvtech.gefinc.admin.user;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.jvtech.gefinc.admin.audit.AuditEntryView;
 import com.jvtech.gefinc.user.UserRole;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -104,6 +108,34 @@ public final class UserPolicyDtos {
     }
   }
 
+  /** Pedido de troca de e-mail com envio de código numérico de 6 dígitos ao novo endereço. */
+  public record EmailChangeRequest(
+      @NotBlank(message = "Informe o novo endereço de e-mail.")
+          @Email(message = "Endereço de e-mail inválido.")
+          @Size(max = 254, message = "O e-mail pode ter no máximo 254 caracteres.")
+          String newEmail) {
+
+    @Override
+    public String toString() {
+      return "EmailChangeRequest[REDACTED]";
+    }
+  }
+
+  /** Confirmação da troca de e-mail com o código de 6 dígitos numéricos. */
+  public record EmailChangeConfirmRequest(
+      @NotBlank(message = "Informe o código de confirmação.")
+          @Pattern(regexp = "^\\d{6}$", message = "O código de confirmação deve ter 6 dígitos.")
+          String code) {
+
+    @Override
+    public String toString() {
+      return "EmailChangeConfirmRequest[REDACTED]";
+    }
+  }
+
+  /** Pendência de troca de e-mail exibida no detalhe do usuário e na resposta da solicitação. */
+  public record PendingEmailChangeView(String newEmail, Instant expiresAt, int attemptsLeft) {}
+
   /** Bloqueio temporário de login por tentativas, até quando vale. */
   public record AdminLoginLock(Instant lockedUntil) {}
 
@@ -127,6 +159,7 @@ public final class UserPolicyDtos {
       int openSessions,
       AdminLoginLock loginLock,
       AdminDeletionInfo deletion,
+      PendingEmailChangeView pendingEmailChange,
       @JsonProperty("protected") boolean protectedAccount,
       List<AuditEntryView> recentActions) {
 

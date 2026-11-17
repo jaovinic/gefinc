@@ -144,8 +144,20 @@ class RootProtectionIT extends IntegrationTestBase {
   void excluirORaizEhRecusado() {}
 
   @Test
-  @Disabled("Ligar na US9 (T127, troca de e-mail): trocar o e-mail do raiz deve dar ROOT_PROTECTED")
-  void trocarOEmailDoRaizEhRecusado() {}
+  void trocarOEmailDoRaizEhRecusado() throws Exception {
+    api.call(
+            admin,
+            HttpMethod.POST,
+            "/admin/users/" + root.id() + "/email-change",
+            Map.of("newEmail", "novo-raiz@teste.com"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertThat(jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, root.id()))
+        .isEqualTo(root.email());
+    assertThat(GREEN_MAIL.getReceivedMessages()).isEmpty();
+    assertRefusedAndAudited("EMAIL_CHANGE_REQUESTED");
+  }
 
   @Test
   void forcarRedefinicaoDeSenhaDoRaizEhRecusado() throws Exception {
