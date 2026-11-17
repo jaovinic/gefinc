@@ -3,6 +3,7 @@ package com.jvtech.gefinc.auth;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
 import com.jvtech.gefinc.admin.common.AdminPolicy;
+import com.jvtech.gefinc.admin.deletion.AccountErasureService;
 import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
@@ -27,6 +28,7 @@ public class AccountDeletionService {
   private final Clock clock;
   private final LoginAttemptLimiter limiter;
   private final DeletionLedger ledger;
+  private final AccountErasureService erasureService;
   private final Pseudonymizer pseudonymizer;
   private final AdminPolicy adminPolicy;
   private final AdminDecisionAuditor decisions;
@@ -39,6 +41,7 @@ public class AccountDeletionService {
       Clock clock,
       LoginAttemptLimiter limiter,
       DeletionLedger ledger,
+      AccountErasureService erasureService,
       Pseudonymizer pseudonymizer,
       AdminPolicy adminPolicy,
       AdminDecisionAuditor decisions,
@@ -49,6 +52,7 @@ public class AccountDeletionService {
     this.clock = clock;
     this.limiter = limiter;
     this.ledger = ledger;
+    this.erasureService = erasureService;
     this.pseudonymizer = pseudonymizer;
     this.adminPolicy = adminPolicy;
     this.decisions = decisions;
@@ -135,12 +139,11 @@ public class AccountDeletionService {
   }
 
   /**
-   * Apaga definitivamente as contas com a carência vencida (o banco remove os dados em cascata).
+   * Apaga definitivamente as contas com a carência vencida (o banco remove os dados em cascata e a
+   * anonimização LGPD é concluída).
    */
   @Transactional
   public int deleteExpired() {
-    Instant limit = clock.instant().minus(Duration.ofDays(AuthService.DELETION_GRACE_DAYS));
-    ledger.markExecutedDue(limit, clock.instant());
-    return users.deleteExpiredDeletions(limit);
+    return erasureService.eraseExpiredDue();
   }
 }

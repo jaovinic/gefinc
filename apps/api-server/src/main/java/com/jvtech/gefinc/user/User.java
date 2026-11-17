@@ -210,6 +210,25 @@ public class User {
     this.tokenVersion++;
   }
 
+  /** Agenda ou antecipa a exclusão pedida por administrador. */
+  public void scheduleAdminDeletion(Instant requestedAt, Instant dueAt, long requestId) {
+    this.deletionRequestedAt = requestedAt;
+    this.deletionDueAt = dueAt;
+    this.deletionOrigin = "ADMIN";
+    this.deletionRequestId = requestId;
+    this.tokenVersion++;
+  }
+
+  /** Restaura o agendamento de exclusão anterior (por exemplo, na reversão de uma antecipação). */
+  public void restoreScheduledDeletion(
+      Instant requestedAt, Instant dueAt, String origin, long requestId) {
+    this.deletionRequestedAt = requestedAt;
+    this.deletionDueAt = dueAt;
+    this.deletionOrigin = origin;
+    this.deletionRequestId = requestId;
+    this.tokenVersion++;
+  }
+
   public void cancelDeletion() {
     this.deletionRequestedAt = null;
     this.deletionDueAt = null;

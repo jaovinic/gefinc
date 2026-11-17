@@ -150,7 +150,12 @@ public final class UserPolicyDtos {
   public record AdminLoginLock(Instant lockedUntil) {}
 
   /** Exclusão pendente. Nunca a justificativa do administrador. */
-  public record AdminDeletionInfo(String origin, Instant requestedAt, Instant dueAt) {}
+  public record AdminDeletionInfo(
+      String origin, Instant requestedAt, Instant dueAt, String reasonName, String noticeState) {
+    public AdminDeletionInfo(String origin, Instant requestedAt, Instant dueAt) {
+      this(origin, requestedAt, dueAt, null, null);
+    }
+  }
 
   /**
    * Detalhe de um usuário. {@code protectedAccount} é o administrador raiz ({@code protected} no

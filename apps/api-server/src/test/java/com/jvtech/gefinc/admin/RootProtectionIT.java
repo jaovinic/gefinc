@@ -12,7 +12,6 @@ import com.jvtech.gefinc.support.TestUsers;
 import com.jvtech.gefinc.support.TestUsers.TestUser;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 
@@ -140,8 +139,32 @@ class RootProtectionIT extends IntegrationTestBase {
   }
 
   @Test
-  @Disabled("Ligar na US10 (T139, exclusão administrativa): excluir o raiz deve dar ROOT_PROTECTED")
-  void excluirORaizEhRecusado() {}
+  void excluirORaizEhRecusado() throws Exception {
+    api.call(
+            admin,
+            HttpMethod.POST,
+            "/admin/users/" + root.id() + "/deletion",
+            Map.of(
+                "reasonId",
+                1L,
+                "justification",
+                "Tentativa de excluir o raiz",
+                "mode",
+                "GRACE",
+                "days",
+                10,
+                "confirmEmail",
+                root.email(),
+                "password",
+                TestUsers.PASSWORD))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertThat(
+            jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Long.class, root.id()))
+        .isEqualTo(1);
+    assertRefusedAndAudited("DELETION_REQUESTED");
+  }
 
   @Test
   void trocarOEmailDoRaizEhRecusado() throws Exception {

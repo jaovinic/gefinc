@@ -258,4 +258,56 @@ class AdminRateLimitIT extends IntegrationTestBase {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA))
         .andExpect(status().isTooManyRequests());
   }
+
+  @Test
+  void exclusaoDeContaContaNaCotaDestrutivaDeDezPorQuinzeMinutos() throws Exception {
+    for (int i = 0; i < 10; i++) {
+      SeededUser target = seed.createUser("alvo-destr-" + i + "@example.com");
+      mockMvc
+          .perform(
+              post("/admin/users/" + target.id() + "/deletion")
+                  .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      objectMapper.writeValueAsString(
+                          Map.of(
+                              "reasonId",
+                              1L,
+                              "justification",
+                              "Exclusão teste rate limit",
+                              "mode",
+                              "GRACE",
+                              "days",
+                              10,
+                              "confirmEmail",
+                              target.email(),
+                              "password",
+                              TestUsers.PASSWORD))))
+          .andExpect(status().isOk());
+    }
+
+    SeededUser eleventh = seed.createUser("alvo-destr-11@example.com");
+    mockMvc
+        .perform(
+            post("/admin/users/" + eleventh.id() + "/deletion")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        Map.of(
+                            "reasonId",
+                            1L,
+                            "justification",
+                            "Exclusão teste rate limit",
+                            "mode",
+                            "GRACE",
+                            "days",
+                            10,
+                            "confirmEmail",
+                            eleventh.email(),
+                            "password",
+                            TestUsers.PASSWORD))))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(header().exists("Retry-After"));
+  }
 }

@@ -2,6 +2,7 @@ package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
+import com.jvtech.gefinc.admin.deletion.AccountDeletionRequestRepository;
 import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
@@ -32,6 +33,7 @@ public class AuthService {
   private final LoginAttemptLimiter limiter;
   private final AdminDecisionAuditor decisions;
   private final MaintenanceGuard maintenanceGuard;
+  private final AccountDeletionRequestRepository deletionRepo;
   private final String dummyHash;
 
   public AuthService(
@@ -42,7 +44,8 @@ public class AuthService {
       Clock clock,
       LoginAttemptLimiter limiter,
       AdminDecisionAuditor decisions,
-      MaintenanceGuard maintenanceGuard) {
+      MaintenanceGuard maintenanceGuard,
+      AccountDeletionRequestRepository deletionRepo) {
     this.users = users;
     this.encoder = encoder;
     this.jwt = jwt;
@@ -51,6 +54,7 @@ public class AuthService {
     this.limiter = limiter;
     this.decisions = decisions;
     this.maintenanceGuard = maintenanceGuard;
+    this.deletionRepo = deletionRepo;
     // Comparação "de fachada" quando o e-mail não existe, para o tempo de resposta não revelá-lo.
     this.dummyHash = encoder.encode("senha-de-fachada-para-igualar-o-tempo");
   }
@@ -160,9 +164,11 @@ public class AuthService {
   }
 
   public LocalDate deletionDate(User user) {
-    return LocalDate.ofInstant(
-        user.getDeletionRequestedAt().plus(java.time.Duration.ofDays(DELETION_GRACE_DAYS)),
-        clock.getZone());
+    java.time.Instant target =
+        user.getDeletionDueAt() != null
+            ? user.getDeletionDueAt()
+            : user.getDeletionRequestedAt().plus(java.time.Duration.ofDays(DELETION_GRACE_DAYS));
+    return LocalDate.ofInstant(target, clock.getZone());
   }
 
   public static ApiException invalidCredentials() {
@@ -186,10 +192,31 @@ public class AuthService {
   }
 
   private ApiException deletionPending(User user) {
-    return new ApiException(
-            ErrorCode.ACCOUNT_DELETION_PENDING,
-            "A exclusão desta conta está agendada. Entre com suas credenciais para cancelá-la.")
-        .with("deletionDate", deletionDate(user));
+    boolean adminOrigin = user.isDeletionByAdmin();
+    String origin = adminOrigin ? "ADMIN" : "USER";
+    boolean canCancel = !adminOrigin;
+    String supportHint =
+        adminOrigin
+            ? "Entre em contato com o suporte para entender a situação da conta."
+            : "Entre com suas credenciais para cancelar a exclusão.";
+    String message =
+        adminOrigin
+            ? "A exclusão desta conta foi solicitada pela administração e não pode ser cancelada."
+            : "A exclusão desta conta está agendada. Entre com suas credenciais para cancelá-la.";
+
+    ApiException ex =
+        new ApiException(ErrorCode.ACCOUNT_DELETION_PENDING, message)
+            .with("deletionDate", deletionDate(user))
+            .with("origin", origin)
+            .with("canCancel", canCancel)
+            .with("supportHint", supportHint);
+
+    if (adminOrigin && user.getDeletionRequestId() != null) {
+      deletionRepo
+          .findById(user.getDeletionRequestId())
+          .ifPresent(req -> ex.with("reasonMessage", req.getReasonMessage()));
+    }
+    return ex;
   }
 
   /** Par de tokens emitido pelo login ou pela renovação. */

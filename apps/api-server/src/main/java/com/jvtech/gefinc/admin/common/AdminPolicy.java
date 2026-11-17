@@ -51,7 +51,9 @@ public class AdminPolicy {
     REVOKE_OTHER_SESSION,
     CLEAR_LOGIN_LOCK,
     SEND_PASSWORD_RESET,
-    FORCE_PASSWORD_RESET
+    FORCE_PASSWORD_RESET,
+    DELETE_USER,
+    CANCEL_DELETION
   }
 
   /** Pessoa envolvida na decisão; {@code active}: sem suspensão e sem exclusão pendente. */
@@ -99,22 +101,25 @@ public class AdminPolicy {
    */
   private static boolean refusesSelf(Action action) {
     return switch (action) {
-      case GRANT_ADMIN, REVOKE_ADMIN, SUSPEND, REVOKE_SESSIONS -> true;
+      case GRANT_ADMIN, REVOKE_ADMIN, SUSPEND, REVOKE_SESSIONS, DELETE_USER -> true;
       case REACTIVATE,
           REVOKE_OTHER_SESSION,
           CLEAR_LOGIN_LOCK,
           SEND_PASSWORD_RESET,
-          FORCE_PASSWORD_RESET ->
+          FORCE_PASSWORD_RESET,
+          CANCEL_DELETION ->
           false;
     };
   }
 
   /**
-   * A ação reduz o conjunto de administradores ativos (retirar o perfil ou suspender um
+   * A ação reduz o conjunto de administradores ativos (retirar o perfil, suspender ou excluir um
    * administrador ativo).
    */
   public static boolean changesAdminSet(Action action, Subject target) {
-    return (action == Action.REVOKE_ADMIN || action == Action.SUSPEND)
+    return (action == Action.REVOKE_ADMIN
+            || action == Action.SUSPEND
+            || action == Action.DELETE_USER)
         && target.role() == UserRole.ADMIN
         && target.active();
   }

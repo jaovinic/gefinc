@@ -241,6 +241,9 @@ class AdminIsolationIT extends IntegrationTestBase {
             "/admin/invitations?status=ACCEPTED",
             "/admin/invitations?status=CANCELED",
             "/admin/invitations?status=EXPIRED"));
+    map.put("/admin/deletion-reasons", List.of("/admin/deletion-reasons"));
+    map.put("/admin/communications/pending", List.of("/admin/communications/pending"));
+    map.put("/admin/alerts", List.of("/admin/alerts"));
     return map;
   }
 

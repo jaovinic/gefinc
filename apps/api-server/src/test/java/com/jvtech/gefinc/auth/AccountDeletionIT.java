@@ -284,4 +284,47 @@ class AccountDeletionIT extends IntegrationTestBase {
                 ana.id()))
         .isEqualTo("SCHEDULED");
   }
+
+  @Test
+  void autoexclusaoDoAdministradorRaizEhRecusadaComRootProtected() throws Exception {
+    var rootSeed = seed.createRoot("root@example.com");
+    String token = users.login("root@example.com", TestUsers.PASSWORD).get("accessToken").asText();
+    TestUser root = new TestUser(rootSeed.id(), rootSeed.email(), token);
+
+    mockMvc
+        .perform(
+            post("/auth/account-deletion")
+                .header(HttpHeaders.AUTHORIZATION, root.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("password", TestUsers.PASSWORD))))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT deletion_requested_at FROM users WHERE id = ?", Object.class, root.id()))
+        .isNull();
+  }
+
+  @Test
+  void autoexclusaoDoUltimoAdministradorAtivoEhRecusadaComLastAdmin() throws Exception {
+    var admSeed = seed.createAdmin("adm-unico@example.com");
+    String token =
+        users.login("adm-unico@example.com", TestUsers.PASSWORD).get("accessToken").asText();
+    TestUser admin = new TestUser(admSeed.id(), admSeed.email(), token);
+
+    mockMvc
+        .perform(
+            post("/auth/account-deletion")
+                .header(HttpHeaders.AUTHORIZATION, admin.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("password", TestUsers.PASSWORD))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("LAST_ADMIN"));
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT deletion_requested_at FROM users WHERE id = ?", Object.class, admin.id()))
+        .isNull();
+  }
 }

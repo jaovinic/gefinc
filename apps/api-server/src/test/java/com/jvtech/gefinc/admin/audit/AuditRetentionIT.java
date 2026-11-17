@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,9 +145,22 @@ class AuditRetentionIT extends IntegrationTestBase {
                 userAttempt))
         .isZero();
     assertThat(clientRows()).isEqualTo(1);
-    // A trilha não muda um byte.
-    assertThat(auditSnapshot()).isEqualTo(snapshot);
-    assertThat(auditRows()).isEqualTo(3);
+    // As 3 linhas anteriores da trilha não mudam um byte.
+    String previousRowsSnapshot =
+        jdbc.queryForObject(
+            "SELECT coalesce(jsonb_agg(to_jsonb(a) ORDER BY id)::text, '[]') FROM (SELECT * FROM audit_log WHERE id <= 3) a",
+            String.class);
+    assertThat(previousRowsSnapshot).isEqualTo(snapshot);
+
+    // O serviço de erasure registra a ação ACCOUNT_ERASED pelo SYSTEM.
+    assertThat(auditRows()).isEqualTo(4);
+    Map<String, Object> erasureAudit =
+        jdbc.queryForMap(
+            "SELECT action, actor_kind, target_user_id, result FROM audit_log WHERE id = 4");
+    assertThat(erasureAudit.get("action")).isEqualTo("ACCOUNT_ERASED");
+    assertThat(erasureAudit.get("actor_kind")).isEqualTo("SYSTEM");
+    assertThat(((Number) erasureAudit.get("target_user_id")).longValue()).isEqualTo(ana.id());
+    assertThat(erasureAudit.get("result")).isEqualTo("SUCCESS");
 
     String freshToken = adminToken();
     String anonymous = pseudonymizer.anonymousLabel(ana.id());

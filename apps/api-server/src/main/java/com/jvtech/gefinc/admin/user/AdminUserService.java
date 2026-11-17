@@ -7,6 +7,8 @@ import com.jvtech.gefinc.admin.audit.AuditKey;
 import com.jvtech.gefinc.admin.audit.AuditQueryService;
 import com.jvtech.gefinc.admin.common.AdminActionExecutor;
 import com.jvtech.gefinc.admin.common.AdminActionExecutor.AuditContext;
+import com.jvtech.gefinc.admin.deletion.AccountDeletionRequest;
+import com.jvtech.gefinc.admin.deletion.AccountDeletionRequestRepository;
 import com.jvtech.gefinc.admin.user.AdminUserRepository.Counts;
 import com.jvtech.gefinc.admin.user.AdminUserRepository.Query;
 import com.jvtech.gefinc.admin.user.AdminUserRepository.SortField;
@@ -45,6 +47,7 @@ public class AdminUserService {
   private final AdminUserRepository adminUsers;
   private final UserRepository users;
   private final PendingEmailChangeRepository pendingEmailChanges;
+  private final AccountDeletionRequestRepository deletionRequests;
   private final AdminActionExecutor executor;
   private final AuditQueryService auditQuery;
   private final LoginAttemptLimiter loginLimiter;
@@ -56,6 +59,7 @@ public class AdminUserService {
       AdminUserRepository adminUsers,
       UserRepository users,
       PendingEmailChangeRepository pendingEmailChanges,
+      AccountDeletionRequestRepository deletionRequests,
       AdminActionExecutor executor,
       AuditQueryService auditQuery,
       LoginAttemptLimiter loginLimiter,
@@ -65,6 +69,7 @@ public class AdminUserService {
     this.adminUsers = adminUsers;
     this.users = users;
     this.pendingEmailChanges = pendingEmailChanges;
+    this.deletionRequests = deletionRequests;
     this.executor = executor;
     this.auditQuery = auditQuery;
     this.loginLimiter = loginLimiter;
@@ -198,11 +203,26 @@ public class AdminUserService {
             .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Usuário não encontrado."));
     AdminLoginLock lock =
         loginLimiter.lockedUntil(user.getEmail()).map(AdminLoginLock::new).orElse(null);
-    AdminDeletionInfo deletion =
-        user.isDeletionPending()
-            ? new AdminDeletionInfo(
-                user.getDeletionOrigin(), user.getDeletionRequestedAt(), user.getDeletionDueAt())
-            : null;
+    AdminDeletionInfo deletion = null;
+    if (user.isDeletionPending()) {
+      String reasonName = null;
+      String noticeState = null;
+      if (user.getDeletionRequestId() != null) {
+        AccountDeletionRequest req =
+            deletionRequests.findById(user.getDeletionRequestId()).orElse(null);
+        if (req != null) {
+          reasonName = req.getReasonName();
+          noticeState = req.getNoticeState();
+        }
+      }
+      deletion =
+          new AdminDeletionInfo(
+              user.getDeletionOrigin(),
+              user.getDeletionRequestedAt(),
+              user.getDeletionDueAt(),
+              reasonName,
+              noticeState);
+    }
     List<AuditEntryView> recent = auditQuery.recentByTarget(userId, RECENT_ACTIONS);
     PendingEmailChangeView pendingEmailChange =
         pendingEmailChanges
