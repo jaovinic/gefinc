@@ -1,6 +1,13 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import type { Credentials, RegisterRequest, TokenResponse, UserProfile } from '@gefinc/core-models';
+import type {
+  AcceptInvitationRequest,
+  Credentials,
+  InvitationPreview,
+  RegisterRequest,
+  TokenResponse,
+  UserProfile,
+} from '@gefinc/core-models';
 import { Observable } from 'rxjs';
 import { API_BASE_URL } from './api.tokens';
 
@@ -12,6 +19,16 @@ export class AuthApi {
 
   register(body: RegisterRequest): Observable<UserProfile> {
     return this.http.post<UserProfile>(`${this.base}/auth/register`, body);
+  }
+
+  /** Consulta prévia pública de um convite de cadastro. */
+  getInvitation(token: string): Observable<InvitationPreview> {
+    return this.http.get<InvitationPreview>(`${this.base}/auth/invitations/${token}`);
+  }
+
+  /** Aceita o convite e cria a conta do usuário. */
+  acceptInvitation(token: string, body: AcceptInvitationRequest): Observable<UserProfile> {
+    return this.http.post<UserProfile>(`${this.base}/auth/invitations/${token}/accept`, body);
   }
 
   me(): Observable<UserProfile> {

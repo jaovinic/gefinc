@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { Route, Router } from '@angular/router';
-import { PrivacyNoticePage, authGuard } from '@gefinc/ui-shared';
+import { InvitationAccept, PrivacyNoticePage, authGuard } from '@gefinc/ui-shared';
 import { ForgotPasswordPage, LoginPage, RegisterPage } from './auth/auth-pages';
 import { HomePage } from './home/home.page';
 import { MobileShell } from './shell/mobile-shell';
@@ -12,6 +12,8 @@ import { MobileShell } from './shell/mobile-shell';
 export const appRoutes: Route[] = [
   { path: 'login', component: LoginPage },
   { path: 'register', component: RegisterPage },
+  { path: 'invitations/:token', component: InvitationAccept },
+  { path: 'convite/:token', redirectTo: 'invitations/:token' },
   { path: 'forgot-password', component: ForgotPasswordPage },
   { path: 'privacidade', component: PrivacyNoticePage },
   { path: 'novo', loadComponent: () => import('./new-entry/new-entry.page').then((m) => m.NewEntryPage), canActivate: [authGuard] },
