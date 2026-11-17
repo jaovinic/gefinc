@@ -190,7 +190,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
-      FORWARD_HEADERS_STRATEGY: native
+      # Obrigatório e distinto do JWT_SECRET: chave HMAC dos identificadores pseudonimizados.
+      PSEUDONYM_SECRET: '${PSEUDONYM_SECRET:?defina PSEUDONYM_SECRET (>= 32 bytes; gere com: openssl rand -base64 48)}'
+      # Isolamento de IP real: a API NÃO confia em X-Forwarded-For (FORWARD_HEADERS_STRATEGY=none). Só lê o
+      # cabeçalho repassado quando a conexão vem do proxy listado em TRUSTED_PROXY_CIDRS (IP fixo do Caddy).
+      FORWARD_HEADERS_STRATEGY: none
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.28.0.20/32}
       # E-mail de redefinição de senha (Brevo: smtp-relay.brevo.com, porta 587, AUTH e STARTTLS ligados).
       SMTP_HOST: '${SMTP_HOST:?defina SMTP_HOST (ex.: smtp-relay.brevo.com)}'
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -219,7 +224,9 @@ services:
       - gefinc-caddy-data:/data
       - gefinc-caddy-config:/config
     networks:
-      - gefinc-net
+      gefinc-net:
+        # IP fixo: é o proxy confiável em que a API confia para ler o IP real do cliente.
+        ipv4_address: 172.28.0.20
 
 volumes:
   gefinc-pgdata:
@@ -229,10 +236,13 @@ volumes:
 networks:
   gefinc-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
 ```
 
 > [!IMPORTANT]
-> A variável `FORWARD_HEADERS_STRATEGY=native` é obrigatória ao rodar atrás do Caddy. Ela instrui o Spring Boot a extrair o IP real do cabeçalho `X-Forwarded-For`, permitindo que a proteção contra força bruta de login (limite de 20 falhas por IP) opere corretamente.
+> A combinação de `FORWARD_HEADERS_STRATEGY=none`, IP fixo do Caddy (`172.28.0.20`) e `TRUSTED_PROXY_CIDRS=172.28.0.20/32` com `header_up CF-Connecting-IP {remote_host}` no Caddyfile garante que a API receba o IP real apenas do proxy confiável da VPS, impedindo a falsificação de IP por requisições externas e garantindo que o limite de 20 falhas de login por IP opere corretamente.
 
 ### 4.3. Variáveis de Ambiente Seguras (`.env`)
 Gere uma chave segura para o JWT e configure o `.env` na VPS:
@@ -240,6 +250,7 @@ Gere uma chave segura para o JWT e configure o `.env` na VPS:
 ```bash
 # Gerar chave JWT segura com 64 caracteres hexadecimais
 JWT_KEY=$(openssl rand -hex 32)
+PSEUDO_KEY=$(openssl rand -base64 48)
 DB_PASS=$(openssl rand -hex 16)
 
 cat <<EOF > .env
@@ -247,6 +258,8 @@ POSTGRES_DB=gefinc
 DB_USER=gefinc_admin
 DB_PASSWORD=${DB_PASS}
 JWT_SECRET=${JWT_KEY}
+PSEUDONYM_SECRET=${PSEUDO_KEY}
+TRUSTED_PROXY_CIDRS=172.28.0.20/32
 APP_BASE_URL=https://gefinc-api.duckdns.org
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
@@ -286,6 +299,7 @@ gefinc-api.duckdns.org {
     # Redireciona todas as requisições para a API Spring Boot
     reverse_proxy api-server:8080 {
         header_up Host {host}
+        header_up CF-Connecting-IP {remote_host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
@@ -319,6 +333,16 @@ Acompanhe os logs da inicialização e da emissão do certificado TLS:
 docker compose -f docker-compose.oracle.yml logs -f caddy
 docker compose -f docker-compose.oracle.yml logs -f api-server
 ```
+
+### 5.5. Passo de Verificação do IP Real
+
+1. Acesse `https://gefinc-api.duckdns.org/api/v1/system/status` pelo navegador.
+2. Como administrador no painel em `/admin/audit`, confira que os acessos registram o seu IP de conexão real repassado pelo Caddy via `CF-Connecting-IP`.
+3. Teste a barreira contra cabeçalhos forjados executando uma chamada de dentro de outro container com cabeçalho arbitrário:
+   ```bash
+   docker compose -f docker-compose.oracle.yml exec -T postgres curl -s -H 'CF-Connecting-IP: 203.0.113.199' http://api-server:8080/api/v1/system/status
+   ```
+   Como a requisição interna provém do IP do container `postgres` (diferente de `172.28.0.20`), o cabeçalho forjado é ignorado e a API preserva o IP real da conexão física.
 
 ---
 

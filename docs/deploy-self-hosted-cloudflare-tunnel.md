@@ -268,8 +268,18 @@ services:
       DB_USER: ${DB_USER:-gefinc}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      # Obrigatórias em produção: URL pública do front (sem barra final) e remetente validado no provedor.
       APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
-      FORWARD_HEADERS_STRATEGY: native
+      # Obrigatório e distinto do JWT_SECRET: chave HMAC dos identificadores pseudonimizados (auditoria,
+      # histórico de envios). Mínimo de 32 bytes; gere com `openssl rand -base64 48`. Não rotacione.
+      PSEUDONYM_SECRET: '${PSEUDONYM_SECRET:?defina PSEUDONYM_SECRET (>= 32 bytes; gere com: openssl rand -base64 48)}'
+      # IP real do cliente: a API NÃO confia em X-Forwarded-For (FORWARD_HEADERS_STRATEGY=none). Só lê o
+      # cabeçalho CF-Connecting-IP quando a conexão vem de um proxy listado em TRUSTED_PROXY_CIDRS, que
+      # aqui é o IP fixo do cloudflared nesta rede. Se TRUSTED_PROXY_CIDRS não incluir o túnel, todos os
+      # usuários passam a compartilhar o IP do túnel e o limite de login por IP vira global.
+      FORWARD_HEADERS_STRATEGY: none
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.28.0.10/32}
+      # E-mail de redefinição de senha. Brevo: smtp-relay.brevo.com, porta 587, SMTP_AUTH e SMTP_STARTTLS=true.
       SMTP_HOST: '${SMTP_HOST:?defina SMTP_HOST (ex.: smtp-relay.brevo.com)}'
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -293,7 +303,9 @@ services:
     depends_on:
       - api-server
     networks:
-      - gefinc-net
+      gefinc-net:
+        # IP fixo: é o único proxy em que a API confia para ler o IP real do cliente.
+        ipv4_address: 172.28.0.10
 
 volumes:
   gefinc-pgdata:
@@ -301,13 +313,18 @@ volumes:
 networks:
   gefinc-net:
     driver: bridge
+    ipam:
+      config:
+        # Se esta sub-rede colidir com a LAN do host, troque-a junto com o ipv4_address do cloudflared
+        # e com TRUSTED_PROXY_CIDRS.
+        - subnet: 172.28.0.0/24
 ```
 
 > [!IMPORTANT]
 > **Segurança de Rede:** Observe que nenhum serviço mapeia portas para o host (`ports:` foi intencionalmente omitido). O banco de dados e a API comunicam-se exclusivamente na rede isolada `gefinc-net`. Nem mesmo outros dispositivos na rede Wi-Fi local conseguem conectar diretamente na porta 5432 ou 8080; todo o tráfego externo passa obrigatoriamente autenticado através da borda da Cloudflare pelo container `cloudflared`.
 
 > [!NOTE]
-> **Preservação de IP Real:** A variável `FORWARD_HEADERS_STRATEGY=native` instrui o Spring Boot a interpretar o cabeçalho `X-Forwarded-For` repassado pela Cloudflare. Isso garante que o limitador de tentativas de login contra ataques de força bruta (máximo de 20 falhas por IP) opere com precisão para cada visitante.
+> **Preservação Segura do IP Real e Isolamento:** A combinação de `FORWARD_HEADERS_STRATEGY=none`, IP fixo do `cloudflared` (`172.28.0.10`) e `TRUSTED_PROXY_CIDRS=172.28.0.10/32` garante que a API só aceite o cabeçalho `CF-Connecting-IP` repassado diretamente pelo túnel da Cloudflare. Nenhuma requisição forjada direta ou interna consegue manipular o IP do cliente. Isso garante que o limitador de tentativas de login contra ataques de força bruta (máximo de 20 falhas por IP) e as trilhas de auditoria operem com precisão para cada visitante real.
 
 ### 5.3. Arquivo de Variáveis de Ambiente (`.env`)
 
@@ -316,6 +333,7 @@ Gere senhas e segredos criptograficamente seguros e monte seu arquivo `.env`:
 ```bash
 # Gerar segredos seguros
 JWT_KEY=$(openssl rand -hex 32)
+PSEUDO_KEY=$(openssl rand -base64 48)
 DB_PASS=$(openssl rand -hex 16)
 
 cat <<EOF > .env
@@ -326,6 +344,8 @@ DB_PASSWORD=${DB_PASS}
 
 # Segurança da API
 JWT_SECRET=${JWT_KEY}
+PSEUDONYM_SECRET=${PSEUDO_KEY}
+TRUSTED_PROXY_CIDRS=172.28.0.10/32
 APP_BASE_URL=https://app.meudominio.com
 
 # Token de autenticação do Cloudflare Tunnel
@@ -370,6 +390,17 @@ docker compose -f docker-compose.selfhost.yml logs -f api-server
 ```
 
 Assim que o container `cloudflared` registrar mensagens como `Connection registered`, a API estará acessível mundialmente em `https://api.meudominio.com`.
+
+### 5.5. Passo de Verificação do IP Real e Imutabilidade
+
+Com a API e o túnel ativos, valide a correta captura do IP e a barreira de isolamento:
+1. Faça uma tentativa de login incorreta ou acesse a API pelo domínio público (`https://api.meudominio.com`).
+2. Como administrador no painel em `/admin/audit`, confira que o registro de auditoria capturou exatamente o seu **IP público real** (repassado pelo Cloudflare Tunnel via `CF-Connecting-IP`).
+3. Comprove que a API ignora cabeçalhos forjados executando uma chamada interna a partir de outro container na rede Docker:
+   ```bash
+   docker compose -f docker-compose.selfhost.yml exec -T postgres curl -s -H 'CF-Connecting-IP: 203.0.113.199' http://api-server:8080/api/v1/system/status
+   ```
+   Como a requisição interna parte do container `postgres` (cujo IP difere de `172.28.0.10`), o cabeçalho forjado é sumariamente descartado e a API registra o IP físico da conexão interna.
 
 ---
 
