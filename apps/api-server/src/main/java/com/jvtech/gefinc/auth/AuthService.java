@@ -3,7 +3,9 @@ package com.jvtech.gefinc.auth;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
 import com.jvtech.gefinc.admin.deletion.AccountDeletionRequestRepository;
+import com.jvtech.gefinc.admin.deletion.UserNoticeService;
 import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
+import com.jvtech.gefinc.auth.AuthDtos.UserNoticeDto;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.error.MaintenanceException;
@@ -13,6 +15,7 @@ import com.jvtech.gefinc.user.UserRepository;
 import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -34,6 +37,7 @@ public class AuthService {
   private final AdminDecisionAuditor decisions;
   private final MaintenanceGuard maintenanceGuard;
   private final AccountDeletionRequestRepository deletionRepo;
+  private final UserNoticeService userNoticeService;
   private final String dummyHash;
 
   public AuthService(
@@ -45,7 +49,8 @@ public class AuthService {
       LoginAttemptLimiter limiter,
       AdminDecisionAuditor decisions,
       MaintenanceGuard maintenanceGuard,
-      AccountDeletionRequestRepository deletionRepo) {
+      AccountDeletionRequestRepository deletionRepo,
+      UserNoticeService userNoticeService) {
     this.users = users;
     this.encoder = encoder;
     this.jwt = jwt;
@@ -55,11 +60,12 @@ public class AuthService {
     this.decisions = decisions;
     this.maintenanceGuard = maintenanceGuard;
     this.deletionRepo = deletionRepo;
+    this.userNoticeService = userNoticeService;
     // Comparação "de fachada" quando o e-mail não existe, para o tempo de resposta não revelá-lo.
     this.dummyHash = encoder.encode("senha-de-fachada-para-igualar-o-tempo");
   }
 
-  @Transactional
+  @Transactional(noRollbackFor = ApiException.class)
   public Session login(String email, String password, String clientIp) {
     limiter.checkAllowed(email, clientIp);
     User user = users.findByEmail(email.strip()).orElse(null);
@@ -75,10 +81,20 @@ public class AuthService {
     // Só depois de credenciais corretas: senha errada segue o 401 comum e não revela a suspensão.
     if (user.isSuspended()) {
       decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
-      throw accountSuspended();
+      List<UserNoticeDto> notices = userNoticeService.deliverNotices(user);
+      ApiException ex = accountSuspended();
+      if (!notices.isEmpty()) {
+        ex.with("notices", notices);
+      }
+      throw ex;
     }
     if (user.isDeletionPending()) {
-      throw deletionPending(user);
+      List<UserNoticeDto> notices = userNoticeService.deliverNotices(user);
+      ApiException ex = deletionPending(user);
+      if (!notices.isEmpty()) {
+        ex.with("notices", notices);
+      }
+      throw ex;
     }
     users.touchAccess(user.getId(), clock.instant());
     TokenService.Issued issued = tokens.issueNewFamily(user.getId());

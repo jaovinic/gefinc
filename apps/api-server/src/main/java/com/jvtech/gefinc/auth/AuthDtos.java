@@ -1,11 +1,13 @@
 package com.jvtech.gefinc.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.jvtech.gefinc.common.validation.NoNul;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 /** Corpos de requisição e resposta de {@code /auth/*}, conforme o contrato OpenAPI. */
 public final class AuthDtos {
@@ -88,11 +90,34 @@ public final class AuthDtos {
     }
   }
 
+  public record UserNoticeDto(
+      long id,
+      String kind,
+      String variant,
+      @JsonInclude(JsonInclude.Include.NON_NULL) LocalDate originalDeletionDate,
+      String message) {
+    /** Sem dados sensíveis em logs: o valor nunca é impresso (FR-003). */
+    @Override
+    public String toString() {
+      return "UserNoticeDto[REDACTED]";
+    }
+  }
+
   /**
    * {@code admin}: conveniência de interface para mostrar o painel; a barreira de acesso é sempre
-   * do servidor.
+   * do servidor. {@code notices}: avisos de entrega única ao usuário (D22).
    */
-  public record UserProfile(long id, String email, String name, Instant createdAt, boolean admin) {
+  public record UserProfile(
+      long id,
+      String email,
+      String name,
+      Instant createdAt,
+      boolean admin,
+      @JsonInclude(JsonInclude.Include.NON_NULL) List<UserNoticeDto> notices) {
+    public UserProfile(long id, String email, String name, Instant createdAt, boolean admin) {
+      this(id, email, name, createdAt, admin, null);
+    }
+
     /** Sem dados do usuário em logs: o valor nunca é impresso (FR-003). */
     @Override
     public String toString() {

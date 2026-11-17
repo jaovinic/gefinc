@@ -1,5 +1,6 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.deletion.UserNoticeService;
 import com.jvtech.gefinc.admin.invitation.InvitationDtos.AcceptInvitationRequest;
 import com.jvtech.gefinc.admin.invitation.InvitationDtos.InvitationPreview;
 import com.jvtech.gefinc.admin.invitation.InvitationService;
@@ -57,6 +58,7 @@ public class AuthController {
   private final AppProperties properties;
   private final ClientIpResolver clientIp;
   private final InvitationService invitationService;
+  private final UserNoticeService userNoticeService;
 
   public AuthController(
       RegistrationService registration,
@@ -66,7 +68,8 @@ public class AuthController {
       ProfileService profile,
       AppProperties properties,
       ClientIpResolver clientIp,
-      InvitationService invitationService) {
+      InvitationService invitationService,
+      UserNoticeService userNoticeService) {
     this.registration = registration;
     this.auth = auth;
     this.passwordReset = passwordReset;
@@ -75,6 +78,7 @@ public class AuthController {
     this.properties = properties;
     this.clientIp = clientIp;
     this.invitationService = invitationService;
+    this.userNoticeService = userNoticeService;
   }
 
   @GetMapping("/invitations/{token}")
@@ -164,6 +168,15 @@ public class AuthController {
         profile.changePassword(CurrentUser.id(), body.currentPassword(), body.newPassword()),
         request,
         response);
+  }
+
+  @PostMapping({"/notices/{id}/dismiss", "/notices/{noticeId}/dismiss"})
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void dismissNotice(
+      @PathVariable(name = "id", required = false) Long id,
+      @PathVariable(name = "noticeId", required = false) Long noticeId) {
+    long targetId = id != null ? id : noticeId;
+    userNoticeService.dismiss(CurrentUser.id(), targetId);
   }
 
   @PostMapping("/account-deletion")

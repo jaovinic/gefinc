@@ -242,4 +242,35 @@ class AuthRegistrationLoginIT extends IntegrationTestBase {
 
     assertThat(jdbc.queryForObject("SELECT count(*) FROM auth_sessions", Long.class)).isZero();
   }
+
+  @Test
+  void loginComExclusaoPendenteResponde423ComCamposAditivosEValidos() throws Exception {
+    TestUsers testUsers = new TestUsers(mockMvc, objectMapper);
+    TestUsers.TestUser ana = testUsers.registerAndLogin("ana-del-regress@example.com");
+
+    // Solicita exclusão pelo autoatendimento
+    mockMvc
+        .perform(
+            post("/auth/account-deletion")
+                .header(HttpHeaders.AUTHORIZATION, ana.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("password", TestUsers.PASSWORD))))
+        .andExpect(status().isAccepted());
+
+    // Login com credenciais corretas responde 423 com os campos adicionais (aditivos, seguros para
+    // clientes legados)
+    mockMvc
+        .perform(
+            post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json(Map.of("email", ana.email(), "password", TestUsers.PASSWORD))))
+        .andExpect(status().isLocked())
+        .andExpect(matchesContract())
+        .andExpect(jsonPath("$.code").value("ACCOUNT_DELETION_PENDING"))
+        .andExpect(jsonPath("$.deletionDate").isNotEmpty())
+        .andExpect(jsonPath("$.origin").value("USER"))
+        .andExpect(jsonPath("$.canCancel").value(true))
+        .andExpect(jsonPath("$.supportHint").isNotEmpty())
+        .andExpect(jsonPath("$.accessToken").doesNotExist());
+  }
 }

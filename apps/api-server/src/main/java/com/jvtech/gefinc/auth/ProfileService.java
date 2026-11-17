@@ -1,11 +1,14 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.deletion.UserNoticeService;
+import com.jvtech.gefinc.auth.AuthDtos.UserNoticeDto;
 import com.jvtech.gefinc.auth.AuthDtos.UserProfile;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.JwtService;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
+import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ public class ProfileService {
   private final PasswordEncoder encoder;
   private final JwtService jwt;
   private final TokenService tokens;
+  private final UserNoticeService userNoticeService;
 
   public ProfileService(
       UserRepository users,
@@ -27,27 +31,36 @@ public class ProfileService {
       PasswordPolicy policy,
       PasswordEncoder encoder,
       JwtService jwt,
-      TokenService tokens) {
+      TokenService tokens,
+      UserNoticeService userNoticeService) {
     this.users = users;
     this.auth = auth;
     this.policy = policy;
     this.encoder = encoder;
     this.jwt = jwt;
     this.tokens = tokens;
+    this.userNoticeService = userNoticeService;
   }
 
   static UserProfile toProfile(User user) {
+    return toProfile(user, null);
+  }
+
+  static UserProfile toProfile(User user, List<UserNoticeDto> notices) {
     return new UserProfile(
         user.getId(),
         user.getEmail(),
         user.getName(),
         user.getCreatedAt(),
-        user.getRole().isAdmin());
+        user.getRole().isAdmin(),
+        notices != null && !notices.isEmpty() ? notices : null);
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public UserProfile get(long userId) {
-    return toProfile(load(userId));
+    User user = load(userId);
+    List<UserNoticeDto> notices = userNoticeService.deliverNotices(user);
+    return toProfile(user, notices);
   }
 
   @Transactional

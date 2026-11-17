@@ -83,7 +83,7 @@ class AccountDeletionIT extends IntegrationTestBase {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json(Map.of("refreshToken", refresh))))
         .andExpect(status().isUnauthorized());
-    // o login responde 423, sem emitir tokens, com a data limite
+    // o login responde 423, sem emitir tokens, com a data limite e campos aditivos (US12, T151)
     mockMvc
         .perform(
             post("/auth/login")
@@ -93,6 +93,10 @@ class AccountDeletionIT extends IntegrationTestBase {
         .andExpect(matchesContract())
         .andExpect(jsonPath("$.code").value("ACCOUNT_DELETION_PENDING"))
         .andExpect(jsonPath("$.deletionDate").value("2026-12-10"))
+        .andExpect(jsonPath("$.origin").value("USER"))
+        .andExpect(jsonPath("$.canCancel").value(true))
+        .andExpect(jsonPath("$.supportHint").isNotEmpty())
+        .andExpect(jsonPath("$.reasonMessage").doesNotExist())
         .andExpect(jsonPath("$.accessToken").doesNotExist());
   }
 
