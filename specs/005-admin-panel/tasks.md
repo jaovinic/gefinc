@@ -329,25 +329,25 @@ description: "Lista de tarefas da feature Painel administrativo (papéis, usuár
 
 ---
 
-## Phase 8: User Story 6 - Saúde e uso do sistema (Priority: P2, fatia F5)
+## Phase 8: User Story 6 - Trocar o e-mail de um usuário com verificação de posse (Priority: P2, fatia F2)
 
-**Goal**: Visão geral com saúde (app/banco), versão, tempo no ar e estatísticas agregadas só com contagens.
+**Goal**: Troca de e-mail administrativa com prova de posse via código de 6 dígitos enviado ao novo endereço (FR-014, FR-052; US9.6–US9.11; SC-018).
 
-**Independent Test**: Abrir a visão geral em menos de 3 s, ver app e banco `UP`, e conferir que as estatísticas são só contagens; derrubar o `DataSource` e ver o banco `DOWN` (US6.*, SC-007).
+**Independent Test**: Solicitar a troca de e-mail para um usuário, receber o código de 6 dígitos no novo endereço, confirmar no painel e conferir a atualização do e-mail, encerramento de sessões e avisos em ambos os endereços.
 
 ### Tests for User Story 6 (escritos antes)
 
-- [ ] T103 [P] [US6] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/system/SystemHealthIT.java`: banco simulado fora (proxy do `DataSource` que lança) → `DOWN` **sem** mensagem, host ou credencial; versão via `BuildProperties` com *fallback* `desconhecida`; tempo no ar; `/actuator/health` público permanece como está e nenhum outro endpoint do actuator é exposto (D21)
-- [ ] T104 [P] [US6] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/system/UsageStatsIT.java`: usuários por situação, ativos em 7 e 30 dias, novos usuários e lançamentos criados por dia (7/30/90); resposta contém **apenas contagens** (nenhum valor, linha ou identificação); cache de 60 s e `refresh=true` o ignora; consulta em `transaction_groups.created_at` dentro de 3 s (SC-007; medir e, se estourar, abrir migração com `ix_groups_created_at`, R5)
-- [ ] T105 [P] [US6] [Teste] Escrever `apps/web-app/src/app/admin/overview/overview.spec.ts` (cartões de saúde com ícone e texto, não só cor; gráficos acessíveis com tabela alternativa; botão de atualizar; estados de erro) e `apps/web-app-e2e/src/admin-health.spec.ts`
+- [x] T103 [P] [US6] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/user/EmailChangeIT.java` (GreenMail): código de 6 dígitos enviado ao **novo** endereço, nunca em resposta, auditoria, histórico ou log; expira em 15 min, uso único, 5 erros invalidam, novo pedido invalida o anterior, cancelar; unicidade verificada na solicitação **e** na confirmação; o e-mail antigo vale até confirmar; ao confirmar, sessões do usuário encerradas e dois avisos (antigo e novo); raiz `403 ROOT_PROTECTED`
+- [x] T104 [P] [US6] [Teste] Estender `apps/api-server/src/test/java/com/jvtech/gefinc/admin/RootProtectionIT.java` habilitando trocar o e-mail do raiz e atualizar `apps/api-server/src/test/java/com/jvtech/gefinc/admin/AdminAccessIT.java` (MINIMUM_ROUTES = 24)
+- [x] T105 [P] [US6] [Teste] Escrever `apps/web-app/src/app/admin/users/email-change-dialog.spec.ts`, estender `apps/web-app/src/app/admin/users/user-detail.spec.ts` e criar `apps/web-app-e2e/src/admin-email-change.spec.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T106 [US6] Acrescentar o objetivo `build-info` ao `spring-boot-maven-plugin` em `apps/api-server/pom.xml`
-- [ ] T107 [US6] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/admin/system/SystemHealthService.java`, `apps/api-server/src/main/java/com/jvtech/gefinc/admin/system/UsageStatsRepository.java` (**única** classe com tabela financeira, apenas `COUNT` por dia), `apps/api-server/src/main/java/com/jvtech/gefinc/admin/system/StatsController.java` (`GET /admin/system/health`, `GET /admin/system/stats`) e DTOs `SystemHealth`/`UsageStats`/`DayCount`
-- [ ] T108 [US6] Implementar no web `apps/web-app/src/app/admin/overview/overview.ts` (reaproveita `packages/ui-shared/src/lib/charts` e `state-views`), item inicial do menu do painel; habilitar `SystemHealthIT`, `UsageStatsIT`, `AdminModuleBoundaryTest` (a exceção continua única) e estender `AdminIsolationIT`
+- [x] T106 [US6] Implementar entidade `PendingEmailChange`, `PendingEmailChangeRepository` e método `changeEmail` em `User`
+- [x] T107 [US6] Implementar `EmailChangeService`, `EmailChangeAttemptRecorder`, endpoints em `AdminUserController`, `PendingEmailChangeView` em `AdminUserService.detail` e métodos na API web (`admin.api.ts`), diálogo (`email-change-dialog.ts`) e tela de detalhes (`user-detail.ts`)
+- [x] T108 [US6] Habilitar testes de contrato em `OpenApiSchemaParityTest`, validar isolamento em `AdminIsolationIT`, verificar linters e suíte de regressão
 
-**Checkpoint**: visão geral entregue.
+**Checkpoint**: troca de e-mail de usuário com prova de posse entregue e validada.
 
 ---
 
@@ -407,7 +407,7 @@ description: "Lista de tarefas da feature Painel administrativo (papéis, usuár
 ### Tests for User Story 9 (escritos antes)
 
 - [ ] T124 [P] [US9] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/invitation/InvitationIT.java` (GreenMail): convite vale 7 dias; reenviar gera novo link e invalida o anterior; qualquer administrador reenvia ou cancela; cadastro próprio com o mesmo e-mail consome o convite; expirado → `410 INVITATION_EXPIRED`; e-mail em claro só enquanto `PENDING`; manutenção bloqueia o aceite, cadastros fechados não; `409 EMAIL_ALREADY_REGISTERED`; falha de envio não cria o convite (`502`); `GET /auth/invitations/{token}` e `POST .../accept` públicos com política de senha
-- [ ] T125 [P] [US9] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/user/EmailChangeIT.java` (GreenMail): código de 6 dígitos enviado ao **novo** endereço, nunca em resposta, auditoria, histórico ou log; expira em 15 min, uso único, 5 erros invalidam, novo pedido invalida o anterior, cancelar; unicidade verificada na solicitação **e** na confirmação; o e-mail antigo vale até confirmar; ao confirmar, sessões do usuário encerradas e dois avisos (antigo e novo); raiz `403 ROOT_PROTECTED`
+- [x] T125 [P] [US9] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/user/EmailChangeIT.java` (GreenMail): código de 6 dígitos enviado ao **novo** endereço, nunca em resposta, auditoria, histórico ou log; expira em 15 min, uso único, 5 erros invalidam, novo pedido invalida o anterior, cancelar; unicidade verificada na solicitação **e** na confirmação; o e-mail antigo vale até confirmar; ao confirmar, sessões do usuário encerradas e dois avisos (antigo e novo); raiz `403 ROOT_PROTECTED`
 - [ ] T126 [P] [US9] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/user/UserRenameIT.java` (`PATCH /admin/users/{id}`, nome ≤ 80, efeito imediato, auditado) e estender `apps/api-server/src/test/java/com/jvtech/gefinc/common/logging/LogRedactionIT.java` (nenhum código, link, token, e-mail ou IP nos logs dos fluxos novos)
 - [ ] T127 [P] [US9] [Teste] Estender `apps/api-server/src/test/java/com/jvtech/gefinc/admin/RootProtectionIT.java` habilitando trocar o e-mail do raiz e `apps/api-server/src/test/java/com/jvtech/gefinc/admin/common/ReauthIT.java` com a troca de e-mail
 - [ ] T128 [P] [US9] [Teste] Escrever `apps/api-server/src/test/java/com/jvtech/gefinc/admin/invitation/InvitationExpiryJobTest.java` (`MutableClock`): convites vencidos viram `EXPIRED` e zeram o e-mail em claro
@@ -416,7 +416,7 @@ description: "Lista de tarefas da feature Painel administrativo (papéis, usuár
 ### Implementation for User Story 9
 
 - [ ] T130 [US9] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/admin/invitation/Invitation.java`, `InvitationRepository.java`, `InvitationService.java` (token aleatório, apenas o SHA-256 no banco), `InvitationController.java` (`GET/POST /admin/invitations`, `POST .../resend`, `DELETE ...`), endpoints públicos `GET /auth/invitations/{token}` e `POST /auth/invitations/{token}/accept` (em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/AuthController.java`), `apps/api-server/src/main/java/com/jvtech/gefinc/admin/invitation/InvitationExpiryJob.java` e a integração em `apps/api-server/src/main/java/com/jvtech/gefinc/auth/RegistrationService.java` (cadastro próprio consome convite pendente)
-- [ ] T131 [US9] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/admin/user/PendingEmailChange.java`, `PendingEmailChangeRepository.java`, `EmailChangeService.java` (HMAC do código, tentativas, expiração, travas) e os endpoints `POST /admin/users/{id}/email-change`, `POST .../confirm`, `DELETE ...`; `PATCH /admin/users/{id}` (nome) em `apps/api-server/src/main/java/com/jvtech/gefinc/admin/user/AdminUserController.java`
+- [x] T131 [US9] Implementar `apps/api-server/src/main/java/com/jvtech/gefinc/admin/user/PendingEmailChange.java`, `PendingEmailChangeRepository.java`, `EmailChangeService.java` (HMAC do código, tentativas, expiração, travas) e os endpoints `POST /admin/users/{id}/email-change`, `POST .../confirm`, `DELETE ...`; `PATCH /admin/users/{id}` (nome) em `apps/api-server/src/main/java/com/jvtech/gefinc/admin/user/AdminUserController.java`
 - [ ] T132 [US9] Implementar no front: `apps/web-app/src/app/admin/invitations/invitations-page.ts`, `apps/web-app/src/app/admin/users/email-change-dialog.ts`, edição de nome no `apps/web-app/src/app/admin/users/user-detail.ts`, e a tela pública de aceite em `packages/ui-shared/src/lib/auth/register/invitation-accept.ts` com rota nos dois apps; habilitar todos os ITs e Jest/E2E de US9
 
 **Checkpoint**: convites e edição de usuários entregues.
@@ -430,6 +430,13 @@ description: "Lista de tarefas da feature Painel administrativo (papéis, usuár
   - Ordem global de travas rigorosamente preservada: bloqueio da linha do alvo (`findForUpdate`) antes da trava consultiva `pg_advisory_xact_lock(hashtext('gefinc.admin-set'))`.
   - Proteção absoluta do raiz (`403 ROOT_PROTECTED`), bloqueio de auto-ação (`409 SELF_ACTION_FORBIDDEN`) e garantia de manter ao menos um administrador ativo (`409 LAST_ADMIN`), cobertos pelas novas suítes `LastAdminProtectionIT` e `SelfRoleChangeIT`, além das extensões em `AdminRoleIT` e `RoleChangeTakesEffectIT`.
   - Frontend (`user-detail.ts` e `user-detail.spec.ts`) validado com restrição reativa de auto-ação (`!isSelf(u)`), confirmação por senha em `ActionDialog` e recarregamento coordenado de sessões e detalhes.
+
+- **A43, troca de e-mail administrativa com prova de posse (`PendingEmailChange`, `EmailChangeService`, US6 / US9.6-US9.11)**:
+  - Solicitação (`POST /admin/users/{userId}/email-change`): código numérico de 6 dígitos (`SecureRandom`, `^\d{6}$`) válido por 15 minutos, enviado ao **novo** endereço (`mail/email-change-code.txt`, `MailKind.EMAIL_CHANGE_CODE`, `SYNC_ONCE`). O código em claro nunca é retornado na API nem registrado em log ou banco; grava-se o HMAC do código via `Pseudonymizer.codeHash(requestId, code)`. Novo pedido para o mesmo usuário invalida a pendência anterior.
+  - Confirmação (`POST /admin/users/{userId}/email-change/confirm`): verificação do código em tempo constante (`MessageDigest.isEqual`). Se inválido, incrementa `attempts` via `EmailChangeAttemptRecorder` (`REQUIRES_NEW`), invalidando ao atingir 5 tentativas e respondendo `422 EMAIL_CHANGE_CODE_INVALID` auditado (`EMAIL_CHANGE_FAILED`). Se válido, ordem de bloqueios preservada (`users` seguido de `pending_email_changes`), atualiza `users.email` e incrementa `tokenVersion` (`User.changeEmail`), encerra todas as sessões e tokens de renovação (`TokenService.revokeAllOfUser`), zera os dados da pendência e envia avisos para ambos os endereços (`email-change-notice-old.txt` e `email-change-notice-new.txt`, `DeliveryMode.WITH_RETRY`), auditando `EMAIL_CHANGE_CONFIRMED`.
+  - Cancelamento (`DELETE /admin/users/{userId}/email-change`): marca `CANCELED`, limpa dados sensíveis da pendência e audita `EMAIL_CHANGE_CANCELED`.
+  - Salvaguardas: proteção absoluta do administrador raiz (`403 ROOT_PROTECTED`), verificação de e-mail já cadastrado ativo ou pendente (`409 EMAIL_ALREADY_REGISTERED`), sem exigência de reautenticação por senha (FR-035).
+  - Frontend: `EmailChangeDialog` com passo 1 (solicitação com rate limit e e-mail) e passo 2 (código de 6 dígitos com contador de tentativas e cancelamento integrado); `UserDetail` integrado com badge de pendência de e-mail e recarregamento reativo.
 
 ---
 
