@@ -8,6 +8,7 @@ import { AdminApi } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
 import { roleLabel, statusBadges, type StatusBadge } from '../admin-status';
 import { ActionDialog, type ActionDialogResult } from './action-dialog';
+import { EmailChangeDialog } from './email-change-dialog';
 import { PasswordResetDialog, type PasswordResetMode } from './password-reset-dialog';
 import { SessionList } from './session-list';
 
@@ -93,7 +94,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
  */
 @Component({
   selector: 'gef-admin-user-detail',
-  imports: [ActionDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
+  imports: [ActionDialog, EmailChangeDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4">
@@ -121,6 +122,21 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
           <h3 class="text-title-sm font-semibold">Conta</h3>
           <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div><dt class="text-caption text-gefinc-muted">E-mail</dt><dd data-testid="email">{{ u.email }}</dd></div>
+            @if (u.pendingEmailChange; as pending) {
+              <div class="sm:col-span-2 rounded border border-gefinc-warning/40 bg-gefinc-warning/5 p-3 text-caption" data-testid="pending-email-change">
+                <p class="font-semibold text-gefinc-warning">Troca de e-mail pendente</p>
+                <p>Novo e-mail: <strong class="text-gefinc-text" data-testid="pending-new-email">{{ pending.newEmail }}</strong></p>
+                <p>Expira em {{ date(pending.expiresAt) }} · Restam {{ pending.attemptsLeft }} tentativas</p>
+                <div class="mt-2 flex gap-2">
+                  <button type="button" class="gef-btn-secondary text-caption py-1 px-2" data-testid="open-email-confirm-btn" (click)="openEmailChange()">
+                    Confirmar código
+                  </button>
+                  <button type="button" class="text-caption text-gefinc-danger underline hover:text-gefinc-danger/80" data-testid="cancel-email-change-btn" (click)="cancelEmailChange()">
+                    Cancelar troca
+                  </button>
+                </div>
+              </div>
+            }
             <div><dt class="text-caption text-gefinc-muted">Nome</dt><dd data-testid="name">{{ u.name || 'Sem nome' }}</dd></div>
             <div><dt class="text-caption text-gefinc-muted">Perfil</dt><dd data-testid="role">{{ roleName(u.role) }}</dd></div>
             <div>
@@ -175,6 +191,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
                 }
               }
               @if (!u.suspended && !u.deletionPending) {
+                <button type="button" class="gef-btn-secondary" data-testid="action-email-change" (click)="openEmailChange()"><gef-icon name="mail" [size]="16" />{{ u.pendingEmailChange ? 'Confirmar troca de e-mail' : 'Trocar e-mail' }}</button>
                 <button type="button" class="gef-btn-secondary" data-testid="action-reset-send" (click)="askReset('send')"><gef-icon name="mail" [size]="16" />Reenviar e-mail de redefinição</button>
                 @if (!isSelf(u)) {
                   <button type="button" class="gef-btn-danger" data-testid="action-reset-force" (click)="askReset('force')"><gef-icon name="alert" [size]="16" />Forçar redefinição de senha</button>
@@ -251,6 +268,17 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
       (confirmed)="confirmReset($event)"
       (cancelled)="closeReset()"
     />
+
+    <gef-email-change-dialog
+      [open]="emailChangeOpen()"
+      [pending]="user()?.pendingEmailChange ?? null"
+      [busy]="emailChangeBusy()"
+      [error]="emailChangeError()"
+      (requestSubmitted)="onRequestEmailChange($event)"
+      (confirmSubmitted)="onConfirmEmailChange($event)"
+      (cancelPending)="cancelEmailChange()"
+      (cancelled)="closeEmailChange()"
+    />
   `,
 })
 export class UserDetail implements OnInit, OnDestroy {
@@ -276,6 +304,10 @@ export class UserDetail implements OnInit, OnDestroy {
   protected readonly resetMode = signal<PasswordResetMode | null>(null);
   protected readonly resetBusy = signal(false);
   protected readonly resetError = signal<string | null>(null);
+
+  protected readonly emailChangeOpen = signal(false);
+  protected readonly emailChangeBusy = signal(false);
+  protected readonly emailChangeError = signal<string | null>(null);
   private lastResetMode: PasswordResetMode = 'send';
   protected readonly currentResetMode = computed(() => {
     const mode = this.resetMode();
@@ -380,6 +412,83 @@ export class UserDetail implements OnInit, OnDestroy {
   protected askReset(mode: PasswordResetMode): void {
     this.resetError.set(null);
     this.resetMode.set(mode);
+  }
+
+  protected openEmailChange(): void {
+    this.emailChangeError.set(null);
+    this.emailChangeOpen.set(true);
+  }
+
+  protected closeEmailChange(): void {
+    if (!this.emailChangeBusy()) {
+      this.emailChangeOpen.set(false);
+      this.emailChangeError.set(null);
+    }
+  }
+
+  protected onRequestEmailChange(newEmail: string): void {
+    if (this.emailChangeBusy()) return;
+    this.emailChangeBusy.set(true);
+    this.emailChangeError.set(null);
+    this.api.requestEmailChange(this.userId, newEmail).subscribe({
+      next: () => {
+        this.emailChangeBusy.set(false);
+        const msg = 'Código de confirmação enviado para o novo e-mail.';
+        this.notices.toast(msg);
+        this.actionStatus.set(msg);
+        this.sessionsRefresh.update((n) => n + 1);
+        this.reload();
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.emailChangeBusy.set(false);
+        this.emailChangeError.set(problem.fieldErrors['newEmail'] ?? messageFor(problem));
+      },
+    });
+  }
+
+  protected onConfirmEmailChange(code: string): void {
+    if (this.emailChangeBusy()) return;
+    this.emailChangeBusy.set(true);
+    this.emailChangeError.set(null);
+    this.api.confirmEmailChange(this.userId, code).subscribe({
+      next: () => {
+        this.emailChangeBusy.set(false);
+        this.emailChangeOpen.set(false);
+        const msg = 'E-mail da conta alterado com sucesso.';
+        this.notices.toast(msg);
+        this.actionStatus.set(msg);
+        this.sessionsRefresh.update((n) => n + 1);
+        this.reload();
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.emailChangeBusy.set(false);
+        this.emailChangeError.set(problem.fieldErrors['code'] ?? messageFor(problem));
+      },
+    });
+  }
+
+  protected cancelEmailChange(): void {
+    if (this.emailChangeBusy()) return;
+    this.emailChangeBusy.set(true);
+    this.emailChangeError.set(null);
+    this.api.cancelEmailChange(this.userId).subscribe({
+      next: () => {
+        this.emailChangeBusy.set(false);
+        this.emailChangeOpen.set(false);
+        const msg = 'Troca de e-mail cancelada.';
+        this.notices.toast(msg);
+        this.actionStatus.set(msg);
+        this.sessionsRefresh.update((n) => n + 1);
+        this.reload();
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.emailChangeBusy.set(false);
+        this.emailChangeError.set(messageFor(problem));
+      },
+    });
   }
 
   protected closeReset(): void {

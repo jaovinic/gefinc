@@ -247,6 +247,7 @@ describe('UserDetail', () => {
       expect(actionLabels(el)).toEqual([
         'Suspender conta',
         'Conceder perfil de administrador',
+        'Trocar e-mail',
         'Reenviar e-mail de redefinição',
         'Forçar redefinição de senha',
       ]);
@@ -287,7 +288,7 @@ describe('UserDetail', () => {
     it('o próprio administrador não se suspende nem altera o próprio perfil, mas pode retirar o bloqueio e reenviar redefinição', async () => {
       const { el } = await setup({ ...base, role: 'ADMIN', loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } }, [], 7);
 
-      expect(actionLabels(el)).toEqual(['Retirar bloqueio de login', 'Reenviar e-mail de redefinição']);
+      expect(actionLabels(el)).toEqual(['Retirar bloqueio de login', 'Trocar e-mail', 'Reenviar e-mail de redefinição']);
       expect(text(el.querySelector('[data-testid="actions-self"]'))).toContain('própria conta');
     });
 
@@ -582,6 +583,91 @@ describe('UserDetail', () => {
         'Não foi possível enviar o e-mail de redefinição. Nenhuma alteração foi aplicada.',
       );
       expect(toast).not.toHaveBeenCalled();
+    });
+
+    it('quando possui troca de e-mail pendente: exibe bloco de pendência e botões', async () => {
+      const { el } = await setup({
+        ...base,
+        pendingEmailChange: { newEmail: 'novo@teste.com', expiresAt: '2026-11-14T20:00:00Z', attemptsLeft: 4 },
+      });
+
+      expect(el.querySelector('[data-testid="pending-email-change"]')).not.toBeNull();
+      expect(text(el.querySelector('[data-testid="pending-new-email"]'))).toBe('novo@teste.com');
+      expect(el.querySelector('[data-testid="open-email-confirm-btn"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="cancel-email-change-btn"]')).not.toBeNull();
+      expect(text(action(el, 'action-email-change'))).toContain('Confirmar troca de e-mail');
+    });
+
+    it('solicitar troca de e-mail com sucesso fecha diálogo, exibe toast e recarrega', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-email-change')!.click();
+      await settle(harness);
+
+      const emailInput = el.querySelector('[data-testid="email-input"]') as HTMLInputElement;
+      emailInput.value = 'novo@teste.com';
+      emailInput.dispatchEvent(new Event('input'));
+      await settle(harness);
+
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/email-change`);
+      expect(req.request.body).toEqual({ newEmail: 'novo@teste.com' });
+      req.flush(
+        { newEmail: 'novo@teste.com', expiresAt: '2026-11-14T20:00:00Z', attemptsLeft: 5 },
+        { status: 202, statusText: 'Accepted' },
+      );
+      await afterAction(harness, {
+        ...base,
+        pendingEmailChange: { newEmail: 'novo@teste.com', expiresAt: '2026-11-14T20:00:00Z', attemptsLeft: 5 },
+      });
+
+      expect(toast).toHaveBeenCalledWith('Código de confirmação enviado para o novo e-mail.');
+      expect(el.querySelector('[data-testid="pending-email-change"]')).not.toBeNull();
+    });
+
+    it('confirmar troca de e-mail com sucesso fecha diálogo, exibe toast e atualiza e-mail', async () => {
+      const { harness, el } = await setup({
+        ...base,
+        pendingEmailChange: { newEmail: 'confirmado@teste.com', expiresAt: '2026-11-14T20:00:00Z', attemptsLeft: 5 },
+      });
+
+      (el.querySelector('[data-testid="open-email-confirm-btn"]') as HTMLElement).click();
+      await settle(harness);
+
+      const codeInput = el.querySelector('[data-testid="code-input"]') as HTMLInputElement;
+      codeInput.value = '123456';
+      codeInput.dispatchEvent(new Event('input'));
+      await settle(harness);
+
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/email-change/confirm`);
+      expect(req.request.body).toEqual({ code: '123456' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, {
+        ...base,
+        email: 'confirmado@teste.com',
+        pendingEmailChange: undefined,
+      });
+
+      expect(toast).toHaveBeenCalledWith('E-mail da conta alterado com sucesso.');
+      expect(field(el, 'email')).toBe('confirmado@teste.com');
+    });
+
+    it('cancelar troca de e-mail pendente via botão exibe toast e recarrega', async () => {
+      const { harness, el } = await setup({
+        ...base,
+        pendingEmailChange: { newEmail: 'cancelar@teste.com', expiresAt: '2026-11-14T20:00:00Z', attemptsLeft: 5 },
+      });
+
+      (el.querySelector('[data-testid="cancel-email-change-btn"]') as HTMLElement).click();
+      const req = http.expectOne((r) => r.method === 'DELETE' && r.url === `${URL}/email-change`);
+      req.flush(null, { status: 204, statusText: 'No Content' });
+      await afterAction(harness, {
+        ...base,
+        pendingEmailChange: undefined,
+      });
+
+      expect(toast).toHaveBeenCalledWith('Troca de e-mail cancelada.');
     });
   });
 });

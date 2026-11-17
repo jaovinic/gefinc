@@ -13,6 +13,7 @@ import type {
   EmailDeliveryPage,
   EmailKind,
   EmailTestResult,
+  PendingEmailChange,
   RoleChangeRequest,
 } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService, toProblem } from '@gefinc/ui-shared';
@@ -141,6 +142,25 @@ export class AdminApi {
   /** Invalida a senha e todas as sessões e envia um novo link de redefinição; exige a senha do admin. */
   forcePasswordReset(userId: number, password: string): Observable<void> {
     return this.guarded(this.http.post<void>(`${this.base}/admin/users/${userId}/password-reset/force`, { password }));
+  }
+
+  /** Solicita a troca do e-mail do usuário enviando o código numérico ao novo endereço. */
+  requestEmailChange(userId: number, newEmail: string): Observable<PendingEmailChange> {
+    return this.guarded(
+      this.http.post<PendingEmailChange>(`${this.base}/admin/users/${userId}/email-change`, { newEmail }),
+    );
+  }
+
+  /** Confirma a troca do e-mail do usuário com o código de 6 dígitos. */
+  confirmEmailChange(userId: number, code: string): Observable<void> {
+    return this.guarded(
+      this.http.post<void>(`${this.base}/admin/users/${userId}/email-change/confirm`, { code }),
+    );
+  }
+
+  /** Cancela a troca de e-mail pendente do usuário. */
+  cancelEmailChange(userId: number): Observable<void> {
+    return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/email-change`));
   }
 
   /** Reenvia uma redefinição de senha que falhou no histórico de envios. */
