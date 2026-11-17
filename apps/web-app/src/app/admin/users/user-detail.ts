@@ -8,6 +8,7 @@ import { AdminApi } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
 import { roleLabel, statusBadges, type StatusBadge } from '../admin-status';
 import { ActionDialog, type ActionDialogResult } from './action-dialog';
+import { PasswordResetDialog, type PasswordResetMode } from './password-reset-dialog';
 import { SessionList } from './session-list';
 
 /** As ações sobre a conta que abrem o diálogo de confirmação. */
@@ -92,7 +93,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
  */
 @Component({
   selector: 'gef-admin-user-detail',
-  imports: [ActionDialog, ErrorView, Icon, LoadingView, RouterLink, SessionList],
+  imports: [ActionDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4">
@@ -173,6 +174,12 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
                   <button type="button" class="gef-btn-secondary" data-testid="action-revoke-role" (click)="ask('revoke-role')"><gef-icon name="shield" [size]="16" />Retirar perfil de administrador</button>
                 }
               }
+              @if (!u.suspended && !u.deletionPending) {
+                <button type="button" class="gef-btn-secondary" data-testid="action-reset-send" (click)="askReset('send')"><gef-icon name="mail" [size]="16" />Reenviar e-mail de redefinição</button>
+                @if (!isSelf(u)) {
+                  <button type="button" class="gef-btn-danger" data-testid="action-reset-force" (click)="askReset('force')"><gef-icon name="alert" [size]="16" />Forçar redefinição de senha</button>
+                }
+              }
             </div>
             @if (isSelf(u)) {
               <p class="text-caption text-gefinc-muted" data-testid="actions-self">Você não pode suspender a própria conta nem alterar o próprio perfil.</p>
@@ -235,6 +242,15 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
       (confirmed)="confirmAction($event)"
       (cancelled)="closeAction()"
     />
+
+    <gef-password-reset-dialog
+      [open]="resetMode() !== null"
+      [mode]="currentResetMode()"
+      [busy]="resetBusy()"
+      [error]="resetError()"
+      (confirmed)="confirmReset($event)"
+      (cancelled)="closeReset()"
+    />
   `,
 })
 export class UserDetail implements OnInit, OnDestroy {
@@ -257,6 +273,17 @@ export class UserDetail implements OnInit, OnDestroy {
   protected readonly action = signal<ActionKind | null>(null);
   protected readonly actionBusy = signal(false);
   protected readonly actionError = signal<string | null>(null);
+  protected readonly resetMode = signal<PasswordResetMode | null>(null);
+  protected readonly resetBusy = signal(false);
+  protected readonly resetError = signal<string | null>(null);
+  private lastResetMode: PasswordResetMode = 'send';
+  protected readonly currentResetMode = computed(() => {
+    const mode = this.resetMode();
+    if (mode) {
+      this.lastResetMode = mode;
+    }
+    return this.lastResetMode;
+  });
   /** Resultado da última ação, anunciado em região `status` (além do toast). */
   protected readonly actionStatus = signal('');
   /** Configuração da ação aberta; fechada, mantém a última para o diálogo não piscar o texto ao fechar. */
@@ -348,6 +375,51 @@ export class UserDetail implements OnInit, OnDestroy {
     if (!this.actionBusy()) {
       this.action.set(null);
     }
+  }
+
+  protected askReset(mode: PasswordResetMode): void {
+    this.resetError.set(null);
+    this.resetMode.set(mode);
+  }
+
+  protected closeReset(): void {
+    if (!this.resetBusy()) {
+      this.resetMode.set(null);
+    }
+  }
+
+  protected confirmReset(result: { password?: string }): void {
+    const mode = this.resetMode();
+    if (!mode || this.resetBusy()) {
+      return;
+    }
+    this.resetBusy.set(true);
+    this.resetError.set(null);
+    const call$ =
+      mode === 'send'
+        ? this.api.sendPasswordReset(this.userId)
+        : this.api.forcePasswordReset(this.userId, result.password ?? '');
+    const successMessage =
+      mode === 'send'
+        ? 'E-mail de redefinição enviado.'
+        : 'Redefinição de senha forçada e e-mail enviado.';
+    call$.subscribe({
+      next: () => {
+        this.resetBusy.set(false);
+        this.resetMode.set(null);
+        this.notices.toast(successMessage);
+        this.actionStatus.set(successMessage);
+        if (mode === 'force') {
+          this.sessionsRefresh.update((n) => n + 1);
+        }
+        this.reload();
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.resetBusy.set(false);
+        this.resetError.set(messageFor(problem));
+      },
+    });
   }
 
   protected confirmAction(result: ActionDialogResult): void {

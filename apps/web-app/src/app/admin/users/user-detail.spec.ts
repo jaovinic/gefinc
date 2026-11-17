@@ -241,17 +241,24 @@ describe('UserDetail', () => {
   });
 
   describe('ações por estado', () => {
-    it('usuário ativo: suspender e conceder o perfil, sem reativar nem retirar bloqueio', async () => {
+    it('usuário ativo: suspender, conceder o perfil e redefinir senha, sem reativar nem retirar bloqueio', async () => {
       const { el } = await setup();
 
-      expect(actionLabels(el)).toEqual(['Suspender conta', 'Conceder perfil de administrador']);
+      expect(actionLabels(el)).toEqual([
+        'Suspender conta',
+        'Conceder perfil de administrador',
+        'Reenviar e-mail de redefinição',
+        'Forçar redefinição de senha',
+      ]);
     });
 
-    it('usuário suspenso: só reativar (e o perfil), sem suspender', async () => {
+    it('usuário suspenso: só reativar (e o perfil), sem suspender nem redefinir senha', async () => {
       const { el } = await setup({ ...base, suspended: true });
 
       expect(actionLabels(el)).toContain('Reativar conta');
       expect(actionLabels(el)).not.toContain('Suspender conta');
+      expect(actionLabels(el)).not.toContain('Reenviar e-mail de redefinição');
+      expect(actionLabels(el)).not.toContain('Forçar redefinição de senha');
     });
 
     it('bloqueio de login vigente: oferece retirar o bloqueio; sem bloqueio, não', async () => {
@@ -277,10 +284,10 @@ describe('UserDetail', () => {
       expect(text(el.querySelector('[data-testid="actions-protected"]'))).toContain('raiz');
     });
 
-    it('o próprio administrador não se suspende nem altera o próprio perfil, mas pode retirar o bloqueio', async () => {
+    it('o próprio administrador não se suspende nem altera o próprio perfil, mas pode retirar o bloqueio e reenviar redefinição', async () => {
       const { el } = await setup({ ...base, role: 'ADMIN', loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } }, [], 7);
 
-      expect(actionLabels(el)).toEqual(['Retirar bloqueio de login']);
+      expect(actionLabels(el)).toEqual(['Retirar bloqueio de login', 'Reenviar e-mail de redefinição']);
       expect(text(el.querySelector('[data-testid="actions-self"]'))).toContain('própria conta');
     });
 
@@ -514,6 +521,59 @@ describe('UserDetail', () => {
 
       expect(el.querySelector('[data-testid="session-row"]')).not.toBeNull();
       expect(el.querySelectorAll('button')).toHaveLength(0);
+    });
+
+    it('reenvia o e-mail de redefinição de senha e recarrega o detalhe', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-reset-send')!.click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="action-effect"]'))).toContain('novo link de redefinição de senha');
+      confirmButton(el).click();
+      http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/password-reset/send`).flush(null, { status: 202, statusText: 'Accepted' });
+      await settle(harness);
+      detailRequest().flush(base);
+      await settle(harness);
+
+      expect(toast).toHaveBeenCalledWith('E-mail de redefinição enviado.');
+      expect(text(el.querySelector('[role="status"][data-testid="action-status"]'))).toBe('E-mail de redefinição enviado.');
+      expect(dialog(el)).toBeNull();
+    });
+
+    it('força a redefinição de senha pedindo a senha do administrador e recarrega detalhe e sessões', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-reset-force')!.click();
+      await settle(harness);
+      expect(text(el.querySelector('[data-testid="action-effect"]'))).toContain('deixam de valer imediatamente');
+      typeInto(el, '[data-testid="action-password"]', 'senha-forte-123');
+      confirmButton(el).click();
+      const req = http.expectOne((r) => r.method === 'POST' && r.url === `${URL}/password-reset/force`);
+      expect(req.request.body).toEqual({ password: 'senha-forte-123' });
+      req.flush(null, { status: 202, statusText: 'Accepted' });
+      await afterAction(harness, { ...base, openSessions: 0 });
+
+      expect(toast).toHaveBeenCalledWith('Redefinição de senha forçada e e-mail enviado.');
+      expect(field(el, 'open-sessions')).toBe('0');
+      expect(dialog(el)).toBeNull();
+    });
+
+    it('falha no envio de e-mail (502 MAIL_DELIVERY_FAILED) mantém o diálogo aberto com a mensagem clara', async () => {
+      const { harness, el } = await setup();
+
+      action(el, 'action-reset-send')!.click();
+      await settle(harness);
+      confirmButton(el).click();
+      http
+        .expectOne((r) => r.method === 'POST' && r.url === `${URL}/password-reset/send`)
+        .flush({ code: 'MAIL_DELIVERY_FAILED', detail: 'Não foi possível enviar o e-mail de redefinição. Nenhuma alteração foi aplicada.' }, { status: 502, statusText: 'Bad Gateway' });
+      await settle(harness);
+
+      expect(dialog(el)).not.toBeNull();
+      expect(text(el.querySelector('[data-testid="confirm-error"]'))).toBe(
+        'Não foi possível enviar o e-mail de redefinição. Nenhuma alteração foi aplicada.',
+      );
+      expect(toast).not.toHaveBeenCalled();
     });
   });
 });

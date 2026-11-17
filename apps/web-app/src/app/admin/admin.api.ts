@@ -121,6 +121,21 @@ export class AdminApi {
     return this.guarded(this.http.delete<void>(`${this.base}/admin/users/${userId}/login-lock`));
   }
 
+  /** Reenvia o e-mail de redefinição de senha (invalida links anteriores, mantém senha e sessões). */
+  sendPasswordReset(userId: number): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/users/${userId}/password-reset/send`, null));
+  }
+
+  /** Invalida a senha e todas as sessões e envia um novo link de redefinição; exige a senha do admin. */
+  forcePasswordReset(userId: number, password: string): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/users/${userId}/password-reset/force`, { password }));
+  }
+
+  /** Reenvia uma redefinição de senha que falhou no histórico de envios. */
+  resendEmailDelivery(deliveryId: number): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/email/deliveries/${deliveryId}/resend`, null));
+  }
+
   /** Página da trilha de auditoria (somente leitura, paginada por cursor opaco). */
   listAudit(params: AdminAuditListParams = {}): Observable<AuditPage> {
     let query = new HttpParams();

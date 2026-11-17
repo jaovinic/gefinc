@@ -62,5 +62,15 @@ describe('problem', () => {
     expect(messageFor(toProblem(http(409, { code: 'SELF_ACTION_FORBIDDEN', detail: 'Esta ação não pode ser aplicada à própria conta.' })))).toBe(
       'Esta ação não pode ser aplicada à própria conta.',
     );
+    expect(messageFor(toProblem(http(409, { code: 'ACCOUNT_NOT_USABLE' })))).toContain('suspensa ou aguardando exclusão');
+  });
+
+  it('falha no envio de e-mail (502 MAIL_DELIVERY_FAILED) mostra mensagem clara e não o erro genérico 500', () => {
+    expect(messageFor(toProblem(http(502, { code: 'MAIL_DELIVERY_FAILED' })))).toBe(
+      'Não foi possível enviar o e-mail de redefinição. Nada foi alterado; tente novamente.',
+    );
+    expect(messageFor(toProblem(http(502, { code: 'MAIL_DELIVERY_FAILED', detail: 'Servidor de e-mail indisponível.' })))).toBe(
+      'Servidor de e-mail indisponível.',
+    );
   });
 });

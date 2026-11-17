@@ -251,6 +251,24 @@ describe('AdminApi', () => {
       expect(clear).not.toHaveBeenCalled();
       expect(navigate).not.toHaveBeenCalled();
     });
+
+    it('reenvia e força a redefinição de senha e reenvia falha do histórico', () => {
+      api.sendPasswordReset(7).subscribe();
+      const sendReq = http.expectOne('/api/v1/admin/users/7/password-reset/send');
+      expect(sendReq.request.method).toBe('POST');
+      sendReq.flush(null, { status: 202, statusText: 'Accepted' });
+
+      api.forcePasswordReset(7, 'senha-admin').subscribe();
+      const forceReq = http.expectOne('/api/v1/admin/users/7/password-reset/force');
+      expect(forceReq.request.method).toBe('POST');
+      expect(forceReq.request.body).toEqual({ password: 'senha-admin' });
+      forceReq.flush(null, { status: 202, statusText: 'Accepted' });
+
+      api.resendEmailDelivery(42).subscribe();
+      const deliveryReq = http.expectOne('/api/v1/admin/email/deliveries/42/resend');
+      expect(deliveryReq.request.method).toBe('POST');
+      deliveryReq.flush(null, { status: 202, statusText: 'Accepted' });
+    });
   });
 
   describe('auditoria (listAudit e getAuditEntry)', () => {

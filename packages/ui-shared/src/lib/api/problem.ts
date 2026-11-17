@@ -64,6 +64,10 @@ export function messageFor(problem: ApiProblem): string {
       return 'Conta suspensa. Procure o suporte.';
     case ADMIN_ERROR_CODES.adminDecisionLocked:
       return 'Esta decisão foi tomada pela administração e não pode ser desfeita por aqui. Procure o suporte.';
+    case ADMIN_ERROR_CODES.mailDeliveryFailed:
+      return problem.detail ?? 'Não foi possível enviar o e-mail de redefinição. Nada foi alterado; tente novamente.';
+    case ADMIN_ERROR_CODES.accountNotUsable:
+      return problem.detail ?? 'A conta está suspensa ou aguardando exclusão e não pode receber esta ação.';
     case ERROR_CODES.staleVersion:
       return 'Este registro foi alterado em outro dispositivo. Recarregue para ver a versão atual.';
     default:
