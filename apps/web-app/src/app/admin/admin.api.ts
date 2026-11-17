@@ -9,6 +9,10 @@ import type {
   AuditEntry,
   AuditPage,
   AuditResult,
+  EmailConfig,
+  EmailDeliveryPage,
+  EmailKind,
+  EmailTestResult,
   RoleChangeRequest,
 } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService, toProblem } from '@gefinc/ui-shared';
@@ -37,6 +41,14 @@ export interface AdminAuditListParams {
   targetUserId?: number;
   action?: AuditAction;
   result?: AuditResult;
+  cursor?: string;
+  limit?: number;
+}
+
+/** Parâmetros do histórico de envios (`GET /admin/email/deliveries`); ausentes não vão na URL. */
+export interface AdminEmailDeliveryParams {
+  status?: 'SENT' | 'FAILED';
+  kind?: EmailKind;
   cursor?: string;
   limit?: number;
 }
@@ -169,6 +181,34 @@ export class AdminApi {
   /** Detalhe de um registro da auditoria (`GET /admin/audit/{auditId}`). */
   getAuditEntry(id: number): Observable<AuditEntry> {
     return this.guarded(this.http.get<AuditEntry>(`${this.base}/admin/audit/${id}`));
+  }
+
+  /** Configuração de envio de e-mail (nunca usuário nem senha). */
+  getEmailConfig(): Observable<EmailConfig> {
+    return this.guarded(this.http.get<EmailConfig>(`${this.base}/admin/email/config`));
+  }
+
+  /** Envia um e-mail de teste ao próprio administrador (resposta 200 mesmo se o envio falhar). */
+  sendTestEmail(): Observable<EmailTestResult> {
+    return this.guarded(this.http.post<EmailTestResult>(`${this.base}/admin/email/test`, null));
+  }
+
+  /** Histórico de envios dos últimos 90 dias, paginado por cursor opaco. */
+  listEmailDeliveries(params: AdminEmailDeliveryParams = {}): Observable<EmailDeliveryPage> {
+    let query = new HttpParams();
+    if (params.status) {
+      query = query.set('status', params.status);
+    }
+    if (params.kind) {
+      query = query.set('kind', params.kind);
+    }
+    if (params.cursor) {
+      query = query.set('cursor', params.cursor);
+    }
+    if (params.limit !== undefined) {
+      query = query.set('limit', params.limit);
+    }
+    return this.guarded(this.http.get<EmailDeliveryPage>(`${this.base}/admin/email/deliveries`, { params: query }));
   }
 
   private guarded<T>(request: Observable<T>): Observable<T> {

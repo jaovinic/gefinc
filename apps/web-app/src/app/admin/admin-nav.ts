@@ -13,4 +13,5 @@ export const ADMIN_NAV_LABEL = 'Administração';
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { key: 'users', label: 'Usuários', icon: 'users', web: '/admin/users' },
   { key: 'audit', label: 'Auditoria', icon: 'audit', web: '/admin/audit' },
+  { key: 'email', label: 'E-mail', icon: 'mail', web: '/admin/email' },
 ];
