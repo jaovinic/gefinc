@@ -5,6 +5,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import type { UserProfile } from '@gefinc/core-models';
 import { Subscription, filter } from 'rxjs';
 import { AuthApi } from './auth.api';
+import { NoticeService } from './notice.service';
 
 /** Nome para exibir: o nome cadastrado; sem ele, a parte do e-mail antes do @; sem nada, nulo. */
 export function userDisplayName(name: string | null | undefined, email: string | null | undefined): string | null {
@@ -28,6 +29,7 @@ export function userInitial(name: string | null | undefined, email: string | nul
 @Injectable({ providedIn: 'root' })
 export class CurrentUser {
   private readonly api = inject(AuthApi);
+  private readonly notices = inject(NoticeService, { optional: true });
   private request: Subscription | null = null;
   /** Falha de sessão (401/403): não adianta insistir sozinho; só um login novo (clear) libera. */
   private denied = false;
@@ -96,6 +98,9 @@ export class CurrentUser {
   apply(profile: UserProfile): void {
     this.cancel();
     this.profile.set(profile);
+    if (profile.notices && profile.notices.length > 0) {
+      this.notices?.setUserNotice(profile.notices[0]);
+    }
     this.failed.set(false);
     this.denied = false;
   }
@@ -103,6 +108,7 @@ export class CurrentUser {
   /** Esquece tudo e cancela a busca pendente: uma resposta atrasada não pode vazar para o próximo usuário. */
   clear(): void {
     this.cancel();
+    this.notices?.setUserNotice(null);
     this.profile.set(null);
     this.failed.set(false);
     this.denied = false;

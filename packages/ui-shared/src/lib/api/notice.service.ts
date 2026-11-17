@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import type { UserNotice } from '@gefinc/core-models';
 
 /** Confirmação discreta (toast), opcionalmente com uma ação para desfazer. */
 export interface Toast {
@@ -21,6 +22,8 @@ const MAX_TOASTS = 3;
 @Injectable({ providedIn: 'root' })
 export class NoticeService {
   readonly message = signal<string | null>(null);
+  /** Aviso de entrega única (ex.: exclusão cancelada pelo administrador). */
+  readonly userNotice = signal<UserNotice | null>(null);
   /** Cresce a cada `409 STALE_VERSION`; as telas observam para recarregar o registro. */
   readonly staleVersionCount = signal(0);
 
@@ -74,7 +77,15 @@ export class NoticeService {
     this.staleVersionCount.update((n) => n + 1);
   }
 
+  setUserNotice(notice: UserNotice | null): void {
+    this.userNotice.set(notice);
+    if (notice) {
+      this.message.set(notice.message);
+    }
+  }
+
   dismiss(): void {
     this.message.set(null);
+    this.userNotice.set(null);
   }
 }

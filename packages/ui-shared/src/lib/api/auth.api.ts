@@ -61,4 +61,9 @@ export class AuthApi {
   cancelAccountDeletion(credentials: Credentials): Observable<void> {
     return this.http.post<void>(`${this.base}/auth/account-deletion/cancel`, credentials);
   }
+
+  /** Dispensa um aviso de entrega única já recebido pelo usuário. */
+  dismissNotice(noticeId: number): Observable<void> {
+    return this.http.post<void>(`${this.base}/auth/notices/${noticeId}/dismiss`, {});
+  }
 }
