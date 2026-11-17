@@ -291,6 +291,14 @@ describe('UserDetail', () => {
       expect(text(el.querySelector('[data-testid="actions-self"]'))).toContain('própria conta');
     });
 
+    it('o próprio usuário comum não altera o próprio perfil', async () => {
+      const { el } = await setup({ ...base, role: 'USER' }, [], 7);
+
+      expect(actionLabels(el)).not.toContain('Conceder perfil de administrador');
+      expect(actionLabels(el)).not.toContain('Retirar perfil de administrador');
+      expect(text(el.querySelector('[data-testid="actions-self"]'))).toContain('própria conta');
+    });
+
     it('todo botão de ação tem texto e ícone', async () => {
       const { el } = await setup({ ...base, loginLock: { lockedUntil: '2026-11-14T19:20:00Z' } });
       const buttons = Array.from(el.querySelectorAll('[data-testid="actions"] button'));
