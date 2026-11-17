@@ -25,6 +25,7 @@ import { Observable, catchError, throwError } from 'rxjs';
 export type AdminUserStatus = 'ACTIVE' | 'SUSPENDED' | 'DELETION_PENDING' | 'ADMIN';
 export type AdminUserSort = 'createdAt' | 'lastAccessAt';
 export type AdminSortDirection = 'asc' | 'desc';
+export type { Invitation as AdminInvitationView, InvitationStatus } from '@gefinc/core-models';
 
 /** Parâmetros da lista; os ausentes ou vazios não vão na URL (o servidor assume os padrões). */
 export interface AdminUserListParams {

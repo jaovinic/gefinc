@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { EmptyView, ErrorView, Icon, LoadingView, NoticeService, Select, isOfflineProblem, messageFor, toProblem, type SelectOption } from '@gefinc/ui-shared';
-import { AdminApi, type AdminInvitationView } from '../admin.api';
+import { AdminApi, type AdminInvitationView, type InvitationStatus } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
 
 const STATUS_OPTIONS: SelectOption[] = [
@@ -180,7 +180,7 @@ export class InvitationsPage implements OnInit {
   private readonly notices = inject(NoticeService);
 
   protected readonly statusOptions = STATUS_OPTIONS;
-  protected readonly selectedStatus = signal<string>('');
+  protected readonly selectedStatus = signal<InvitationStatus | ''>('');
 
   protected readonly invitations = signal<AdminInvitationView[]>([]);
   protected readonly loading = signal(true);
@@ -216,7 +216,7 @@ export class InvitationsPage implements OnInit {
   }
 
   onStatusChange(status: string): void {
-    this.selectedStatus.set(status);
+    this.selectedStatus.set(status as InvitationStatus | '');
     this.load();
   }
 

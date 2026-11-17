@@ -4324,6 +4324,8 @@ export interface components {
              * @description Política de senha existente: mínimo de 10 caracteres e máximo de 72 bytes em UTF-8
              */
             password: string;
+            /** @description Nome de exibição opcional */
+            name?: string;
         };
         UserNotice: {
             /** Format: int64 */

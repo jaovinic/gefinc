@@ -2312,6 +2312,7 @@ components:
       required: [password]
       properties:
         password: { type: string, format: password, minLength: 10, description: 'Política de senha existente: mínimo de 10 caracteres e máximo de 72 bytes em UTF-8' }
+        name: { type: string, maxLength: 80, description: 'Nome de exibição opcional' }
     UserNotice:
       type: object
       required: [id, kind, variant, message]
