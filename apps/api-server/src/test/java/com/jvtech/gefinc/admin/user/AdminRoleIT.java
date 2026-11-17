@@ -3,11 +3,15 @@ package com.jvtech.gefinc.admin.user;
 import static com.jvtech.gefinc.support.ContractAssertions.matchesContract;
 import static com.jvtech.gefinc.support.ContractAssertions.responseMatchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.jvtech.gefinc.common.error.ApiException;
+import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.AuthenticatedUser;
 import com.jvtech.gefinc.support.AdminSeed.SeededUser;
 import com.jvtech.gefinc.support.IntegrationTestBase;
 import com.jvtech.gefinc.support.TestApi;
@@ -18,8 +22,12 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
@@ -30,6 +38,8 @@ import org.springframework.test.web.servlet.ResultActions;
  * (corrida) e por {@code AdminPolicyTest} (regra).
  */
 class AdminRoleIT extends IntegrationTestBase {
+
+  @Autowired private AdminRoleService adminRoleService;
 
   private TestApi api;
   private TestUsers users;
@@ -101,12 +111,20 @@ class AdminRoleIT extends IntegrationTestBase {
   @Test
   void retiraOPerfilDeOutroAdministradorEAudita() throws Exception {
     SeededUser target = seed.createAdmin("outro@example.com");
+    login(target, "outro@example.com");
 
     putRole(admin, target.id(), "USER", TestUsers.PASSWORD)
         .andExpect(status().isNoContent())
         .andExpect(matchesContract());
 
     assertThat(roleOf(target.id())).isEqualTo("USER");
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM auth_sessions WHERE user_id = ? AND revoked_at IS NOT NULL"
+                    + " AND revoked_by = 'ADMIN'",
+                Long.class,
+                target.id()))
+        .isEqualTo(1L);
     Map<String, Object> audit = lastAudit();
     assertThat(audit).containsEntry("action", "ROLE_REVOKED").containsEntry("result", "SUCCESS");
     assertThat(details(audit).path("from").asText()).isEqualTo("ADMIN");
@@ -322,5 +340,55 @@ class AdminRoleIT extends IntegrationTestBase {
         .andExpect(jsonPath("$.code").value("FORBIDDEN"));
 
     assertThat(roleOf(commonRow.id())).isEqualTo("USER");
+  }
+
+  @Test
+  void administradorRebaixadoEmVooDentroDaTransacaoRecebe403ForbiddenEAudita() throws Exception {
+    SeededUser target = seed.createUser("alvo@example.com");
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(adminRow.id(), "ADMIN", null),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+    jdbc.update("UPDATE users SET role = 'USER' WHERE id = ?", adminRow.id());
+
+    assertThatThrownBy(() -> adminRoleService.change(target.id(), "ADMIN", TestUsers.PASSWORD))
+        .isInstanceOf(ApiException.class)
+        .satisfies(e -> assertThat(((ApiException) e).code()).isEqualTo(ErrorCode.FORBIDDEN));
+
+    assertThat(roleOf(target.id())).isEqualTo("USER");
+    Map<String, Object> audit = lastAudit();
+    assertThat(audit)
+        .containsEntry("action", "ROLE_GRANTED")
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "FORBIDDEN")
+        .containsEntry("actor_user_id", adminRow.id());
+  }
+
+  @Test
+  void administradorSuspensoEmVooDentroDaTransacaoRecebe403ForbiddenEAudita() throws Exception {
+    SeededUser target = seed.createUser("alvo@example.com");
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(adminRow.id(), "ADMIN", null),
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+
+    jdbc.update("UPDATE users SET suspended_at = now() WHERE id = ?", adminRow.id());
+
+    assertThatThrownBy(() -> adminRoleService.change(target.id(), "ADMIN", TestUsers.PASSWORD))
+        .isInstanceOf(ApiException.class)
+        .satisfies(e -> assertThat(((ApiException) e).code()).isEqualTo(ErrorCode.FORBIDDEN));
+
+    assertThat(roleOf(target.id())).isEqualTo("USER");
+    Map<String, Object> audit = lastAudit();
+    assertThat(audit)
+        .containsEntry("action", "ROLE_GRANTED")
+        .containsEntry("result", "REFUSED")
+        .containsEntry("refusal_code", "FORBIDDEN")
+        .containsEntry("actor_user_id", adminRow.id());
   }
 }

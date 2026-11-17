@@ -9,6 +9,8 @@ import com.jvtech.gefinc.admin.common.AdminPolicy;
 import com.jvtech.gefinc.admin.common.AdminPolicy.Action;
 import com.jvtech.gefinc.admin.common.AdminPolicy.Subject;
 import com.jvtech.gefinc.admin.common.Reauthenticator;
+import com.jvtech.gefinc.auth.RevokedBy;
+import com.jvtech.gefinc.auth.TokenService;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.CurrentUser;
@@ -33,16 +35,19 @@ public class AdminRoleService {
   private final Reauthenticator reauthenticator;
   private final AdminPolicy policy;
   private final UserRepository users;
+  private final TokenService tokens;
 
   public AdminRoleService(
       AdminActionExecutor executor,
       Reauthenticator reauthenticator,
       AdminPolicy policy,
-      UserRepository users) {
+      UserRepository users,
+      TokenService tokens) {
     this.executor = executor;
     this.reauthenticator = reauthenticator;
     this.policy = policy;
     this.users = users;
+    this.tokens = tokens;
   }
 
   /**
@@ -57,7 +62,6 @@ public class AdminRoleService {
     Action action = grant ? Action.GRANT_ADMIN : Action.REVOKE_ADMIN;
     AuditAction auditAction = grant ? AuditAction.ROLE_GRANTED : AuditAction.ROLE_REVOKED;
     long actorId = CurrentUser.id();
-    UserRole actorRole = UserRole.valueOf(CurrentUser.role());
     AtomicReference<UserRole> before = new AtomicReference<>();
     AtomicReference<UserRole> after = new AtomicReference<>();
 
@@ -76,16 +80,29 @@ public class AdminRoleService {
             throw invalidRole(requestedRole);
           }
           reauthenticator.verify(password);
+          User actor =
+              users
+                  .findById(actorId)
+                  .orElseThrow(() -> new ApiException(ErrorCode.FORBIDDEN, "Acesso negado."));
+          if ((actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.ROOT)
+              || !actor.isActive()) {
+            throw new ApiException(ErrorCode.FORBIDDEN, "Acesso negado.");
+          }
           User target =
               users
                   .findForUpdate(targetId)
                   .orElseThrow(
                       () -> new ApiException(ErrorCode.NOT_FOUND, "Usuário não encontrado."));
           before.set(target.getRole());
-          policy.enforce(action, new Subject(actorId, actorRole, true), subject(target));
+          policy.enforce(
+              action, new Subject(actorId, actor.getRole(), actor.isActive()), subject(target));
           if (grant) {
             target.grantAdmin();
           } else {
+            if (target.getRole() == UserRole.ADMIN) {
+              tokens.revokeAllOfUser(targetId, RevokedBy.ADMIN);
+              target.revokeAccessTokens();
+            }
             target.revokeAdmin();
           }
           after.set(target.getRole());

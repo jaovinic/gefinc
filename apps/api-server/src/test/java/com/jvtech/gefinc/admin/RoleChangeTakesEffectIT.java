@@ -1,5 +1,6 @@
 package com.jvtech.gefinc.admin;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,8 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * O papel vem do banco a cada requisição (o JWT não o carrega): conceder ou retirar o perfil vale
- * na requisição seguinte, com o mesmo token de acesso (US1.5, SC-020).
+ * O papel vem do banco a cada requisição (o JWT não o carrega): conceder o perfil abre o acesso na
+ * requisição seguinte com o mesmo token de acesso. Retirar o perfil encerra as sessões ativas do
+ * ex-administrador e invalida seus tokens anteriores (US1.5, SC-020).
  */
 @Import(AdminTestEndpoints.class)
 class RoleChangeTakesEffectIT extends IntegrationTestBase {
@@ -52,14 +54,34 @@ class RoleChangeTakesEffectIT extends IntegrationTestBase {
   }
 
   @Test
-  void concederEretirarOPerfilValemNaRequisicaoSeguinteComOMesmoToken() throws Exception {
+  void concederOPerfilValeNaRequisicaoSeguinteERetirarInvalidaAsSessoes() throws Exception {
     leituraDoAlvo().andExpect(status().isForbidden());
 
     mudarPapel("ADMIN").andExpect(status().isNoContent());
     leituraDoAlvo().andExpect(status().isOk());
 
     mudarPapel("USER").andExpect(status().isNoContent());
-    leituraDoAlvo().andExpect(status().isForbidden());
+    // O token antigo foi revogado junto com as sessões
+    leituraDoAlvo().andExpect(status().isUnauthorized());
+
+    // Sessões e refresh tokens marcados como revogados por ADMIN
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM auth_sessions WHERE user_id = ? AND revoked_at IS NOT NULL"
+                    + " AND revoked_by = 'ADMIN'",
+                Long.class,
+                alvo.id()))
+        .isEqualTo(1L);
+
+    // Novo login obtém perfil USER e tem acesso negado com 403
+    String novoToken =
+        new TestUsers(mockMvc, objectMapper)
+            .login("alvo@example.com", TestUsers.PASSWORD)
+            .get("accessToken")
+            .asText();
+    mockMvc
+        .perform(get("/admin/_test/read").header(HttpHeaders.AUTHORIZATION, "Bearer " + novoToken))
+        .andExpect(status().isForbidden());
   }
 
   @Test
