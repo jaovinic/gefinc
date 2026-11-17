@@ -49,7 +49,9 @@ public class AdminPolicy {
     REACTIVATE,
     REVOKE_SESSIONS,
     REVOKE_OTHER_SESSION,
-    CLEAR_LOGIN_LOCK
+    CLEAR_LOGIN_LOCK,
+    SEND_PASSWORD_RESET,
+    FORCE_PASSWORD_RESET
   }
 
   /** Pessoa envolvida na decisão; {@code active}: sem suspensão e sem exclusão pendente. */
@@ -70,7 +72,7 @@ public class AdminPolicy {
    */
   public static Optional<ErrorCode> decide(
       Action action, Subject actor, Subject target, int otherActiveAdmins) {
-    if (target.role() == UserRole.ROOT) {
+    if (target.role() == UserRole.ROOT && action != Action.SEND_PASSWORD_RESET) {
       return Optional.of(ErrorCode.ROOT_PROTECTED);
     }
     if (actor.id() == target.id() && refusesSelf(action)) {
@@ -78,6 +80,10 @@ public class AdminPolicy {
     }
     boolean grant = action == Action.GRANT_ADMIN;
     if (grant && target.role() == UserRole.USER && !target.active()) {
+      return Optional.of(ErrorCode.ACCOUNT_NOT_USABLE);
+    }
+    if ((action == Action.SEND_PASSWORD_RESET || action == Action.FORCE_PASSWORD_RESET)
+        && !target.active()) {
       return Optional.of(ErrorCode.ACCOUNT_NOT_USABLE);
     }
     if (changesAdminSet(action, target) && otherActiveAdmins < 1) {
@@ -88,13 +94,18 @@ public class AdminPolicy {
 
   /**
    * O administrador não pode aplicar a si mesmo a troca de perfil, a suspensão nem o encerramento
-   * da sessão atual ou de todas as suas sessões; reativar, retirar o bloqueio de login e encerrar
-   * uma outra sessão sua não oferecem risco.
+   * da sessão atual ou de todas as suas sessões; reativar, retirar o bloqueio de login, encerrar
+   * uma outra sessão sua e reenviar/forçar redefinição não são barrados por esta regra.
    */
   private static boolean refusesSelf(Action action) {
     return switch (action) {
       case GRANT_ADMIN, REVOKE_ADMIN, SUSPEND, REVOKE_SESSIONS -> true;
-      case REACTIVATE, REVOKE_OTHER_SESSION, CLEAR_LOGIN_LOCK -> false;
+      case REACTIVATE,
+          REVOKE_OTHER_SESSION,
+          CLEAR_LOGIN_LOCK,
+          SEND_PASSWORD_RESET,
+          FORCE_PASSWORD_RESET ->
+          false;
     };
   }
 
@@ -112,12 +123,12 @@ public class AdminPolicy {
   @Transactional(propagation = Propagation.MANDATORY)
   public void enforce(Action action, Subject actor, Subject target) {
     // Recusas que não dependem de contagem saem antes, sem tomar a trava.
-    decide(action, actor, target, Integer.MAX_VALUE).ifPresent(AdminPolicy::refuse);
+    decide(action, actor, target, Integer.MAX_VALUE).ifPresent(code -> refuse(action, code));
     if (changesAdminSet(action, target)) {
       lockAdminSet();
       long others = users.countActiveAdminsExcluding(target.id());
       decide(action, actor, target, (int) Math.min(others, Integer.MAX_VALUE))
-          .ifPresent(AdminPolicy::refuse);
+          .ifPresent(code -> refuse(action, code));
     }
   }
 
@@ -129,7 +140,7 @@ public class AdminPolicy {
   public void requireAnotherActiveAdmin(long excludedUserId) {
     lockAdminSet();
     if (users.countActiveAdminsExcluding(excludedUserId) < 1) {
-      refuse(ErrorCode.LAST_ADMIN);
+      refuse(Action.REVOKE_ADMIN, ErrorCode.LAST_ADMIN);
     }
   }
 
@@ -140,15 +151,18 @@ public class AdminPolicy {
         "SELECT pg_advisory_xact_lock(hashtext(?))", ps -> ps.setString(1, LOCK_NAME), rs -> {});
   }
 
-  private static void refuse(ErrorCode code) {
-    throw new ApiException(code, message(code));
+  private static void refuse(Action action, ErrorCode code) {
+    throw new ApiException(code, message(action, code));
   }
 
-  private static String message(ErrorCode code) {
+  private static String message(Action action, ErrorCode code) {
     return switch (code) {
       case ROOT_PROTECTED -> "O administrador raiz não pode ser alterado pelo painel.";
       case SELF_ACTION_FORBIDDEN -> "Esta ação não pode ser aplicada à própria conta.";
-      case ACCOUNT_NOT_USABLE -> "A conta precisa estar ativa para receber o perfil.";
+      case ACCOUNT_NOT_USABLE ->
+          action == Action.GRANT_ADMIN
+              ? "A conta precisa estar ativa para receber o perfil."
+              : "A conta está suspensa ou aguardando exclusão e não pode receber esta ação.";
       case LAST_ADMIN -> "O sistema precisa manter ao menos um administrador ativo.";
       default -> "Operação não permitida.";
     };

@@ -1154,7 +1154,8 @@ export interface paths {
         put?: never;
         /**
          * Invalida a senha e as sessões e envia o link de redefinição
-         * @description O administrador nunca vê senha, link nem token. Falha de envio desfaz tudo (`502`).
+         * @description Exige a senha do próprio administrador (`403 REAUTH_FAILED`). O administrador nunca vê
+         *     senha, link nem token. Falha de envio desfaz tudo (`502`).
          */
         post: {
             parameters: {
@@ -1165,7 +1166,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ForcePasswordResetRequest"];
+                };
+            };
             responses: {
                 /** @description Senha invalidada e e-mail enviado */
                 202: {
@@ -1826,6 +1831,7 @@ export interface paths {
                 404: components["responses"]["NotFound"];
                 409: components["responses"]["Conflict"];
                 429: components["responses"]["TooManyRequests"];
+                502: components["responses"]["BadGateway"];
             };
         };
         delete?: never;
@@ -4453,6 +4459,13 @@ export interface components {
         RoleChangeRequest: {
             /** @enum {string} */
             role: "USER" | "ADMIN";
+            /**
+             * Format: password
+             * @description Senha do próprio administrador
+             */
+            password: string;
+        };
+        ForcePasswordResetRequest: {
             /**
              * Format: password
              * @description Senha do próprio administrador

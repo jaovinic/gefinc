@@ -569,9 +569,16 @@ paths:
     post:
       tags: [Admin]
       summary: Invalida a senha e as sessões e envia o link de redefinição
-      description: O administrador nunca vê senha, link nem token. Falha de envio desfaz tudo (`502`).
+      description: |
+        Exige a senha do próprio administrador (`403 REAUTH_FAILED`). O administrador nunca vê
+        senha, link nem token. Falha de envio desfaz tudo (`502`).
       parameters:
         - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForcePasswordResetRequest' }
       responses:
         '202': { description: Senha invalidada e e-mail enviado }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -885,6 +892,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+        '502': { $ref: '#/components/responses/BadGateway' }
 
   /admin/communications/pending:
     get:
@@ -2437,6 +2445,11 @@ components:
       required: [role, password]
       properties:
         role: { type: string, enum: [USER, ADMIN] }
+        password: { type: string, format: password, description: Senha do próprio administrador }
+    ForcePasswordResetRequest:
+      type: object
+      required: [password]
+      properties:
         password: { type: string, format: password, description: Senha do próprio administrador }
     EmailChangeRequest:
       type: object

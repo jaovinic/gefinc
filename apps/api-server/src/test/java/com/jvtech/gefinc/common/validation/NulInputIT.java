@@ -68,6 +68,12 @@ class NulInputIT extends IntegrationTestBase {
                 t.adminPost(
                     "/admin/users/" + t.target.id() + "/suspend", "{\"reason\":\"ab\\u0000cd\"}")),
         arguments(
+            "POST /admin/users/{id}/password-reset/force",
+            t ->
+                t.adminPost(
+                    "/admin/users/" + t.target.id() + "/password-reset/force",
+                    "{\"password\":\"ab\\u0000cd\"}")),
+        arguments(
             "POST /auth/login (e-mail)",
             t -> t.json(post("/auth/login"), "{\"email\":\"a\\u0000b@x.com\",\"password\":\"x\"}")),
         arguments(

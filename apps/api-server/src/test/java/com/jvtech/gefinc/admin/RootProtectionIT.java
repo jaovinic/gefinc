@@ -148,7 +148,48 @@ class RootProtectionIT extends IntegrationTestBase {
   void trocarOEmailDoRaizEhRecusado() {}
 
   @Test
-  @Disabled(
-      "Ligar na US4 (T091, redefinição de senha): forçar redefinição do raiz deve dar ROOT_PROTECTED")
-  void forcarRedefinicaoDeSenhaDoRaizEhRecusado() {}
+  void forcarRedefinicaoDeSenhaDoRaizEhRecusado() throws Exception {
+    String hashBefore =
+        jdbc.queryForObject(
+            "SELECT password_hash FROM users WHERE id = ?", String.class, root.id());
+    TestUser rootSession =
+        new TestUser(
+            root.id(),
+            "raiz@example.com",
+            new TestUsers(mockMvc, objectMapper)
+                .login("raiz@example.com", TestUsers.PASSWORD)
+                .get("accessToken")
+                .asText());
+
+    api.call(
+            admin,
+            HttpMethod.POST,
+            "/admin/users/" + root.id() + "/password-reset/force",
+            Map.of("password", TestUsers.PASSWORD))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.code").value("ROOT_PROTECTED"));
+
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT password_hash FROM users WHERE id = ?", String.class, root.id()))
+        .isEqualTo(hashBefore);
+    api.call(rootSession, HttpMethod.GET, "/auth/me", null).andExpect(status().isOk());
+    assertThat(GREEN_MAIL.getReceivedMessages()).isEmpty();
+    assertRefusedAndAudited("PASSWORD_RESET_FORCED");
+  }
+
+  @Test
+  void reenviarRedefinicaoDeSenhaDoRaizEhPermitidoEAuditado() throws Exception {
+    api.call(admin, HttpMethod.POST, "/admin/users/" + root.id() + "/password-reset/send", null)
+        .andExpect(status().isAccepted());
+
+    assertThat(GREEN_MAIL.waitForIncomingEmail(5000, 1)).isTrue();
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT result, refusal_code, target_user_id FROM audit_log"
+                    + " WHERE action = 'PASSWORD_RESET_SENT'"))
+        .containsEntry("result", "SUCCESS")
+        .containsEntry("refusal_code", null)
+        .containsEntry("target_user_id", root.id());
+  }
 }

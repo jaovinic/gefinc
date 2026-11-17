@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jvtech.gefinc.admin.audit.AuditClientView;
 import com.jvtech.gefinc.admin.audit.AuditEntryView;
 import com.jvtech.gefinc.admin.audit.AuditPageView;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.ForcePasswordResetRequest;
 import java.io.IOException;
 import java.io.Reader;
 import java.lang.reflect.RecordComponent;
@@ -111,6 +112,7 @@ class OpenApiSchemaParityTest {
     assertRecordMatchesSchema("AuditEntry", AuditEntryView.class);
     assertRecordMatchesSchema("AuditClient", AuditClientView.class);
     assertRecordMatchesSchema("AuditPage", AuditPageView.class);
+    assertRecordMatchesSchema("ForcePasswordResetRequest", ForcePasswordResetRequest.class);
   }
 
   @Test

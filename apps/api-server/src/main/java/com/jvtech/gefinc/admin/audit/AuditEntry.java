@@ -96,6 +96,12 @@ public record AuditEntry(
       return this;
     }
 
+    public Builder failure(String code) {
+      this.result = AuditResult.FAILED;
+      this.refusalCode = code;
+      return this;
+    }
+
     public Builder details(AuditDetails value) {
       this.details = value;
       return this;

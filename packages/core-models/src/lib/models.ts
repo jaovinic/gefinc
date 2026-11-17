@@ -73,6 +73,7 @@ export type AdminSession = Schemas['AdminSession'];
 export type AdminRenameRequest = Schemas['AdminRenameRequest'];
 export type SuspendRequest = Schemas['SuspendRequest'];
 export type RoleChangeRequest = Schemas['RoleChangeRequest'];
+export type ForcePasswordResetRequest = Schemas['ForcePasswordResetRequest'];
 export type EmailChangeRequest = Schemas['EmailChangeRequest'];
 export type EmailChangeConfirmRequest = Schemas['EmailChangeConfirmRequest'];
 export type DeletionRequest = Schemas['DeletionRequest'];

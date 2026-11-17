@@ -78,6 +78,34 @@ public class AdminActionExecutor {
     } catch (ApiException e) {
       if (isRuleRefusal(e)) {
         recordRefusal(adminId, ctx, e);
+      } else if (e.code() == ErrorCode.MAIL_DELIVERY_FAILED) {
+        recordFailure(adminId, ctx, e);
+      }
+      throw e;
+    }
+  }
+
+  public <T> T runWithDynamicTarget(
+      AuditAction action,
+      java.util.concurrent.atomic.AtomicReference<Long> targetUserIdRef,
+      String subject,
+      Supplier<T> body) {
+    long adminId = CurrentUser.id();
+    try {
+      return transaction.execute(
+          status -> {
+            T result = body.get();
+            AuditContext resolved =
+                new AuditContext(action, targetUserIdRef.get(), subject, null, null);
+            audit.record(successEntry(adminId, resolved));
+            return result;
+          });
+    } catch (ApiException e) {
+      AuditContext resolved = new AuditContext(action, targetUserIdRef.get(), subject, null, null);
+      if (isRuleRefusal(e)) {
+        recordRefusal(adminId, resolved, e);
+      } else if (e.code() == ErrorCode.MAIL_DELIVERY_FAILED) {
+        recordFailure(adminId, resolved, e);
       }
       throw e;
     }
@@ -99,7 +127,25 @@ public class AdminActionExecutor {
     return status == HttpStatus.FORBIDDEN
         || status == HttpStatus.NOT_FOUND
         || status == HttpStatus.CONFLICT
-        || status == HttpStatus.UNPROCESSABLE_ENTITY;
+        || status == HttpStatus.UNPROCESSABLE_ENTITY
+        || status == HttpStatus.TOO_MANY_REQUESTS;
+  }
+
+  private void recordFailure(long adminId, AuditContext ctx, ApiException failure) {
+    try {
+      AuditEntry entry =
+          AuditEntry.builder(ctx.action())
+              .actor(ActorKind.ADMIN, adminId)
+              .target(ctx.targetUserId())
+              .subject(ctx.subject())
+              .reasonText(AuditEntry.hasNul(ctx.reasonText()) ? null : ctx.reasonText())
+              .failure(failure.code().name())
+              .build();
+      audit.recordRefusal(entry);
+    } catch (RuntimeException err) {
+      log.error("Falha ao registrar a falha administrativa: {}", err.getClass().getSimpleName());
+      registry.counter(REFUSAL_FAILED).increment();
+    }
   }
 
   private void recordRefusal(long adminId, AuditContext ctx, ApiException refusal) {

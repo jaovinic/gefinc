@@ -32,6 +32,19 @@ public final class UserPolicyDtos {
   }
 
   /**
+   * Pedido de redefinição forçada de senha. Exige a senha do próprio administrador ({@code
+   * REAUTH_FAILED} se ausente ou errada).
+   */
+  public record ForcePasswordResetRequest(String password) {
+
+    /** Sem senha em logs. */
+    @Override
+    public String toString() {
+      return "ForcePasswordResetRequest[REDACTED]";
+    }
+  }
+
+  /**
    * Pedido de suspensão. O motivo (1 a 500 caracteres) é validado dentro da ação auditada, para a
    * recusa 422 também entrar na trilha, e vai só para a auditoria: nunca para o usuário suspenso.
    */

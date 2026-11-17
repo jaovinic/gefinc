@@ -1,11 +1,13 @@
 package com.jvtech.gefinc.admin.user;
 
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.CLEAR_LOGIN_LOCK;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.FORCE_PASSWORD_RESET;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.GRANT_ADMIN;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REACTIVATE;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_ADMIN;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_OTHER_SESSION;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.REVOKE_SESSIONS;
+import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.SEND_PASSWORD_RESET;
 import static com.jvtech.gefinc.admin.common.AdminPolicy.Action.SUSPEND;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -140,5 +142,27 @@ class AdminPolicyTest {
     assertThat(AdminPolicy.decide(CLEAR_LOGIN_LOCK, ADMIN, ADMIN, 0)).isEmpty();
     assertThat(AdminPolicy.decide(CLEAR_LOGIN_LOCK, ADMIN, ROOT, 0))
         .contains(ErrorCode.ROOT_PROTECTED);
+  }
+
+  @Test
+  void reenviarRedefinicaoDeSenhaPermiteORaizMasExigeContaAtiva() {
+    assertThat(AdminPolicy.decide(SEND_PASSWORD_RESET, ADMIN, ROOT, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(SEND_PASSWORD_RESET, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(SEND_PASSWORD_RESET, ADMIN, ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(SEND_PASSWORD_RESET, ADMIN, SUSPENDED_COMMON, 0))
+        .contains(ErrorCode.ACCOUNT_NOT_USABLE);
+    assertThat(
+            AdminPolicy.decide(SEND_PASSWORD_RESET, ADMIN, new Subject(6, UserRole.ROOT, false), 0))
+        .contains(ErrorCode.ACCOUNT_NOT_USABLE);
+  }
+
+  @Test
+  void forcarRedefinicaoDeSenhaRecusaORaizEExigeContaAtiva() {
+    assertThat(AdminPolicy.decide(FORCE_PASSWORD_RESET, ADMIN, ROOT, 0))
+        .contains(ErrorCode.ROOT_PROTECTED);
+    assertThat(AdminPolicy.decide(FORCE_PASSWORD_RESET, ADMIN, COMMON, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(FORCE_PASSWORD_RESET, ADMIN, OTHER_ADMIN, 0)).isEmpty();
+    assertThat(AdminPolicy.decide(FORCE_PASSWORD_RESET, ADMIN, SUSPENDED_COMMON, 0))
+        .contains(ErrorCode.ACCOUNT_NOT_USABLE);
   }
 }

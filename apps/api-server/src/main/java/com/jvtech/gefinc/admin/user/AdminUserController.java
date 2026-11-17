@@ -5,6 +5,7 @@ import com.jvtech.gefinc.admin.common.Destructive;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminSession;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserDetail;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserPage;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.ForcePasswordResetRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.RoleChangeRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.SuspendRequest;
 import java.util.List;
@@ -30,16 +31,19 @@ public class AdminUserController {
   private final AdminUserService users;
   private final AdminAccountService accounts;
   private final SessionAdmin sessions;
+  private final AdminPasswordResetService passwordReset;
 
   public AdminUserController(
       AdminRoleService roles,
       AdminUserService users,
       AdminAccountService accounts,
-      SessionAdmin sessions) {
+      SessionAdmin sessions,
+      AdminPasswordResetService passwordReset) {
     this.roles = roles;
     this.users = users;
     this.accounts = accounts;
     this.sessions = sessions;
+    this.passwordReset = passwordReset;
   }
 
   /**
@@ -114,5 +118,22 @@ public class AdminUserController {
   @ResponseStatus(HttpStatus.NO_CONTENT)
   public void clearLoginLock(@PathVariable("userId") long userId) {
     accounts.clearLoginLock(userId);
+  }
+
+  /** Reenvia o e-mail de redefinição de senha (invalida links anteriores). */
+  @PostMapping("/{userId}/password-reset/send")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public void sendPasswordReset(@PathVariable("userId") long userId) {
+    passwordReset.send(userId);
+  }
+
+  /** Invalida a senha e as sessões e envia o link de redefinição (exige a senha do admin). */
+  @Destructive
+  @PostMapping("/{userId}/password-reset/force")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public void forcePasswordReset(
+      @PathVariable("userId") long userId,
+      @RequestBody(required = false) ForcePasswordResetRequest body) {
+    passwordReset.force(userId, body == null ? null : body.password());
   }
 }

@@ -31,4 +31,10 @@ public class AdminRateLimitConfig {
     return new PerKeyRateLimiter(
         clock, properties.admin().reauthMaxFailures(), properties.admin().rate().reauthWindow());
   }
+
+  /** Envios administrativos de e-mail por usuário-alvo (3 por hora). */
+  @Bean
+  PerKeyRateLimiter adminTargetMailLimiter(Clock clock) {
+    return new PerKeyRateLimiter(clock, 3, Duration.ofHours(1));
+  }
 }
