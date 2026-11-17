@@ -2,6 +2,7 @@ package com.jvtech.gefinc.admin.user;
 
 import com.jvtech.gefinc.admin.common.AdminOnly;
 import com.jvtech.gefinc.admin.common.Destructive;
+import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminRenameRequest;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminSession;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserDetail;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminUserPage;
@@ -16,6 +17,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -72,6 +74,13 @@ public class AdminUserController {
   @GetMapping("/{userId}")
   public AdminUserDetail detail(@PathVariable("userId") long userId) {
     return users.detail(userId);
+  }
+
+  /** Altera o nome de exibição do usuário (efeito imediato). */
+  @PatchMapping("/{userId}")
+  public AdminUserDetail rename(
+      @PathVariable("userId") long userId, @RequestBody AdminRenameRequest body) {
+    return users.rename(userId, body != null ? body.name() : null);
   }
 
   /** Concede ou retira o perfil de administrador. Destrutivo: cota própria de ações destrutivas. */

@@ -61,6 +61,16 @@ public final class UserPolicyDtos {
     }
   }
 
+  /** Pedido de alteração do nome de exibição do usuário pelo administrador. */
+  public record AdminRenameRequest(
+      @Size(max = 80, message = "O nome pode ter no máximo 80 caracteres.") String name) {
+
+    @Override
+    public String toString() {
+      return "AdminRenameRequest[REDACTED]";
+    }
+  }
+
   /**
    * Sessão aberta de um usuário. {@code ip} (dado pessoal) e {@code device} (rótulo grosseiro,
    * nunca o User-Agent) são omitidos quando nulos, nas sessões anteriores ao registro.

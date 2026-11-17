@@ -204,4 +204,22 @@ class RootProtectionIT extends IntegrationTestBase {
         .containsEntry("refusal_code", null)
         .containsEntry("target_user_id", root.id());
   }
+
+  @Test
+  void renomearORaizEhPermitidoEAuditado() throws Exception {
+    api.call(admin, HttpMethod.PATCH, "/admin/users/" + root.id(), Map.of("name", "Novo Nome Raiz"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(root.id()))
+        .andExpect(jsonPath("$.name").value("Novo Nome Raiz"));
+
+    assertThat(jdbc.queryForObject("SELECT name FROM users WHERE id = ?", String.class, root.id()))
+        .isEqualTo("Novo Nome Raiz");
+    assertThat(
+            jdbc.queryForMap(
+                "SELECT result, refusal_code, target_user_id FROM audit_log"
+                    + " WHERE action = 'USER_RENAMED'"))
+        .containsEntry("result", "SUCCESS")
+        .containsEntry("refusal_code", null)
+        .containsEntry("target_user_id", root.id());
+  }
 }

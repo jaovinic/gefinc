@@ -1,5 +1,8 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.invitation.InvitationDtos.AcceptInvitationRequest;
+import com.jvtech.gefinc.admin.invitation.InvitationDtos.InvitationPreview;
+import com.jvtech.gefinc.admin.invitation.InvitationService;
 import com.jvtech.gefinc.auth.AuthDtos.AccountDeletionRequest;
 import com.jvtech.gefinc.auth.AuthDtos.ChangePasswordRequest;
 import com.jvtech.gefinc.auth.AuthDtos.DeletionScheduled;
@@ -28,6 +31,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,6 +56,7 @@ public class AuthController {
   private final ProfileService profile;
   private final AppProperties properties;
   private final ClientIpResolver clientIp;
+  private final InvitationService invitationService;
 
   public AuthController(
       RegistrationService registration,
@@ -60,7 +65,8 @@ public class AuthController {
       AccountDeletionService deletion,
       ProfileService profile,
       AppProperties properties,
-      ClientIpResolver clientIp) {
+      ClientIpResolver clientIp,
+      InvitationService invitationService) {
     this.registration = registration;
     this.auth = auth;
     this.passwordReset = passwordReset;
@@ -68,6 +74,20 @@ public class AuthController {
     this.profile = profile;
     this.properties = properties;
     this.clientIp = clientIp;
+    this.invitationService = invitationService;
+  }
+
+  @GetMapping("/invitations/{token}")
+  public InvitationPreview previewInvitation(@PathVariable("token") String token) {
+    return invitationService.preview(token);
+  }
+
+  @PostMapping("/invitations/{token}/accept")
+  @ResponseStatus(HttpStatus.CREATED)
+  public UserProfile acceptInvitation(
+      @PathVariable("token") String token, @Valid @RequestBody AcceptInvitationRequest body) {
+    User user = invitationService.accept(token, body.password(), body.name());
+    return ProfileService.toProfile(user);
   }
 
   @PostMapping("/register")

@@ -49,11 +49,11 @@ class AdminAccessIT extends IntegrationTestBase {
    * US3 (sessões: listar, encerrar uma e encerrar todas; suspender; reativar; bloqueio de login),
    * as 2 da US5 (lista e detalhe da auditoria) e as 3 da US4 (reenviar redefinição, forçar
    * redefinição e reenviar falha do histórico), as 3 da US7 (configuração, e-mail de teste e
-   * histórico de envios) e as 3 da US6 (solicitar, confirmar e cancelar troca de e-mail), e as 4 da
-   * US8 (parâmetros, cadastros abertos, modo de manutenção e revogação global de sessões); o número
-   * só cresce nas próximas US.
+   * histórico de envios) e as 3 da US6 (solicitar, confirmar e cancelar troca de e-mail), as 4 da
+   * US8 (parâmetros, cadastros abertos, modo de manutenção e revogação global de sessões) e as 4 da
+   * US9 (listar, criar, reenviar e cancelar convites); o número só cresce nas próximas US.
    */
-  private static final int MINIMUM_ROUTES = 28;
+  private static final int MINIMUM_ROUTES = 32;
 
   private static final String DENIED = "gefinc.admin.access.denied";
   private static final String IP = "198.51.100.20";

@@ -58,10 +58,15 @@ public class SecurityConfig {
                         "/auth/refresh",
                         "/auth/password-reset/request",
                         "/auth/password-reset/confirm",
-                        "/auth/account-deletion/cancel")
+                        "/auth/account-deletion/cancel",
+                        "/auth/invitations/*/accept")
                     .permitAll()
                     .requestMatchers(
-                        HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/system/status")
+                        HttpMethod.GET,
+                        "/actuator/health",
+                        "/actuator/health/**",
+                        "/system/status",
+                        "/auth/invitations/*")
                     .permitAll()
                     // Fechado por padrão: toda rota sob /admin, existente ou não, exige o papel
                     // (visitante 401, usuário comum 403, nunca 404 sob /admin). Exceção: a caixa

@@ -19,6 +19,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 
@@ -153,6 +154,109 @@ class LogRedactionIT extends IntegrationTestBase {
             .distinct()
             .toList();
     assertThat(leaks).as("linhas de log com dado sensível").isEmpty();
+  }
+
+  @Test
+  void fluxosDeConviteERenomeacaoNaoVazamDadosSensiveisNosLogs() throws Exception {
+    String adminEmail = "adm.logredaction@example.com";
+    String inviteeEmail = "convidado.logredaction@example.com";
+    String inviteePassword = "senha-convidado-987";
+    String initialName = "Nome Convidado Secreto";
+    String updatedName = "Nome Atualizado Muito Secreto";
+
+    seed.createAdmin(adminEmail);
+    String loginBody =
+        mockMvc
+            .perform(
+                post("/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            Map.of(
+                                "email",
+                                adminEmail,
+                                "password",
+                                com.jvtech.gefinc.support.TestUsers.PASSWORD))))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String adminToken = objectMapper.readTree(loginBody).get("accessToken").asText();
+
+    // 1. Criar convite
+    mockMvc
+        .perform(
+            post("/admin/invitations")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("email", inviteeEmail))))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated());
+
+    awaitPendingMails();
+    assertThat(GREEN_MAIL.waitForIncomingEmail(5000, 1)).isTrue();
+    jakarta.mail.internet.MimeMessage[] msgs = GREEN_MAIL.getReceivedMessages();
+    String mailBody =
+        String.valueOf(msgs[msgs.length - 1].getContent()).replace("=\r\n", "").replace("=\n", "");
+    java.util.regex.Matcher m =
+        java.util.regex.Pattern.compile("/invitations/([A-Za-z0-9_-]+)").matcher(mailBody);
+    assertThat(m.find()).isTrue();
+    String token = m.group(1);
+
+    // 2. Consulta pública
+    mockMvc
+        .perform(get("/auth/invitations/" + token))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+
+    // 3. Aceite público
+    String acceptBody =
+        mockMvc
+            .perform(
+                post("/auth/invitations/" + token + "/accept")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            Map.of("password", inviteePassword, "name", initialName))))
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                    .isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    long createdUserId = objectMapper.readTree(acceptBody).get("id").asLong();
+
+    // 4. Renomeação pelo admin
+    mockMvc
+        .perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(
+                    "/admin/users/" + createdUserId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("name", updatedName))))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+
+    List<String> forbidden =
+        List.of(inviteeEmail.toLowerCase(), inviteePassword, token, initialName, updatedName);
+
+    List<String> leaks =
+        appender.list.stream()
+            // GreenMail é o servidor de e-mail falso dos testes, não código da aplicação.
+            .filter(event -> !event.getLoggerName().startsWith("com.icegreen"))
+            // FilterChainProxy em DEBUG registra a URI da requisição recebida (caminho público)
+            .filter(
+                event ->
+                    !event
+                        .getLoggerName()
+                        .equals("org.springframework.security.web.FilterChainProxy"))
+            .filter(
+                event ->
+                    forbidden.stream()
+                        .anyMatch(f -> textOf(event).toLowerCase().contains(f.toLowerCase())))
+            .map(event -> event.getLoggerName() + " -> " + abbreviate(event.getFormattedMessage()))
+            .distinct()
+            .toList();
+    assertThat(leaks).as("linhas de log com dado sensível de convite/renomeação").isEmpty();
   }
 
   private static String abbreviate(String text) {

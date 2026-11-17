@@ -1,5 +1,6 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.invitation.InvitationService;
 import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
@@ -22,6 +23,7 @@ public class RegistrationService {
   private final ApplicationEventPublisher events;
   private final Clock clock;
   private final MaintenanceGuard maintenanceGuard;
+  private final InvitationService invitations;
 
   public RegistrationService(
       UserRepository users,
@@ -29,13 +31,15 @@ public class RegistrationService {
       PasswordPolicy policy,
       ApplicationEventPublisher events,
       Clock clock,
-      MaintenanceGuard maintenanceGuard) {
+      MaintenanceGuard maintenanceGuard,
+      InvitationService invitations) {
     this.users = users;
     this.encoder = encoder;
     this.policy = policy;
     this.events = events;
     this.clock = clock;
     this.maintenanceGuard = maintenanceGuard;
+    this.invitations = invitations;
   }
 
   @Transactional
@@ -55,6 +59,7 @@ public class RegistrationService {
     try {
       User user =
           users.saveAndFlush(new User(normalized, encoder.encode(password), clock.instant()));
+      invitations.consumePendingIfExists(normalized, user.getId());
       events.publishEvent(new UserRegisteredEvent(user.getId()));
       return user;
     } catch (DataIntegrityViolationException e) {

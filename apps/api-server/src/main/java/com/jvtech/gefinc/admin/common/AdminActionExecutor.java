@@ -111,6 +111,31 @@ public class AdminActionExecutor {
     }
   }
 
+  public <T> T runWithDynamicSubject(
+      AuditAction action,
+      java.util.concurrent.atomic.AtomicReference<String> subjectRef,
+      Supplier<AuditDetails> details,
+      Supplier<T> body) {
+    long adminId = CurrentUser.id();
+    try {
+      return transaction.execute(
+          status -> {
+            T result = body.get();
+            AuditContext resolved = new AuditContext(action, null, subjectRef.get(), null, details);
+            audit.record(successEntry(adminId, resolved));
+            return result;
+          });
+    } catch (ApiException e) {
+      AuditContext resolved = new AuditContext(action, null, subjectRef.get(), null, details);
+      if (isRuleRefusal(e)) {
+        recordRefusal(adminId, resolved, e);
+      } else if (e.code() == ErrorCode.MAIL_DELIVERY_FAILED) {
+        recordFailure(adminId, resolved, e);
+      }
+      throw e;
+    }
+  }
+
   private static AuditEntry successEntry(long adminId, AuditContext ctx) {
     AuditDetails details = ctx.details() == null ? null : ctx.details().get();
     return AuditEntry.builder(ctx.action())

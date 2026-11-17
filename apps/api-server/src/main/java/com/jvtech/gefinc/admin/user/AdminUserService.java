@@ -1,7 +1,9 @@
 package com.jvtech.gefinc.admin.user;
 
 import com.jvtech.gefinc.admin.audit.AuditAction;
+import com.jvtech.gefinc.admin.audit.AuditDetails;
 import com.jvtech.gefinc.admin.audit.AuditEntryView;
+import com.jvtech.gefinc.admin.audit.AuditKey;
 import com.jvtech.gefinc.admin.audit.AuditQueryService;
 import com.jvtech.gefinc.admin.common.AdminActionExecutor;
 import com.jvtech.gefinc.admin.common.AdminActionExecutor.AuditContext;
@@ -20,11 +22,13 @@ import com.jvtech.gefinc.auth.LoginAttemptLimiter;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.security.Pseudonymizer;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
 import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,6 +48,7 @@ public class AdminUserService {
   private final AdminActionExecutor executor;
   private final AuditQueryService auditQuery;
   private final LoginAttemptLimiter loginLimiter;
+  private final Pseudonymizer pseudonymizer;
   private final AppProperties.Admin settings;
   private final Clock clock;
 
@@ -54,6 +59,7 @@ public class AdminUserService {
       AdminActionExecutor executor,
       AuditQueryService auditQuery,
       LoginAttemptLimiter loginLimiter,
+      Pseudonymizer pseudonymizer,
       AppProperties properties,
       Clock clock) {
     this.adminUsers = adminUsers;
@@ -62,6 +68,7 @@ public class AdminUserService {
     this.executor = executor;
     this.auditQuery = auditQuery;
     this.loginLimiter = loginLimiter;
+    this.pseudonymizer = pseudonymizer;
     this.settings = properties.admin();
     this.clock = clock;
   }
@@ -141,6 +148,47 @@ public class AdminUserService {
     return executor.run(
         new AuditContext(AuditAction.USER_DETAIL_OPENED, userId, null, null, null),
         () -> read(userId));
+  }
+
+  /**
+   * Altera o nome de exibição do usuário (efeito imediato, inclusive para o raiz). Valida
+   * comprimento (máx 80) e caractere NUL. Audita USER_RENAMED com oldNameRef.
+   */
+  public AdminUserDetail rename(long userId, String name) {
+    if (name != null && name.length() > 80) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError("name", "O nome pode ter no máximo 80 caracteres.");
+    }
+    if (name != null && name.indexOf('\0') >= 0) {
+      throw ApiException.validation("Há campos inválidos.")
+          .withFieldError("name", "O nome contém caracteres inválidos.");
+    }
+    AtomicReference<String> oldNameRef = new AtomicReference<>();
+    return executor.run(
+        new AuditContext(
+            AuditAction.USER_RENAMED,
+            userId,
+            null,
+            null,
+            () -> {
+              AuditDetails details = AuditDetails.of();
+              String old = oldNameRef.get();
+              if (old != null && !old.isBlank()) {
+                details.put(AuditKey.OLD_NAME_REF, pseudonymizer.nameRef(old));
+              }
+              return details;
+            }),
+        () -> {
+          User target =
+              users
+                  .findById(userId)
+                  .orElseThrow(
+                      () -> new ApiException(ErrorCode.NOT_FOUND, "Usuário não encontrado."));
+          oldNameRef.set(target.getName());
+          target.rename(name);
+          users.saveAndFlush(target);
+          return read(userId);
+        });
   }
 
   private AdminUserDetail read(long userId) {
