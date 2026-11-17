@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Verifica o bundle de produção: a URL pública da API deve estar presente e nenhum endereço local pode vazar.
-// Uso: node tools/check-prod-bundle.mjs --dist <dir> (--env <environment.prod.ts> | --expect <url>)
+// Uso: node tools/check-prod-bundle.mjs --dist <dir> (--env <environment.prod.ts> | --expect <url>) [--forbid <texto>]
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -12,7 +12,7 @@ const ABSOLUTE_API = /https?:\/\/[^"'`\s\\]+\/api\/v1/g;
 
 function usage(message) {
   console.error(`Erro de uso: ${message}`);
-  console.error('Uso: node tools/check-prod-bundle.mjs --dist <dir> (--env <environment.prod.ts> | --expect <url>)');
+  console.error('Uso: node tools/check-prod-bundle.mjs --dist <dir> (--env <environment.prod.ts> | --expect <url>) [--forbid <texto>]');
   process.exit(2);
 }
 
@@ -33,6 +33,7 @@ try {
       dist: { type: 'string' },
       env: { type: 'string' },
       expect: { type: 'string' },
+      forbid: { type: 'string', multiple: true },
     },
     strict: true,
   }));
@@ -80,6 +81,13 @@ for (const file of files) {
   for (const marker of LOCAL_MARKERS) {
     const n = count(text, marker);
     if (n > 0) failures.push(`FAIL endereço-local(${marker}): ${file} (${n} ocorrências)`);
+  }
+
+  if (values.forbid) {
+    for (const marker of values.forbid) {
+      const n = count(text, marker);
+      if (n > 0) failures.push(`FAIL conteudo-proibido(${marker}): ${file} (${n} ocorrências)`);
+    }
   }
 
   const relative = text.match(new RegExp(RELATIVE_API, 'g'))?.length ?? 0;

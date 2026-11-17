@@ -88,6 +88,20 @@ test('procura .js em subdiretorios e nao imprime trechos do conteudo', () => {
   assert.doesNotMatch(result.stdout, /SEGREDO/);
 });
 
+test('falha quando conteudo proibido aparece no bundle (--forbid)', () => {
+  const dist = makeDist({ 'main.js': `"${URL_OK}";apps/web-app/src/app/admin` });
+  const result = run('--dist', dist, '--expect', URL_OK, '--forbid', 'apps/web-app/src/app/admin');
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /FAIL conteudo-proibido\(apps\/web-app\/src\/app\/admin\)/);
+});
+
+test('passa quando conteudo proibido nao aparece no bundle (--forbid)', () => {
+  const dist = makeDist({ 'main.js': `"${URL_OK}";apps/mobile-app/src/app/home` });
+  const result = run('--dist', dist, '--expect', URL_OK, '--forbid', 'apps/web-app/src/app/admin');
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), 'PASS');
+});
+
 test('erros de uso retornam 2', () => {
   assert.equal(run().status, 2);
   assert.equal(run('--dist', tmpdir()).status, 2);
