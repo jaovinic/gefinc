@@ -529,7 +529,8 @@ describe('UserDetail', () => {
       const { el } = await setup({ ...base, role: 'ROOT', protected: true }, [session]);
 
       expect(el.querySelector('[data-testid="session-row"]')).not.toBeNull();
-      expect(el.querySelectorAll('button')).toHaveLength(0);
+      expect(el.querySelectorAll('[data-testid="session-row"] button')).toHaveLength(0);
+      expect(el.querySelectorAll('[data-testid="actions"] button')).toHaveLength(0);
     });
 
     it('reenvia o e-mail de redefinição de senha e recarrega o detalhe', async () => {
@@ -668,6 +669,79 @@ describe('UserDetail', () => {
       });
 
       expect(toast).toHaveBeenCalledWith('Troca de e-mail cancelada.');
+    });
+  });
+
+  describe('alterar nome', () => {
+    it('abre modal com nome atual e permite salvar novo nome', async () => {
+      const { harness, el } = await setup({ ...base, name: 'Ana Souza' });
+
+      (el.querySelector('[data-testid="action-rename"]') as HTMLElement).click();
+      await settle(harness);
+
+      const input = el.querySelector('[data-testid="rename-input"]') as HTMLInputElement;
+      expect(input.value).toBe('Ana Souza');
+
+      input.value = 'Ana Maria Souza';
+      input.dispatchEvent(new Event('input'));
+      await settle(harness);
+
+      (el.querySelector('[data-testid="rename-save"]') as HTMLElement).click();
+      const req = http.expectOne((r) => r.method === 'PATCH' && r.url === URL);
+      expect(req.request.body).toEqual({ name: 'Ana Maria Souza' });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+
+      await settle(harness);
+      detailRequest().flush({ ...base, name: 'Ana Maria Souza' });
+      await settle(harness);
+
+      expect(toast).toHaveBeenCalledWith('Nome do usuário atualizado com sucesso.');
+      expect(field(el, 'name')).toContain('Ana Maria Souza');
+      expect(el.querySelector('[data-testid="rename-modal"]')).toBeNull();
+    });
+
+    it('permite limpar o nome enviando null', async () => {
+      const { harness, el } = await setup({ ...base, name: 'Ana Souza' });
+
+      (el.querySelector('[data-testid="action-rename"]') as HTMLElement).click();
+      await settle(harness);
+
+      const input = el.querySelector('[data-testid="rename-input"]') as HTMLInputElement;
+      input.value = '   ';
+      input.dispatchEvent(new Event('input'));
+      await settle(harness);
+
+      (el.querySelector('[data-testid="rename-save"]') as HTMLElement).click();
+      const req = http.expectOne((r) => r.method === 'PATCH' && r.url === URL);
+      expect(req.request.body).toEqual({ name: null });
+      req.flush(null, { status: 204, statusText: 'No Content' });
+
+      await settle(harness);
+      detailRequest().flush({ ...base, name: undefined });
+      await settle(harness);
+
+      expect(toast).toHaveBeenCalledWith('Nome do usuário atualizado com sucesso.');
+      expect(field(el, 'name')).toContain('Sem nome');
+    });
+
+    it('exibe erro de validação retornado pela API', async () => {
+      const { harness, el } = await setup({ ...base, name: 'Ana' });
+
+      (el.querySelector('[data-testid="action-rename"]') as HTMLElement).click();
+      await settle(harness);
+
+      const input = el.querySelector('[data-testid="rename-input"]') as HTMLInputElement;
+      input.value = 'X';
+      input.dispatchEvent(new Event('input'));
+      await settle(harness);
+
+      (el.querySelector('[data-testid="rename-save"]') as HTMLElement).click();
+      const req = http.expectOne((r) => r.method === 'PATCH' && r.url === URL);
+      req.flush({ code: 'VALIDATION_ERROR', detail: 'Erro nos campos.', errors: [{ field: 'name', message: 'Nome inválido.' }] }, { status: 422, statusText: 'Unprocessable Entity' });
+      await settle(harness);
+
+      expect(text(el.querySelector('[data-testid="rename-error"]'))).toBe('Nome inválido.');
+      expect(el.querySelector('[data-testid="rename-modal"]')).not.toBeNull();
     });
   });
 });

@@ -12,6 +12,7 @@ export const ADMIN_NAV_LABEL = 'Administração';
 /** Áreas do painel, fora do `NAV_ITEMS` compartilhado: cada história acrescenta a sua. */
 export const ADMIN_NAV_ITEMS: readonly AdminNavItem[] = [
   { key: 'users', label: 'Usuários', icon: 'users', web: '/admin/users' },
+  { key: 'invitations', label: 'Convites', icon: 'ticket', web: '/admin/invitations' },
   { key: 'audit', label: 'Auditoria', icon: 'audit', web: '/admin/audit' },
   { key: 'email', label: 'E-mail', icon: 'mail', web: '/admin/email' },
   { key: 'settings', label: 'Parâmetros', icon: 'settings', web: '/admin/settings' },

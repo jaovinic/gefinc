@@ -2,6 +2,7 @@ import { Route } from '@angular/router';
 import {
   ProfilePage,
   ForgotPassword,
+  InvitationAccept,
   Login,
   PrivacyNoticePage,
   Register,
@@ -19,6 +20,8 @@ import { Shell } from './layout/shell';
 export const appRoutes: Route[] = [
   { path: 'login', component: Login },
   { path: 'register', component: Register },
+  { path: 'invitations/:token', component: InvitationAccept },
+  { path: 'convite/:token', redirectTo: 'invitations/:token' },
   {
     path: 'forgot-password',
     component: ForgotPassword,

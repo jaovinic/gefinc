@@ -137,7 +137,13 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
                 </div>
               </div>
             }
-            <div><dt class="text-caption text-gefinc-muted">Nome</dt><dd data-testid="name">{{ u.name || 'Sem nome' }}</dd></div>
+            <div>
+              <dt class="text-caption text-gefinc-muted">Nome</dt>
+              <dd class="flex items-center gap-2">
+                <span data-testid="name">{{ u.name || 'Sem nome' }}</span>
+                <button type="button" class="gef-btn-secondary text-caption py-0.5 px-2 inline-flex items-center gap-1" data-testid="action-rename" (click)="openRename()"><gef-icon name="edit" [size]="12" />Alterar</button>
+              </dd>
+            </div>
             <div><dt class="text-caption text-gefinc-muted">Perfil</dt><dd data-testid="role">{{ roleName(u.role) }}</dd></div>
             <div>
               <dt class="text-caption text-gefinc-muted">Situação</dt>
@@ -279,6 +285,28 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
       (cancelPending)="cancelEmailChange()"
       (cancelled)="closeEmailChange()"
     />
+
+    @if (renameOpen()) {
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="rename-modal">
+        <div class="gef-card w-full max-w-md space-y-4 p-6" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+          <h3 id="rename-title" class="text-title-md font-semibold">Alterar nome</h3>
+          <p class="text-caption text-gefinc-muted">Informe o novo nome de exibição (máximo de 80 caracteres). Deixe em branco para remover o nome.</p>
+          @if (renameError(); as err) {
+            <p class="gef-alert-error" role="alert" data-testid="rename-error">{{ err }}</p>
+          }
+          <div>
+            <label class="gef-label" for="rename-input">Nome</label>
+            <input id="rename-input" class="gef-input" type="text" maxlength="80" [value]="renameValue()" (input)="onRenameInput($event)" data-testid="rename-input" />
+          </div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" class="gef-btn-secondary" (click)="closeRename()" [disabled]="renameBusy()" data-testid="rename-cancel">Cancelar</button>
+            <button type="button" class="gef-btn-primary" (click)="submitRename()" [disabled]="renameBusy()" data-testid="rename-save">
+              {{ renameBusy() ? 'Salvando…' : 'Salvar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class UserDetail implements OnInit, OnDestroy {
@@ -308,6 +336,11 @@ export class UserDetail implements OnInit, OnDestroy {
   protected readonly emailChangeOpen = signal(false);
   protected readonly emailChangeBusy = signal(false);
   protected readonly emailChangeError = signal<string | null>(null);
+
+  protected readonly renameOpen = signal(false);
+  protected readonly renameValue = signal('');
+  protected readonly renameBusy = signal(false);
+  protected readonly renameError = signal<string | null>(null);
   private lastResetMode: PasswordResetMode = 'send';
   protected readonly currentResetMode = computed(() => {
     const mode = this.resetMode();
@@ -412,6 +445,47 @@ export class UserDetail implements OnInit, OnDestroy {
   protected askReset(mode: PasswordResetMode): void {
     this.resetError.set(null);
     this.resetMode.set(mode);
+  }
+
+  protected openRename(): void {
+    this.renameError.set(null);
+    this.renameValue.set(this.user()?.name ?? '');
+    this.renameOpen.set(true);
+  }
+
+  protected closeRename(): void {
+    if (!this.renameBusy()) {
+      this.renameOpen.set(false);
+      this.renameError.set(null);
+    }
+  }
+
+  protected onRenameInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.renameValue.set(input.value);
+  }
+
+  protected submitRename(): void {
+    if (this.renameBusy()) return;
+    this.renameBusy.set(true);
+    this.renameError.set(null);
+    const trimmed = this.renameValue().trim();
+    const newName = trimmed === '' ? null : trimmed;
+    this.api.renameUser(this.userId, newName).subscribe({
+      next: () => {
+        this.renameBusy.set(false);
+        this.renameOpen.set(false);
+        const msg = 'Nome do usuário atualizado com sucesso.';
+        this.notices.toast(msg);
+        this.actionStatus.set(msg);
+        this.reload();
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.renameBusy.set(false);
+        this.renameError.set(problem.fieldErrors['name'] ?? messageFor(problem));
+      },
+    });
   }
 
   protected openEmailChange(): void {

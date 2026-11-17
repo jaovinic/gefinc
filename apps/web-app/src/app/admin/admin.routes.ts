@@ -13,6 +13,7 @@ export const adminRoutes: Route[] = [
       { path: '', pathMatch: 'full', redirectTo: 'users' },
       { path: 'users', loadComponent: () => import('./users/user-list').then((m) => m.UserList) },
       { path: 'users/:id', loadComponent: () => import('./users/user-detail').then((m) => m.UserDetail) },
+      { path: 'invitations', loadComponent: () => import('./invitations/invitations-page').then((m) => m.InvitationsPage) },
       { path: 'audit', loadComponent: () => import('./audit/audit-list').then((m) => m.AuditList) },
       { path: 'email', loadComponent: () => import('./email/email-page').then((m) => m.EmailPage) },
       { path: 'settings', loadComponent: () => import('./settings/settings-page').then((m) => m.SettingsPage) },

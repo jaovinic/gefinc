@@ -13,6 +13,8 @@ import type {
   EmailDeliveryPage,
   EmailKind,
   EmailTestResult,
+  Invitation,
+  InvitationStatus,
   PendingEmailChange,
   RoleChangeRequest,
 } from '@gefinc/core-models';
@@ -121,6 +123,35 @@ export class AdminApi {
   /** Detalhe de um usuário. Cada abertura é registrada na auditoria pelo servidor. */
   getUser(id: number): Observable<AdminUserDetail> {
     return this.guarded(this.http.get<AdminUserDetail>(`${this.base}/admin/users/${id}`));
+  }
+
+  /** Altera o nome de exibição do usuário (efeito imediato). */
+  renameUser(userId: number, name: string | null): Observable<AdminUserDetail> {
+    return this.guarded(this.http.patch<AdminUserDetail>(`${this.base}/admin/users/${userId}`, { name }));
+  }
+
+  /** Lista convites de cadastro com filtro opcional por status. */
+  listInvitations(status?: InvitationStatus): Observable<Invitation[]> {
+    let params = new HttpParams();
+    if (status) {
+      params = params.set('status', status);
+    }
+    return this.guarded(this.http.get<Invitation[]>(`${this.base}/admin/invitations`, { params }));
+  }
+
+  /** Cria ou reenvia convite de cadastro para o e-mail informado. */
+  createInvitation(email: string): Observable<Invitation> {
+    return this.guarded(this.http.post<Invitation>(`${this.base}/admin/invitations`, { email }));
+  }
+
+  /** Reenvia convite pendente gerando novo link. */
+  resendInvitation(id: number): Observable<void> {
+    return this.guarded(this.http.post<void>(`${this.base}/admin/invitations/${id}/resend`, null));
+  }
+
+  /** Cancela convite pendente e zera o e-mail em claro. */
+  cancelInvitation(id: number): Observable<void> {
+    return this.guarded(this.http.delete<void>(`${this.base}/admin/invitations/${id}`));
   }
 
   /** Concede (`ADMIN`) ou retira (`USER`) o perfil de administrador; exige a senha de quem pede. */
