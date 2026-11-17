@@ -421,6 +421,16 @@ description: "Lista de tarefas da feature Painel administrativo (papéis, usuár
 
 **Checkpoint**: convites e edição de usuários entregues.
 
+**Notas de implementação** (desvios decididos e registrados):
+
+- **A42, quitação do débito técnico da US1 / Fatia F2 — concessão e retirada de perfil de administrador (`AdminRoleService`, `AdminPolicy`)**:
+  - Revalidação transacional do papel e estado ativo do administrador atuante (`CurrentUser.id()`) contra o banco de dados antes da política, barrando em voo atores rebaixados ou suspensos com `403 FORBIDDEN` auditado.
+  - Reautenticação por senha (`@Destructive`, `403 REAUTH_FAILED`) processada antes do bloqueio de linha do alvo (`findForUpdate`), respeitando rigorosamente as regras A31a e A32.
+  - Ao revogar o perfil de administrador (`ADMIN -> USER`), encerramento de todas as sessões e tokens de renovação (`tokens.revokeAllOfUser(targetId, RevokedBy.ADMIN)`) e invalidação imediata dos tokens de acesso (`target.revokeAccessTokens()`).
+  - Ordem global de travas rigorosamente preservada: bloqueio da linha do alvo (`findForUpdate`) antes da trava consultiva `pg_advisory_xact_lock(hashtext('gefinc.admin-set'))`.
+  - Proteção absoluta do raiz (`403 ROOT_PROTECTED`), bloqueio de auto-ação (`409 SELF_ACTION_FORBIDDEN`) e garantia de manter ao menos um administrador ativo (`409 LAST_ADMIN`), cobertos pelas novas suítes `LastAdminProtectionIT` e `SelfRoleChangeIT`, além das extensões em `AdminRoleIT` e `RoleChangeTakesEffectIT`.
+  - Frontend (`user-detail.ts` e `user-detail.spec.ts`) validado com restrição reativa de auto-ação (`!isSelf(u)`), confirmação por senha em `ActionDialog` e recarregamento coordenado de sessões e detalhes.
+
 ---
 
 ## Phase 12: User Story 10 - Excluir usuário com salvaguardas (Priority: P3, fatia F6)
