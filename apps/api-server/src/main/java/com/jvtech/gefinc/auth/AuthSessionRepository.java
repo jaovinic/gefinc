@@ -74,4 +74,21 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> 
   @Modifying
   @Query("delete from AuthSession s where s.expiresAt < :limit or s.revokedAt < :limit")
   int deleteInactiveBefore(@Param("limit") Instant limit);
+
+  /** Conta sessões abertas elegíveis para revogação global em emergência. */
+  @Query(
+      "select count(s) from AuthSession s where s.revokedAt is null and s.expiresAt > :now"
+          + " and (:mySessionId is null or s.id <> :mySessionId)"
+          + " and s.userId not in (select u.id from User u where u.role = com.jvtech.gefinc.user.UserRole.ROOT)")
+  int countOpenGlobal(@Param("now") Instant now, @Param("mySessionId") UUID mySessionId);
+
+  /** Encerra em massa todas as sessões exceto as dos raízes e a sessão atual do administrador. */
+  @Modifying
+  @Query(
+      "update AuthSession s set s.revokedAt = :now, s.revokedBy = :by"
+          + " where s.revokedAt is null"
+          + " and (:mySessionId is null or s.id <> :mySessionId)"
+          + " and s.userId not in (select u.id from User u where u.role = com.jvtech.gefinc.user.UserRole.ROOT)")
+  int revokeAllGlobal(
+      @Param("now") Instant now, @Param("by") String by, @Param("mySessionId") UUID mySessionId);
 }

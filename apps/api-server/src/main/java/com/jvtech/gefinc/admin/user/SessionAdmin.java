@@ -8,9 +8,11 @@ import com.jvtech.gefinc.admin.common.AdminActionExecutor.AuditContext;
 import com.jvtech.gefinc.admin.common.AdminPolicy;
 import com.jvtech.gefinc.admin.common.AdminPolicy.Action;
 import com.jvtech.gefinc.admin.common.AdminPolicy.Subject;
+import com.jvtech.gefinc.admin.common.Reauthenticator;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.AdminSession;
 import com.jvtech.gefinc.auth.AuthSession;
 import com.jvtech.gefinc.auth.AuthSessionRepository;
+import com.jvtech.gefinc.auth.RefreshTokenRepository;
 import com.jvtech.gefinc.auth.RevokedBy;
 import com.jvtech.gefinc.auth.TokenService;
 import com.jvtech.gefinc.common.error.ApiException;
@@ -20,6 +22,7 @@ import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
 import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,7 +46,9 @@ public class SessionAdmin {
   private final AdminPolicy policy;
   private final UserRepository users;
   private final AuthSessionRepository sessions;
+  private final RefreshTokenRepository refreshTokens;
   private final TokenService tokens;
+  private final Reauthenticator reauthenticator;
   private final Clock clock;
 
   public SessionAdmin(
@@ -51,13 +56,17 @@ public class SessionAdmin {
       AdminPolicy policy,
       UserRepository users,
       AuthSessionRepository sessions,
+      RefreshTokenRepository refreshTokens,
       TokenService tokens,
+      Reauthenticator reauthenticator,
       Clock clock) {
     this.executor = executor;
     this.policy = policy;
     this.users = users;
     this.sessions = sessions;
+    this.refreshTokens = refreshTokens;
     this.tokens = tokens;
+    this.reauthenticator = reauthenticator;
     this.clock = clock;
   }
 
@@ -123,6 +132,40 @@ public class SessionAdmin {
           target.revokeAccessTokens();
           return null;
         });
+  }
+
+  /**
+   * Encerra todas as sessões do sistema exceto a sessão atual do administrador atuante e todas as
+   * sessões de usuários ROOT. Exige reautenticação com senha e confirmação com a palavra ENCERRAR.
+   */
+  public int revokeAllGlobal(String password, String confirmWord) {
+    AtomicInteger count = new AtomicInteger();
+    long actorId = CurrentUser.id();
+    UUID mySessionId = CurrentUser.sessionId();
+
+    executor.run(
+        new AuditContext(
+            AuditAction.SYSTEM_SESSIONS_REVOKED,
+            null,
+            null,
+            null,
+            () -> AuditDetails.of().put(AuditKey.COUNT, count.get())),
+        () -> {
+          reauthenticator.verify(password);
+          if (!"ENCERRAR".equals(confirmWord)) {
+            throw new ApiException(
+                ErrorCode.INVALID_CONFIRMATION, "Palavra de confirmação inválida.");
+          }
+          Instant now = clock.instant();
+          int openCount = sessions.countOpenGlobal(now, mySessionId);
+          count.set(openCount);
+          sessions.revokeAllGlobal(now, RevokedBy.ADMIN.name(), mySessionId);
+          refreshTokens.revokeAllGlobal(now, mySessionId);
+          users.incrementTokenVersionGlobal(actorId);
+          return null;
+        });
+
+    return count.get();
   }
 
   private static AdminSession toDto(AuthSession session, UUID mine) {

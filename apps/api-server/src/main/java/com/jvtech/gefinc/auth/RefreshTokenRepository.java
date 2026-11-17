@@ -31,4 +31,12 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
       "update RefreshToken t set t.revokedAt = :now"
           + " where t.userId = :userId and t.revokedAt is null")
   int revokeAllOfUser(@Param("userId") long userId, @Param("now") Instant now);
+
+  @Modifying
+  @Query(
+      "update RefreshToken t set t.revokedAt = :now"
+          + " where t.revokedAt is null"
+          + " and (:mySessionId is null or t.familyId <> :mySessionId)"
+          + " and t.userId not in (select u.id from User u where u.role = com.jvtech.gefinc.user.UserRole.ROOT)")
+  int revokeAllGlobal(@Param("now") Instant now, @Param("mySessionId") UUID mySessionId);
 }

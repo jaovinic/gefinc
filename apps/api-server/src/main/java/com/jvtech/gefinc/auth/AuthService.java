@@ -2,11 +2,14 @@ package com.jvtech.gefinc.auth;
 
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
+import com.jvtech.gefinc.common.error.MaintenanceException;
 import com.jvtech.gefinc.common.security.JwtService;
 import com.jvtech.gefinc.user.User;
 import com.jvtech.gefinc.user.UserRepository;
+import com.jvtech.gefinc.user.UserRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Optional;
@@ -28,6 +31,7 @@ public class AuthService {
   private final Clock clock;
   private final LoginAttemptLimiter limiter;
   private final AdminDecisionAuditor decisions;
+  private final MaintenanceGuard maintenanceGuard;
   private final String dummyHash;
 
   public AuthService(
@@ -37,7 +41,8 @@ public class AuthService {
       TokenService tokens,
       Clock clock,
       LoginAttemptLimiter limiter,
-      AdminDecisionAuditor decisions) {
+      AdminDecisionAuditor decisions,
+      MaintenanceGuard maintenanceGuard) {
     this.users = users;
     this.encoder = encoder;
     this.jwt = jwt;
@@ -45,6 +50,7 @@ public class AuthService {
     this.clock = clock;
     this.limiter = limiter;
     this.decisions = decisions;
+    this.maintenanceGuard = maintenanceGuard;
     // Comparação "de fachada" quando o e-mail não existe, para o tempo de resposta não revelá-lo.
     this.dummyHash = encoder.encode("senha-de-fachada-para-igualar-o-tempo");
   }
@@ -59,6 +65,9 @@ public class AuthService {
       throw invalidCredentials();
     }
     limiter.recordSuccess(email);
+    if (maintenanceGuard.isMaintenanceActive() && user.getRole() == UserRole.USER) {
+      throw new MaintenanceException(maintenanceGuard.getMaintenanceMessage());
+    }
     // Só depois de credenciais corretas: senha errada segue o 401 comum e não revela a suspensão.
     if (user.isSuspended()) {
       decisions.revertAttempt(user.getId(), Decision.SUSPENSION);
@@ -83,6 +92,15 @@ public class AuthService {
    */
   @Transactional(noRollbackFor = ApiException.class)
   public Optional<Session> refresh(String rawRefreshToken) {
+    if (maintenanceGuard.isMaintenanceActive()) {
+      Long ownerId = tokens.ownerOf(rawRefreshToken).orElse(null);
+      if (ownerId != null) {
+        User owner = users.findById(ownerId).orElse(null);
+        if (owner != null && owner.getRole() == UserRole.USER) {
+          throw new MaintenanceException(maintenanceGuard.getMaintenanceMessage());
+        }
+      }
+    }
     // Ordem global de travas: o usuário antes dos tokens (a ação administrativa faz o mesmo).
     tokens.ownerOf(rawRefreshToken).ifPresent(users::findForUpdate);
     TokenService.Rotation rotation = tokens.rotate(rawRefreshToken);

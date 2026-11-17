@@ -3,6 +3,7 @@ package com.jvtech.gefinc.auth;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor;
 import com.jvtech.gefinc.admin.audit.AdminDecisionAuditor.Decision;
 import com.jvtech.gefinc.admin.common.AdminPolicy;
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.common.security.Pseudonymizer;
@@ -29,6 +30,7 @@ public class AccountDeletionService {
   private final Pseudonymizer pseudonymizer;
   private final AdminPolicy adminPolicy;
   private final AdminDecisionAuditor decisions;
+  private final MaintenanceGuard maintenanceGuard;
 
   public AccountDeletionService(
       UserRepository users,
@@ -39,7 +41,8 @@ public class AccountDeletionService {
       DeletionLedger ledger,
       Pseudonymizer pseudonymizer,
       AdminPolicy adminPolicy,
-      AdminDecisionAuditor decisions) {
+      AdminDecisionAuditor decisions,
+      MaintenanceGuard maintenanceGuard) {
     this.users = users;
     this.auth = auth;
     this.tokens = tokens;
@@ -49,6 +52,7 @@ public class AccountDeletionService {
     this.pseudonymizer = pseudonymizer;
     this.adminPolicy = adminPolicy;
     this.decisions = decisions;
+    this.maintenanceGuard = maintenanceGuard;
   }
 
   /**
@@ -95,6 +99,7 @@ public class AccountDeletionService {
    */
   @Transactional
   public void cancel(String email, String password, String clientIp) {
+    maintenanceGuard.checkMaintenance();
     // Mesmo limite do login: este caminho também testa e-mail e senha sem sessão.
     limiter.checkAllowed(email, clientIp);
     String key = email.strip();

@@ -81,6 +81,9 @@ public abstract class IntegrationTestBase {
   @Autowired private List<PerKeyRateLimiter> perKeyRateLimiters;
   @Autowired private PasswordEncoder passwordEncoder;
 
+  @Autowired(required = false)
+  private com.jvtech.gefinc.admin.parameter.SystemParameterService systemParameterService;
+
   @Autowired private MeterRegistry meterRegistry;
 
   /**
@@ -109,6 +112,9 @@ public abstract class IntegrationTestBase {
     perKeyRateLimiters.forEach(PerKeyRateLimiter::clear);
     truncateAllTables();
     AdminSeed.restore(jdbc);
+    if (systemParameterService != null) {
+      systemParameterService.invalidateCache();
+    }
     GREEN_MAIL.purgeEmailFromAllMailboxes();
   }
 

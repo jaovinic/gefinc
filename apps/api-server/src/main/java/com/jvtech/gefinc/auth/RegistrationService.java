@@ -1,5 +1,6 @@
 package com.jvtech.gefinc.auth;
 
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.error.ApiException;
 import com.jvtech.gefinc.common.error.ErrorCode;
 import com.jvtech.gefinc.user.User;
@@ -20,22 +21,27 @@ public class RegistrationService {
   private final PasswordPolicy policy;
   private final ApplicationEventPublisher events;
   private final Clock clock;
+  private final MaintenanceGuard maintenanceGuard;
 
   public RegistrationService(
       UserRepository users,
       PasswordEncoder encoder,
       PasswordPolicy policy,
       ApplicationEventPublisher events,
-      Clock clock) {
+      Clock clock,
+      MaintenanceGuard maintenanceGuard) {
     this.users = users;
     this.encoder = encoder;
     this.policy = policy;
     this.events = events;
     this.clock = clock;
+    this.maintenanceGuard = maintenanceGuard;
   }
 
   @Transactional
   public User register(String email, String password) {
+    maintenanceGuard.checkMaintenance();
+    maintenanceGuard.checkSignupsOpen();
     policy
         .violation(password)
         .ifPresent(

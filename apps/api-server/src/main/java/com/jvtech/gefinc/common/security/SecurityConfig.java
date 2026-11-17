@@ -2,6 +2,7 @@ package com.jvtech.gefinc.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jvtech.gefinc.admin.common.AdminAccessAuditor;
+import com.jvtech.gefinc.admin.parameter.MaintenanceGuard;
 import com.jvtech.gefinc.common.config.AppProperties;
 import com.jvtech.gefinc.idempotency.IdempotencyFilter;
 import com.jvtech.gefinc.idempotency.IdempotencyService;
@@ -41,7 +42,8 @@ public class SecurityConfig {
       TokenVersionLookup lookup,
       ObjectMapper mapper,
       IdempotencyService idempotency,
-      AdminAccessAuditor adminAccess)
+      AdminAccessAuditor adminAccess,
+      MaintenanceGuard maintenanceGuard)
       throws Exception {
     ProblemSecurityHandlers handlers = new ProblemSecurityHandlers(mapper, adminAccess);
     http.csrf(AbstractHttpConfigurer::disable)
@@ -58,7 +60,8 @@ public class SecurityConfig {
                         "/auth/password-reset/confirm",
                         "/auth/account-deletion/cancel")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
+                    .requestMatchers(
+                        HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/system/status")
                     .permitAll()
                     // Fechado por padrão: toda rota sob /admin, existente ou não, exige o papel
                     // (visitante 401, usuário comum 403, nunca 404 sob /admin). Exceção: a caixa
@@ -84,6 +87,8 @@ public class SecurityConfig {
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService, lookup),
             UsernamePasswordAuthenticationFilter.class)
+        .addFilterAfter(
+            new MaintenanceFilter(maintenanceGuard, mapper), JwtAuthenticationFilter.class)
         .addFilterAfter(new IdempotencyFilter(idempotency, mapper), AuthorizationFilter.class);
     return http.build();
   }

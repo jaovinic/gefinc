@@ -83,6 +83,16 @@ public interface UserRepository extends JpaRepository<User, Long> {
   @Query("delete from User u where u.deletionRequestedAt <= :limit")
   int deleteExpiredDeletions(@Param("limit") Instant limit);
 
+  /**
+   * Incrementa token_version de todos os usuários não-raiz exceto o administrador atuante,
+   * invalidando tokens de acesso em trânsito após revogação global de sessões.
+   */
+  @Modifying
+  @Query(
+      "update User u set u.tokenVersion = u.tokenVersion + 1"
+          + " where u.role <> com.jvtech.gefinc.user.UserRole.ROOT and u.id <> :currentAdminId")
+  int incrementTokenVersionGlobal(@Param("currentAdminId") long currentAdminId);
+
   /** Projeção de {@link #findAuthState}. */
   interface UserAuthState {
     int getTokenVersion();

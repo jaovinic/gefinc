@@ -47,6 +47,16 @@ public class GlobalExceptionHandler {
         .body(body);
   }
 
+  @ExceptionHandler(MaintenanceException.class)
+  ResponseEntity<ProblemDetail> handleMaintenance(MaintenanceException ex) {
+    ProblemDetail body =
+        ProblemFactory.create(ErrorCode.MAINTENANCE, ex.getMessage(), ex.extras(), List.of());
+    return ResponseEntity.status(ErrorCode.MAINTENANCE.status())
+        .header("Retry-After", "300")
+        .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+        .body(body);
+  }
+
   @ExceptionHandler(ApiException.class)
   ResponseEntity<ProblemDetail> handleApi(ApiException ex) {
     return problem(ex.code(), ex.getMessage(), ex.extras(), ex.errors());

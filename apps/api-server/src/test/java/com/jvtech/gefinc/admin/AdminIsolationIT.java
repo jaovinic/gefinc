@@ -232,6 +232,7 @@ class AdminIsolationIT extends IntegrationTestBase {
             "/admin/email/deliveries",
             "/admin/email/deliveries?limit=100",
             "/admin/email/deliveries?status=FAILED&kind=PASSWORD_RESET"));
+    map.put("/admin/parameters", List.of("/admin/parameters"));
     return map;
   }
 
