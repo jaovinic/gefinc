@@ -149,6 +149,11 @@ public class MailService {
     }
   }
 
+  /** Há remetente e servidor configurados. */
+  public boolean isConfigured() {
+    return !notConfigured();
+  }
+
   /**
    * Sem remetente, ou com um {@link JavaMailSenderImpl} cujo servidor foi informado em branco.
    * Servidor nulo não conta: o sender pode ser um dublê ou ter o servidor definido por outros

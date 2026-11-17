@@ -225,6 +225,13 @@ class AdminIsolationIT extends IntegrationTestBase {
             "/admin/audit/" + auditSuspension,
             "/admin/audit/" + auditAttempt,
             "/admin/audit/" + auditParameter));
+    map.put("/admin/email/config", List.of("/admin/email/config"));
+    map.put(
+        "/admin/email/deliveries",
+        List.of(
+            "/admin/email/deliveries",
+            "/admin/email/deliveries?limit=100",
+            "/admin/email/deliveries?status=FAILED&kind=PASSWORD_RESET"));
     return map;
   }
 

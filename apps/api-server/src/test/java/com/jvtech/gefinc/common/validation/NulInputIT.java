@@ -63,6 +63,15 @@ class NulInputIT extends IntegrationTestBase {
             "GET /admin/audit?cursor=NUL no meio",
             t -> t.adminGet("/admin/audit").param("cursor", "MTIz\u0000NDU2")),
         arguments(
+            "GET /admin/email/deliveries?status=%00",
+            t -> t.adminGet("/admin/email/deliveries").param("status", "\u0000")),
+        arguments(
+            "GET /admin/email/deliveries?kind=%00",
+            t -> t.adminGet("/admin/email/deliveries").param("kind", "\u0000")),
+        arguments(
+            "GET /admin/email/deliveries?cursor=%00",
+            t -> t.adminGet("/admin/email/deliveries").param("cursor", "\u0000")),
+        arguments(
             "POST /admin/users/{id}/suspend",
             t ->
                 t.adminPost(

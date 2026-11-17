@@ -5,6 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jvtech.gefinc.admin.audit.AuditClientView;
 import com.jvtech.gefinc.admin.audit.AuditEntryView;
 import com.jvtech.gefinc.admin.audit.AuditPageView;
+import com.jvtech.gefinc.admin.email.EmailConfigView;
+import com.jvtech.gefinc.admin.email.EmailDeliveryPageView;
+import com.jvtech.gefinc.admin.email.EmailDeliveryView;
+import com.jvtech.gefinc.admin.email.EmailTestResultView;
 import com.jvtech.gefinc.admin.user.UserPolicyDtos.ForcePasswordResetRequest;
 import java.io.IOException;
 import java.io.Reader;
@@ -113,6 +117,14 @@ class OpenApiSchemaParityTest {
     assertRecordMatchesSchema("AuditClient", AuditClientView.class);
     assertRecordMatchesSchema("AuditPage", AuditPageView.class);
     assertRecordMatchesSchema("ForcePasswordResetRequest", ForcePasswordResetRequest.class);
+  }
+
+  @Test
+  void asSchemasDeEmailTemAsMesmasPropriedadesDosRecordsDaApi() throws IOException {
+    assertRecordMatchesSchema("EmailConfig", EmailConfigView.class);
+    assertRecordMatchesSchema("EmailTestResult", EmailTestResultView.class);
+    assertRecordMatchesSchema("EmailDelivery", EmailDeliveryView.class);
+    assertRecordMatchesSchema("EmailDeliveryPage", EmailDeliveryPageView.class);
   }
 
   @Test
