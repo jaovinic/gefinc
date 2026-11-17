@@ -259,6 +259,129 @@ class LogRedactionIT extends IntegrationTestBase {
     assertThat(leaks).as("linhas de log com dado sensível de convite/renomeação").isEmpty();
   }
 
+  @Test
+  void fluxosDeTrocaDeEmailEExclusaoNaoVazamDadosSensiveisNosLogs() throws Exception {
+    String adminEmail = "adm.redaction2@example.com";
+    String targetEmail = "alvo.redaction@example.com";
+    String newEmail = "novo.redaction@example.com";
+    String justification = "Justificativa ultrassecreta 9876543210 com motivo confidencial";
+    String clientIp = "198.51.100.99";
+
+    seed.createAdmin(adminEmail);
+    String loginBody =
+        mockMvc
+            .perform(
+                post("/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        objectMapper.writeValueAsString(
+                            Map.of(
+                                "email",
+                                adminEmail,
+                                "password",
+                                com.jvtech.gefinc.support.TestUsers.PASSWORD))))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String adminToken = objectMapper.readTree(loginBody).get("accessToken").asText();
+
+    com.jvtech.gefinc.support.TestUsers users =
+        new com.jvtech.gefinc.support.TestUsers(mockMvc, objectMapper);
+    TestUser target = users.registerAndLogin(targetEmail);
+
+    // 1. Troca de e-mail: solicitação
+    mockMvc
+        .perform(
+            post("/admin/users/" + target.id() + "/email-change")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("newEmail", newEmail))))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .isAccepted());
+
+    awaitPendingMails();
+    assertThat(GREEN_MAIL.waitForIncomingEmail(5000, 1)).isTrue();
+    jakarta.mail.internet.MimeMessage[] msgs = GREEN_MAIL.getReceivedMessages();
+    String mailBody = String.valueOf(msgs[msgs.length - 1].getContent());
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\b(\\d{6})\\b").matcher(mailBody);
+    assertThat(m.find()).isTrue();
+    String code = m.group(1);
+
+    // Confirmação da troca de e-mail
+    mockMvc
+        .perform(
+            post("/admin/users/" + target.id() + "/email-change/confirm")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("code", code))))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status()
+                .isNoContent());
+
+    awaitPendingMails();
+
+    // 2. Exclusão com justificativa livre
+    Long reasonId =
+        jdbc.queryForObject(
+            "SELECT id FROM deletion_reasons WHERE active = true LIMIT 1", Long.class);
+
+    var deletionBody =
+        Map.of(
+            "reasonId",
+            reasonId,
+            "justification",
+            justification,
+            "mode",
+            "IMMEDIATE",
+            "confirmEmail",
+            newEmail,
+            "password",
+            com.jvtech.gefinc.support.TestUsers.PASSWORD);
+
+    mockMvc
+        .perform(
+            post("/admin/users/" + target.id() + "/deletion")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                .with(
+                    request -> {
+                      request.setRemoteAddr(clientIp);
+                      return request;
+                    })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(deletionBody)))
+        .andExpect(
+            org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+
+    awaitPendingMails();
+
+    List<String> forbidden =
+        List.of(
+            targetEmail.toLowerCase(),
+            newEmail.toLowerCase(),
+            code,
+            justification,
+            com.jvtech.gefinc.support.TestUsers.PASSWORD,
+            clientIp);
+
+    List<String> leaks =
+        appender.list.stream()
+            .filter(event -> !event.getLoggerName().startsWith("com.icegreen"))
+            .filter(
+                event ->
+                    !event
+                        .getLoggerName()
+                        .equals("org.springframework.security.web.FilterChainProxy"))
+            .filter(
+                event ->
+                    forbidden.stream()
+                        .anyMatch(f -> textOf(event).toLowerCase().contains(f.toLowerCase())))
+            .map(event -> event.getLoggerName() + " -> " + abbreviate(event.getFormattedMessage()))
+            .distinct()
+            .toList();
+    assertThat(leaks).as("linhas de log com dado sensível de troca de e-mail e exclusão").isEmpty();
+  }
+
   private static String abbreviate(String text) {
     String oneLine = text.replace('\n', ' ');
     return oneLine.length() > 160 ? oneLine.substring(0, 160) + "…" : oneLine;

@@ -144,7 +144,12 @@ public final class UserPolicyDtos {
   }
 
   /** Pendência de troca de e-mail exibida no detalhe do usuário e na resposta da solicitação. */
-  public record PendingEmailChangeView(String newEmail, Instant expiresAt, int attemptsLeft) {}
+  public record PendingEmailChangeView(String newEmail, Instant expiresAt, int attemptsLeft) {
+    @Override
+    public String toString() {
+      return "PendingEmailChangeView[REDACTED]";
+    }
+  }
 
   /** Bloqueio temporário de login por tentativas, até quando vale. */
   public record AdminLoginLock(Instant lockedUntil) {}
