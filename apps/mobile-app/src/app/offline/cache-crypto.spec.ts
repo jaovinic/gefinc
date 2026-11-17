@@ -84,4 +84,15 @@ describe('CacheCrypto (AES-GCM com a chave no armazenamento seguro)', () => {
 
     expect(storage.value).toBeNull();
   });
+
+  it('cifra e decifra payloads grandes (~1 MB) sem estourar o limite de argumentos', async () => {
+    const c = crypto();
+    const largePlain = JSON.stringify({ data: 'A'.repeat(1024 * 1024) });
+
+    const payload = await c.encrypt(largePlain);
+    expect(payload).toMatch(/^v1\.[A-Za-z0-9+/=_-]+\.[A-Za-z0-9+/=_-]+$/);
+
+    const recovered = await c.decrypt(payload);
+    expect(recovered).toBe(largePlain);
+  });
 });

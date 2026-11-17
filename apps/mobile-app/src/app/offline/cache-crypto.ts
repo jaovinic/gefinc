@@ -33,7 +33,15 @@ export const CACHE_KEY_STORAGE = new InjectionToken<KeyStorage>('CACHE_KEY_STORA
   factory: () => new SecureKeyStorage(),
 });
 
-const toBase64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes));
+const CHUNK_SIZE = 0x8000;
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+  }
+  return btoa(binary);
+}
 const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
 /**
