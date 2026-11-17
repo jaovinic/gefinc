@@ -2,6 +2,8 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { of } from 'rxjs';
+import { AdminApi } from './admin.api';
 import { AdminLayout } from './admin-layout';
 
 @Component({ template: '<p data-testid="child">conteúdo da área</p>' })
@@ -11,7 +13,13 @@ describe('AdminLayout (casca do painel)', () => {
   async function render() {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [provideRouter([{ path: 'admin', component: AdminLayout, children: [{ path: 'users', component: Child }] }])],
+      providers: [
+        provideRouter([{ path: 'admin', component: AdminLayout, children: [{ path: 'users', component: Child }] }]),
+        {
+          provide: AdminApi,
+          useValue: { getAlerts: () => of({ pendingCommunications: 0 }) },
+        },
+      ],
     });
     const harness = await RouterTestingHarness.create('/admin/users');
     const el = harness.routeNativeElement as HTMLElement;

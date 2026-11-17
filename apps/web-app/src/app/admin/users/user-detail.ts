@@ -1,13 +1,14 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { AdminUserDetail } from '@gefinc/core-models';
 import { CurrentUser, ErrorView, Icon, LoadingView, NoticeService, isOfflineProblem, messageFor, toProblem } from '@gefinc/ui-shared';
 import type { Observable, Subscription } from 'rxjs';
-import { AdminApi } from '../admin.api';
+import { AdminApi, type DeletionReason, type DeletionRequestInput } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
 import { roleLabel, statusBadges, type StatusBadge } from '../admin-status';
 import { ActionDialog, type ActionDialogResult } from './action-dialog';
+import { DeletionDialog } from './deletion-dialog';
 import { EmailChangeDialog } from './email-change-dialog';
 import { PasswordResetDialog, type PasswordResetMode } from './password-reset-dialog';
 import { SessionList } from './session-list';
@@ -94,7 +95,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
  */
 @Component({
   selector: 'gef-admin-user-detail',
-  imports: [ActionDialog, EmailChangeDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
+  imports: [ActionDialog, DeletionDialog, EmailChangeDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4">
@@ -203,6 +204,14 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
                   <button type="button" class="gef-btn-danger" data-testid="action-reset-force" (click)="askReset('force')"><gef-icon name="alert" [size]="16" />Forçar redefinição de senha</button>
                 }
               }
+              @if (!isSelf(u)) {
+                @if (u.deletionPending) {
+                  <button type="button" class="gef-btn-danger" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Antecipar exclusão</button>
+                  <button type="button" class="gef-btn-secondary" data-testid="action-cancel-deletion" (click)="cancelScheduledDeletion()"><gef-icon name="undo" [size]="16" />Cancelar exclusão</button>
+                } @else {
+                  <button type="button" class="gef-btn-danger" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Excluir conta</button>
+                }
+              }
             </div>
             @if (isSelf(u)) {
               <p class="text-caption text-gefinc-muted" data-testid="actions-self">Você não pode suspender a própria conta nem alterar o próprio perfil.</p>
@@ -218,6 +227,12 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
           <p data-testid="deletion">
             @if (u.deletion; as deletion) {
               Exclusão agendada, {{ deletion.origin === 'ADMIN' ? 'pedida por um administrador' : 'pedida pelo próprio usuário' }} em {{ date(deletion.requestedAt) }}, prevista para {{ date(deletion.dueAt) }}.
+              @if (deletion.reasonName) {
+                <span class="block mt-1 text-caption text-gefinc-muted" data-testid="deletion-reason">Motivo: {{ deletion.reasonName }}</span>
+              }
+              @if (deletion.noticeState === 'PENDING') {
+                <span class="block mt-1 text-caption text-gefinc-warning" data-testid="deletion-notice-pending">Aviso por e-mail pendente de entrega.</span>
+              }
             } @else {
               Sem exclusão pendente
             }
@@ -286,6 +301,17 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
       (cancelled)="closeEmailChange()"
     />
 
+    <gef-deletion-dialog
+      [open]="deletionOpen()"
+      [targetEmail]="user()?.email ?? ''"
+      [reasons]="deletionReasons()"
+      [currentDueAt]="user()?.deletion?.dueAt ?? null"
+      [busy]="deletionBusy()"
+      [error]="deletionError()"
+      (confirmed)="confirmDeletion($event)"
+      (cancelled)="closeDeletion()"
+    />
+
     @if (renameOpen()) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="rename-modal">
         <div class="gef-card w-full max-w-md space-y-4 p-6" role="dialog" aria-modal="true" aria-labelledby="rename-title">
@@ -314,6 +340,7 @@ export class UserDetail implements OnInit, OnDestroy {
   private readonly currentUser = inject(CurrentUser);
   private readonly notices = inject(NoticeService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
 
@@ -332,6 +359,11 @@ export class UserDetail implements OnInit, OnDestroy {
   protected readonly resetMode = signal<PasswordResetMode | null>(null);
   protected readonly resetBusy = signal(false);
   protected readonly resetError = signal<string | null>(null);
+
+  protected readonly deletionOpen = signal(false);
+  protected readonly deletionReasons = signal<readonly DeletionReason[]>([]);
+  protected readonly deletionBusy = signal(false);
+  protected readonly deletionError = signal<string | null>(null);
 
   protected readonly emailChangeOpen = signal(false);
   protected readonly emailChangeBusy = signal(false);
@@ -651,5 +683,78 @@ export class UserDetail implements OnInit, OnDestroy {
 
   protected badges(user: AdminUserDetail): StatusBadge[] {
     return statusBadges(user);
+  }
+
+  protected openDeletion(): void {
+    this.deletionError.set(null);
+    this.api.listDeletionReasons().subscribe({
+      next: (reasons) => {
+        this.deletionReasons.set(reasons);
+        this.deletionOpen.set(true);
+      },
+      error: (error: unknown) => {
+        this.notices.toast(messageFor(toProblem(error)));
+      },
+    });
+  }
+
+  protected closeDeletion(): void {
+    if (!this.deletionBusy()) {
+      this.deletionOpen.set(false);
+      this.deletionError.set(null);
+    }
+  }
+
+  protected confirmDeletion(input: DeletionRequestInput): void {
+    if (this.deletionBusy()) return;
+    this.deletionBusy.set(true);
+    this.deletionError.set(null);
+
+    this.api.requestDeletion(this.userId, input).subscribe({
+      next: (outcome) => {
+        this.deletionBusy.set(false);
+        this.deletionOpen.set(false);
+        if (outcome.status === 'EXECUTED') {
+          this.notices.toast('Conta excluída permanentemente.');
+          void this.router.navigateByUrl('/admin/users');
+        } else {
+          const msg =
+            outcome.noticeState === 'PENDING'
+              ? 'Exclusão agendada. O aviso por e-mail falhou e virou comunicação pendente.'
+              : 'Exclusão agendada com sucesso.';
+          this.notices.toast(msg);
+          this.actionStatus.set(msg);
+          this.reload();
+        }
+      },
+      error: (error: unknown) => {
+        const problem = toProblem(error);
+        this.deletionBusy.set(false);
+        this.deletionError.set(
+          problem.fieldErrors['justification'] ??
+            problem.fieldErrors['password'] ??
+            problem.fieldErrors['confirmEmail'] ??
+            messageFor(problem),
+        );
+      },
+    });
+  }
+
+  protected cancelScheduledDeletion(): void {
+    if (this.actionBusy()) return;
+    this.actionBusy.set(true);
+    this.api.cancelDeletion(this.userId).subscribe({
+      next: () => {
+        this.actionBusy.set(false);
+        const msg = 'Exclusão agendada cancelada.';
+        this.notices.toast(msg);
+        this.actionStatus.set(msg);
+        this.reload();
+      },
+      error: (error: unknown) => {
+        this.actionBusy.set(false);
+        this.notices.toast(messageFor(toProblem(error)));
+      },
+    });
   }
 }

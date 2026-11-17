@@ -250,6 +250,7 @@ describe('UserDetail', () => {
         'Trocar e-mail',
         'Reenviar e-mail de redefinição',
         'Forçar redefinição de senha',
+        'Excluir conta',
       ]);
     });
 
@@ -742,6 +743,54 @@ describe('UserDetail', () => {
 
       expect(text(el.querySelector('[data-testid="rename-error"]'))).toBe('Nome inválido.');
       expect(el.querySelector('[data-testid="rename-modal"]')).not.toBeNull();
+    });
+  });
+
+  describe('exclusão de conta', () => {
+    it('abrir exclusão busca os motivos e abre o diálogo', async () => {
+      const { harness, el } = await setup();
+
+      const btnDelete = el.querySelector('[data-testid="action-delete"]') as HTMLElement;
+      expect(btnDelete).not.toBeNull();
+      expect(btnDelete.textContent).toContain('Excluir conta');
+
+      btnDelete.click();
+      await settle(harness);
+
+      const reqReasons = http.expectOne('/api/v1/admin/deletion-reasons');
+      expect(reqReasons.request.method).toBe('GET');
+      reqReasons.flush([{ id: 1, name: 'LGPD', message: 'Msg', active: true, initial: true }]);
+      await settle(harness);
+
+      expect(el.querySelector('[role="alertdialog"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="privacy-notice"]')).not.toBeNull();
+    });
+
+    it('usuário com exclusão agendada oferece antecipar e cancelar', async () => {
+      const { harness, el } = await setup({
+        ...base,
+        deletionPending: true,
+        deletion: { origin: 'ADMIN', requestedAt: '2026-10-01T12:00:00Z', dueAt: '2026-11-01T12:00:00Z', reasonName: 'LGPD', noticeState: 'SENT' },
+      });
+
+      const btnAnticipate = el.querySelector('[data-testid="action-delete"]') as HTMLElement;
+      expect(btnAnticipate.textContent).toContain('Antecipar exclusão');
+
+      const btnCancel = el.querySelector('[data-testid="action-cancel-deletion"]') as HTMLElement;
+      expect(btnCancel.textContent).toContain('Cancelar exclusão');
+
+      btnCancel.click();
+      await settle(harness);
+
+      const reqCancel = http.expectOne('/api/v1/admin/users/7/deletion');
+      expect(reqCancel.request.method).toBe('DELETE');
+      reqCancel.flush(null);
+      await settle(harness);
+
+      detailRequest().flush({ ...base, deletionPending: false, deletion: undefined });
+      await settle(harness);
+
+      expect(toast).toHaveBeenCalledWith('Exclusão agendada cancelada.');
     });
   });
 });

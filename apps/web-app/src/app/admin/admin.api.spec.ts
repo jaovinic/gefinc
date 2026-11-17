@@ -352,5 +352,90 @@ describe('AdminApi', () => {
       expect(revokeAll.request.body).toEqual({ password: 'senhaAdm', confirmWord: 'ENCERRAR' });
       revokeAll.flush({ revoked: 12 });
     });
+
+    it('exclusão de usuários e cancelamento chamam POST e DELETE /admin/users/{id}/deletion', () => {
+      let outcomeStatus = '';
+      api
+        .requestDeletion(99, {
+          reasonId: 1,
+          justification: 'Solicitação LGPD',
+          mode: 'GRACE',
+          days: 15,
+          confirmEmail: 'alvo@teste.com',
+          password: 'senha',
+        })
+        .subscribe((res) => (outcomeStatus = res.status));
+
+      const postDel = http.expectOne('/api/v1/admin/users/99/deletion');
+      expect(postDel.request.method).toBe('POST');
+      expect(postDel.request.body).toEqual({
+        reasonId: 1,
+        justification: 'Solicitação LGPD',
+        mode: 'GRACE',
+        days: 15,
+        confirmEmail: 'alvo@teste.com',
+        password: 'senha',
+      });
+      postDel.flush({ status: 'SCHEDULED', dueAt: '2026-11-01T00:00:00Z', noticeState: 'SENT' });
+      expect(outcomeStatus).toBe('SCHEDULED');
+
+      let canceled = false;
+      api.cancelDeletion(99).subscribe(() => (canceled = true));
+      const delDel = http.expectOne('/api/v1/admin/users/99/deletion');
+      expect(delDel.request.method).toBe('DELETE');
+      delDel.flush(null);
+      expect(canceled).toBe(true);
+    });
+
+    it('gestão de motivos de exclusão (listar, criar, atualizar, desativar, reativar)', () => {
+      api.listDeletionReasons().subscribe();
+      const getReasons = http.expectOne('/api/v1/admin/deletion-reasons');
+      expect(getReasons.request.method).toBe('GET');
+      getReasons.flush([{ id: 1, name: 'Titular', message: 'Msg', active: true, initial: true }]);
+
+      api.createDeletionReason({ name: 'Fraude', message: 'Mensagem genérica' }).subscribe();
+      const postReason = http.expectOne('/api/v1/admin/deletion-reasons');
+      expect(postReason.request.method).toBe('POST');
+      expect(postReason.request.body).toEqual({ name: 'Fraude', message: 'Mensagem genérica' });
+      postReason.flush({ id: 5, name: 'Fraude', message: 'Mensagem genérica', active: true, initial: false });
+
+      api.updateDeletionReason(5, { name: 'Fraude comprovada', message: 'Nova msg' }).subscribe();
+      const putReason = http.expectOne('/api/v1/admin/deletion-reasons/5');
+      expect(putReason.request.method).toBe('PUT');
+      expect(putReason.request.body).toEqual({ name: 'Fraude comprovada', message: 'Nova msg' });
+      putReason.flush({ id: 5, name: 'Fraude comprovada', message: 'Nova msg', active: true, initial: false });
+
+      api.deactivateDeletionReason(5).subscribe();
+      const deactReason = http.expectOne('/api/v1/admin/deletion-reasons/5/deactivate');
+      expect(deactReason.request.method).toBe('POST');
+      deactReason.flush(null);
+
+      api.activateDeletionReason(5).subscribe();
+      const actReason = http.expectOne('/api/v1/admin/deletion-reasons/5/activate');
+      expect(actReason.request.method).toBe('POST');
+      actReason.flush(null);
+    });
+
+    it('comunicações pendentes e alertas operacionais', () => {
+      api.listPendingCommunications().subscribe();
+      const getPending = http.expectOne('/api/v1/admin/communications/pending');
+      expect(getPending.request.method).toBe('GET');
+      getPending.flush([{ id: 1, kind: 'DELETION_NOTICE', targetLabel: 'alvo@teste.com' }]);
+
+      api.resendPendingCommunication(1).subscribe();
+      const resend = http.expectOne('/api/v1/admin/communications/pending/1/resend');
+      expect(resend.request.method).toBe('POST');
+      resend.flush({ state: 'DELIVERED' });
+
+      api.discardPendingCommunication(1).subscribe();
+      const discard = http.expectOne('/api/v1/admin/communications/pending/1/discard');
+      expect(discard.request.method).toBe('POST');
+      discard.flush(null);
+
+      api.getAlerts().subscribe();
+      const getAlerts = http.expectOne('/api/v1/admin/alerts');
+      expect(getAlerts.request.method).toBe('GET');
+      getAlerts.flush({ pendingCommunications: 3 });
+    });
   });
 });

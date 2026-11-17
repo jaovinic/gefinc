@@ -80,6 +80,52 @@ export interface RevokeAllResult {
   readonly revoked: number;
 }
 
+export interface DeletionRequestInput {
+  readonly reasonId: number;
+  readonly justification: string;
+  readonly mode: 'IMMEDIATE' | 'GRACE';
+  readonly days?: number;
+  readonly confirmEmail: string;
+  readonly password: string;
+}
+
+export interface DeletionOutcome {
+  readonly status: 'SCHEDULED' | 'EXECUTED';
+  readonly dueAt: string | null;
+  readonly noticeState: string;
+}
+
+export interface DeletionReason {
+  readonly id: number;
+  readonly name: string;
+  readonly message: string;
+  readonly active: boolean;
+  readonly initial: boolean;
+}
+
+export interface DeletionReasonInput {
+  readonly name: string;
+  readonly message: string;
+}
+
+export interface PendingCommunication {
+  readonly id: number;
+  readonly kind: string;
+  readonly targetLabel: string;
+  readonly failureReason: string;
+  readonly attempts: number;
+  readonly createdAt: string;
+  readonly retainedUntil: string | null;
+}
+
+export interface ResendPendingResult {
+  readonly state: 'DELIVERED' | 'PENDING';
+}
+
+export interface AdminAlerts {
+  readonly pendingCommunications: number;
+}
+
 /**
  * Cliente das rotas `/admin/**`. As recusas de regra (`ROOT_PROTECTED`, `LAST_ADMIN`,
  * `REAUTH_FAILED`...) chegam como 403/409/422 `problem+json` e seguem para a tela, que as mostra; o
@@ -305,6 +351,83 @@ export class AdminApi {
   revokeAllGlobalSessions(password: string, confirmWord: string): Observable<RevokeAllResult> {
     return this.guarded(
       this.http.post<RevokeAllResult>(`${this.base}/admin/sessions/revoke-all`, { password, confirmWord }),
+    );
+  }
+
+  /** Solicita ou antecipa a exclusão de uma conta de usuário. */
+  requestDeletion(userId: number, body: DeletionRequestInput): Observable<DeletionOutcome> {
+    return this.guarded(
+      this.http.post<DeletionOutcome>(`${this.base}/admin/users/${userId}/deletion`, body),
+    );
+  }
+
+  /** Cancela a exclusão agendada de um usuário, restaurando o estado anterior exato. */
+  cancelDeletion(userId: number): Observable<void> {
+    return this.guarded(
+      this.http.delete<void>(`${this.base}/admin/users/${userId}/deletion`),
+    );
+  }
+
+  /** Lista os motivos de exclusão cadastrados no sistema (ativos e inativos). */
+  listDeletionReasons(): Observable<DeletionReason[]> {
+    return this.guarded(
+      this.http.get<DeletionReason[]>(`${this.base}/admin/deletion-reasons`),
+    );
+  }
+
+  /** Cadastra um novo motivo de exclusão com mensagem genérica. */
+  createDeletionReason(input: DeletionReasonInput): Observable<DeletionReason> {
+    return this.guarded(
+      this.http.post<DeletionReason>(`${this.base}/admin/deletion-reasons`, input),
+    );
+  }
+
+  /** Altera o nome ou a mensagem genérica de um motivo de exclusão. */
+  updateDeletionReason(id: number, input: DeletionReasonInput): Observable<DeletionReason> {
+    return this.guarded(
+      this.http.put<DeletionReason>(`${this.base}/admin/deletion-reasons/${id}`, input),
+    );
+  }
+
+  /** Desativa um motivo de exclusão (recusado se for o último ativo). */
+  deactivateDeletionReason(id: number): Observable<void> {
+    return this.guarded(
+      this.http.post<void>(`${this.base}/admin/deletion-reasons/${id}/deactivate`, null),
+    );
+  }
+
+  /** Reativa um motivo de exclusão anteriormente desativado. */
+  activateDeletionReason(id: number): Observable<void> {
+    return this.guarded(
+      this.http.post<void>(`${this.base}/admin/deletion-reasons/${id}/activate`, null),
+    );
+  }
+
+  /** Lista as comunicações de e-mail pendentes de envio após falhas. */
+  listPendingCommunications(): Observable<PendingCommunication[]> {
+    return this.guarded(
+      this.http.get<PendingCommunication[]>(`${this.base}/admin/communications/pending`),
+    );
+  }
+
+  /** Tenta reenviar uma comunicação pendente. */
+  resendPendingCommunication(id: number): Observable<ResendPendingResult> {
+    return this.guarded(
+      this.http.post<ResendPendingResult>(`${this.base}/admin/communications/pending/${id}/resend`, null),
+    );
+  }
+
+  /** Descarta uma comunicação pendente, apagando o endereço retido (auditado). */
+  discardPendingCommunication(id: number): Observable<void> {
+    return this.guarded(
+      this.http.post<void>(`${this.base}/admin/communications/pending/${id}/discard`, null),
+    );
+  }
+
+  /** Consulta os alertas operacionais do painel (ex: comunicações pendentes). */
+  getAlerts(): Observable<AdminAlerts> {
+    return this.guarded(
+      this.http.get<AdminAlerts>(`${this.base}/admin/alerts`),
     );
   }
 

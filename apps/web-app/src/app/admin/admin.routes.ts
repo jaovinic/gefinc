@@ -17,6 +17,8 @@ export const adminRoutes: Route[] = [
       { path: 'audit', loadComponent: () => import('./audit/audit-list').then((m) => m.AuditList) },
       { path: 'email', loadComponent: () => import('./email/email-page').then((m) => m.EmailPage) },
       { path: 'settings', loadComponent: () => import('./settings/settings-page').then((m) => m.SettingsPage) },
+      { path: 'deletion-reasons', loadComponent: () => import('./deletion-reasons/reasons-page').then((m) => m.ReasonsPage) },
+      { path: 'communications/pending', loadComponent: () => import('./communications/pending-list').then((m) => m.PendingList) },
     ],
   },
 ];
