@@ -27,40 +27,42 @@ A arquitetura híbrida resolve cada um desses pontos:
 ### 1.2. Diagrama de Comunicação
 
 ```text
-                                       +-----------------------------------+
-                                       |      Borda Global Cloudflare      |
-                                       +-----------------------------------+
-                                         |                               |
-       Acesso Web                        |                               | Requisições de API
- (app.meudominio.com)                    |                               | (api.meudominio.com)
-          |                              |                               |
-          v                              v                               v
-+-------------------+          +-------------------+           +-------------------+
-|  Navegador Web    |          | Cloudflare Pages  |           | Cloudflare Edge   |
-|   (Desktop/Cel)   | <------> |  (Angular 22 SPA) |           |  (Terminação TLS) |
-+-------------------+          +-------------------+           +-------------------+
-          |                              |                               |
-          | Chamadas diretas a api.<dominio> (CORS + cookie)              | Túnel Seguro Outbound
-          +---------------------------------------------------------------+ (HTTP/2 ou QUIC)
-                                                                         v
-=========================================================== | =======================
-REDE LOCAL RESIDENCIAL (Atrás de CGNAT / Roteador Doméstico) |  Túnel Criptografado
-=========================================================== v
-                                               +---------------------------+
-                                               |   Container cloudflared   |
-                                               +---------------------------+
-                                                             | Rede Docker interna
-                                                             v (gefinc-net)
-                                               +---------------------------+
-                                               |   Container api-server    |
-                                               |     (Spring Boot 3.5)     |
-                                               +---------------------------+
-                                                             |
-                                                             v Porta 5432 interna
-                                               +---------------------------+
-                                               |    Container postgres     |
-                                               |      (PostgreSQL 16)      |
-                                               +---------------------------+
+                                       +-------------------------------------------------------+
+                                       |                Borda Global Cloudflare                |
+                                       +-------------------------------------------------------+
+                                          |                         |                        |
+       Acesso Desktop                     | Redirecionamento Mobile | Acesso Mobile          | Requisições de API
+     (app.gefinc.tech)                    | (User-Agent na Borda)   | (m.gefinc.tech)        | (api.gefinc.tech)
+          |                               | (302 -> m.gefinc.tech)  |                        |
+          v                               v                         v                        v
++-------------------+           +-------------------+     +-------------------+    +-------------------+
+|   Navegador Web   | --------> | Cloudflare Pages  |     | Cloudflare Pages  |    |  Cloudflare Edge  |
+|     (Desktop)     |           |   (gefinc-web)    |     |  (gefinc-mobile)  |    | (Terminação TLS)  |
++-------------------+           +-------------------+     +-------------------+    +-------------------+
+          |                               |                         |                        |
+          |                               v                         v                        |
+          +---------------------> Chamadas Diretas a api.gefinc.tech (CORS + Cookies) <-------+
+                                                                                             | Túnel Seguro Outbound
+                                                                                             | (HTTP/2 ou QUIC)
+                                                                                             v
+================================================================================ | =======================
+REDE LOCAL RESIDENCIAL (Atrás de CGNAT / Roteador Doméstico)                     |  Túnel Criptografado
+================================================================================ v
+                                                                   +---------------------------+
+                                                                   |   Container cloudflared   |
+                                                                   +---------------------------+
+                                                                                 | Rede Docker interna
+                                                                                 v (gefinc-net)
+                                                                   +---------------------------+
+                                                                   |   Container api-server    |
+                                                                   |     (Spring Boot 3.5)     |
+                                                                   +---------------------------+
+                                                                                 |
+                                                                                 v Porta 5432 interna
+                                                                   +---------------------------+
+                                                                   |    Container postgres     |
+                                                                   |      (PostgreSQL 16)      |
+                                                                   +---------------------------+
 ```
 
 ---
@@ -167,12 +169,12 @@ Antes de subir os containers no computador local, crie o túnel na Cloudflare:
 6. Na aba **Public Hostnames** do túnel:
    - Clique em **Add a public hostname**.
    - **Subdomain:** `api`
-   - **Domain:** selecione seu domínio registrado na Cloudflare (ex: `meudominio.com`).
+   - **Domain:** selecione seu domínio registrado na Cloudflare (ex: `gefinc.tech`).
    - **Path:** deixe vazio.
    - **Service:**
      - **Type:** `HTTP`
      - **URL:** `api-server:8080` *(este é o nome do container da API e sua porta dentro da rede Docker)*.
-7. Salve o hostname. A Cloudflare criará automaticamente a entrada CNAME necessária no seu DNS apontando `api.meudominio.com` para a rota interna do túnel.
+7. Salve o hostname. A Cloudflare criará automaticamente a entrada CNAME necessária no seu DNS apontando `api.gefinc.tech` para a rota interna do túnel.
 
 ---
 
@@ -270,6 +272,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       # Obrigatórias em produção: URL pública do front (sem barra final) e remetente validado no provedor.
       APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
+      # Origens autorizadas no CORS (front desktop, front mobile na web e esquemas nativos do Capacitor).
+      APP_SECURITY_CORS_ORIGINS: '${APP_SECURITY_CORS_ORIGINS:-${APP_BASE_URL},https://m.gefinc.tech,capacitor://localhost,https://localhost}'
       # Obrigatório e distinto do JWT_SECRET: chave HMAC dos identificadores pseudonimizados (auditoria,
       # histórico de envios). Mínimo de 32 bytes; gere com `openssl rand -base64 48`. Não rotacione.
       PSEUDONYM_SECRET: '${PSEUDONYM_SECRET:?defina PSEUDONYM_SECRET (>= 32 bytes; gere com: openssl rand -base64 48)}'
@@ -346,7 +350,8 @@ DB_PASSWORD=${DB_PASS}
 JWT_SECRET=${JWT_KEY}
 PSEUDONYM_SECRET=${PSEUDO_KEY}
 TRUSTED_PROXY_CIDRS=172.28.0.10/32
-APP_BASE_URL=https://app.meudominio.com
+APP_BASE_URL=https://app.gefinc.tech
+# APP_SECURITY_CORS_ORIGINS=https://app.gefinc.tech,https://m.gefinc.tech,capacitor://localhost,https://localhost
 
 # Token de autenticação do Cloudflare Tunnel
 CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...seu_token_gerado_no_painel_aqui...
@@ -364,7 +369,7 @@ SMTP_USER=seu_login_smtp_do_provedor
 SMTP_PASSWORD=sua_chave_smtp_do_provedor
 SMTP_AUTH=true
 SMTP_STARTTLS=true
-MAIL_FROM=no-reply@meudominio.com
+MAIL_FROM=no-reply@gefinc.tech
 EOF
 
 # Proteger leitura do arquivo
@@ -389,12 +394,12 @@ docker compose -f docker-compose.selfhost.yml logs -f cloudflared
 docker compose -f docker-compose.selfhost.yml logs -f api-server
 ```
 
-Assim que o container `cloudflared` registrar mensagens como `Connection registered`, a API estará acessível mundialmente em `https://api.meudominio.com`.
+Assim que o container `cloudflared` registrar mensagens como `Connection registered`, a API estará acessível mundialmente em `https://api.gefinc.tech`.
 
 ### 5.5. Passo de Verificação do IP Real e Imutabilidade
 
 Com a API e o túnel ativos, valide a correta captura do IP e a barreira de isolamento:
-1. Faça uma tentativa de login incorreta ou acesse a API pelo domínio público (`https://api.meudominio.com`).
+1. Faça uma tentativa de login incorreta ou acesse a API pelo domínio público (`https://api.gefinc.tech`).
 2. Como administrador no painel em `/admin/audit`, confira que o registro de auditoria capturou exatamente o seu **IP público real** (repassado pelo Cloudflare Tunnel via `CF-Connecting-IP`).
 3. Comprove que a API ignora cabeçalhos forjados executando uma chamada interna a partir de outro container na rede Docker:
    ```bash
@@ -404,7 +409,7 @@ Com a API e o túnel ativos, valide a correta captura do IP e a barreira de isol
 
 ---
 
-## 6. Deploy do Frontend Web no Cloudflare Pages
+## 6. Deploy do Frontend Web Desktop no Cloudflare Pages (app.gefinc.tech)
 
 A aplicação web Angular (`apps/web-app`) será hospedada de forma estática no Cloudflare Pages.
 
@@ -435,10 +440,10 @@ Crie o arquivo `apps/web-app/public/_redirects` apenas com o fallback das rotas 
 ```
 
 > [!NOTE]
-> O Cloudflare Pages **não** faz proxy para outro host: a regra de status `200` (rewrite) só vale para caminhos do mesmo site, e uma regra como `/api/* https://api.meudominio.com/... 200` é ignorada (a rota cai no fallback e devolve o `index.html`; um `POST` de login retorna 405). Por isso o web chama a API **diretamente** em `https://api.meudominio.com/api/v1`.
+> O Cloudflare Pages **não** faz proxy para outro host: a regra de status `200` (rewrite) só vale para caminhos do mesmo site, e uma regra como `/api/* https://api.gefinc.tech/... 200` é ignorada (a rota cai no fallback e devolve o `index.html`; um `POST` de login retorna 405). Por isso o web chama a API **diretamente** em `https://api.gefinc.tech/api/v1`.
 >
-> - O build de produção (`--configuration=production`) troca `environment.ts` por `apps/web-app/src/environments/environment.prod.ts`, que contém `apiUrl: 'https://api.meudominio.com/api/v1'`. Ajuste esse valor para o seu domínio. Em desenvolvimento, `environment.ts` mantém `/api/v1` e o `proxy.conf.json` encaminha `/api` para `localhost:8080`.
-> - `APP_BASE_URL` no backend deve ser exatamente `https://app.meudominio.com`, **sem barra final**: é a origem liberada no CORS e a base dos links enviados por e-mail.
+> - O build de produção (`--configuration=production`) troca `environment.ts` por `apps/web-app/src/environments/environment.prod.ts`, que contém `apiUrl: 'https://api.gefinc.tech/api/v1'`. Ajuste esse valor para o seu domínio. Em desenvolvimento, `environment.ts` mantém `/api/v1` e o `proxy.conf.json` encaminha `/api` para `localhost:8080`.
+> - `APP_BASE_URL` no backend deve ser exatamente `https://app.gefinc.tech`, **sem barra final**: é a origem liberada no CORS e a base dos links enviados por e-mail.
 > - O cookie `gefinc_refresh` (`Secure`, `HttpOnly`, `SameSite=Strict`, `Path=/api/v1/auth`) funciona porque `app.` e `api.` pertencem ao mesmo *site* (mesmo domínio registrável); o front usa `withCredentials`.
 > - Não funcionam contra a API de produção: previews `*.pages.dev` e `localhost:4200` (o CORS responde 403 e o cookie seria cross-site).
 
@@ -481,29 +486,110 @@ Crie o arquivo `apps/web-app/public/_headers` para aplicar cabeçalhos defensivo
 
 ### 6.3. Associação de Domínio Personalizado
 
-No Cloudflare Pages, vá na aba **Custom domains** do projeto e configure seu subdomínio preferido, por exemplo: `app.meudominio.com`.
+No Cloudflare Pages, vá na aba **Custom domains** do projeto e associe o subdomínio: `app.gefinc.tech`. A Cloudflare gerará os apontamentos de DNS e certificados SSL automaticamente.
 
 ---
 
-## 7. Configuração e Conexão do Mobile App
+## 7. Deploy do Frontend Mobile no Cloudflare Pages (m.gefinc.tech)
+
+O aplicativo móvel (`apps/mobile-app`) do GEFINC foi construído com Angular e Capacitor. Graças à abstração de portas e aos fallbacks do ecossistema Capacitor (como o `@aparajita/capacitor-secure-storage`, que degrada transparentemente para o `localStorage` no navegador), a mesma base de código funciona tanto como aplicativo nativo (APK) quanto como **Web App / PWA responsivo para celulares**.
+
+Hospedar essa versão no Cloudflare Pages sob `m.gefinc.tech` oferece aos usuários de smartphones uma experiência rápida e fluida sem exigir instalação de loja de aplicativos.
+
+### 7.1. Configuração do Projeto no Cloudflare Dashboard
+
+1. No painel da Cloudflare, navegue até **Workers & Pages** > **Overview** > **Create application** > **Pages** > **Connect to Git**.
+2. Conecte ao mesmo repositório do GEFINC no GitHub/GitLab.
+3. Defina as configurações de compilação:
+   - **Project name:** `gefinc-mobile`
+   - **Production branch:** `main` (ou a sua branch padrão)
+   - **Framework preset:** `None`
+   - **Build command:** `npx nx build mobile-app --configuration=production`
+   - **Build output directory:** `dist/apps/mobile-app/browser`
+4. Em **Environment variables** (Variáveis de ambiente do build):
+   - Adicione: `NODE_VERSION` = `22`
+5. Clique em **Save and Deploy**.
+
+### 7.2. Fallback SPA (`_redirects`), Headers (`_headers`) e Comunicação
+
+Os arquivos de infraestrutura web em `apps/mobile-app/public/` são automaticamente copiados para a raiz do pacote de build:
+
+- **`apps/mobile-app/public/_redirects`**:
+  ```text
+  /*  /index.html  200
+  ```
+  Garante que qualquer recarregamento de página ou rota interna do Angular (ex.: `/carteira`, `/login`, `/lancamentos`) receba `200` e seja atendida pelo roteador SPA do front, evitando erros `404 Not Found`.
+
+- **`apps/mobile-app/public/_headers`**:
+  Configura cabeçalhos de segurança HSTS, `nosniff`, `DENY` de frames e políticas de revalidação de bundles JS/CSS (`no-cache` para revalidação atômica e cache imutável para assets em `media/`).
+
+- **Endpoint da API (`apiUrl`):**
+  O build de produção (`--configuration=production`) substitui `environment.ts` por `apps/mobile-app/src/environments/environment.prod.ts`, que aponta diretamente para `https://api.gefinc.tech/api/v1`.
+
+- **CORS e Cookies:**
+  O backend Spring Boot em `docker-compose.selfhost.yml` autoriza a origem `https://m.gefinc.tech` via `APP_SECURITY_CORS_ORIGINS`. Como `app.gefinc.tech`, `m.gefinc.tech` e `api.gefinc.tech` pertencem ao mesmo domínio registrável (`gefinc.tech`), as requisições autenticadas funcionam com credenciais de sessão completas.
+
+### 7.3. Associação de Domínio Personalizado
+
+No Cloudflare Pages, acesse a aba **Custom domains** do projeto `gefinc-mobile` e associe o subdomínio: `m.gefinc.tech`.
+
+---
+
+## 8. Redirecionamento Automático de Celular para m.gefinc.tech (Cloudflare Redirect Rules)
+
+Para oferecer a melhor experiência, qualquer visitante que abrir `https://app.gefinc.tech` em um smartphone deve ser redirecionado automaticamente para `https://m.gefinc.tech`.
+
+Fazer esse redirecionamento na **Borda da Cloudflare (CDN Edge)** via **Redirect Rules** traz duas grandes vantagens sobre soluções em JavaScript no navegador:
+1. **Zero Sobrecarga de Rede:** O dispositivo móvel não precisa baixar nem processar o bundle desktop (~1MB) para depois ser redirecionado. O redirecionamento ocorre no primeiro pacote HTTP enviado pelo data center da Cloudflare.
+2. **Preservação de Rotas e Parâmetros:** Parâmetros de consulta (como tokens de recuperação de senha ou convites) e caminhos profundos são integralmente preservados.
+
+### 8.1. Criação da Regra no Cloudflare Dashboard
+
+1. No **Cloudflare Dashboard**, selecione o domínio `gefinc.tech`.
+2. No menu lateral, vá em **Rules** (Regras) > **Redirect Rules** (Regras de Redirecionamento).
+3. Clique em **Create rule** (Criar regra).
+4. Preencha os campos da regra:
+   - **Rule name:** `Redirecionar Celular para m.gefinc.tech`
+   - Em **When incoming requests match...**, selecione **Custom filter expression** e clique em **Edit expression**:
+     ```text
+     http.host eq "app.gefinc.tech" and (lower(http.user_agent) contains "mobile" or lower(http.user_agent) contains "android" or lower(http.user_agent) contains "iphone")
+     ```
+   - Em **Then... (URL Redirect)**:
+     - **Type:** `Dynamic`
+     - **Expression:**
+       ```text
+       concat("https://m.gefinc.tech", http.request.uri.path)
+       ```
+     - **Status code:** `302` (*Temporary Redirect* — recomendado para não fixar cache agressivo nos navegadores móveis).
+     - Marque a opção **Preserve query string** (garante que parâmetros `?token=...` ou buscas continuem na URL de destino).
+5. Clique em **Deploy**.
+
+### 8.2. Salvaguardas da Regra
+
+- **Prevenção de Loop:** A expressão filtra explicitamente `http.host eq "app.gefinc.tech"`. Ao chegar em `m.gefinc.tech`, a condição não é mais atendida e a requisição é servida normalmente. Da mesma forma, chamadas à API em `api.gefinc.tech` jamais são interceptadas.
+- **Opção "Versão para Computador":** Se o usuário marcar a opção de visualização para desktop no navegador do celular (Chrome/Safari), o navegador substitui o User-Agent pelo de desktop. A regra da Cloudflare ignora a requisição e o usuário consegue acessar a versão web desktop completa em `app.gefinc.tech`.
+
+---
+
+## 9. Configuração e Conexão do Mobile App Nativo (Capacitor/APK)
 
 O aplicativo móvel compilado com **Capacitor** roda nativamente no smartphone (Android/iOS) sob o esquema local (`https://localhost` no Android, padrão do Capacitor 8, e `capacitor://localhost` no iOS). Assim como o web, ele consome diretamente o endpoint público HTTPS do Cloudflare Tunnel.
 
-### 7.1. Configuração do Endpoint de Produção
+### 9.1. Configuração do Endpoint de Produção
 
 Edite o arquivo `apps/mobile-app/src/environments/environment.prod.ts`:
 
 ```typescript
 export const environment = {
   // Aponte para a URL pública do Cloudflare Tunnel com o context-path /api/v1
-  apiUrl: 'https://api.meudominio.com/api/v1',
+  apiUrl: 'https://api.gefinc.tech/api/v1',
 };
 ```
 
 > [!WARNING]
 > A URL da API deve ser `https://`. O build de produção troca `environment.ts` (desenvolvimento, `http://localhost:8080`) por `environment.prod.ts` (fileReplacements), e é esse valor que vai para o APK. Um build antigo permanece em `apps/mobile-app/android/app/src/main/assets/public` até que um novo `sync` seja executado; depois de alterar o endereço, sincronize novamente antes de gerar o APK.
 
-### 7.2. Compilação e Sincronização do Capacitor
+### 9.2. Compilação e Sincronização do Capacitor
 
 No seu computador de desenvolvimento, na raiz do repositório:
 
@@ -524,7 +610,7 @@ Depois de um build de dev, rode `npx nx run mobile-app:sync --skip-nx-cache` par
 > [!NOTE]
 > Qualquer comando `cap` executado diretamente (ex.: `npx cap sync android`) precisa ser rodado dentro de `apps/mobile-app` (`cd apps/mobile-app`), onde está o `capacitor.config.ts`.
 
-### 7.3. Geração do APK e Instalação no Smartphone
+### 9.3. Geração do APK e Instalação no Smartphone
 
 Pré-requisitos:
 
@@ -562,7 +648,7 @@ O APK fica em `apps/mobile-app/android/app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## 8. Rotina Automatizada de Backup Offsite (Regra de 35 Dias)
+## 10. Rotina Automatizada de Backup Offsite (Regra de 35 Dias)
 
 Hospedar em um computador sobressalente exige precaução contra danos de hardware no disco rígido local, oscilações severas de energia ou perdas físicas. Um backup offsite é obrigatório.
 
@@ -571,14 +657,14 @@ Conforme estabelecido na política de governança de dados do GEFINC (`docs/oper
 - A exclusão de contas tem 30 dias de carência antes do expurgo permanente.
 - Para assegurar que nenhum dado de usuário excluído persista indefinidamente, **a retenção máxima dos backups do banco deve ser de 35 dias**.
 
-### 8.1. Criação do Bucket no Cloudflare R2 ou AWS S3
+### 10.1. Criação do Bucket no Cloudflare R2 ou AWS S3
 
 1. No dashboard da Cloudflare, vá em **R2 Object Storage** > **Create bucket**.
 2. Nomeie o bucket (ex: `gefinc-db-backups`).
 3. Gere um par de credenciais de API R2 (*Access Key ID* e *Secret Access Key*) com permissão de leitura e escrita.
 4. Opcionalmente, crie uma **Lifecycle Rule** no bucket para deletar objetos com mais de 35 dias, ou deixe que o script abaixo faça o expurgo.
 
-### 8.2. Script de Backup Diário (`/opt/gefinc/backup.sh`)
+### 10.2. Script de Backup Diário (`/opt/gefinc/backup.sh`)
 
 Instale o utilitário `rclone` ou `awscli` no computador local para transferir arquivos para o bucket S3/R2:
 
@@ -683,7 +769,7 @@ Torne o script executável:
 sudo chmod +x /opt/gefinc/backup.sh
 ```
 
-### 8.3. Agendamento via Cron
+### 10.3. Agendamento via Cron
 
 Configure a execução automática diária nas madrugadas (ex: às 03:30 da manhã):
 
@@ -699,7 +785,7 @@ Adicione a seguinte linha:
 
 ---
 
-## 9. Checklist de Validação Ponta a Ponta
+## 11. Checklist de Validação Ponta a Ponta
 
 Execute este checklist prático para assegurar que todo o ecossistema está operante e resiliente:
 
@@ -707,32 +793,35 @@ Execute este checklist prático para assegurar que todo o ecossistema está oper
   De um dispositivo fora da rede Wi-Fi local (ex: via dados 4G/5G do celular):
 
   ```bash
-  curl -i https://api.meudominio.com/api/v1/actuator/health
+  curl -i https://api.gefinc.tech/api/v1/actuator/health
   # Deve retornar: HTTP/2 200 com {"status":"UP"}
   ```
-- [ ] **2. Validação do Web App no Cloudflare Pages:**
-  - Acesse `https://app.meudominio.com` pelo navegador.
-  - Verifique se a aplicação Angular carrega sem erros de console.
-  - Realize um cadastro e login de usuário.
-  - Verifique na aba *Network* das Ferramentas de Desenvolvedor se as requisições `/api/v1/...` são enviadas para `https://api.meudominio.com/api/v1/...` (e não para `app.meudominio.com`), recebem status `200` e que as respostas de login trazem `Set-Cookie: gefinc_refresh` com CORS válido.
-- [ ] **3. Validação do App Mobile no Smartphone:**
+- [ ] **2. Validação do Web App Desktop no Cloudflare Pages:**
+  - Acesse `https://app.gefinc.tech` em um navegador desktop.
+  - Verifique se a interface desktop do Angular carrega sem erros de console.
+  - Realize login e verifique na aba *Network* que as chamadas vão para `https://api.gefinc.tech/api/v1/...` com status `200` e CORS válido.
+- [ ] **3. Validação do Web App Mobile e Redirecionamento Automático:**
+  - Em um smartphone (ou usando o modo de emulação móvel do DevTools do Chrome/Firefox), acesse `https://app.gefinc.tech`.
+  - **Critério de sucesso:** O navegador deve receber status `302` e ser imediatamente redirecionado para `https://m.gefinc.tech`, exibindo a interface móvel otimizada.
+  - No celular, teste o login e a navegação entre abas em `https://m.gefinc.tech` e recarregue a página em uma rota interna (ex: `/carteira`) para validar o fallback SPA (`_redirects`).
+- [ ] **4. Validação do App Mobile Nativo no Smartphone (APK):**
   - Abra o aplicativo instalado via APK.
   - Faça login com a conta recém-criada.
   - Adicione uma transação com valor e categoria.
   - Ative o **Modo Avião** no celular e faça um novo lançamento (validação do modo offline com IndexedDB criptografado).
   - Desative o Modo Avião e confirme a sincronização automática na API local.
-- [ ] **4. Teste de Resiliência a Falhas de Energia (Auto-Recovery):**
+- [ ] **5. Teste de Resiliência a Falhas de Energia (Auto-Recovery):**
   - Remova deliberadamente o cabo de força da tomada do computador sobressalente.
   - Reconecte o cabo de força à tomada.
-  - **Critério de sucesso:** O computador deve ligar sozinho (BIOS AC Power Loss), inicializar o Linux e os containers Docker `postgres`, `api-server` e `cloudflared` devem subir automaticamente sem qualquer intervenção manual (`unless-stopped`). Em menos de 2 minutos, o endpoint `https://api.meudominio.com` deve voltar a responder normalmente.
-- [ ] **5. Teste de Execução do Backup:**
+  - **Critério de sucesso:** O computador deve ligar sozinho (BIOS AC Power Loss), inicializar o Linux e os containers Docker `postgres`, `api-server` e `cloudflared` devem subir automaticamente sem qualquer intervenção manual (`unless-stopped`). Em menos de 2 minutos, o endpoint `https://api.gefinc.tech` deve voltar a responder normalmente.
+- [ ] **6. Teste de Execução do Backup:**
   - Rode `/opt/gefinc/backup.sh` manualmente.
   - Verifique a criação do arquivo no bucket Cloudflare R2 ou AWS S3.
   - Simule uma restauração de teste em um banco local temporário para atestar a integridade do dump.
 
 ---
 
-## 10. Boas Práticas Operacionais e Manutenção
+## 12. Boas Práticas Operacionais e Manutenção
 
 1. **No-break (UPS) Básico:**
    - Embora o computador ligue sozinho após a volta da energia, desligamentos abruptos frequentes podem corromper blocos no sistema de arquivos do PostgreSQL. Um no-break simples de 600VA oferece 15 a 30 minutos de autonomia para que o servidor atravesse oscilações rápidas sem interrupções.

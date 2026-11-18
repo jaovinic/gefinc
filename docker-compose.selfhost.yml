@@ -38,6 +38,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       # Obrigatórias em produção: URL pública do front (sem barra final) e remetente validado no provedor.
       APP_BASE_URL: '${APP_BASE_URL:?defina APP_BASE_URL com a URL pública do front, sem barra final}'
+      # Origens autorizadas no CORS (front desktop, front mobile na web e esquemas nativos do Capacitor).
+      APP_SECURITY_CORS_ORIGINS: '${APP_SECURITY_CORS_ORIGINS:-${APP_BASE_URL},https://m.gefinc.tech,capacitor://localhost,https://localhost}'
       # Obrigatório e distinto do JWT_SECRET: chave HMAC dos identificadores pseudonimizados (auditoria,
       # histórico de envios). Mínimo de 32 bytes; gere com `openssl rand -base64 48`. Não rotacione.
       PSEUDONYM_SECRET: '${PSEUDONYM_SECRET:?defina PSEUDONYM_SECRET (>= 32 bytes; gere com: openssl rand -base64 48)}'
