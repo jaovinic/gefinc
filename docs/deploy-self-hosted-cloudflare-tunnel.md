@@ -535,20 +535,20 @@ No Cloudflare Pages, acesse a aba **Custom domains** do projeto `gefinc-mobile` 
 
 ---
 
-## 8. Redirecionamento Automático de Celular para m.gefinc.tech (Cloudflare Redirect Rules)
+## 8. Redirecionamento Automático Bidirecional (Cloudflare Redirect Rules)
 
-Para oferecer a melhor experiência, qualquer visitante que abrir `https://app.gefinc.tech` em um smartphone deve ser redirecionado automaticamente para `https://m.gefinc.tech`.
+Para oferecer uma experiência completa e contínua, o redirecionamento entre a versão desktop (`app.gefinc.tech`) e a versão móvel (`m.gefinc.tech`) deve ser **bidirecional**:
+1. Quando um smartphone abre `app.gefinc.tech`, vai para `m.gefinc.tech`.
+2. Quando o usuário ativa a opção **"Para computador" / "Versão para desktop"** no navegador do celular (ou abre `m.gefinc.tech` pelo computador), o navegador recarrega a página enviando um User-Agent de desktop e deve ser redirecionado automaticamente para `app.gefinc.tech`.
 
-Fazer esse redirecionamento na **Borda da Cloudflare (CDN Edge)** via **Redirect Rules** traz duas grandes vantagens sobre soluções em JavaScript no navegador:
-1. **Zero Sobrecarga de Rede:** O dispositivo móvel não precisa baixar nem processar o bundle desktop (~1MB) para depois ser redirecionado. O redirecionamento ocorre no primeiro pacote HTTP enviado pelo data center da Cloudflare.
-2. **Preservação de Rotas e Parâmetros:** Parâmetros de consulta (como tokens de recuperação de senha ou convites) e caminhos profundos são integralmente preservados.
+Fazer isso na **Borda da Cloudflare (CDN Edge)** via **Redirect Rules** garante troca instantânea com preservação integral de parâmetros de URL e rotas profundas.
 
-### 8.1. Criação da Regra no Cloudflare Dashboard
+### 8.1. Regra 1: Celular para m.gefinc.tech
 
 1. No **Cloudflare Dashboard**, selecione o domínio `gefinc.tech`.
-2. No menu lateral, vá em **Rules** (Regras) > **Redirect Rules** (Regras de Redirecionamento).
+2. No menu lateral, acesse **Rules** (Regras) > **Redirect Rules** (Regras de Redirecionamento).
 3. Clique em **Create rule** (Criar regra).
-4. Preencha os campos da regra:
+4. Configure os campos:
    - **Rule name:** `Redirecionar Celular para m.gefinc.tech`
    - Em **When incoming requests match...**, selecione **Custom filter expression** e clique em **Edit expression**:
      ```text
@@ -560,14 +560,36 @@ Fazer esse redirecionamento na **Borda da Cloudflare (CDN Edge)** via **Redirect
        ```text
        concat("https://m.gefinc.tech", http.request.uri.path)
        ```
-     - **Status code:** `302` (*Temporary Redirect* — recomendado para não fixar cache agressivo nos navegadores móveis).
-     - Marque a opção **Preserve query string** (garante que parâmetros `?token=...` ou buscas continuem na URL de destino).
+     - **Status code:** `302` (*Temporary Redirect*).
+     - Marque a caixa **Preserve query string**.
 5. Clique em **Deploy**.
 
-### 8.2. Salvaguardas da Regra
+### 8.2. Regra 2: Desktop / "Site para Computador" para app.gefinc.tech
 
-- **Prevenção de Loop:** A expressão filtra explicitamente `http.host eq "app.gefinc.tech"`. Ao chegar em `m.gefinc.tech`, a condição não é mais atendida e a requisição é servida normalmente. Da mesma forma, chamadas à API em `api.gefinc.tech` jamais são interceptadas.
-- **Opção "Versão para Computador":** Se o usuário marcar a opção de visualização para desktop no navegador do celular (Chrome/Safari), o navegador substitui o User-Agent pelo de desktop. A regra da Cloudflare ignora a requisição e o usuário consegue acessar a versão web desktop completa em `app.gefinc.tech`.
+Quando o usuário toca em "Para computador" no Chrome ou Safari, o navegador não altera a URL sozinho — ele apenas recarrega `m.gefinc.tech` com o cabeçalho User-Agent de um computador. Esta segunda regra intercepta esse evento e redireciona para a versão desktop:
+
+1. Ainda em **Redirect Rules**, clique novamente em **Create rule**.
+2. Configure os campos:
+   - **Rule name:** `Redirecionar Desktop para app.gefinc.tech`
+   - Em **When incoming requests match...**, selecione **Custom filter expression** e clique em **Edit expression**:
+     ```text
+     http.host eq "m.gefinc.tech" and not (lower(http.user_agent) contains "mobile" or lower(http.user_agent) contains "android" or lower(http.user_agent) contains "iphone")
+     ```
+   - Em **Then... (URL Redirect)**:
+     - **Type:** `Dynamic`
+     - **Expression:**
+       ```text
+       concat("https://app.gefinc.tech", http.request.uri.path)
+       ```
+     - **Status code:** `302` (*Temporary Redirect*).
+     - Marque a caixa **Preserve query string**.
+3. Clique em **Deploy**.
+
+### 8.3. Como as Duas Regras Trabalham em Harmonia (Sem Loops)
+
+- **Acesso normal no celular:** O usuário acessa `app.gefinc.tech` -> Regra 1 ativa -> redireciona para `m.gefinc.tech`. Em `m.gefinc.tech`, o User-Agent é mobile, logo a Regra 2 **não** ativa (o usuário navega normalmente).
+- **Ativação de "Site para computador":** No menu do navegador mobile, o usuário ativa "Para computador". O navegador recarrega `m.gefinc.tech` com User-Agent de computador -> Regra 2 ativa -> redireciona para `app.gefinc.tech`. Em `app.gefinc.tech`, a Regra 1 **não** ativa porque o User-Agent agora é de desktop.
+- **Desativação de "Site para computador":** Se o usuário desmarcar a opção, o navegador recarrega `app.gefinc.tech` com User-Agent mobile -> Regra 1 ativa -> volta suavemente para `m.gefinc.tech`.
 
 ---
 
