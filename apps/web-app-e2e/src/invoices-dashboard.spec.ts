@@ -7,7 +7,9 @@ test('fatura do cartão com pagamento parcial e conferência dos totais do paine
 
   await register(page, uniqueEmail());
   await createAccount(page, 'Itaú', 'CHECKING');
-  await createAccount(page, 'Nubank', 'CREDIT_CARD', { closing: 10, due: 17 });
+  // vencimento no dia 31: a fatura vence sempre no último dia do mês (o sistema limita ao fim de meses curtos),
+  // nunca antes de hoje; assim a fatura restante não vira "atrasada" em nenhum dia do mês
+  await createAccount(page, 'Nubank', 'CREDIT_CARD', { closing: 10, due: 31 });
   await page.getByRole('link', { name: 'Lançamentos' }).click();
 
   const form = page.locator('gef-group-form');

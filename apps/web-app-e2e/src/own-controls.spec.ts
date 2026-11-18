@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { chooseOption, createAccount, register, selectTrigger, todayIso, uniqueEmail } from './support';
+import { chooseOption, createAccount, fillDate, promoteToRoot, register, selectTrigger, todayIso, uniqueEmail } from './support';
 
 const NATIVE_CONTROLS = 'select, input[type="date"], input[type="color"], input[type="month"], input[type="time"], input[type="datetime-local"], input[type="week"]';
 
@@ -95,6 +95,95 @@ test.describe('controles próprios no web: lista, calendário e paleta', () => {
     await form.getByRole('button', { name: 'Abrir calendário' }).first().click();
     await dialog.getByRole('button', { name: 'Hoje', exact: true }).click();
     await expect(purchase).toHaveValue(`${day}/${month}/${year}`);
+  });
+
+  test('nenhuma tela do app, nem os painéis, usa controle nativo (datas e listas são próprias)', async ({ page }) => {
+    test.setTimeout(90_000); // percorre todas as telas e painéis
+    await register(page, uniqueEmail());
+    await createAccount(page, 'Itaú', 'CHECKING');
+    await createAccount(page, 'Carteira', 'CASH');
+    const found: string[] = [];
+    const check = async (where: string) => {
+      if ((await nativeControls(page)) > 0) found.push(where);
+    };
+
+    for (const path of ['/', '/transactions', '/accounts', '/transfers', '/invoices', '/cashflow', '/categories', '/settings']) {
+      await page.goto(path);
+      await expect(page.locator('main')).toBeVisible();
+      await check(path);
+    }
+    await page.goto('/transactions');
+    await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
+    await expect(page.locator('gef-group-form')).toBeVisible();
+    await check('/transactions > Novo lançamento');
+    await page.keyboard.press('Escape');
+    await page.goto('/transfers');
+    await page.getByRole('button', { name: 'Nova transferência' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Nova transferência' })).toBeVisible();
+    await check('/transfers > Nova transferência');
+    await expect(page.getByRole('dialog', { name: 'Nova transferência' }).locator('gef-date-field')).toHaveCount(1);
+
+    expect(found).toEqual([]);
+  });
+
+  test('painel de administração: a auditoria usa campos de data próprios e nenhuma tela admin tem controle nativo', async ({ page }) => {
+    const email = uniqueEmail();
+    await register(page, email);
+    promoteToRoot(email);
+    const found: string[] = [];
+
+    await page.goto('/admin/audit');
+    await expect(page.getByRole('heading', { name: 'Auditoria', exact: true })).toBeVisible();
+    await expect(page.locator('gef-date-field')).toHaveCount(2);
+    const from = page.getByLabel('De (data inicial)', { exact: true });
+    const to = page.getByLabel('Até (data final)', { exact: true });
+    await expect(from).toHaveAttribute('type', 'text');
+    await expect(from).toHaveAttribute('placeholder', 'dd/mm/aaaa');
+    await fillDate(from, todayIso());
+    await expect(from).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(to).toHaveValue('');
+    expect(await nativeControls(page)).toBe(0);
+
+    await page.getByRole('button', { name: 'Abrir calendário' }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Escolha a data' });
+    await expect(dialog).toBeVisible();
+    expect(await nativeControls(page)).toBe(0);
+    expect(await violations(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    for (const path of ['/admin/audit', '/admin/users', '/admin/invitations', '/admin/communications/pending', '/admin/deletion-reasons', '/admin/email', '/admin/settings']) {
+      await page.goto(path);
+      await expect(page.locator('[data-testid="admin-panel"]')).toBeVisible();
+      if ((await nativeControls(page)) > 0) found.push(path);
+    }
+    expect(found).toEqual([]);
+  });
+
+  test('painel longo em tela baixa: cabeçalho e rodapé (Salvar/Cancelar) ficam colados nas bordas ao rolar', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await page.setViewportSize({ width: 360, height: 480 });
+    await page.goto('/accounts');
+    await page.getByRole('button', { name: 'Nova conta' }).first().click();
+    const sheet = page.locator('.gef-sheet');
+    await expect(sheet).toBeVisible();
+    await chooseOption(page, page, 'Tipo', 'Cartão de crédito');
+    expect(await sheet.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    for (const position of ['top', 'middle', 'bottom'] as const) {
+      const gaps = await sheet.evaluate((el, where) => {
+        el.scrollTop = where === 'top' ? 0 : where === 'middle' ? (el.scrollHeight - el.clientHeight) / 2 : el.scrollHeight;
+        const box = el.getBoundingClientRect();
+        const head = el.querySelector('.gef-sheet-head')?.getBoundingClientRect();
+        const actions = el.querySelector('.gef-sheet-actions')?.getBoundingClientRect();
+        return { head: head ? head.top - box.top : 999, actions: actions ? box.bottom - actions.bottom : 999 };
+      }, position);
+      // 1 px de borda do painel; o texto que rola não pode aparecer nos 16 px de respiro acima e abaixo
+      expect(gaps.head, `cabeçalho (${position})`).toBeLessThanOrEqual(1.5);
+      expect(gaps.actions, `rodapé (${position})`).toBeLessThanOrEqual(1.5);
+    }
+    await expect(sheet.getByRole('button', { name: 'Salvar' })).toBeInViewport();
+    await expect(sheet.getByRole('button', { name: 'Fechar' })).toBeInViewport();
   });
 
   test('paleta de cores: escolhe, grava na categoria e mostra a cor atual', async ({ page }) => {

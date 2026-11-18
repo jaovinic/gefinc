@@ -290,6 +290,41 @@ describe('UserList', () => {
     expect(rows(el)).toHaveLength(1);
   });
 
+  it('"Limpar filtros" também volta a ordenação para "Data de criação" / "Mais recentes primeiro" e à primeira página', async () => {
+    const { fixture, el } = await setup(page([ana], { totalElements: 60 }));
+    const trigger = (label: string) => {
+      const field = Array.from(el.querySelectorAll('gef-select')).find((f) => text(f.querySelector('label')) === label);
+      return text(field?.querySelector('button[aria-haspopup]') ?? null);
+    };
+
+    pickOption(fixture, 'Ordenar por', 'Último acesso');
+    listRequest().flush(page([ana], { totalElements: 60 }));
+    await settle(fixture);
+    pickOption(fixture, 'Ordem', 'Mais antigos primeiro');
+    listRequest().flush(page([ana], { totalElements: 60 }));
+    await settle(fixture);
+    pickOption(fixture, 'Situação', 'Suspensos');
+    listRequest().flush(page([], { counts: { active: 0, suspended: 0, deletionPending: 0, admin: 0 } }));
+    await settle(fixture);
+    expect(trigger('Ordenar por')).toContain('Último acesso');
+    expect(trigger('Ordem')).toContain('Mais antigos primeiro');
+
+    const clear = Array.from(el.querySelectorAll('gef-empty button')).find((b) => text(b) === 'Limpar filtros') as HTMLButtonElement;
+    clear.click();
+    const req = listRequest();
+    expect(req.request.params.has('q')).toBe(false);
+    expect(req.request.params.has('status')).toBe(false);
+    expect(req.request.params.get('sort')).toBe('createdAt');
+    expect(req.request.params.get('dir')).toBe('desc');
+    expect(req.request.params.get('page')).toBe('0');
+    req.flush(page([ana]));
+    await settle(fixture);
+
+    expect(trigger('Ordenar por')).toContain('Data de criação');
+    expect(trigger('Ordem')).toContain('Mais recentes primeiro');
+    expect(trigger('Situação')).toContain('Todas as situações');
+  });
+
   it('falha mostra o erro com "Tentar novamente", que repete o pedido', async () => {
     const { fixture, el } = await setup('pending');
     listRequest().flush({ status: 500, code: 'INTERNAL_ERROR' }, { status: 500, statusText: 'Server Error' });

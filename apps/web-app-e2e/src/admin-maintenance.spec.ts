@@ -37,9 +37,9 @@ test.describe('painel: parâmetros do sistema e modo de manutenção', () => {
 
     // 4. Modal de revogação de sessões
     await page.getByTestId('revoke-all-open-btn').click();
-    await expect(page.getByTestId('revoke-all-dialog')).toBeVisible();
+    await expect(page.getByRole('alertdialog', { name: 'Encerrar todas as sessões do sistema' })).toBeVisible();
     await page.getByTestId('confirm-cancel').click();
-    await expect(page.getByTestId('revoke-all-dialog')).not.toBeVisible();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
 
     expect(await violations(page)).toEqual([]);
   });

@@ -113,6 +113,9 @@ describe('EmailPage', () => {
 
     expect(text(el.querySelector('[data-testid="test-result"]'))).toContain('Enviado');
     expect(el.querySelector('[data-testid="test-result"] gef-icon')).not.toBeNull();
+    const sent = el.querySelector('[data-testid="test-result"]') as HTMLElement;
+    expect(sent.classList.contains('text-gefinc-primary')).toBe(true);
+    expect(sent.classList.contains('inline-flex')).toBe(false);
     expect(text(el.querySelector('[data-testid="test-status"]'))).toBe('E-mail de teste enviado.');
     expect(el.querySelector('[data-testid="test-status"]')?.getAttribute('role')).toBe('status');
   });
@@ -129,6 +132,9 @@ describe('EmailPage', () => {
     expect(result).toContain('Falhou');
     expect(result).toContain('Usuário ou senha do servidor de e-mail recusados.');
     expect(result).not.toContain('AUTHENTICATION');
+    const failed = el.querySelector('[data-testid="test-result"]') as HTMLElement;
+    expect(failed.classList.contains('text-gefinc-danger')).toBe(true);
+    expect(failed.classList.contains('inline-flex')).toBe(false);
   });
 
   it('mostra o erro de rede do teste', async () => {

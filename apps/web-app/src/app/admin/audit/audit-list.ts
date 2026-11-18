@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, OnInit, afterNextRender, inject, signal, viewChild, viewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import type { AuditAction, AuditEntry, AuditResult } from '@gefinc/core-models';
-import { EmptyView, ErrorView, Icon, LoadingView, Select, isOfflineProblem, messageFor, toProblem, type SelectOption } from '@gefinc/ui-shared';
+import { DateField, EmptyView, ErrorView, Icon, LoadingView, Select, isOfflineProblem, messageFor, toProblem, type SelectOption } from '@gefinc/ui-shared';
 import type { Subscription } from 'rxjs';
 import { AdminApi, type AdminAuditListParams } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
@@ -71,37 +71,29 @@ interface ResultBadge {
  */
 @Component({
   selector: 'gef-admin-audit-list',
-  imports: [AuditDetail, EmptyView, ErrorView, FormsModule, Icon, LoadingView, RouterLink, Select],
+  imports: [AuditDetail, DateField, EmptyView, ErrorView, FormsModule, Icon, LoadingView, RouterLink, Select],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4" aria-labelledby="audit-heading">
       <h2 id="audit-heading" class="text-title-md font-bold" tabindex="-1" data-testid="results-heading" #resultsHeading>Auditoria</h2>
 
-      <div class="grid gap-3 md:grid-cols-3 lg:grid-cols-6 md:items-end">
+      <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6 md:items-start">
         <gef-select label="Ação" [options]="actionOptions" [ngModel]="action()" (ngModelChange)="onAction($event)" />
         <gef-select label="Resultado" [options]="resultOptions" [ngModel]="result()" (ngModelChange)="onResult($event)" />
-        <div>
-          <label class="gef-label" [attr.for]="fromId">De (data inicial)</label>
-          <input
-            type="date"
-            class="gef-input"
-            [id]="fromId"
-            [value]="fromDate()"
-            (change)="onFromDate($event)"
-            data-testid="filter-from"
-          />
-        </div>
-        <div>
-          <label class="gef-label" [attr.for]="toId">Até (data final)</label>
-          <input
-            type="date"
-            class="gef-input"
-            [id]="toId"
-            [value]="toDate()"
-            (change)="onToDate($event)"
-            data-testid="filter-to"
-          />
-        </div>
+        <gef-date-field
+          data-testid="filter-from"
+          label="De (data inicial)"
+          [inputId]="fromId"
+          [ngModel]="fromDate()"
+          (ngModelChange)="onFromDate($event)"
+        />
+        <gef-date-field
+          data-testid="filter-to"
+          label="Até (data final)"
+          [inputId]="toId"
+          [ngModel]="toDate()"
+          (ngModelChange)="onToDate($event)"
+        />
         <div>
           <label class="gef-label" [attr.for]="actorIdInput">Autor (ID)</label>
           <input
@@ -139,37 +131,37 @@ interface ResultBadge {
           <button type="button" class="gef-btn-secondary" (click)="clearFilters()">Limpar filtros</button>
         </gef-empty>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-gefinc-border">
-          <table class="w-full text-left text-body-base">
+        <div class="gef-table-wrap">
+          <table class="gef-table">
             <caption class="sr-only">Registros da trilha de auditoria</caption>
-            <thead class="bg-gefinc-surface text-caption uppercase text-gefinc-muted">
+            <thead>
               <tr>
-                <th scope="col" class="px-4 py-3">Data e hora</th>
-                <th scope="col" class="px-4 py-3">Ação</th>
-                <th scope="col" class="px-4 py-3">Autor</th>
-                <th scope="col" class="px-4 py-3">Alvo</th>
-                <th scope="col" class="px-4 py-3">Resultado</th>
-                <th scope="col" class="px-4 py-3 text-right">Detalhes</th>
+                <th scope="col">Data e hora</th>
+                <th scope="col">Ação</th>
+                <th scope="col">Autor</th>
+                <th scope="col">Alvo</th>
+                <th scope="col">Resultado</th>
+                <th scope="col" class="text-right">Detalhes</th>
               </tr>
             </thead>
             <tbody>
               @for (item of items(); track item.id) {
-                <tr class="border-t border-gefinc-border" data-testid="audit-row">
-                  <td class="whitespace-nowrap px-4 py-3" data-testid="occurred-at">{{ date(item.occurredAt) }}</td>
-                  <td class="px-4 py-3" data-testid="summary">
+                <tr data-testid="audit-row">
+                  <td class="whitespace-nowrap" data-testid="occurred-at">{{ date(item.occurredAt) }}</td>
+                  <td data-testid="summary">
                     <span class="font-medium">{{ item.summary }}</span>
                     @if (item.refusalCode) {
                       <span class="ml-2 text-caption text-gefinc-muted">({{ item.refusalCode }})</span>
                     }
                   </td>
-                  <td class="px-4 py-3" data-testid="actor">
+                  <td data-testid="actor">
                     @if (item.actor.userId && !isAnonymous(item.actor.label)) {
                       <a class="text-gefinc-primary underline-offset-2 hover:underline" [routerLink]="['/admin/users', item.actor.userId]">{{ item.actor.label }}</a>
                     } @else {
                       <span>{{ item.actor.label }}</span>
                     }
                   </td>
-                  <td class="px-4 py-3" data-testid="target">
+                  <td data-testid="target">
                     @if (item.target; as t) {
                       @if (t.userId && !isAnonymous(t.label)) {
                         <a class="text-gefinc-primary underline-offset-2 hover:underline" [routerLink]="['/admin/users', t.userId]">{{ t.label }}</a>
@@ -182,16 +174,16 @@ interface ResultBadge {
                       <span class="text-gefinc-muted">—</span>
                     }
                   </td>
-                  <td class="px-4 py-3" data-testid="result">
+                  <td data-testid="result">
                     @let badge = resultBadge(item.result);
-                    <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-semibold" [class]="badge.tone">
+                    <span class="gef-badge" [class]="badge.tone">
                       <gef-icon [name]="badge.icon" [size]="14" />{{ badge.label }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-right">
+                  <td class="text-right">
                     <button
                       type="button"
-                      class="gef-btn-secondary text-caption"
+                      class="gef-btn-sm"
                       [attr.aria-expanded]="expandedId() === item.id"
                       [attr.aria-controls]="'audit-detail-' + item.id"
                       data-testid="toggle-detail"
@@ -202,8 +194,8 @@ interface ResultBadge {
                   </td>
                 </tr>
                 @if (expandedId() === item.id) {
-                  <tr class="border-t border-gefinc-border/60 bg-gefinc-surface/30" [id]="'audit-detail-' + item.id" data-testid="audit-detail-row">
-                    <td colspan="6" class="px-4 py-3">
+                  <tr class="bg-gefinc-surface" [id]="'audit-detail-' + item.id" data-testid="audit-detail-row">
+                    <td colspan="6">
                       <gef-admin-audit-detail [auditId]="item.id" [initial]="item" />
                     </td>
                   </tr>
@@ -238,6 +230,7 @@ export class AuditList implements OnInit, OnDestroy {
   private readonly api = inject(AdminApi);
   private readonly injector = inject(Injector);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('resultsHeading');
+  private readonly dateFields = viewChildren(DateField);
 
   protected readonly fromId = `admin-audit-from-${nextId++}`;
   protected readonly toId = `admin-audit-to-${nextId++}`;
@@ -283,13 +276,22 @@ export class AuditList implements OnInit, OnDestroy {
     this.load();
   }
 
-  protected onFromDate(event: Event): void {
-    this.fromDate.set((event.target as HTMLInputElement).value.trim());
+  /** Valor ISO (AAAA-MM-DD) do `gef-date-field`; `''` enquanto o texto está vazio, incompleto ou inválido. */
+  protected onFromDate(value: string | null): void {
+    const next = value ?? '';
+    if (next === this.fromDate()) {
+      return;
+    }
+    this.fromDate.set(next);
     this.load();
   }
 
-  protected onToDate(event: Event): void {
-    this.toDate.set((event.target as HTMLInputElement).value.trim());
+  protected onToDate(value: string | null): void {
+    const next = value ?? '';
+    if (next === this.toDate()) {
+      return;
+    }
+    this.toDate.set(next);
     this.load();
   }
 
@@ -308,6 +310,8 @@ export class AuditList implements OnInit, OnDestroy {
     this.result.set('');
     this.fromDate.set('');
     this.toDate.set('');
+    // Texto parcial ("12/0") já deixa o sinal em '': o [ngModel] não muda e não reescreveria o campo.
+    this.dateFields().forEach((field) => field.writeValue(''));
     this.actorId.set('');
     this.targetUserId.set('');
     this.load();
@@ -379,11 +383,11 @@ export class AuditList implements OnInit, OnDestroy {
   protected resultBadge(result: AuditResult): ResultBadge {
     switch (result) {
       case 'SUCCESS':
-        return { label: 'Sucesso', icon: 'check', tone: 'border-gefinc-primary/40 text-gefinc-primary' };
+        return { label: 'Sucesso', icon: 'check', tone: 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary' };
       case 'REFUSED':
-        return { label: 'Recusada', icon: 'alert', tone: 'border-gefinc-warning/40 text-gefinc-warning' };
+        return { label: 'Recusada', icon: 'alert', tone: 'border-gefinc-warning/40 bg-gefinc-warning/10 text-gefinc-warning' };
       case 'FAILED':
-        return { label: 'Falhou', icon: 'alert', tone: 'border-gefinc-danger/40 text-gefinc-danger' };
+        return { label: 'Falhou', icon: 'alert', tone: 'border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger' };
     }
   }
 

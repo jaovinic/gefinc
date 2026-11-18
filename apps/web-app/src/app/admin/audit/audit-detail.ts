@@ -32,7 +32,7 @@ const DETAIL_KEY_LABELS: Readonly<Record<string, string>> = {
   imports: [ErrorView, LoadingView],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="rounded-lg border border-gefinc-border bg-gefinc-surface/60 p-4 text-body-base" data-testid="audit-detail">
+    <div class="rounded-lg border border-gefinc-border bg-gefinc-surface p-4 text-body-base" data-testid="audit-detail">
       @if (loading()) {
         <gef-loading variant="spinner" message="Carregando detalhes do registro…" />
       } @else if (loadError()) {

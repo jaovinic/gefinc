@@ -44,19 +44,19 @@ describe('PendingAlert', () => {
   it('não exibe nada quando não há comunicações pendentes (count = 0)', async () => {
     const { el } = await setup((h) => h.count.set(0));
 
-    expect(el.querySelector('[role="alert"]')).toBeNull();
     expect(el.querySelector('[data-testid="pending-communications-alert"]')).toBeNull();
   });
 
   it('exibe alerta permanente com ícone, mensagem singular e link para pendências quando count = 1', async () => {
     const { el } = await setup((h) => h.count.set(1));
 
-    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    const alert = el.querySelector('[data-testid="pending-communications-alert"]') as HTMLElement;
     expect(alert).not.toBeNull();
     expect(alert.querySelector('gef-icon')).not.toBeNull();
     expect(alert.querySelector('[data-testid="pending-alert-message"]')?.textContent).toContain(
       '1 comunicação com envio pendente de e-mail',
     );
+    expect(alert.querySelector('[data-testid="pending-alert-message"]')?.textContent).toContain('Existe 1 comunicação');
 
     const link = el.querySelector('[data-testid="pending-alert-link"]') as HTMLAnchorElement;
     expect(link).not.toBeNull();
@@ -66,11 +66,14 @@ describe('PendingAlert', () => {
   it('pluraliza o texto quando count > 1', async () => {
     const { el } = await setup((h) => h.count.set(3));
 
-    const alert = el.querySelector('[role="alert"]') as HTMLElement;
+    const alert = el.querySelector('[data-testid="pending-communications-alert"]') as HTMLElement;
     expect(alert).not.toBeNull();
     expect(alert.querySelector('[data-testid="pending-alert-message"]')?.textContent).toContain(
       '3 comunicações com envio pendente de e-mail',
     );
+    expect(alert.querySelector('[data-testid="pending-alert-message"]')?.textContent).toContain('Existem 3');
+    expect(el.querySelector('[role="alert"]')).toBeNull();
+    expect(el.querySelector('[data-testid="pending-alert-link"]')?.className).toContain('min-h-11');
   });
 
   it('carrega automaticamente a contagem da API se nenhum count for passado', async () => {

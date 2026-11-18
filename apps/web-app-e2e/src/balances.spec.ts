@@ -71,7 +71,9 @@ test.describe('saldo por conta', () => {
     await expect(rows.filter({ hasText: 'Itaú' })).toContainText('R$ 1.500,00');
     await expect(rows.filter({ hasText: 'Carteira' })).toContainText('-R$ 150,00');
     await expect(page.getByText('até hoje,')).toBeVisible();
-    await expect(page.locator('[data-indicator="to-receive"]')).toContainText('R$ 300,00');
+    // a receita futura (daqui a 5 dias) só é "a receber" do mês do painel se cair no mesmo mês de hoje
+    const sameMonth = futureIso(5).slice(0, 7) === todayIso().slice(0, 7);
+    await expect(page.locator('[data-indicator="to-receive"]')).toContainText(sameMonth ? 'R$ 300,00' : 'R$ 0,00');
 
     const api = await get(request, user, '/balances');
     expect(api.total).toBe('1350.00');

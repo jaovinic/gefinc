@@ -59,6 +59,10 @@ function writeCollapsed(collapsed: boolean): void {
           [attr.aria-label]="item.label"
           [attr.data-label]="item.label"
           (click)="drawerOpen.set(false)"
+          (mouseenter)="placeTip($event)"
+          (focus)="placeTip($event)"
+          (mouseleave)="leaveTip($event)"
+          (blur)="blurTip($event)"
         >
           <gef-icon [name]="item.icon" [size]="20" />
           <span class="gef-nav-label">{{ item.label }}</span>
@@ -68,7 +72,7 @@ function writeCollapsed(collapsed: boolean): void {
 
     <ng-template #adminGroup>
       @if (session.isAdmin()) {
-        <div class="flex flex-col gap-1 border-t border-gefinc-border p-3" data-testid="admin-nav-group">
+        <div class="flex shrink-0 flex-col gap-1 border-t border-gefinc-border p-3" data-testid="admin-nav-group">
           <p class="gef-nav-group-title" data-testid="admin-nav-title">
             <gef-icon name="shield" [size]="16" />
             <span class="gef-nav-label">{{ adminLabel }}</span>
@@ -87,7 +91,7 @@ function writeCollapsed(collapsed: boolean): void {
         [attr.data-collapsed]="collapsed() ? 'true' : null"
       >
         <div class="gef-sidenav-head">
-          <a routerLink="/" aria-label="GEFINC, ir para o painel">
+          <a routerLink="/" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg" aria-label="GEFINC, ir para o painel">
             <gef-logo [variant]="collapsed() ? 'symbol' : 'full'" [size]="32" />
           </a>
           <button
@@ -100,13 +104,25 @@ function writeCollapsed(collapsed: boolean): void {
             <gef-icon [name]="collapsed() ? 'chevron-right' : 'chevron-left'" [size]="18" />
           </button>
         </div>
-        <nav class="gef-sidenav-nav" aria-label="Principal">
-          <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
-        </nav>
-        <ng-container *ngTemplateOutlet="adminGroup" />
+        <div class="gef-sidenav-scroll" (scroll)="syncTip()">
+          <nav class="gef-sidenav-nav" aria-label="Principal">
+            <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
+          </nav>
+          <ng-container *ngTemplateOutlet="adminGroup" />
+        </div>
         <div class="gef-sidenav-footer" data-testid="sidenav-footer">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: footerItems }" />
-          <button type="button" class="gef-nav-link" aria-label="Sair" data-label="Sair" (click)="logout()">
+          <button
+            type="button"
+            class="gef-nav-link"
+            aria-label="Sair"
+            data-label="Sair"
+            (click)="logout()"
+            (mouseenter)="placeTip($event)"
+            (focus)="placeTip($event)"
+            (mouseleave)="leaveTip($event)"
+            (blur)="blurTip($event)"
+          >
             <gef-icon name="logout" [size]="20" />
             <span class="gef-nav-label">Sair</span>
           </button>
@@ -127,11 +143,11 @@ function writeCollapsed(collapsed: boolean): void {
 
         @if (notices.message(); as message) {
           <div
-            class="flex items-start justify-between gap-4 border-b border-gefinc-warning/40 bg-gefinc-warning/10 px-6 py-3 text-body-base text-gefinc-warning"
+            class="flex items-start justify-between gap-4 border-b border-gefinc-warning/40 bg-gefinc-warning/10 px-4 py-3 text-body-base text-gefinc-warning md:px-6"
             role="alert"
           >
             <span>{{ message }}</span>
-            <button type="button" class="underline" (click)="notices.dismiss()">Fechar</button>
+            <button type="button" class="gef-action underline" (click)="notices.dismiss()">Fechar</button>
           </div>
         }
 
@@ -142,12 +158,16 @@ function writeCollapsed(collapsed: boolean): void {
     </div>
 
     <gef-sheet heading="Menu" side="left" [open]="drawerOpen()" (closed)="drawerOpen.set(false)">
-      <div class="flex h-full flex-col gap-2 p-3">
-        <gef-logo variant="full" [size]="28" />
-        <nav class="gef-sidenav-nav" aria-label="Menu">
-          <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
-        </nav>
-        <ng-container *ngTemplateOutlet="adminGroup" />
+      <div class="flex min-h-0 flex-1 flex-col">
+        <div class="shrink-0 px-4 pb-2 pt-3">
+          <gef-logo variant="full" [size]="28" />
+        </div>
+        <div class="gef-sidenav-scroll">
+          <nav class="gef-sidenav-nav" aria-label="Menu">
+            <ng-container *ngTemplateOutlet="links; context: { $implicit: mainItems }" />
+          </nav>
+          <ng-container *ngTemplateOutlet="adminGroup" />
+        </div>
         <div class="gef-sidenav-footer">
           <ng-container *ngTemplateOutlet="links; context: { $implicit: footerItems }" />
           <button type="button" class="gef-nav-link" aria-label="Sair" (click)="logout()">
@@ -172,6 +192,50 @@ export class Shell {
   protected readonly footerItems: readonly NavItem[] = NAV_ITEMS.filter((i) => i.key === 'settings');
   /** Destino do atalho Minha conta na barra do topo (o mesmo item do rodapé do menu). */
   protected readonly profileLink = NAV_ITEMS.find((i) => i.key === 'settings')!.web;
+
+  /** Item do menu com a dica ativa (mouse ou foco); `null` quando nenhum. */
+  private tipEl: HTMLElement | null = null;
+
+  /**
+   * Menu recolhido: posiciona a dica (que é `fixed`) na altura do item sob o mouse ou o foco. O foco do teclado rola o
+   * item para a vista depois do evento, então a posição é refeita no próximo quadro e a cada rolagem da região.
+   */
+  protected placeTip(event: Event): void {
+    this.tipEl = event.currentTarget as HTMLElement;
+    this.syncTip();
+    requestAnimationFrame(() => this.syncTip());
+  }
+
+  /** Grava a altura da dica no centro do item; item fora da área visível da região de rolagem esconde a dica. */
+  protected syncTip(): void {
+    const el = this.tipEl;
+    if (!el) {
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const region = el.closest<HTMLElement>('.gef-sidenav-scroll')?.getBoundingClientRect();
+    const hidden = !!region && (rect.bottom <= region.top || rect.top >= region.bottom);
+    el.style.setProperty('--gef-tip-y', hidden ? '-9999px' : `${rect.top + rect.height / 2}px`);
+  }
+
+  /** O mouse saiu: se o item continua com o foco, a dica segue visível e mantém a posição; só o foco perdido a limpa. */
+  protected leaveTip(event: Event): void {
+    if (event.currentTarget !== document.activeElement) {
+      this.clearTip();
+    }
+  }
+
+  /** O foco saiu: se o mouse continua sobre o item, a dica segue visível; só o mouse fora (leaveTip) a limpa depois. */
+  protected blurTip(event: Event): void {
+    if (!(event.currentTarget as HTMLElement).matches(':hover')) {
+      this.clearTip();
+    }
+  }
+
+  protected clearTip(): void {
+    this.tipEl?.style.removeProperty('--gef-tip-y');
+    this.tipEl = null;
+  }
 
   constructor() {
     // O menu "Administração" depende do perfil: garante que ele seja pedido ao abrir a área logada.

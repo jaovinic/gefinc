@@ -61,7 +61,7 @@ test.describe('painel: suspensão, sessões e bloqueio de login', () => {
     await expect(page.getByTestId('action-effect')).toContainText('perde o acesso');
     await confirm(page).click();
     await expect(page.getByTestId('reason-error')).toBeVisible();
-    await page.getByLabel('Motivo').fill('Uso indevido da plataforma');
+    await page.getByLabel('Motivo', { exact: true }).fill('Uso indevido da plataforma');
     await expect(page.getByTestId('reason-counter')).toHaveText('26/500');
     expect(await violations(page), 'diálogo de suspensão').toEqual([]);
     await confirm(page).click();
@@ -114,7 +114,7 @@ test.describe('painel: suspensão, sessões e bloqueio de login', () => {
     await expect(second.page).not.toHaveURL(/\/login/);
 
     await page.getByRole('button', { name: 'Encerrar todas' }).click();
-    await expect(page.getByTestId('action-effect')).toContainText('todas as 1 sessões');
+    await expect(page.getByTestId('action-effect')).toContainText('Encerra a única sessão aberta agora');
     await confirm(page).click();
     await expect(page.getByTestId('sessions-empty')).toHaveText('Nenhuma sessão aberta.');
     await expect(page.getByTestId('open-sessions')).toHaveText('0');

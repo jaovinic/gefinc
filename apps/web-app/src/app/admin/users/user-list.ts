@@ -82,41 +82,41 @@ const DIRECTION_OPTIONS: SelectOption[] = [
           <button type="button" class="gef-btn-secondary" (click)="clearFilters()">Limpar filtros</button>
         </gef-empty>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-gefinc-border">
-          <table class="w-full text-left text-body-base">
+        <div class="gef-table-wrap">
+          <table class="gef-table">
             <caption class="sr-only">Usuários cadastrados</caption>
-            <thead class="bg-gefinc-surface text-caption uppercase text-gefinc-muted">
+            <thead>
               <tr>
-                <th scope="col" class="px-4 py-3">Usuário</th>
-                <th scope="col" class="px-4 py-3">Situação</th>
-                <th scope="col" class="px-4 py-3">Perfil</th>
-                <th scope="col" class="px-4 py-3">Criado em</th>
-                <th scope="col" class="px-4 py-3">Último acesso</th>
+                <th scope="col">Usuário</th>
+                <th scope="col">Situação</th>
+                <th scope="col">Perfil</th>
+                <th scope="col">Criado em</th>
+                <th scope="col">Último acesso</th>
               </tr>
             </thead>
             <tbody>
               @for (user of items(); track user.id) {
-                <tr class="border-t border-gefinc-border" data-testid="user-row">
-                  <td class="px-4 py-3">
+                <tr data-testid="user-row">
+                  <td>
                     <a class="font-medium text-gefinc-primary underline-offset-2 hover:underline" [routerLink]="['/admin/users', user.id]">{{ user.email }}</a>
                     <p class="text-caption text-gefinc-muted">{{ user.name || 'Sem nome' }}</p>
                   </td>
-                  <td class="px-4 py-3" data-testid="status">
+                  <td data-testid="status">
                     <span class="flex flex-wrap gap-1">
                       @for (badge of badges(user); track badge.label) {
-                        <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-semibold" [class]="badge.tone"><gef-icon [name]="badge.icon" [size]="14" />{{ badge.label }}</span>
+                        <span class="gef-badge" [class]="badge.tone"><gef-icon [name]="badge.icon" [size]="14" />{{ badge.label }}</span>
                       }
                     </span>
                   </td>
-                  <td class="px-4 py-3" data-testid="role">
+                  <td data-testid="role">
                     @if (user.role === 'USER') {
                       <span class="text-gefinc-muted">Usuário</span>
                     } @else {
                       <span class="inline-flex items-center gap-1 font-medium"><gef-icon name="shield" [size]="14" />{{ roleName(user.role) }}</span>
                     }
                   </td>
-                  <td class="whitespace-nowrap px-4 py-3">{{ date(user.createdAt) }}</td>
-                  <td class="whitespace-nowrap px-4 py-3">{{ user.lastAccessAt ? date(user.lastAccessAt) : 'Nunca acessou' }}</td>
+                  <td class="whitespace-nowrap">{{ date(user.createdAt) }}</td>
+                  <td class="whitespace-nowrap">{{ user.lastAccessAt ? date(user.lastAccessAt) : 'Nunca acessou' }}</td>
                 </tr>
               }
             </tbody>
@@ -211,6 +211,8 @@ export class UserList implements OnInit, OnDestroy {
     this.search.set('');
     this.appliedQuery = '';
     this.status.set('');
+    this.sort.set('createdAt');
+    this.direction.set('desc');
     this.page.set(0);
     this.load();
   }

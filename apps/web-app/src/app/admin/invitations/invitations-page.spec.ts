@@ -148,6 +148,41 @@ describe('InvitationsPage', () => {
     expect(el.querySelector('[data-testid="invite-modal"]')).toBeNull();
   });
 
+  it('o modal é um painel opaco acessível (gef-sheet): diálogo modal, fecha com o toque no fundo e com Escape', () => {
+    const { fixture, el } = setup();
+
+    http.expectOne(LIST_URL).flush(mockInvitations);
+    fixture.detectChanges();
+
+    (el.querySelector('[data-testid="invite-open-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    const dialog = el.querySelector('.gef-sheet[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-label')).toBe('Convidar usuário');
+    expect(dialog.contains(el.querySelector('[data-testid="invite-modal"]'))).toBe(true);
+
+    (el.querySelector('.gef-sheet-backdrop') as HTMLElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="invite-modal"]')).toBeNull();
+
+    (el.querySelector('[data-testid="invite-open-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    el.querySelector('.gef-sheet-backdrop')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="invite-modal"]')).toBeNull();
+  });
+
+  it('os selos de situação usam só tokens do tema, sem cores cruas', () => {
+    const { fixture } = setup();
+    http.expectOne(LIST_URL).flush(mockInvitations);
+    const page = fixture.componentInstance as unknown as { statusBadge(status: string): { tone: string } };
+    for (const status of ['PENDING', 'ACCEPTED', 'CANCELED', 'EXPIRED', 'OTHER']) {
+      expect(page.statusBadge(status).tone).not.toMatch(/amber|emerald|rose|red-\d/);
+      expect(page.statusBadge(status).tone).toContain('gefinc');
+    }
+  });
+
   it('exibe erro de e-mail já cadastrado no modal sem fechar', () => {
     const { fixture, el } = setup();
 
@@ -198,14 +233,35 @@ describe('InvitationsPage', () => {
     expect(toast).toHaveBeenCalledWith('Convite reenviado com sucesso.');
   });
 
-  it('permite cancelar convite pendente', () => {
-    const { fixture, el } = setup();
+  const dialog = () => document.querySelector('[role="alertdialog"]') as HTMLElement | null;
+  const press = (testId: string) => (document.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement).click();
 
+  function openCancel() {
+    const ctx = setup();
     http.expectOne(LIST_URL).flush(mockInvitations);
-    fixture.detectChanges();
+    ctx.fixture.detectChanges();
+    (ctx.el.querySelector('[data-testid="cancel-btn"]') as HTMLButtonElement).click();
+    ctx.fixture.detectChanges();
+    return ctx;
+  }
 
-    const cancelBtn = el.querySelector('[data-testid="cancel-btn"]') as HTMLButtonElement;
-    cancelBtn.click();
+  it('"Cancelar" na linha só abre a confirmação (alertdialog) citando o e-mail; nada é cancelado ainda', () => {
+    openCancel();
+
+    http.expectNone(`${LIST_URL}/1`);
+    const box = dialog();
+    expect(box).not.toBeNull();
+    expect(box?.getAttribute('aria-label')).toBe('Cancelar convite');
+    expect(box?.textContent).toContain('convidado@teste.com');
+    expect(box?.textContent).toContain('deixa de funcionar');
+    expect(box?.querySelector('[data-testid="confirm-cancel"]')?.textContent?.trim()).toBe('Voltar');
+    expect(box?.querySelector('[data-testid="confirm-confirm"]')?.textContent?.trim()).toBe('Cancelar convite');
+  });
+
+  it('confirmar cancela o convite (DELETE), recarrega a lista e exibe o toast', () => {
+    const { fixture } = openCancel();
+
+    press('confirm-confirm');
     fixture.detectChanges();
 
     const cancelReq = http.expectOne(`${LIST_URL}/1`);
@@ -217,5 +273,54 @@ describe('InvitationsPage', () => {
     fixture.detectChanges();
 
     expect(toast).toHaveBeenCalledWith('Convite cancelado com sucesso.');
+    expect(dialog()).toBeNull();
+  });
+
+  it('"Voltar" fecha a confirmação sem chamar a API', () => {
+    const { fixture } = openCancel();
+
+    press('confirm-cancel');
+    fixture.detectChanges();
+
+    http.expectNone(`${LIST_URL}/1`);
+    expect(dialog()).toBeNull();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('falha ao cancelar mantém o diálogo aberto com o erro dentro dele (sem toast)', () => {
+    const { fixture } = openCancel();
+
+    press('confirm-confirm');
+    fixture.detectChanges();
+    http.expectOne(`${LIST_URL}/1`).flush({ code: 'INTERNAL_ERROR' }, { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(dialog()).not.toBeNull();
+    expect(dialog()?.querySelector('[data-testid="confirm-error"]')?.textContent?.trim()).not.toBe('');
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('convite sem e-mail usa o texto "este convite" na confirmação', () => {
+    const { fixture, el } = setup();
+    http.expectOne(LIST_URL).flush([{ ...mockInvitations[0], email: null }]);
+    fixture.detectChanges();
+
+    (el.querySelector('[data-testid="cancel-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(dialog()?.textContent).toContain('este convite');
+  });
+
+  it('reenviar continua sem confirmação', () => {
+    const { fixture, el } = setup();
+    http.expectOne(LIST_URL).flush(mockInvitations);
+    fixture.detectChanges();
+
+    (el.querySelector('[data-testid="resend-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(dialog()).toBeNull();
+    http.expectOne(`${LIST_URL}/1/resend`).flush(mockInvitations[0]);
+    http.expectOne(LIST_URL).flush(mockInvitations);
   });
 });

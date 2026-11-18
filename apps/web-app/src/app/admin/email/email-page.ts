@@ -58,7 +58,7 @@ interface StatusBadge {
     <section class="space-y-6" aria-labelledby="email-heading">
       <h2 id="email-heading" class="text-title-md font-bold">E-mail</h2>
 
-      <div class="space-y-3 rounded-xl border border-gefinc-border p-4" data-testid="config-card">
+      <div class="gef-card space-y-3 p-4" data-testid="config-card">
         <h3 class="text-title-sm font-bold">Configuração</h3>
         @if (configLoading()) {
           <gef-loading variant="list" message="Carregando configuração…" />
@@ -72,7 +72,7 @@ interface StatusBadge {
             <div>
               <dt class="text-caption text-gefinc-muted">Configuração completa</dt>
               <dd data-testid="config-complete">
-                <gef-icon [name]="cfg.complete ? 'check' : 'alert'" [size]="16" />{{ cfg.complete ? ' Sim' : ' Não' }}
+                <span class="inline-flex items-center gap-1"><gef-icon [name]="cfg.complete ? 'check' : 'alert'" [size]="16" />{{ cfg.complete ? 'Sim' : 'Não' }}</span>
               </dd>
             </div>
             <div><dt class="text-caption text-gefinc-muted">Autenticação</dt><dd data-testid="config-auth">{{ cfg.authEnabled ? 'Ativada' : 'Desativada' }}</dd></div>
@@ -81,21 +81,23 @@ interface StatusBadge {
         }
       </div>
 
-      <div class="space-y-3 rounded-xl border border-gefinc-border p-4" data-testid="test-card">
+      <div class="gef-card space-y-3 p-4" data-testid="test-card">
         <h3 class="text-title-sm font-bold">E-mail de teste</h3>
         <p class="text-body-base text-gefinc-muted">Envia uma mensagem de teste ao seu próprio e-mail. A resposta pode levar alguns segundos.</p>
-        <button type="button" class="gef-btn-primary" [disabled]="testing()" data-testid="send-test" (click)="sendTest()">
+        <button type="button" class="gef-btn-primary gef-btn-inline" [disabled]="testing()" data-testid="send-test" (click)="sendTest()">
           <gef-icon name="mail" [size]="16" />{{ testing() ? 'Enviando…' : 'Enviar e-mail de teste' }}
         </button>
         <p class="sr-only" role="status" aria-live="polite" data-testid="test-status">{{ testAnnouncement() }}</p>
         @if (testResult(); as result) {
-          <p class="inline-flex items-center gap-2 text-body-base" data-testid="test-result">
-            @if (result.status === 'SENT') {
+          @if (result.status === 'SENT') {
+            <p class="flex items-center gap-2 text-body-base text-gefinc-primary" data-testid="test-result">
               <gef-icon name="check" [size]="16" /><span>Enviado. Confira a sua caixa de entrada.</span>
-            } @else {
+            </p>
+          } @else {
+            <p class="flex items-center gap-2 text-body-base text-gefinc-danger" data-testid="test-result">
               <gef-icon name="alert" [size]="16" /><span>Falhou. {{ failureText(result.failureReason) }}</span>
-            }
-          </p>
+            </p>
+          }
         }
         @if (testError()) {
           <p class="text-body-base text-gefinc-danger" role="alert" data-testid="test-error">{{ testError() }}</p>
@@ -104,7 +106,7 @@ interface StatusBadge {
 
       <div class="space-y-4">
         <h3 class="text-title-sm font-bold">Histórico de envios (90 dias)</h3>
-        <div class="grid gap-3 md:grid-cols-3 md:items-end">
+        <div class="grid gap-3 md:grid-cols-2 md:items-end">
           <gef-select label="Situação" [options]="statusOptions" [ngModel]="status()" (ngModelChange)="onStatus($event)" />
           <gef-select label="Tipo" [options]="kindOptions" [ngModel]="kind()" (ngModelChange)="onKind($event)" />
         </div>
@@ -121,41 +123,41 @@ interface StatusBadge {
         } @else if (items().length === 0) {
           <gef-empty icon="mail" title="Nenhum envio encontrado" hint="Não há envios nos últimos 90 dias com estes filtros." />
         } @else {
-          <div class="overflow-x-auto rounded-xl border border-gefinc-border">
-            <table class="w-full text-left text-body-base">
+          <div class="gef-table-wrap">
+            <table class="gef-table">
               <caption class="sr-only">Histórico de envios de e-mail</caption>
-              <thead class="bg-gefinc-surface text-caption uppercase text-gefinc-muted">
+              <thead>
                 <tr>
-                  <th scope="col" class="px-4 py-3">Data e hora</th>
-                  <th scope="col" class="px-4 py-3">Tipo</th>
-                  <th scope="col" class="px-4 py-3">Destinatário</th>
-                  <th scope="col" class="px-4 py-3">Situação</th>
-                  <th scope="col" class="px-4 py-3 text-right">Ações</th>
+                  <th scope="col">Data e hora</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Destinatário</th>
+                  <th scope="col">Situação</th>
+                  <th scope="col" class="text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
                 @for (item of items(); track item.id) {
-                  <tr class="border-t border-gefinc-border" data-testid="delivery-row">
-                    <td class="whitespace-nowrap px-4 py-3" data-testid="created-at">{{ date(item.createdAt) }}</td>
-                    <td class="px-4 py-3" data-testid="kind">{{ kindLabel(item.kind) }}</td>
-                    <td class="px-4 py-3" data-testid="recipient">
+                  <tr data-testid="delivery-row">
+                    <td class="whitespace-nowrap" data-testid="created-at">{{ date(item.createdAt) }}</td>
+                    <td data-testid="kind">{{ kindLabel(item.kind) }}</td>
+                    <td data-testid="recipient">
                       @if (item.recipient.userId && !isAnonymous(item.recipient.label)) {
-                        <a class="underline" [routerLink]="['/admin/users', item.recipient.userId]">{{ item.recipient.label }}</a>
+                        <a class="text-gefinc-primary underline-offset-2 hover:underline" [routerLink]="['/admin/users', item.recipient.userId]">{{ item.recipient.label }}</a>
                       } @else {
                         {{ item.recipient.label }}
                       }
                     </td>
-                    <td class="px-4 py-3" data-testid="status">
-                      <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption" [class]="badge(item).tone">
+                    <td data-testid="status">
+                      <span class="gef-badge" [class]="badge(item).tone">
                         <gef-icon [name]="badge(item).icon" [size]="14" />{{ badge(item).label }}
                       </span>
                       @if (item.failureReason) {
                         <span class="ml-2 text-caption text-gefinc-muted" data-testid="failure">{{ failureText(item.failureReason) }}</span>
                       }
                     </td>
-                    <td class="px-4 py-3 text-right">
+                    <td class="text-right">
                       @if (canResend(item)) {
-                        <button type="button" class="gef-btn-secondary" data-testid="resend" [disabled]="resendingId() === item.id" (click)="resend(item)">
+                        <button type="button" class="gef-btn-sm" data-testid="resend" [disabled]="resendingId() === item.id" (click)="resend(item)">
                           {{ resendingId() === item.id ? 'Reenviando…' : 'Reenviar' }}
                         </button>
                       }
@@ -368,8 +370,8 @@ export class EmailPage implements OnInit, OnDestroy {
 
   protected badge(item: EmailDelivery): StatusBadge {
     return item.status === 'SENT'
-      ? { label: 'Enviado', icon: 'check', tone: 'border-gefinc-primary/40 text-gefinc-primary' }
-      : { label: 'Falhou', icon: 'alert', tone: 'border-gefinc-danger/40 text-gefinc-danger' };
+      ? { label: 'Enviado', icon: 'check', tone: 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary' }
+      : { label: 'Falhou', icon: 'alert', tone: 'border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger' };
   }
 
   private buildParams(): AdminEmailDeliveryParams {

@@ -19,12 +19,14 @@ type Pending = { kind: 'one'; session: AdminSession } | { kind: 'all' };
   selector: 'gef-admin-session-list',
   imports: [ActionDialog, ErrorView, Icon, LoadingView],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // O host de um componente é `inline` por padrão: sem `block`, o `space-y-*` do pai (margem vertical) é ignorado.
+  host: { class: 'block' },
   template: `
     <div class="gef-card space-y-3 p-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h3 class="text-title-sm font-semibold">Sessões abertas</h3>
         @if (canRevokeAll()) {
-          <button type="button" class="gef-btn-secondary" data-testid="revoke-all" (click)="askAll()">
+          <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="revoke-all" (click)="askAll()">
             <gef-icon name="logout" [size]="16" />Encerrar todas
           </button>
         }
@@ -37,30 +39,30 @@ type Pending = { kind: 'one'; session: AdminSession } | { kind: 'all' };
       } @else if (sessions().length === 0) {
         <p class="text-gefinc-muted" data-testid="sessions-empty">Nenhuma sessão aberta.</p>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-gefinc-border">
-          <table class="w-full text-left text-body-base">
+        <div class="gef-table-wrap">
+          <table class="gef-table">
             <caption class="sr-only">Sessões abertas do usuário</caption>
-            <thead class="bg-gefinc-surface text-caption uppercase text-gefinc-muted">
+            <thead>
               <tr>
-                <th scope="col" class="px-4 py-3">Início</th>
-                <th scope="col" class="px-4 py-3">Último uso</th>
-                <th scope="col" class="px-4 py-3">Dispositivo</th>
-                <th scope="col" class="px-4 py-3">IP</th>
-                <th scope="col" class="px-4 py-3"><span class="sr-only">Ações</span></th>
+                <th scope="col">Início</th>
+                <th scope="col">Último uso</th>
+                <th scope="col">Dispositivo</th>
+                <th scope="col">IP</th>
+                <th scope="col"><span class="sr-only">Ações</span></th>
               </tr>
             </thead>
             <tbody>
               @for (session of sessions(); track session.id) {
-                <tr class="border-t border-gefinc-border" data-testid="session-row">
-                  <td class="whitespace-nowrap px-4 py-3">{{ date(session.startedAt) }}</td>
-                  <td class="whitespace-nowrap px-4 py-3">{{ date(session.lastUsedAt) }}</td>
-                  <td class="px-4 py-3">{{ session.device || 'Não informado' }}</td>
-                  <td class="px-4 py-3">{{ session.ip || 'Não informado' }}</td>
-                  <td class="px-4 py-3">
+                <tr data-testid="session-row">
+                  <td class="whitespace-nowrap">{{ date(session.startedAt) }}</td>
+                  <td class="whitespace-nowrap">{{ date(session.lastUsedAt) }}</td>
+                  <td>{{ session.device || 'Não informado' }}</td>
+                  <td>{{ session.ip || 'Não informado' }}</td>
+                  <td>
                     @if (session.current) {
-                      <span class="inline-flex items-center gap-1 rounded-full border border-gefinc-primary/40 px-2 py-0.5 text-caption font-semibold text-gefinc-primary"><gef-icon name="check" [size]="14" />Esta sessão</span>
+                      <span class="gef-badge border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary"><gef-icon name="check" [size]="14" />Esta sessão</span>
                     } @else if (!readonly()) {
-                      <button type="button" class="gef-btn-secondary" data-testid="revoke-session" (click)="askOne(session)">
+                      <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="revoke-session" (click)="askOne(session)">
                         <gef-icon name="logout" [size]="16" />Encerrar
                       </button>
                     }

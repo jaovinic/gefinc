@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { PASSWORD, login, promoteToRoot, register } from './support';
+import { PASSWORD, login, promoteToRoot, register, selectTrigger } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
@@ -43,7 +43,8 @@ test.describe('aviso de exclusão e cancelamento no login web (US12)', () => {
     await page.getByTestId('action-delete').click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
 
-    await page.getByTestId('deletion-reason-select').selectOption({ index: 1 });
+    await selectTrigger(page, page, 'Motivo da exclusão').click();
+    await page.getByRole('option').first().click();
     await page.getByTestId('deletion-justification').fill('Violação das regras de convivência.');
     await page.getByTestId('deletion-days-input').fill('15');
     await page.getByTestId('deletion-confirm-email').fill(targetEmail);
@@ -85,7 +86,8 @@ test.describe('aviso de exclusão e cancelamento no login web (US12)', () => {
     await expect(page.getByTestId('detail-heading')).toBeVisible();
 
     await page.getByTestId('action-delete').click();
-    await page.getByTestId('deletion-reason-select').selectOption({ index: 1 });
+    await selectTrigger(page, page, 'Motivo da exclusão').click();
+    await page.getByRole('option').first().click();
     await page.getByTestId('deletion-justification').fill('Cancelamento programado para teste.');
     await page.getByTestId('deletion-days-input').fill('15');
     await page.getByTestId('deletion-confirm-email').fill(targetEmail);
@@ -95,7 +97,7 @@ test.describe('aviso de exclusão e cancelamento no login web (US12)', () => {
 
     // 2. Admin cancela a exclusão agendada
     await page.getByTestId('action-cancel-deletion').click();
-    await expect(page.getByText('Exclusão agendada cancelada.')).toBeVisible();
+    await expect(page.getByTestId('toast-region').getByText('Exclusão agendada cancelada.')).toBeVisible();
 
     // 3. Usuário alvo faz login
     await page.getByRole('button', { name: 'Sair' }).click();

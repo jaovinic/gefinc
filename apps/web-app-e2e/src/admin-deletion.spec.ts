@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { PASSWORD, promoteToRoot, register } from './support';
+import { PASSWORD, promoteToRoot, register, selectTrigger } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
@@ -47,7 +47,8 @@ test.describe('painel: exclusão de usuários e comunicados pendentes', () => {
     expect(await violations(page), 'diálogo de exclusão').toEqual([]);
 
     // 3. Preenche o formulário de exclusão
-    await page.getByTestId('deletion-reason-select').selectOption({ index: 1 });
+    await selectTrigger(page, page, 'Motivo da exclusão').click();
+    await page.getByRole('option').first().click();
     await page
       .getByTestId('deletion-justification')
       .fill('Solicitação formal de exclusão com base na LGPD enviada pelo titular.');
@@ -65,7 +66,7 @@ test.describe('painel: exclusão de usuários e comunicados pendentes', () => {
 
     // 6. Cancela a exclusão agendada
     await page.getByTestId('action-cancel-deletion').click();
-    await expect(page.getByText('Exclusão agendada cancelada.')).toBeVisible();
+    await expect(page.getByTestId('toast-region').getByText('Exclusão agendada cancelada.')).toBeVisible();
     await expect(page.getByTestId('deletion')).toContainText('Sem exclusão pendente');
 
     // 7. Acessa a tela de comunicações pendentes e verifica acessibilidade
