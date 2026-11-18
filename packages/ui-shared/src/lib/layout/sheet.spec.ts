@@ -127,6 +127,23 @@ describe('Sheet (painel inferior)', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
   });
 
+  it('na gaveta lateral o cabeçalho tem respiro interno e fica fixo; no painel de base é o cabeçalho sticky (gef-sheet-head)', async () => {
+    const { fixture, host, el } = setup();
+    host.side.set('left');
+    await open(fixture);
+    const left = el.querySelector('[role="dialog"] > header') as HTMLElement;
+    expect(left.classList.contains('px-4')).toBe(true);
+    expect(left.classList.contains('shrink-0')).toBe(true);
+    expect(left.classList.contains('gef-sheet-head')).toBe(false);
+    host.side.set('bottom');
+    fixture.detectChanges();
+    const bottom = el.querySelector('[role="dialog"] > header') as HTMLElement;
+    expect(bottom.classList.contains('gef-sheet-head')).toBe(true);
+    expect(bottom.classList.contains('mb-3')).toBe(false);
+    expect(bottom.classList.contains('px-4')).toBe(false);
+    expect(bottom.classList.contains('flex')).toBe(true);
+  });
+
   it('o painel padrão continua subindo da base', async () => {
     const { fixture, el } = setup();
     await open(fixture);

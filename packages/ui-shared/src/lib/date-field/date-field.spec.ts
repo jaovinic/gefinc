@@ -186,6 +186,40 @@ describe('gef-date-field', () => {
       expect(el.querySelector('.gef-field-error')?.textContent).toContain('dd/mm/aaaa');
     });
 
+    it('reset de fora (valor vazio) zera o "já saiu do campo": digitar de novo não mostra erro até um novo blur', async () => {
+      const { el, input, host, flush } = await render();
+      typeInto(input(), '0511');
+      input().dispatchEvent(new Event('blur'));
+      await flush();
+      expect(el.querySelector('.gef-field-error')).not.toBeNull();
+
+      host.control.setValue('');
+      await flush();
+      expect(input().value).toBe('');
+      expect(el.querySelector('.gef-field-error')).toBeNull();
+
+      typeInto(input(), '05');
+      await flush();
+      expect(el.querySelector('.gef-field-error')).toBeNull();
+      expect(input().getAttribute('aria-invalid')).toBeNull();
+
+      input().dispatchEvent(new Event('blur'));
+      await flush();
+      expect(el.querySelector('.gef-field-error')?.textContent).toContain('dd/mm/aaaa');
+    });
+
+    it('digitar e sair do campo (sem reset) segue igual: o erro de data incompleta aparece só no blur', async () => {
+      const { el, input, host, flush } = await render();
+      host.control.setValue('2027-01-31');
+      await flush();
+      typeInto(input(), '0511');
+      await flush();
+      expect(el.querySelector('.gef-field-error')).toBeNull();
+      input().dispatchEvent(new Event('blur'));
+      await flush();
+      expect(el.querySelector('.gef-field-error')).not.toBeNull();
+    });
+
     it('perder o foco marca o controle como tocado', async () => {
       const { input, host } = await render();
       expect(host.control.touched).toBe(false);

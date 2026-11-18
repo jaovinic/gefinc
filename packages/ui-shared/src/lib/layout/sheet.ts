@@ -32,9 +32,9 @@ const FOCUSABLE =
     @if (open()) {
       <div class="gef-sheet-backdrop" [class.gef-sheet-backdrop-left]="side() === 'left'" role="presentation" (click)="onBackdrop($event)" (keydown)="onKeydown($event)">
         <div #dialog class="gef-sheet" [class.gef-sheet-left]="side() === 'left'" [attr.role]="role()" aria-modal="true" [attr.aria-label]="heading()" [attr.aria-describedby]="describedBy()">
-          <header class="mb-3 flex items-center justify-between gap-3">
-            <h2 class="text-title-md font-bold">{{ heading() }}</h2>
-            <button type="button" class="gef-icon-btn border border-gefinc-border" aria-label="Fechar" (click)="requestClose()">
+          <header class="flex items-center justify-between gap-3" [class]="side() === 'left' ? 'shrink-0 border-b border-gefinc-border px-4 py-3' : 'gef-sheet-head'">
+            <h2 class="text-title-md font-bold text-gefinc-text">{{ heading() }}</h2>
+            <button type="button" class="gef-icon-btn border border-gefinc-field-border" aria-label="Fechar" (click)="requestClose()">
               <gef-icon name="close" [size]="18" />
             </button>
           </header>

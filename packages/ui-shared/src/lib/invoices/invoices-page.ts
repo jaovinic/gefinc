@@ -227,7 +227,7 @@ import { currentMonth, formatBRL, isoToBR, monthLabelBR, todayIso } from '@gefin
                     <td class="px-4 py-3"><gef-account-badge [account]="cardOf(card.accountId, card.name)" [showHolder]="false" /></td>
                     @for (inv of card.invoices; track inv.month) {
                       <td class="financial-value px-4 py-3 text-right">
-                        <button type="button" class="hover:underline" (click)="open(card.accountId, inv.month)">{{ money(inv.remaining) }}</button>
+                        <button type="button" class="gef-hit-area hover:underline" (click)="open(card.accountId, inv.month)">{{ money(inv.remaining) }}</button>
                       </td>
                     }
                     <td class="financial-value px-4 py-3 text-right font-semibold">{{ money(card.totalCommitted) }}</td>

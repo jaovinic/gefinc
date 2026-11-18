@@ -24,29 +24,31 @@ let nextId = 0;
           <ng-content />
         }
       </div>
-      @if (error(); as text) {
-        <p class="gef-alert-error mt-3" role="alert" data-testid="confirm-error">{{ text }}</p>
-      }
-      <div class="mt-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:justify-end">
-        <button type="button" class="gef-btn-secondary min-h-11 whitespace-normal text-center md:min-h-11" data-confirm-cancel data-testid="confirm-cancel" [disabled]="busy()" (click)="cancelled.emit()">
-          {{ blocked() ? 'Fechar' : cancelLabel() }}
-        </button>
-        <ng-content select="[gefConfirmExtra]" />
-        @if (!blocked()) {
-          <button
-            type="button"
-            class="min-h-11 whitespace-normal text-center md:min-h-11 md:w-auto"
-            [class]="tone() === 'danger' ? 'gef-btn-danger' : 'gef-btn-primary'"
-            data-testid="confirm-confirm"
-            [disabled]="busy()"
-            (click)="onConfirm()"
-          >
-            @if (confirmIcon(); as name) {
-              <gef-icon class="mr-1 inline-block align-text-bottom" [name]="name" [size]="16" />
-            }
-            {{ busy() ? busyLabel() : confirmLabel() }}
-          </button>
+      <div class="gef-sheet-actions space-y-3">
+        @if (error(); as text) {
+          <p class="gef-alert-error" role="alert" data-testid="confirm-error">{{ text }}</p>
         }
+        <div class="flex flex-col gap-3 md:flex-row md:flex-wrap md:justify-end">
+          <button type="button" class="gef-btn-secondary whitespace-normal text-center" data-confirm-cancel data-testid="confirm-cancel" [disabled]="busy()" (click)="cancelled.emit()">
+            {{ blocked() ? 'Fechar' : cancelLabel() }}
+          </button>
+          <ng-content select="[gefConfirmExtra]" />
+          @if (!blocked()) {
+            <button
+              type="button"
+              class="whitespace-normal text-center md:w-auto"
+              [class]="tone() === 'danger' ? 'gef-btn-danger' : 'gef-btn-primary'"
+              data-testid="confirm-confirm"
+              [disabled]="busy()"
+              (click)="onConfirm()"
+            >
+              @if (confirmIcon(); as name) {
+                <gef-icon class="mr-1 inline-block align-text-bottom" [name]="name" [size]="16" />
+              }
+              {{ busy() ? busyLabel() : confirmLabel() }}
+            </button>
+          }
+        </div>
       </div>
     </gef-sheet>
   `,

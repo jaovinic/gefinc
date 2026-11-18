@@ -5,11 +5,12 @@ import type { UserNotice } from '@gefinc/core-models';
 import { AuthApi, SessionService, SystemApi, messageFor, toProblem } from '../../api';
 import { isoToBR } from '@gefinc/utils';
 import { switchMap } from 'rxjs';
+import { Icon } from '../../icons/icon';
 import { AuthCard } from '../auth-card';
 
 @Component({
   selector: 'gef-login',
-  imports: [ReactiveFormsModule, RouterLink, AuthCard],
+  imports: [ReactiveFormsModule, RouterLink, AuthCard, Icon],
   template: `
     <gef-auth-card heading="Entrar">
       @if (maintenanceMessage(); as maintMsg) {
@@ -26,7 +27,7 @@ import { AuthCard } from '../auth-card';
             </svg>
             <p>{{ notice.message }}</p>
           </div>
-          <button type="button" class="text-caption font-medium underline shrink-0 hover:text-gefinc-text" (click)="dismissNotice(notice.id)" data-testid="dismiss-notice">
+          <button type="button" class="gef-action text-caption font-medium underline shrink-0 hover:text-gefinc-text" (click)="dismissNotice(notice.id)" data-testid="dismiss-notice">
             Dispensar
           </button>
         </div>
@@ -80,9 +81,15 @@ import { AuthCard } from '../auth-card';
         <p class="text-caption text-gefinc-muted">Ainda não tem conta?</p>
         <a class="gef-btn-secondary block w-full text-center" routerLink="/register">Criar conta</a>
       </div>
-      <p class="mt-5 text-center text-caption text-gefinc-muted">
-        <a class="underline underline-offset-2 hover:text-gefinc-text" routerLink="/privacidade" data-testid="privacy-link">Privacidade: o que guardamos das sessões</a>
-      </p>
+      <div class="mt-4 flex justify-center">
+        <a
+          class="gef-link inline-flex min-h-11 items-center gap-2 text-body-base font-medium no-underline hover:underline"
+          routerLink="/privacidade"
+          data-testid="privacy-link"
+        >
+          <gef-icon name="shield" [size]="16" />Privacidade: o que guardamos das sessões
+        </a>
+      </div>
     </gef-auth-card>
   `,
 })

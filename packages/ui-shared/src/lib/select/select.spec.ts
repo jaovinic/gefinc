@@ -37,6 +37,19 @@ class ModelHost {
   value = signal<string>('');
 }
 
+@Component({
+  imports: [Select, FormsModule],
+  template: `
+    <gef-select label="Motivo" [options]="options" [invalid]="invalid()" [describedBy]="describedBy()" [ngModel]="null" />
+    <p id="motivo-erro">Selecione um motivo.</p>
+  `,
+})
+class ErrorHost {
+  options: SelectOption[] = [{ value: 1, label: 'Um' }];
+  invalid = signal(false);
+  describedBy = signal('');
+}
+
 function key(target: Element, name: string, init: KeyboardEventInit = {}) {
   const event = new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true, ...init });
   target.dispatchEvent(event);
@@ -107,6 +120,48 @@ describe('gef-select', () => {
       expect(el.querySelector(`#${labelId}`)?.textContent?.trim()).toBe('Status');
       expect(el.querySelector(`#${valueId}`)?.textContent?.trim()).toBe('Todos os status');
       expect(trigger.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('sem invalid/describedBy o gatilho não emite aria-invalid nem aria-describedby (nem vazios)', () => {
+      const fixture = TestBed.createComponent(ErrorHost);
+      fixture.detectChanges();
+      const trigger = (fixture.nativeElement as HTMLElement).querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+      expect(trigger.hasAttribute('aria-invalid')).toBe(false);
+      expect(trigger.hasAttribute('aria-describedby')).toBe(false);
+      expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+      expect(trigger.getAttribute('aria-labelledby')).toContain('-label');
+    });
+
+    it('invalid e describedBy ligam o gatilho ao erro sem perder o nome acessível nem o aria-haspopup', async () => {
+      const fixture = TestBed.createComponent(ErrorHost);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const trigger = el.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+      const labelledby = trigger.getAttribute('aria-labelledby');
+
+      fixture.componentInstance.invalid.set(true);
+      fixture.componentInstance.describedBy.set('motivo-erro');
+      fixture.detectChanges();
+      expect(trigger.getAttribute('aria-invalid')).toBe('true');
+      expect(trigger.getAttribute('aria-describedby')).toBe('motivo-erro');
+      expect(trigger.getAttribute('aria-labelledby')).toBe(labelledby);
+      expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+
+      fixture.componentInstance.invalid.set(false);
+      fixture.componentInstance.describedBy.set('');
+      fixture.detectChanges();
+      expect(trigger.hasAttribute('aria-invalid')).toBe(false);
+      expect(trigger.hasAttribute('aria-describedby')).toBe(false);
+    });
+
+    it('focus() move o foco para o gatilho', () => {
+      const fixture = TestBed.createComponent(ErrorHost);
+      document.body.appendChild(fixture.nativeElement);
+      fixture.detectChanges();
+      const trigger = (fixture.nativeElement as HTMLElement).querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+      const select = fixture.debugElement.children[0].componentInstance as Select;
+      select.focus();
+      expect(document.activeElement).toBe(trigger);
     });
 
     it('mostra o rótulo da opção que corresponde ao valor inicial', () => {

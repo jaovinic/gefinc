@@ -35,7 +35,9 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
         <h2 id="appearance-title" class="text-title-md font-bold">Aparência</h2>
         <p class="text-body-base text-gefinc-muted">Escolha o tema claro, o escuro ou siga o do seu aparelho.</p>
         <gef-theme-toggle />
-        <gef-glass-toggle />
+        <div class="border-t border-gefinc-border pt-3">
+          <gef-glass-toggle />
+        </div>
       </section>
 
       <section class="space-y-4 gef-card p-4" aria-labelledby="name-title">
@@ -116,9 +118,15 @@ function samePassword(group: AbstractControl): ValidationErrors | null {
 
       <ng-content />
 
-      <p class="text-body-base text-gefinc-muted">
-        <a class="underline underline-offset-2 hover:text-gefinc-text" routerLink="/privacidade" data-testid="privacy-link">Privacidade: o que guardamos das sessões</a>
-      </p>
+      <a
+        class="gef-card flex min-h-11 items-center gap-3 px-4 py-3 text-body-base font-medium text-gefinc-secondary transition-colors hover:border-gefinc-secondary"
+        routerLink="/privacidade"
+        data-testid="privacy-link"
+      >
+        <gef-icon name="shield" [size]="18" />
+        <span class="min-w-0 flex-1">Privacidade: o que guardamos das sessões</span>
+        <gef-icon name="chevron-right" [size]="18" class="text-gefinc-muted" />
+      </a>
 
       <gef-delete-account [embedded]="true" />
     </section>

@@ -83,6 +83,7 @@ describe('gráficos', () => {
     expect(percents).toEqual(['86%', '14%']);
     expect(el.querySelector('gef-category-donut')?.className).toContain('block');
     expect(el.querySelector('gef-card-bars')?.className).toContain('block');
+    expect(el.querySelector('gef-category-donut')?.className).toContain('@container');
 
     fixture.componentInstance.data.set([
       { label: 'Moradia', value: '1000.00', color: '#8B5CF6' },
@@ -90,6 +91,18 @@ describe('gráficos', () => {
     ]);
     fixture.detectChanges();
     expect(Array.from(el.querySelectorAll('[data-testid="slice-percent"]')).map((p) => p.textContent?.trim())).toEqual(['100%', '<1%']);
+  });
+
+  it('a legenda quebra pela largura do cartão (container query), não pela da tela', async () => {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const wrapper = el.querySelector('gef-category-donut > div') as HTMLElement;
+    expect(wrapper.classList.contains('@lg:flex-row')).toBe(true);
+    expect(wrapper.classList.contains('sm:flex-row')).toBe(false);
+    expect((el.querySelector('[aria-label="Legenda do gráfico por categoria"]') as HTMLElement).classList.contains('min-w-0')).toBe(true);
   });
 
   it('atualiza o gráfico existente quando os dados mudam e o destrói ao sair', async () => {

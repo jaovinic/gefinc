@@ -12,6 +12,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-theme-toggle',
+  host: { class: 'block' },
   imports: [Icon],
   template: `
     @if (variant() === 'icon') {

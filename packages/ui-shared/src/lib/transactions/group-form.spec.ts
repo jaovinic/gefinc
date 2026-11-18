@@ -26,6 +26,9 @@ describe('GroupForm', () => {
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
+  const categoryError = (root: HTMLElement) =>
+    Array.from(root.querySelectorAll<HTMLElement>('.gef-field-error')).find((p) => p.textContent?.includes('Escolha a categoria.'));
+
   it('mostra só categorias da natureza escolhida', async () => {
     const { el, fixture } = await setup();
     expect(optionLabels(fixture, 'Categoria')).toEqual(['Selecione…', 'Alimentação', 'Lazer']);
@@ -207,6 +210,34 @@ describe('GroupForm', () => {
     expect(el.textContent).toContain('Informe a descrição.');
     expect(el.textContent).toContain('Escolha a conta.');
     expect(el.textContent).toContain('Escolha a categoria.');
+    const trigger = selectTrigger(el, 'Categoria');
+    expect(trigger.getAttribute('aria-invalid')).toBe('true');
+    const message = categoryError(el);
+    expect(message?.id).toMatch(/^gef-group-category-error-\d+$/);
+    expect(trigger.getAttribute('aria-describedby')).toBe(message?.id);
+    expect(el.querySelector(`#${message?.id}`)?.textContent).toContain('Escolha a categoria.');
+  });
+
+  it('o id do aviso da categoria é único por formulário (duas instâncias não repetem o id)', async () => {
+    const { http, el, fixture, flushReference } = await setup();
+    const other = TestBed.createComponent(GroupForm);
+    other.detectChanges();
+    flushReference();
+    await other.whenStable();
+    other.detectChanges();
+    const otherEl = other.nativeElement as HTMLElement;
+    for (const [root, f] of [[el, fixture], [otherEl, other]] as const) {
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
+      f.detectChanges();
+    }
+    http.expectNone({ method: 'POST', url: `${API}/transaction-groups` });
+
+    const first = categoryError(el);
+    const second = categoryError(otherEl);
+    expect(first?.id).toBeTruthy();
+    expect(second?.id).toBeTruthy();
+    expect(first?.id).not.toBe(second?.id);
+    expect(selectTrigger(otherEl, 'Categoria').getAttribute('aria-describedby')).toBe(second?.id);
   });
 
   it('valor zerado não é enviado e mostra o aviso, mantendo o que foi digitado', async () => {

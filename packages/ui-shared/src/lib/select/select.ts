@@ -39,12 +39,15 @@ function normalize(text: string): string {
       <span class="sr-only" [id]="labelId">{{ ariaLabel() }}</span>
     }
     <button
+      #trigger
       type="button"
       class="gef-input flex items-center justify-between gap-2 text-left"
       aria-haspopup="dialog"
       [id]="fieldId"
       [attr.aria-expanded]="opened()"
       [attr.aria-labelledby]="labelId + ' ' + valueId"
+      [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-describedby]="describedBy() || null"
       [disabled]="disabled()"
       (click)="openList()"
       (keydown)="onTriggerKeydown($event)"
@@ -88,6 +91,10 @@ export class Select implements ControlValueAccessor, OnDestroy {
   readonly options = input.required<SelectOption[]>();
   readonly placeholder = input('Escolha…');
   readonly emptyMessage = input('Nenhuma opção disponível.');
+  /** Marca o gatilho com `aria-invalid="true"` (o formulário que exibe o erro próprio informa). */
+  readonly invalid = input(false);
+  /** `id` da mensagem de erro/ajuda, ligado ao gatilho por `aria-describedby`; ausente, o atributo não é emitido. */
+  readonly describedBy = input('');
 
   protected readonly fieldId = `gef-select-${nextId++}`;
   protected readonly labelId = `${this.fieldId}-label`;
@@ -103,6 +110,7 @@ export class Select implements ControlValueAccessor, OnDestroy {
   protected readonly selected = computed(() => this.options().find((o) => o.value === this.value()) ?? null);
 
   private readonly list = viewChild<ElementRef<HTMLElement>>('list');
+  private readonly trigger = viewChild<ElementRef<HTMLButtonElement>>('trigger');
   private buffer = '';
   private bufferTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -111,6 +119,11 @@ export class Select implements ControlValueAccessor, OnDestroy {
 
   ngOnDestroy(): void {
     this.resetBuffer();
+  }
+
+  /** Move o foco para o gatilho (ex.: ao apontar o campo com erro). */
+  focus(): void {
+    this.trigger()?.nativeElement.focus();
   }
 
   writeValue(value: string | number | null | undefined): void {

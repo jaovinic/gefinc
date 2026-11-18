@@ -130,5 +130,16 @@ describe('ProfilePage (Minha conta)', () => {
 
     const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/privacidade');
+    expect(link.classList.contains('gef-card')).toBe(true);
+    expect(link.classList.contains('min-h-11')).toBe(true);
+    expect(link.querySelector('svg')).not.toBeNull();
+  });
+
+  it('o seletor de tema e o interruptor do vidro ficam separados por uma linha', async () => {
+    const { el } = await setup();
+
+    const glass = el.querySelector('gef-glass-toggle') as HTMLElement;
+    expect((el.querySelector('gef-theme-toggle') as HTMLElement).className).toContain('block');
+    expect(glass.parentElement?.classList.contains('border-t')).toBe(true);
   });
 });

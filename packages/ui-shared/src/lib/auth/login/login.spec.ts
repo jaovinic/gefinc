@@ -115,6 +115,8 @@ describe('Login', () => {
     const link = el.querySelector('[data-testid="privacy-link"]') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe('/privacidade');
     expect(link.textContent).toContain('Privacidade');
+    expect(link.querySelector('svg')).not.toBeNull();
+    expect(link.classList.contains('min-h-11')).toBe(true);
   });
 
   it('mostra faixa de manutenção quando GET /system/status retorna maintenance: true', async () => {

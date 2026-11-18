@@ -28,6 +28,35 @@ describe('DeleteAccount', () => {
     ctx.http.verify();
   });
 
+  it('embutida vira cartão de perigo (mesma linguagem do encerramento global de sessões), com ícone e o formulário dentro', async () => {
+    const ctx = configureAuthTesting();
+    const fixture = TestBed.createComponent(DeleteAccount);
+    fixture.componentRef.setInput('embedded', true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    const section = el.querySelector('section') as HTMLElement;
+    expect(section.classList.contains('gef-card')).toBe(true);
+    expect(section.classList.contains('border-gefinc-danger/40')).toBe(true);
+    expect(section.classList.contains('max-w-lg')).toBe(false);
+    expect(section.getAttribute('aria-labelledby')).toBe('delete-title');
+    expect(el.querySelector('section gef-icon[name="alert"] svg')).not.toBeNull();
+    expect(section.contains(el.querySelector('#password'))).toBe(true);
+    expect(section.contains(el.querySelector('button[type="submit"]'))).toBe(true);
+    expect(el.textContent).toContain('apagados definitivamente após 30 dias');
+    ctx.http.verify();
+  });
+
+  it('como página própria mantém o título h1 e a largura limitada', async () => {
+    const { el } = await setup();
+    expect(el.querySelector('h1')?.textContent).toContain('Excluir minha conta');
+    const section = el.querySelector('section') as HTMLElement;
+    expect(section.classList.contains('max-w-lg')).toBe(true);
+    expect(section.classList.contains('gef-card')).toBe(false);
+    expect(el.textContent).toContain('apagados definitivamente após 30 dias');
+  });
+
   it('agenda a exclusão, mostra a data limite e encerra a sessão local', async () => {
     const { el, http, fixture } = await setup();
     const session = TestBed.inject(SessionService);

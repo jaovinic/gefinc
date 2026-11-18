@@ -106,7 +106,7 @@ import { transferLabel } from './transfer-label';
                       <span class="text-gefinc-muted">Concluída</span>
                     }
                   </td>
-                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
+                  <td class="px-4 py-2"><div class="flex flex-wrap justify-end gap-2">
                     <button type="button" class="gef-btn-sm" [attr.aria-label]="'Editar ' + label(transfer)" (click)="startEdit(transfer)">Editar</button>
                     <button type="button" class="gef-btn-sm gef-btn-sm-danger" [attr.aria-label]="'Excluir ' + label(transfer)" (click)="askDelete(transfer)">Excluir</button>
                   </div></td>

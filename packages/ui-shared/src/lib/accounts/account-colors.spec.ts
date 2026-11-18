@@ -67,8 +67,8 @@ function token(name: string, theme: Theme, block?: string): string {
   return value.trim();
 }
 
-/** Cor do fundo de vidro (`--glass-bg`/`--glass-bg-strong`) já sobre o fundo da página; trata o `var(--...surface)` do contraste alto. */
-function glass(name: '--glass-bg' | '--glass-bg-strong', theme: Theme, block?: string): Rgb {
+/** Cor do fundo de vidro (`--glass-bg`/`--glass-bg-strong`/`--glass-sheet-bg`) já sobre o fundo da página; trata o `var(--...surface)` do contraste alto. */
+function glass(name: '--glass-bg' | '--glass-bg-strong' | '--glass-sheet-bg', theme: Theme, block?: string): Rgb {
   const page = toRgb(token('--color-gefinc-bg', theme));
   const value = token(name, theme, block);
   if (value === 'var(--color-gefinc-surface)') {
@@ -85,7 +85,8 @@ function surfaces(theme: Theme): Record<string, Rgb> {
     'fundo da página': toRgb(token('--color-gefinc-bg', theme)),
     'superfície do tema': toRgb(token('--color-gefinc-surface', theme)),
     'cartão de vidro': glass('--glass-bg', theme),
-    'vidro forte (barras, folhas)': glass('--glass-bg-strong', theme),
+    'vidro forte (barras)': glass('--glass-bg-strong', theme),
+    'painel (folhas e modais)': glass('--glass-sheet-bg', theme),
     'cartão com prefers-contrast: more': glass('--glass-bg', theme, contrastMoreBlock),
   };
 }
