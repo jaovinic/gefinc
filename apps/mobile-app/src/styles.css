@@ -1,6 +1,10 @@
 @import 'tailwindcss';
 @import '../../../packages/ui-shared/src/styles/theme.css';
 @source '../../../packages/ui-shared/src';
+/* Specs e utilitários de teste só citam classes para conferi-las: não geram CSS no pacote final. */
+@source not '../../../packages/ui-shared/src/**/*.spec.ts';
+@source not '../../../packages/ui-shared/src/testing';
+@source not './**/*.spec.ts';
 
 /* Ionic core CSS. Importado na camada `base` porque o CSS do Ionic não usa camadas e, solto, vencia
    as classes do Tailwind (ex.: zerava o padding de todo <button>). */

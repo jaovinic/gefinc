@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { Locator, expect, test } from '@playwright/test';
 import { register, uniqueEmail } from './support';
 
 const AREAS: [string, RegExp][] = [
@@ -54,11 +54,58 @@ test.describe('menu lateral do web', () => {
     await expect(side.getByRole('link', { name: 'Faturas', exact: true })).toBeVisible();
     await side.getByRole('link', { name: 'Faturas', exact: true }).hover();
     await expect(side.getByRole('link', { name: 'Faturas', exact: true })).toHaveAttribute('data-label', 'Faturas');
+    // recolhido não há rolagem horizontal e a dica não é cortada pela região que rola
+    const overflow = await side.locator('.gef-sidenav-scroll').evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
 
     await page.reload();
     await expect(page.getByTestId('sidenav')).toHaveAttribute('data-collapsed', 'true');
     await page.getByTestId('sidenav').getByRole('button', { name: 'Expandir menu' }).click();
     await expect(page.getByTestId('sidenav')).not.toHaveAttribute('data-collapsed', 'true');
+  });
+
+  test('recolhido, a dica fica à direita do menu e acompanha o item: rolagem da região, mouse e Tab abaixo da dobra', async ({ page }) => {
+    await register(page, uniqueEmail());
+    await page.setViewportSize({ width: 1280, height: 380 });
+    const side = page.getByTestId('sidenav');
+    await side.getByRole('button', { name: 'Recolher menu' }).click();
+    await expect(side).toHaveAttribute('data-collapsed', 'true');
+    const region = side.locator('.gef-sidenav-scroll');
+    const links = region.getByRole('link');
+    expect(await region.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true); // há o que rolar
+
+    /** Topo da dica (centro, por causa do translateY(-50%)) contra o centro do item, e o lado esquerdo contra a largura do menu. */
+    const tip = (link: Locator) =>
+      link.evaluate((el) => {
+        const style = getComputedStyle(el, '::after');
+        const rect = el.getBoundingClientRect();
+        return { content: style.content, top: parseFloat(style.top), left: parseFloat(style.left), center: rect.top + rect.height / 2, menuWidth: el.closest('aside')?.getBoundingClientRect().width ?? 0 };
+      });
+    const aligned = async (link: Locator) => {
+      const m = await tip(link);
+      return m.content !== 'none' && Math.abs(m.top - m.center) <= 1 && m.left >= m.menuWidth;
+    };
+
+    // 1. rola a região até o fim e passa o mouse no último item
+    await region.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const last = links.last();
+    await last.hover();
+    await expect.poll(() => aligned(last)).toBe(true);
+
+    // 2. com o mouse parado, rolar a região põe outro item sob o ponteiro: a dica dele aparece alinhada
+    await page.mouse.wheel(0, -60);
+    const hovered = region.locator('a:hover');
+    await expect.poll(async () => (await hovered.count()) === 1 && (await aligned(hovered))).toBe(true);
+
+    // 3. teclado: do topo, Tab até o último item da região (abaixo da dobra no começo)
+    await region.evaluate((el) => el.scrollTo(0, 0));
+    await page.mouse.move(700, 200);
+    await links.first().focus();
+    for (let i = 0; i < (await links.count()) - 1; i++) {
+      await page.keyboard.press('Tab');
+    }
+    await expect(last).toBeFocused();
+    await expect.poll(() => aligned(last)).toBe(true);
   });
 
   test('em tela estreita vira gaveta aberta por botão e fecha ao escolher uma área', async ({ page }) => {

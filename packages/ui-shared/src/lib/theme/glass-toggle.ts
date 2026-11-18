@@ -10,6 +10,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-glass-toggle',
+  host: { class: 'block space-y-1.5' },
   template: `
     <label class="gef-switch-row" data-testid="glass-toggle">
       <input
@@ -20,9 +21,9 @@ let nextId = 0;
         [attr.aria-describedby]="hint"
         (change)="glass.set($any($event.target).checked ? 'blur' : 'flat')"
       />
-      <span>Desfoque (vidro)</span>
+      <span class="min-w-0">Desfoque (vidro)</span>
     </label>
-    <p [id]="hint" class="text-caption text-gefinc-muted">Borra o fundo atrás da barra de navegação, dos botões e dos painéis. Desligue para ter superfícies sólidas.</p>
+    <p [id]="hint" class="pl-14 text-caption text-gefinc-muted">Borra o fundo atrás da barra de navegação, dos botões e dos painéis. Desligue para ter superfícies sólidas.</p>
     @if (glass.forcedFlat()) {
       <p class="gef-alert-warning" role="status" data-testid="glass-forced-notice">
         Seu aparelho pede menos transparência ou mais contraste, então o desfoque está desligado por enquanto.

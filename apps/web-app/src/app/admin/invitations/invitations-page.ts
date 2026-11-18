@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, afterNextRender, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { EmptyView, ErrorView, Icon, LoadingView, NoticeService, Select, isOfflineProblem, messageFor, toProblem, type SelectOption } from '@gefinc/ui-shared';
+import { ConfirmDialog, EmptyView, ErrorView, Icon, LoadingView, NoticeService, Select, Sheet, isOfflineProblem, messageFor, toProblem, type SelectOption } from '@gefinc/ui-shared';
 import { AdminApi, type AdminInvitationView, type InvitationStatus } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
 
@@ -14,15 +14,15 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 @Component({
   selector: 'gef-invitations-page',
-  imports: [EmptyView, ErrorView, FormsModule, Icon, LoadingView, Select],
+  imports: [ConfirmDialog, EmptyView, ErrorView, FormsModule, Icon, LoadingView, Select, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4" aria-labelledby="invitations-heading">
       <div class="flex flex-wrap items-center justify-between gap-4">
-        <h2 id="invitations-heading" class="text-title-md font-bold">Convites</h2>
+        <h2 id="invitations-heading" class="text-title-md font-bold" tabindex="-1" #heading>Convites</h2>
         <button
           type="button"
-          class="gef-btn-primary inline-flex items-center gap-2"
+          class="gef-btn-primary gef-btn-inline"
           data-testid="invite-open-btn"
           (click)="openInviteModal()"
         >
@@ -51,49 +51,46 @@ const STATUS_OPTIONS: SelectOption[] = [
           }
         </gef-empty>
       } @else {
-        <div class="overflow-x-auto rounded-xl border border-gefinc-border">
-          <table class="w-full text-left text-body-base">
+        <div class="gef-table-wrap">
+          <table class="gef-table">
             <caption class="sr-only">Convites de cadastro</caption>
-            <thead class="bg-gefinc-surface text-caption uppercase text-gefinc-muted">
+            <thead>
               <tr>
-                <th scope="col" class="px-4 py-3">E-mail</th>
-                <th scope="col" class="px-4 py-3">Situação</th>
-                <th scope="col" class="px-4 py-3">Convidado por</th>
-                <th scope="col" class="px-4 py-3">Criado em</th>
-                <th scope="col" class="px-4 py-3">Expira em</th>
-                <th scope="col" class="px-4 py-3 text-right">Ações</th>
+                <th scope="col">E-mail</th>
+                <th scope="col">Situação</th>
+                <th scope="col">Convidado por</th>
+                <th scope="col">Criado em</th>
+                <th scope="col">Expira em</th>
+                <th scope="col" class="text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
               @for (inv of invitations(); track inv.id) {
-                <tr class="border-t border-gefinc-border" data-testid="invitation-row">
-                  <td class="px-4 py-3 font-medium" data-testid="inv-email">
+                <tr data-testid="invitation-row">
+                  <td class="font-medium" data-testid="inv-email">
                     {{ inv.email || '—' }}
                   </td>
-                  <td class="px-4 py-3" data-testid="inv-status">
-                    <span
-                      class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-semibold"
-                      [class]="statusBadge(inv.status).tone"
-                    >
+                  <td data-testid="inv-status">
+                    <span class="gef-badge" [class]="statusBadge(inv.status).tone">
                       <gef-icon [name]="statusBadge(inv.status).icon" [size]="14" />
                       {{ statusBadge(inv.status).label }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-caption text-gefinc-muted" data-testid="inv-author">
-                    {{ inv.invitedBy?.label || '—' }}
+                  <td class="text-caption text-gefinc-muted" data-testid="inv-author">
+                    {{ inv.invitedBy.label || '—' }}
                   </td>
-                  <td class="px-4 py-3 text-caption text-gefinc-muted" data-testid="inv-created">
+                  <td class="text-caption text-gefinc-muted" data-testid="inv-created">
                     {{ formatDate(inv.createdAt) }}
                   </td>
-                  <td class="px-4 py-3 text-caption text-gefinc-muted" data-testid="inv-expires">
+                  <td class="text-caption text-gefinc-muted" data-testid="inv-expires">
                     {{ formatDate(inv.expiresAt) }}
                   </td>
-                  <td class="px-4 py-3 text-right">
+                  <td class="text-right">
                     @if (inv.status === 'PENDING') {
-                      <div class="inline-flex items-center gap-2">
+                      <div class="inline-flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="button"
-                          class="gef-btn-secondary text-caption py-1 px-2.5 inline-flex items-center gap-1"
+                          class="gef-btn-sm gap-1.5"
                           data-testid="resend-btn"
                           [disabled]="actionBusy() === inv.id"
                           (click)="resend(inv.id)"
@@ -103,10 +100,10 @@ const STATUS_OPTIONS: SelectOption[] = [
                         </button>
                         <button
                           type="button"
-                          class="text-caption text-gefinc-danger hover:underline inline-flex items-center gap-1"
+                          class="gef-btn-sm gef-btn-sm-danger"
                           data-testid="cancel-btn"
                           [disabled]="actionBusy() === inv.id"
-                          (click)="cancel(inv.id)"
+                          (click)="askCancel(inv)"
                         >
                           Cancelar
                         </button>
@@ -123,11 +120,9 @@ const STATUS_OPTIONS: SelectOption[] = [
       }
     </section>
 
-    <!-- Modal Novo Convite -->
-    @if (modalOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="invite-modal">
-        <div class="gef-card w-full max-w-md space-y-4 p-6" role="dialog" aria-modal="true" aria-labelledby="invite-title">
-          <h3 id="invite-title" class="text-title-md font-semibold">Convidar usuário</h3>
+    <gef-sheet heading="Convidar usuário" [open]="modalOpen()" [dismissible]="!modalBusy()" initialFocus="#invite-email" (closed)="closeInviteModal()">
+      @if (modalOpen()) {
+        <div class="space-y-4" data-testid="invite-modal">
           <p class="text-caption text-gefinc-muted">
             Informe o e-mail da pessoa a ser convidada. Um e-mail com link de cadastro válido por 7 dias será enviado.
           </p>
@@ -150,10 +145,10 @@ const STATUS_OPTIONS: SelectOption[] = [
             />
           </div>
 
-          <div class="flex justify-end gap-3 pt-2">
+          <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
             <button
               type="button"
-              class="gef-btn-secondary"
+              class="gef-btn-secondary gef-btn-inline"
               (click)="closeInviteModal()"
               [disabled]="modalBusy()"
               data-testid="invite-cancel-btn"
@@ -162,7 +157,7 @@ const STATUS_OPTIONS: SelectOption[] = [
             </button>
             <button
               type="button"
-              class="gef-btn-primary"
+              class="gef-btn-primary gef-btn-inline"
               (click)="submitInvite()"
               [disabled]="modalBusy() || !inviteEmail().trim()"
               data-testid="invite-submit-btn"
@@ -171,8 +166,27 @@ const STATUS_OPTIONS: SelectOption[] = [
             </button>
           </div>
         </div>
-      </div>
-    }
+      }
+    </gef-sheet>
+
+    <gef-confirm-dialog
+      data-testid="cancel-dialog"
+      [open]="cancelTarget() !== null"
+      heading="Cancelar convite"
+      confirmLabel="Cancelar convite"
+      busyLabel="Cancelando…"
+      cancelLabel="Voltar"
+      tone="danger"
+      [busy]="cancelBusy()"
+      [error]="cancelError()"
+      (confirmed)="cancel()"
+      (cancelled)="closeCancel()"
+    >
+      <p>
+        O convite para <strong class="text-gefinc-text">{{ cancelTarget()?.email || 'este convite' }}</strong> será cancelado.
+      </p>
+      <p class="text-gefinc-muted">O link de cadastro já enviado deixa de funcionar. Esta ação não pode ser desfeita.</p>
+    </gef-confirm-dialog>
   `,
 })
 export class InvitationsPage implements OnInit {
@@ -188,6 +202,12 @@ export class InvitationsPage implements OnInit {
   protected readonly offline = signal(false);
 
   protected readonly actionBusy = signal<number | null>(null);
+  protected readonly cancelTarget = signal<AdminInvitationView | null>(null);
+  protected readonly cancelBusy = signal(false);
+  protected readonly cancelError = signal<string | null>(null);
+
+  private readonly injector = inject(Injector);
+  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
 
   protected readonly modalOpen = signal(false);
   protected readonly inviteEmail = signal('');
@@ -277,19 +297,37 @@ export class InvitationsPage implements OnInit {
     });
   }
 
-  cancel(id: number): void {
+  askCancel(inv: AdminInvitationView): void {
     if (this.actionBusy() !== null) return;
-    this.actionBusy.set(id);
+    this.cancelError.set(null);
+    this.cancelTarget.set(inv);
+  }
 
-    this.api.cancelInvitation(id).subscribe({
+  closeCancel(): void {
+    if (this.cancelBusy()) return;
+    this.cancelTarget.set(null);
+    this.cancelError.set(null);
+  }
+
+  /** Confirmado no diálogo: cancela o convite; a falha aparece dentro do diálogo, que continua aberto. */
+  cancel(): void {
+    const inv = this.cancelTarget();
+    if (!inv || this.cancelBusy()) return;
+    this.cancelBusy.set(true);
+    this.cancelError.set(null);
+
+    this.api.cancelInvitation(inv.id).subscribe({
       next: () => {
-        this.actionBusy.set(null);
+        this.cancelBusy.set(false);
+        this.cancelTarget.set(null);
         this.notices.toast('Convite cancelado com sucesso.');
         this.load();
+        // a lista é recarregada (o botão que abriu o diálogo some): o foco vai para o título
+        afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
       },
       error: (err: unknown) => {
-        this.actionBusy.set(null);
-        this.notices.toast(messageFor(toProblem(err)));
+        this.cancelBusy.set(false);
+        this.cancelError.set(messageFor(toProblem(err)));
       },
     });
   }
@@ -302,13 +340,13 @@ export class InvitationsPage implements OnInit {
   statusBadge(status: string): { label: string; tone: string; icon: 'check' | 'alert' | 'ticket' | 'undo' } {
     switch (status) {
       case 'PENDING':
-        return { label: 'Pendente', tone: 'border-amber-500/40 text-amber-500 bg-amber-500/10', icon: 'ticket' };
+        return { label: 'Pendente', tone: 'border-gefinc-warning/40 bg-gefinc-warning/10 text-gefinc-warning', icon: 'ticket' };
       case 'ACCEPTED':
-        return { label: 'Aceito', tone: 'border-emerald-500/40 text-emerald-500 bg-emerald-500/10', icon: 'check' };
+        return { label: 'Aceito', tone: 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary', icon: 'check' };
       case 'CANCELED':
         return { label: 'Cancelado', tone: 'border-gefinc-border text-gefinc-muted', icon: 'undo' };
       case 'EXPIRED':
-        return { label: 'Expirado', tone: 'border-rose-500/40 text-rose-500 bg-rose-500/10', icon: 'alert' };
+        return { label: 'Expirado', tone: 'border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger', icon: 'alert' };
       default:
         return { label: status, tone: 'border-gefinc-border text-gefinc-muted', icon: 'ticket' };
     }

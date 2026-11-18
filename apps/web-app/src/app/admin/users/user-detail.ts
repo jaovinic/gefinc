@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, OnDestroy, On
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import type { AdminUserDetail } from '@gefinc/core-models';
-import { CurrentUser, ErrorView, Icon, LoadingView, NoticeService, isOfflineProblem, messageFor, toProblem } from '@gefinc/ui-shared';
+import { CurrentUser, ErrorView, Icon, LoadingView, NoticeService, Sheet, isOfflineProblem, messageFor, toProblem } from '@gefinc/ui-shared';
 import type { Observable, Subscription } from 'rxjs';
 import { AdminApi, type DeletionReason, type DeletionRequestInput } from '../admin.api';
 import { formatAdminDateTime } from '../admin-format';
@@ -95,11 +95,11 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
  */
 @Component({
   selector: 'gef-admin-user-detail',
-  imports: [ActionDialog, DeletionDialog, EmailChangeDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList],
+  imports: [ActionDialog, DeletionDialog, EmailChangeDialog, ErrorView, Icon, LoadingView, PasswordResetDialog, RouterLink, SessionList, Sheet],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="space-y-4">
-      <a class="inline-flex items-center gap-1 text-body-base text-gefinc-primary underline-offset-2 hover:underline" routerLink="/admin/users">
+      <a class="inline-flex min-h-11 items-center gap-1 text-body-base text-gefinc-primary underline-offset-2 hover:underline" routerLink="/admin/users">
         <gef-icon name="chevron-left" [size]="16" />Voltar para a lista
       </a>
 
@@ -111,7 +111,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
         <gef-error [message]="loadError()!" [variant]="loadOffline() ? 'offline' : 'error'" (retry)="load()" />
       } @else if (user(); as u) {
         <header class="space-y-2">
-          <h2 class="text-title-md font-bold" tabindex="-1" data-testid="detail-heading" #heading>{{ u.name || u.email }}</h2>
+          <h2 class="break-all text-title-md font-bold" tabindex="-1" data-testid="detail-heading" #heading>{{ u.name || u.email }}</h2>
           @if (u.protected) {
             <p class="inline-flex items-center gap-2 rounded-full border border-gefinc-primary/40 px-3 py-1 text-body-base font-semibold text-gefinc-primary" data-testid="protected">
               <gef-icon name="shield" [size]="16" />Administrador raiz protegido
@@ -122,27 +122,30 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
         <div class="gef-card space-y-3 p-4">
           <h3 class="text-title-sm font-semibold">Conta</h3>
           <dl class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            <div><dt class="text-caption text-gefinc-muted">E-mail</dt><dd data-testid="email">{{ u.email }}</dd></div>
+            <div><dt class="text-caption text-gefinc-muted">E-mail</dt><dd class="break-all" data-testid="email">{{ u.email }}</dd></div>
             @if (u.pendingEmailChange; as pending) {
-              <div class="sm:col-span-2 rounded border border-gefinc-warning/40 bg-gefinc-warning/5 p-3 text-caption" data-testid="pending-email-change">
-                <p class="font-semibold text-gefinc-warning">Troca de e-mail pendente</p>
-                <p>Novo e-mail: <strong class="text-gefinc-text" data-testid="pending-new-email">{{ pending.newEmail }}</strong></p>
-                <p>Expira em {{ date(pending.expiresAt) }} · Restam {{ pending.attemptsLeft }} tentativas</p>
-                <div class="mt-2 flex gap-2">
-                  <button type="button" class="gef-btn-secondary text-caption py-1 px-2" data-testid="open-email-confirm-btn" (click)="openEmailChange()">
-                    Confirmar código
-                  </button>
-                  <button type="button" class="text-caption text-gefinc-danger underline hover:text-gefinc-danger/80" data-testid="cancel-email-change-btn" (click)="cancelEmailChange()">
-                    Cancelar troca
-                  </button>
-                </div>
+              <div class="sm:col-span-2">
+                <dt class="sr-only">Troca de e-mail</dt>
+                <dd class="rounded-lg border border-gefinc-warning/40 bg-gefinc-warning/5 p-3 text-caption" data-testid="pending-email-change">
+                  <p class="font-semibold text-gefinc-warning">Troca de e-mail pendente</p>
+                  <p>Novo e-mail: <strong class="text-gefinc-text" data-testid="pending-new-email">{{ pending.newEmail }}</strong></p>
+                  <p>Expira em {{ date(pending.expiresAt) }} · Restam {{ pending.attemptsLeft }} tentativas</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" class="gef-btn-sm" data-testid="open-email-confirm-btn" (click)="openEmailChange()">
+                      Confirmar código
+                    </button>
+                    <button type="button" class="gef-btn-sm gef-btn-sm-danger" data-testid="cancel-email-change-btn" (click)="cancelEmailChange()">
+                      Cancelar troca
+                    </button>
+                  </div>
+                </dd>
               </div>
             }
             <div>
               <dt class="text-caption text-gefinc-muted">Nome</dt>
               <dd class="flex items-center gap-2">
                 <span data-testid="name">{{ u.name || 'Sem nome' }}</span>
-                <button type="button" class="gef-btn-secondary text-caption py-0.5 px-2 inline-flex items-center gap-1" data-testid="action-rename" (click)="openRename()"><gef-icon name="edit" [size]="12" />Alterar</button>
+                <button type="button" class="gef-btn-sm gap-1.5" data-testid="action-rename" (click)="openRename()"><gef-icon name="edit" [size]="12" />Alterar</button>
               </dd>
             </div>
             <div><dt class="text-caption text-gefinc-muted">Perfil</dt><dd data-testid="role">{{ roleName(u.role) }}</dd></div>
@@ -150,7 +153,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
               <dt class="text-caption text-gefinc-muted">Situação</dt>
               <dd data-testid="status" class="flex flex-wrap gap-1">
                 @for (badge of badges(u); track badge.label) {
-                  <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-semibold" [class]="badge.tone"><gef-icon [name]="badge.icon" [size]="14" />{{ badge.label }}</span>
+                  <span class="gef-badge" [class]="badge.tone"><gef-icon [name]="badge.icon" [size]="14" />{{ badge.label }}</span>
                 }
               </dd>
             </div>
@@ -183,33 +186,33 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
           } @else {
             <div class="flex flex-wrap gap-3">
               @if (u.suspended) {
-                <button type="button" class="gef-btn-secondary" data-testid="action-reactivate" (click)="ask('reactivate')"><gef-icon name="undo" [size]="16" />Reativar conta</button>
+                <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-reactivate" (click)="ask('reactivate')"><gef-icon name="undo" [size]="16" />Reativar conta</button>
               } @else if (!isSelf(u)) {
-                <button type="button" class="gef-btn-danger" data-testid="action-suspend" (click)="ask('suspend')"><gef-icon name="alert" [size]="16" />Suspender conta</button>
+                <button type="button" class="gef-btn-danger gef-btn-inline" data-testid="action-suspend" (click)="ask('suspend')"><gef-icon name="alert" [size]="16" />Suspender conta</button>
               }
               @if (u.loginLock) {
-                <button type="button" class="gef-btn-secondary" data-testid="action-unlock" (click)="ask('unlock')"><gef-icon name="check" [size]="16" />Retirar bloqueio de login</button>
+                <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-unlock" (click)="ask('unlock')"><gef-icon name="check" [size]="16" />Retirar bloqueio de login</button>
               }
               @if (!isSelf(u)) {
                 @if (u.role === 'USER') {
-                  <button type="button" class="gef-btn-secondary" data-testid="action-grant" (click)="ask('grant')"><gef-icon name="shield" [size]="16" />Conceder perfil de administrador</button>
+                  <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-grant" (click)="ask('grant')"><gef-icon name="shield" [size]="16" />Conceder perfil de administrador</button>
                 } @else if (u.role === 'ADMIN') {
-                  <button type="button" class="gef-btn-secondary" data-testid="action-revoke-role" (click)="ask('revoke-role')"><gef-icon name="shield" [size]="16" />Retirar perfil de administrador</button>
+                  <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-revoke-role" (click)="ask('revoke-role')"><gef-icon name="shield" [size]="16" />Retirar perfil de administrador</button>
                 }
               }
               @if (!u.suspended && !u.deletionPending) {
-                <button type="button" class="gef-btn-secondary" data-testid="action-email-change" (click)="openEmailChange()"><gef-icon name="mail" [size]="16" />{{ u.pendingEmailChange ? 'Confirmar troca de e-mail' : 'Trocar e-mail' }}</button>
-                <button type="button" class="gef-btn-secondary" data-testid="action-reset-send" (click)="askReset('send')"><gef-icon name="mail" [size]="16" />Reenviar e-mail de redefinição</button>
+                <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-email-change" (click)="openEmailChange()"><gef-icon name="mail" [size]="16" />{{ u.pendingEmailChange ? 'Confirmar troca de e-mail' : 'Trocar e-mail' }}</button>
+                <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-reset-send" (click)="askReset('send')"><gef-icon name="mail" [size]="16" />Reenviar e-mail de redefinição</button>
                 @if (!isSelf(u)) {
-                  <button type="button" class="gef-btn-danger" data-testid="action-reset-force" (click)="askReset('force')"><gef-icon name="alert" [size]="16" />Forçar redefinição de senha</button>
+                  <button type="button" class="gef-btn-danger gef-btn-inline" data-testid="action-reset-force" (click)="askReset('force')"><gef-icon name="alert" [size]="16" />Forçar redefinição de senha</button>
                 }
               }
               @if (!isSelf(u)) {
                 @if (u.deletionPending) {
-                  <button type="button" class="gef-btn-danger" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Antecipar exclusão</button>
-                  <button type="button" class="gef-btn-secondary" data-testid="action-cancel-deletion" (click)="cancelScheduledDeletion()"><gef-icon name="undo" [size]="16" />Cancelar exclusão</button>
+                  <button type="button" class="gef-btn-danger gef-btn-inline" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Antecipar exclusão</button>
+                  <button type="button" class="gef-btn-secondary gef-btn-inline" data-testid="action-cancel-deletion" (click)="cancelScheduledDeletion()"><gef-icon name="undo" [size]="16" />Cancelar exclusão</button>
                 } @else {
-                  <button type="button" class="gef-btn-danger" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Excluir conta</button>
+                  <button type="button" class="gef-btn-danger gef-btn-inline" data-testid="action-delete" (click)="openDeletion()"><gef-icon name="trash" [size]="16" />Excluir conta</button>
                 }
               }
             </div>
@@ -250,7 +253,7 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
                   <p class="font-medium">
                     {{ action.summary }}
                     @if (action.result !== 'SUCCESS') {
-                      <span class="ml-1 inline-flex items-center gap-1 rounded-full border border-gefinc-warning/40 px-2 py-0.5 text-caption font-semibold text-gefinc-warning"><gef-icon name="alert" [size]="12" />{{ action.result === 'REFUSED' ? 'Recusada' : 'Falhou' }}</span>
+                      <span class="gef-badge ml-1 border-gefinc-warning/40 text-gefinc-warning"><gef-icon name="alert" [size]="12" />{{ action.result === 'REFUSED' ? 'Recusada' : 'Falhou' }}</span>
                     }
                   </p>
                   <p class="text-caption text-gefinc-muted">{{ action.actor.label }} · {{ date(action.occurredAt) }}</p>
@@ -312,10 +315,9 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
       (cancelled)="closeDeletion()"
     />
 
-    @if (renameOpen()) {
-      <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" data-testid="rename-modal">
-        <div class="gef-card w-full max-w-md space-y-4 p-6" role="dialog" aria-modal="true" aria-labelledby="rename-title">
-          <h3 id="rename-title" class="text-title-md font-semibold">Alterar nome</h3>
+    <gef-sheet heading="Alterar nome" [open]="renameOpen()" [dismissible]="!renameBusy()" initialFocus="#rename-input" (closed)="closeRename()">
+      @if (renameOpen()) {
+        <div class="space-y-4" data-testid="rename-modal">
           <p class="text-caption text-gefinc-muted">Informe o novo nome de exibição (máximo de 80 caracteres). Deixe em branco para remover o nome.</p>
           @if (renameError(); as err) {
             <p class="gef-alert-error" role="alert" data-testid="rename-error">{{ err }}</p>
@@ -324,15 +326,15 @@ const ACTIONS: Record<ActionKind, ActionConfig> = {
             <label class="gef-label" for="rename-input">Nome</label>
             <input id="rename-input" class="gef-input" type="text" maxlength="80" [value]="renameValue()" (input)="onRenameInput($event)" data-testid="rename-input" />
           </div>
-          <div class="flex justify-end gap-3 pt-2">
-            <button type="button" class="gef-btn-secondary" (click)="closeRename()" [disabled]="renameBusy()" data-testid="rename-cancel">Cancelar</button>
-            <button type="button" class="gef-btn-primary" (click)="submitRename()" [disabled]="renameBusy()" data-testid="rename-save">
+          <div class="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+            <button type="button" class="gef-btn-secondary gef-btn-inline" (click)="closeRename()" [disabled]="renameBusy()" data-testid="rename-cancel">Cancelar</button>
+            <button type="button" class="gef-btn-primary gef-btn-inline" (click)="submitRename()" [disabled]="renameBusy()" data-testid="rename-save">
               {{ renameBusy() ? 'Salvando…' : 'Salvar' }}
             </button>
           </div>
         </div>
-      </div>
-    }
+      }
+    </gef-sheet>
   `,
 })
 export class UserDetail implements OnInit, OnDestroy {

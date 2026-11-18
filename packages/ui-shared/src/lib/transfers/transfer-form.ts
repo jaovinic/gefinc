@@ -124,7 +124,7 @@ interface PreviewRow {
         </section>
       }
 
-      <div class="flex gap-3">
+      <div class="gef-sheet-actions flex gap-3">
         <button type="submit" class="gef-btn-primary max-w-40" [disabled]="busy()">{{ busy() ? 'Salvando…' : 'Transferir' }}</button>
         <button type="button" class="gef-btn-secondary" (click)="cancelled.emit()">Cancelar</button>
       </div>

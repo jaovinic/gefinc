@@ -98,17 +98,89 @@ describe('PendingList', () => {
     expect(el.querySelectorAll('[data-testid="pending-row"]')).toHaveLength(1);
   });
 
-  it('descartar comunicação remove a linha e exibe toast', async () => {
+  const dialog = () => document.querySelector('[role="alertdialog"]') as HTMLElement | null;
+  const press = (testId: string) => (document.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement).click();
+
+  it('"Descartar" só abre a confirmação (alertdialog) citando o destinatário; nada é descartado ainda', async () => {
+    const { fixture, el } = await setup();
+
+    (el.querySelector('[data-testid="discard-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(discardMock).not.toHaveBeenCalled();
+    const box = dialog();
+    expect(box).not.toBeNull();
+    expect(box?.getAttribute('aria-label')).toBe('Descartar comunicação');
+    expect(box?.textContent).toContain('usuario@teste.com');
+    expect(box?.textContent).toContain('não será enviado');
+    expect(box?.textContent).toContain('não pode ser desfeita');
+    expect(box?.textContent).toContain('auditoria');
+    expect(box?.querySelector('[data-testid="confirm-cancel"]')?.textContent?.trim()).toBe('Voltar');
+    expect(box?.querySelector('[data-testid="confirm-confirm"]')?.textContent?.trim()).toBe('Descartar comunicação');
+    expect(el.querySelectorAll('[data-testid="pending-row"]')).toHaveLength(2);
+  });
+
+  it('confirmar descarta a comunicação (id 10), exibe o toast e remove a linha', async () => {
     discardMock.mockReturnValue(of(undefined));
     const { fixture, el } = await setup();
 
-    const discardBtn = el.querySelector('[data-testid="discard-btn"]') as HTMLButtonElement;
-    discardBtn.click();
+    (el.querySelector('[data-testid="discard-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    press('confirm-confirm');
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(discardMock).toHaveBeenCalledWith(10);
     expect(toastMock).toHaveBeenCalledWith('Comunicação descartada com sucesso.');
     expect(el.querySelectorAll('[data-testid="pending-row"]')).toHaveLength(1);
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(el.querySelector('[data-testid="pending-heading"]'));
+  });
+
+  it('"Voltar" fecha a confirmação sem descartar e mantém a linha', async () => {
+    const { fixture, el } = await setup();
+
+    (el.querySelector('[data-testid="discard-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    press('confirm-cancel');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(discardMock).not.toHaveBeenCalled();
+    expect(dialog()).toBeNull();
+    expect(el.querySelectorAll('[data-testid="pending-row"]')).toHaveLength(2);
+  });
+
+  it('falha ao descartar mantém o diálogo aberto com o erro dentro dele (sem toast) e a linha na lista', async () => {
+    discardMock.mockReturnValue(throwError(() => ({ status: 500, error: { code: 'INTERNAL_ERROR' } })));
+    const { fixture, el } = await setup();
+
+    (el.querySelector('[data-testid="discard-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    press('confirm-confirm');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(dialog()).not.toBeNull();
+    expect(dialog()?.querySelector('[data-testid="confirm-error"]')?.textContent?.trim()).not.toBe('');
+    expect(toastMock).not.toHaveBeenCalled();
+    expect(el.querySelectorAll('[data-testid="pending-row"]')).toHaveLength(2);
+
+    press('confirm-cancel');
+    fixture.detectChanges();
+    expect(dialog()).toBeNull();
+  });
+
+  it('os botões da linha são compactos de 44 px (gef-btn-sm)', async () => {
+    const { el } = await setup();
+
+    expect(el.querySelector('[data-testid="resend-btn"]')?.className).toContain('gef-btn-sm');
+    expect(el.querySelector('[data-testid="discard-btn"]')?.className).toContain('gef-btn-sm');
   });
 
   it('exibe erro caso a consulta falhe', async () => {

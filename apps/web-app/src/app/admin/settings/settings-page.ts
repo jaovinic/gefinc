@@ -18,7 +18,7 @@ import { formatAdminDateTime } from '../admin-format';
         <gef-error [message]="error()!" [variant]="offline() ? 'offline' : 'error'" (retry)="load()" />
       } @else {
         <!-- 1. Novos Cadastros -->
-        <div class="space-y-4 rounded-xl border border-gefinc-border p-4" data-testid="signups-card">
+        <div class="gef-card space-y-4 p-4" data-testid="signups-card">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 class="text-title-sm font-bold">Novos cadastros</h3>
@@ -28,12 +28,10 @@ import { formatAdminDateTime } from '../admin-format';
             </div>
             <span
               data-testid="signups-status-badge"
-              class="rounded-full px-2.5 py-0.5 text-caption font-semibold"
-              [class.bg-emerald-500/10]="signupsOpen()"
-              [class.text-emerald-500]="signupsOpen()"
-              [class.bg-amber-500/10]="!signupsOpen()"
-              [class.text-amber-500]="!signupsOpen()"
+              class="gef-badge"
+              [class]="signupsOpen() ? 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary' : 'border-gefinc-warning/40 bg-gefinc-warning/10 text-gefinc-warning'"
             >
+              <gef-icon [name]="signupsOpen() ? 'check' : 'alert'" [size]="14" />
               {{ signupsOpen() ? 'Cadastros abertos' : 'Cadastros fechados' }}
             </span>
           </div>
@@ -50,7 +48,7 @@ import { formatAdminDateTime } from '../admin-format';
           <div>
             <button
               type="button"
-              class="gef-btn-secondary"
+              class="gef-btn-secondary gef-btn-inline"
               data-testid="signups-toggle-btn"
               [disabled]="savingSignups()"
               (click)="toggleSignups()"
@@ -61,7 +59,7 @@ import { formatAdminDateTime } from '../admin-format';
         </div>
 
         <!-- 2. Modo de Manutenção -->
-        <div class="space-y-4 rounded-xl border border-gefinc-border p-4" data-testid="maintenance-card">
+        <div class="gef-card space-y-4 p-4" data-testid="maintenance-card">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 class="text-title-sm font-bold">Modo de manutenção</h3>
@@ -71,12 +69,10 @@ import { formatAdminDateTime } from '../admin-format';
             </div>
             <span
               data-testid="maint-status-badge"
-              class="rounded-full px-2.5 py-0.5 text-caption font-semibold"
-              [class.bg-emerald-500/10]="!maintenanceEnabled()"
-              [class.text-emerald-500]="!maintenanceEnabled()"
-              [class.bg-amber-500/10]="maintenanceEnabled()"
-              [class.text-amber-500]="maintenanceEnabled()"
+              class="gef-badge"
+              [class]="maintenanceEnabled() ? 'border-gefinc-warning/40 bg-gefinc-warning/10 text-gefinc-warning' : 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary'"
             >
+              <gef-icon [name]="maintenanceEnabled() ? 'alert' : 'check'" [size]="14" />
               {{ maintenanceEnabled() ? 'Em manutenção' : 'Operação normal' }}
             </span>
           </div>
@@ -110,7 +106,7 @@ import { formatAdminDateTime } from '../admin-format';
           <div>
             <button
               type="button"
-              class="gef-btn-secondary"
+              class="gef-btn-secondary gef-btn-inline"
               data-testid="maint-toggle-btn"
               [disabled]="savingMaintenance()"
               (click)="toggleMaintenance()"
@@ -121,7 +117,7 @@ import { formatAdminDateTime } from '../admin-format';
         </div>
 
         <!-- 3. Parâmetros Somente Leitura -->
-        <div class="space-y-4 rounded-xl border border-gefinc-border p-4" data-testid="readonly-parameters">
+        <div class="gef-card space-y-4 p-4" data-testid="readonly-parameters">
           <h3 class="text-title-sm font-bold">Parâmetros da implantação</h3>
           <p class="text-caption text-gefinc-muted">
             Configurados no ambiente do servidor; exibidos somente para consulta.
@@ -129,13 +125,13 @@ import { formatAdminDateTime } from '../admin-format';
 
           <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             @for (p of readOnlyParams(); track p.key) {
-              <div class="rounded-lg border border-gefinc-border/60 bg-gefinc-surface/40 p-3" [attr.data-testid]="'readonly-' + p.key">
-                <div class="flex items-center justify-between gap-2">
-                  <dt class="text-caption font-medium text-gefinc-muted">{{ p.label }}</dt>
-                  <span class="rounded bg-gefinc-border/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gefinc-muted">
+              <div class="rounded-lg border border-gefinc-border/60 bg-gefinc-surface p-3" [attr.data-testid]="'readonly-' + p.key">
+                <dt class="flex items-center justify-between gap-2 text-caption font-medium text-gefinc-muted">
+                  <span>{{ p.label }}</span>
+                  <span class="rounded bg-gefinc-border/40 px-1.5 py-0.5 text-micro uppercase tracking-wider text-gefinc-muted">
                     Somente leitura
                   </span>
-                </div>
+                </dt>
                 <dd class="mt-1 font-semibold text-gefinc-text">{{ p.value }}</dd>
               </div>
             }
@@ -143,11 +139,11 @@ import { formatAdminDateTime } from '../admin-format';
         </div>
 
         <!-- 4. Emergência: Revogação Global de Sessões -->
-        <div class="space-y-4 rounded-xl border border-red-500/30 bg-red-500/5 p-4" data-testid="emergency-card">
+        <div class="gef-card space-y-4 border-gefinc-danger/40 bg-gefinc-danger/10 p-4" data-testid="emergency-card">
           <div class="flex items-start gap-3">
-            <gef-icon name="alert" [size]="20" class="mt-0.5 shrink-0 text-red-500" />
+            <gef-icon name="alert" [size]="20" class="mt-0.5 shrink-0 text-gefinc-danger" />
             <div class="space-y-1">
-              <h3 class="text-title-sm font-bold text-red-500">Encerramento global de sessões</h3>
+              <h3 class="text-title-sm font-bold text-gefinc-danger">Encerramento global de sessões</h3>
               <p class="text-caption text-gefinc-muted">
                 Em caso de incidente de segurança, encerra as sessões de todos os usuários do sistema.
                 Sua sessão atual e todas as sessões de administradores raiz serão preservadas.
@@ -158,7 +154,7 @@ import { formatAdminDateTime } from '../admin-format';
           <div>
             <button
               type="button"
-              class="gef-btn-danger"
+              class="gef-btn-danger gef-btn-inline"
               data-testid="revoke-all-open-btn"
               (click)="openRevokeDialog()"
             >
@@ -184,7 +180,7 @@ import { formatAdminDateTime } from '../admin-format';
       (cancelled)="closeRevokeDialog()"
     >
       <div class="space-y-3">
-        <p class="text-body-sm text-gefinc-muted">
+        <p class="text-body-base text-gefinc-muted">
           Esta ação forçará o encerramento das sessões ativas de todos os usuários e administradores,
           exigindo novo login. Digite exatamente a palavra <strong class="text-gefinc-text">ENCERRAR</strong>
           e informe sua senha para confirmar.

@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { optionLabels, pickOption, selectTrigger } from '@gefinc/ui-shared/testing';
 import type { DeletionReason, DeletionRequestInput } from '../admin.api';
 import { DeletionDialog } from './deletion-dialog';
 
@@ -47,7 +48,6 @@ describe('DeletionDialog', () => {
   const dialog = (el: HTMLElement) => el.querySelector('[role="alertdialog"]') as HTMLElement | null;
   const confirmBtn = (el: HTMLElement) => el.querySelector('[data-testid="confirm-confirm"]') as HTMLButtonElement;
   const cancelBtn = (el: HTMLElement) => el.querySelector('[data-testid="confirm-cancel"]') as HTMLButtonElement;
-  const reasonSelect = (el: HTMLElement) => el.querySelector('[data-testid="deletion-reason-select"]') as HTMLSelectElement;
   const justification = (el: HTMLElement) => el.querySelector('[data-testid="deletion-justification"]') as HTMLTextAreaElement;
   const modeImmediate = (el: HTMLElement) => el.querySelector('[data-testid="mode-immediate"]') as HTMLInputElement;
   const daysInput = (el: HTMLElement) => el.querySelector('[data-testid="deletion-days-input"]') as HTMLInputElement;
@@ -61,16 +61,17 @@ describe('DeletionDialog', () => {
   }
 
   it('abre como diálogo de alerta com aviso LGPD de privacidade e lista motivos ativos', async () => {
-    const { el } = await setup();
+    const { fixture, el } = await setup();
 
     expect(dialog(el)).not.toBeNull();
+    expect(el.querySelector('select')).toBeNull();
+    expect(selectTrigger(el, 'Motivo da exclusão').textContent).toContain('Selecione um motivo…');
     const notice = el.querySelector('[data-testid="privacy-notice"]');
     expect(notice?.textContent).toContain('NÃO escreva dados pessoais do usuário');
     expect(notice?.textContent).toContain('trilha de auditoria');
 
-    const options = Array.from(reasonSelect(el).querySelectorAll('option')).map((o) => o.textContent?.trim());
-    expect(options).toContain('Solicitação do titular (LGPD)');
-    expect(options).toContain('Violação dos termos de uso');
+    const options = optionLabels(fixture, 'Motivo da exclusão');
+    expect(options).toEqual(['Solicitação do titular (LGPD)', 'Violação dos termos de uso']);
     expect(options).not.toContain('Motivo antigo desativado');
   });
 
@@ -109,11 +110,47 @@ describe('DeletionDialog', () => {
     expect(el.querySelector('[data-testid="deletion-password-error"]')?.textContent).toContain('Informe sua senha');
   });
 
+  it('motivo ausente: o gatilho do select fica aria-invalid, ligado ao erro por aria-describedby, e recebe o foco', async () => {
+    const { fixture, el } = await setup();
+    document.body.appendChild(el);
+    const trigger = selectTrigger(el, 'Motivo da exclusão');
+    expect(trigger.hasAttribute('aria-invalid')).toBe(false);
+    expect(trigger.hasAttribute('aria-describedby')).toBe(false);
+
+    confirmBtn(el).click();
+    fixture.detectChanges();
+
+    const error = el.querySelector('[data-testid="deletion-reason-error"]') as HTMLElement;
+    expect(error.id).not.toBe('');
+    expect(trigger.getAttribute('aria-invalid')).toBe('true');
+    expect(trigger.getAttribute('aria-describedby')).toBe(error.id);
+    expect(document.activeElement).toBe(trigger);
+
+    pickOption(fixture, 'Motivo da exclusão', 'Solicitação do titular (LGPD)');
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="deletion-reason-error"]')).toBeNull();
+    expect(selectTrigger(el, 'Motivo da exclusão').hasAttribute('aria-invalid')).toBe(false);
+    expect(selectTrigger(el, 'Motivo da exclusão').hasAttribute('aria-describedby')).toBe(false);
+  });
+
+  it('com o motivo escolhido e outro campo inválido, o foco não vai para o select', async () => {
+    const { fixture, el } = await setup();
+    document.body.appendChild(el);
+    pickOption(fixture, 'Motivo da exclusão', 'Solicitação do titular (LGPD)');
+    selectTrigger(el, 'Motivo da exclusão').blur();
+    confirmBtn(el).focus();
+
+    confirmBtn(el).click();
+    fixture.detectChanges();
+
+    expect(el.querySelector('[data-testid="deletion-reason-error"]')).toBeNull();
+    expect(document.activeElement).not.toBe(selectTrigger(el, 'Motivo da exclusão'));
+  });
+
   it('valida prazo de carência fora do intervalo de 1 a 30 dias', async () => {
     const { fixture, host, el } = await setup();
 
-    reasonSelect(el).value = '1';
-    reasonSelect(el).dispatchEvent(new Event('change'));
+    pickOption(fixture, 'Motivo da exclusão', 'Solicitação do titular (LGPD)');
     await typeInto(fixture, justification(el), 'Solicitação de exclusão com base na LGPD');
     await typeInto(fixture, daysInput(el), '45');
     await typeInto(fixture, confirmEmail(el), 'alvo@teste.com');
@@ -129,8 +166,7 @@ describe('DeletionDialog', () => {
   it('emite confirmed com todos os dados preenchidos corretamente', async () => {
     const { fixture, host, el } = await setup();
 
-    reasonSelect(el).value = '1';
-    reasonSelect(el).dispatchEvent(new Event('change'));
+    pickOption(fixture, 'Motivo da exclusão', 'Solicitação do titular (LGPD)');
     await typeInto(fixture, justification(el), 'Exclusão solicitada formalmente pelo titular');
     await typeInto(fixture, daysInput(el), '15');
     await typeInto(fixture, confirmEmail(el), 'alvo@teste.com');

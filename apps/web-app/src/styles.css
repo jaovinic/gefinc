@@ -1,3 +1,8 @@
 @import 'tailwindcss';
 @import '../../../packages/ui-shared/src/styles/theme.css';
+@import '../../../packages/ui-shared/src/styles/web.css';
 @source '../../../packages/ui-shared/src';
+/* Specs e utilitários de teste só citam classes para conferi-las: não geram CSS no pacote final. */
+@source not '../../../packages/ui-shared/src/**/*.spec.ts';
+@source not '../../../packages/ui-shared/src/testing';
+@source not './**/*.spec.ts';

@@ -623,6 +623,8 @@ describe('NewEntryPage - parcelamento no cartão', () => {
   it('avisa quando as parcelas já nascem vencidas', async () => {
     const { fixture, el } = await setup();
     await card10x(fixture, el, '3', '10000');
+    fillDate(el, '#date', dayIso(60)); // compra futura: nenhum vencimento fica no passado, em qualquer dia de execução
+    fixture.detectChanges();
     expect(el.querySelector('[data-testid="installment-overdue"]')).toBeNull();
     fillDate(el, '#date', '2020-01-05');
     fixture.detectChanges();

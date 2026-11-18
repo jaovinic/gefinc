@@ -64,6 +64,27 @@ describe('ConfirmDialog', () => {
     expect(confirm(el)?.classList.contains('gef-btn-danger')).toBe(true);
   });
 
+  it('o erro e os botões ficam juntos no rodapé fixo do painel (gef-sheet-actions), com o erro antes dos botões', async () => {
+    const { el } = await setup((h) => h.error.set('Falha ao excluir'));
+    const actions = dialog(el).querySelector('.gef-sheet-actions') as HTMLElement;
+
+    expect(actions).not.toBeNull();
+    expect(actions.contains(cancel(el))).toBe(true);
+    expect(actions.contains(confirm(el))).toBe(true);
+    expect(actions.contains(el.querySelector('#extra'))).toBe(true);
+    const error = actions.querySelector('[data-testid="confirm-error"]') as HTMLElement;
+    expect(error.getAttribute('role')).toBe('alert');
+    expect(error.compareDocumentPosition(cancel(el)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(actions.contains(el.querySelector('#description'))).toBe(false);
+  });
+
+  it('os botões não repetem classes de altura (a altura de 44 px vem das classes de botão)', async () => {
+    const { el } = await setup();
+
+    expect(cancel(el).className).not.toMatch(/min-h-|md:/);
+    expect(confirm(el)?.className).not.toMatch(/min-h-/);
+  });
+
   it('Confirmar emite confirmed; Cancelar, Escape e fundo emitem cancelled', async () => {
     const { host, el } = await setup();
     confirm(el)?.click();

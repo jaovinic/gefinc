@@ -36,7 +36,9 @@ test.describe('controles próprios: nada de lista, calendário ou seletor de cor
   });
 
   test('nenhuma tela do app (nem os formulários em painel) usa controle nativo', async ({ page, request }) => {
+    test.setTimeout(90_000); // percorre todas as telas e painéis
     const user = await seed(request);
+    await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' }); // "Nova transferência" pede duas contas
     await signIn(page, user.email);
     const found: string[] = [];
     const check = async (where: string) => {
@@ -54,9 +56,19 @@ test.describe('controles próprios: nada de lista, calendário ou seletor de cor
     await page.getByRole('button', { name: /Filtros/ }).click();
     await expect(page.getByRole('dialog', { name: 'Filtros' })).toBeVisible();
     await check('/lancamentos > Filtros');
+    await expect(page.getByRole('dialog', { name: 'Filtros' }).locator('gef-date-field')).toHaveCount(2);
     await page.keyboard.press('Escape');
     await page.goto('/faturas');
     await check('/faturas');
+    await page.goto('/fluxo-de-caixa');
+    await check('/fluxo-de-caixa');
+    await page.goto('/pendencias');
+    await check('/pendencias');
+    await page.goto('/transferencias');
+    await page.getByRole('button', { name: 'Nova transferência' }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Nova transferência' })).toBeVisible();
+    await check('/transferencias > Nova transferência');
+    await page.keyboard.press('Escape');
     await page.goto('/categorias');
     await page.getByRole('button', { name: 'Nova categoria' }).click();
     await expect(page.getByRole('dialog', { name: 'Nova categoria' })).toBeVisible();
@@ -215,6 +227,34 @@ test.describe('controles próprios: nada de lista, calendário ou seletor de cor
       expect(await nativeControls(page)).toBe(0);
     });
   }
+
+  test('painel longo em tela baixa: cabeçalho e rodapé (Salvar/Cancelar) ficam colados nas bordas ao rolar', async ({ page, request }) => {
+    const user = await seed(request);
+    await signIn(page, user.email);
+    await page.setViewportSize({ width: 360, height: 480 });
+    await page.goto('/lancamentos');
+    await page.getByRole('button', { name: 'Novo lançamento' }).first().click();
+    const sheet = page.locator('.gef-sheet');
+    await expect(sheet).toBeVisible();
+    await settle(page);
+    expect(await sheet.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+    for (const position of ['top', 'middle', 'bottom'] as const) {
+      const gaps = await sheet.evaluate((el, where) => {
+        el.scrollTop = where === 'top' ? 0 : where === 'middle' ? (el.scrollHeight - el.clientHeight) / 2 : el.scrollHeight;
+        const box = el.getBoundingClientRect();
+        const head = el.querySelector('.gef-sheet-head')?.getBoundingClientRect();
+        const actions = el.querySelector('.gef-sheet-actions')?.getBoundingClientRect();
+        return { head: head ? head.top - box.top : null, actions: actions ? box.bottom - actions.bottom : null };
+      }, position);
+      // 1 px de borda do painel; o texto que rola não pode aparecer nos 16 px de respiro acima e abaixo
+      expect(gaps.head, `cabeçalho (${position})`).not.toBeNull();
+      expect(gaps.actions, `rodapé (${position})`).not.toBeNull();
+      expect(gaps.head as number, `cabeçalho (${position})`).toBeLessThanOrEqual(1.5);
+      expect(gaps.actions as number, `rodapé (${position})`).toBeLessThanOrEqual(1.5);
+    }
+    await expect(sheet.getByRole('button', { name: 'Fechar' })).toBeInViewport();
+  });
 
   test('o formulário de Lançamentos usa as listas e datas próprias, e o filtro de Status escolhe pela lista', async ({ page, request }) => {
     const user = await seed(request);

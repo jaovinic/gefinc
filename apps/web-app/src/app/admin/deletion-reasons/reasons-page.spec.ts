@@ -133,6 +133,28 @@ describe('ReasonsPage', () => {
     expect(el.querySelector('[data-testid="reason-modal"]')).toBeNull();
   });
 
+  it('o modal é um painel opaco acessível (gef-sheet) com título dinâmico e a tabela tem legenda e colunas rotuladas', async () => {
+    const { fixture, el } = await setup();
+
+    expect(el.querySelector('caption.sr-only')?.textContent).toContain('Motivos de exclusão');
+    const headers = Array.from(el.querySelectorAll('thead th'));
+    expect(headers.length).toBeGreaterThan(0);
+    expect(headers.every((th) => th.getAttribute('scope') === 'col')).toBe(true);
+
+    (el.querySelector('[data-testid="create-reason-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const dialog = el.querySelector('.gef-sheet[role="dialog"]') as HTMLElement;
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-label')).toBe('Novo motivo de exclusão');
+    expect(dialog.contains(el.querySelector('[data-testid="reason-modal"]'))).toBe(true);
+
+    (el.querySelector('[data-testid="modal-cancel-btn"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    (el.querySelectorAll('[data-testid="edit-reason-btn"]')[0] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(el.querySelector('.gef-sheet')?.getAttribute('aria-label')).toBe('Editar motivo de exclusão');
+  });
+
   it('valida campos obrigatórios ao salvar modal vazio', async () => {
     const { fixture, el } = await setup();
 

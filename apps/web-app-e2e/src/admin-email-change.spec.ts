@@ -58,7 +58,13 @@ test.describe('painel: troca de e-mail administrativa', () => {
     await page.getByTestId('email-input').fill(newEmail);
     await confirm(page).click();
 
-    // 4. Pendência exibida no detalhe
+    // 4. O diálogo segue para o passo 2 (código de confirmação); ao fechar, a pendência fica no detalhe
+    const step2 = page.getByRole('alertdialog', { name: 'Confirmar troca de e-mail' });
+    await expect(step2).toBeVisible();
+    await expect(step2.getByTestId('confirm-confirm')).toHaveText('Confirmar troca de e-mail');
+    expect(await violations(page), 'passo 2 da troca de e-mail').toEqual([]);
+    await step2.getByTestId('confirm-cancel').click();
+    await expect(dialog(page)).toHaveCount(0);
     await expect(page.getByTestId('pending-email-change')).toBeVisible();
     await expect(page.getByTestId('pending-new-email')).toHaveText(newEmail);
 

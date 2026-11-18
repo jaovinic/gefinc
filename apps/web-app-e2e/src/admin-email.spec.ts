@@ -24,10 +24,11 @@ test.describe('painel: diagnóstico do serviço de e-mail', () => {
 
     await page.getByTestId('send-test').click();
     await expect(page.getByTestId('test-result')).toContainText(/Enviado|Falhou/);
-    const rows = page.getByTestId('delivery-row');
-    await expect(rows.first().getByTestId('kind')).toContainText('Teste');
-    await expect(rows.first().getByTestId('recipient')).toContainText(email);
-    await expect(rows.first().getByTestId('resend')).toHaveCount(0);
+    // o histórico é global: outros testes em paralelo também enviam e-mails, então a linha é achada pelo destinatário
+    const row = page.getByTestId('delivery-row').filter({ hasText: email }).first();
+    await expect(row.getByTestId('kind')).toContainText('Teste');
+    await expect(row.getByTestId('recipient')).toContainText(email);
+    await expect(row.getByTestId('resend')).toHaveCount(0);
 
     expect(await violations(page)).toEqual([]);
   });

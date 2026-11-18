@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { Page, expect, test } from '@playwright/test';
+import { Locator, Page, expect, test } from '@playwright/test';
 import { PASSWORD } from './support';
 
 async function violations(page: Page) {
@@ -137,5 +137,66 @@ test.describe('aviso de exclusão administrativa e cancelamento no app móvel (U
     await expect(alert).toBeVisible();
     await expect(alert).toContainText('27/11/2026');
     await expect(alert).toContainText('Determinação legal ou de autoridade.');
+  });
+});
+
+test.describe('aviso de privacidade no app móvel', () => {
+  test('em tela baixa o aviso rola até o botão do fim e o botão de tema não cobre o cartão', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/privacidade');
+    await expect(page.getByRole('heading', { name: 'Privacidade', level: 1 })).toBeVisible();
+
+    const screen = page.locator('.gef-screen');
+    const scrolls = await screen.evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(scrolls).toBe(true);
+
+    const back = page.getByRole('link', { name: 'Voltar para o login' });
+    await back.scrollIntoViewIfNeeded();
+    await expect(back).toBeInViewport({ ratio: 1 });
+
+    await screen.evaluate((el) => el.scrollTo(0, 0));
+    const toggle = await page.locator('gef-theme-toggle').boundingBox();
+    const card = await page.locator('gef-auth-card > div > section').boundingBox();
+    expect(toggle && card && toggle.y + toggle.height <= card.y).toBe(true);
+    const top = await page.getByRole('link', { name: 'Voltar', exact: true }).boundingBox();
+    expect(top?.height ?? 0).toBeGreaterThanOrEqual(43.5);
+  });
+
+  test('o botão de tema rola junto com o conteúdo: depois de rolar até o fim ele não fica sobre o texto do cartão', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/privacidade');
+    await expect(page.getByRole('heading', { name: 'Privacidade', level: 1 })).toBeVisible();
+
+    const screen = page.locator('.gef-screen');
+    const toggle = page.locator('gef-theme-toggle');
+    expect(await toggle.evaluate((el) => getComputedStyle(el).position)).toBe('absolute');
+    const box = async (locator: Locator) => {
+      const found = await locator.boundingBox();
+      if (!found) {
+        throw new Error('elemento sem caixa na tela');
+      }
+      return found;
+    };
+    const before = await box(toggle);
+    const size = await box(toggle.getByRole('button'));
+    expect(size.width).toBeGreaterThanOrEqual(43.5);
+    expect(size.height).toBeGreaterThanOrEqual(43.5);
+
+    await screen.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const scrolled = await screen.evaluate((el) => el.scrollTop);
+    expect(scrolled).toBeGreaterThan(100);
+    const after = await box(toggle);
+    const card = await box(page.locator('gef-auth-card > div > section'));
+    // acompanhou a rolagem (não ficou preso à janela) e não cruza o retângulo do cartão
+    expect(Math.abs(before.y - after.y - scrolled)).toBeLessThanOrEqual(1);
+    const overlaps = after.x < card.x + card.width && after.x + after.width > card.x && after.y < card.y + card.height && after.y + after.height > card.y;
+    expect(overlaps).toBe(false);
+
+    // de volta ao topo, o botão segue acessível e funciona
+    await screen.evaluate((el) => el.scrollTo(0, 0));
+    const button = page.getByTestId('theme-toggle');
+    const label = await button.getAttribute('aria-label');
+    await button.click();
+    await expect(button).not.toHaveAttribute('aria-label', label ?? '');
   });
 });

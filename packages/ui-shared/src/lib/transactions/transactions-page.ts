@@ -327,7 +327,7 @@ export const IMPACT_WAIT_MS = 3_000;
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-micro font-bold uppercase" [class]="badge(tx).css"><gef-icon [name]="badge(tx).icon" [size]="12" />{{ badge(tx).label }}</span>
                   </td>
-                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
+                  <td class="px-4 py-2"><div class="flex flex-wrap justify-end gap-2">
                     @if (isLocal(tx)) {
                       <span class="text-caption text-gefinc-warning">Pendente de envio</span>
                     } @else {

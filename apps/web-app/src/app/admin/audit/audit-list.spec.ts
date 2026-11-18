@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { AuditEntry, AuditPage } from '@gefinc/core-models';
 import { API_BASE_URL, CurrentUser, NoticeService } from '@gefinc/ui-shared';
-import { pickOption } from '@gefinc/ui-shared/testing';
+import { fillDate, pickOption } from '@gefinc/ui-shared/testing';
 import { Subject } from 'rxjs';
 import { AdminApi } from '../admin.api';
 import { AuditList } from './audit-list';
@@ -143,17 +143,13 @@ describe('AuditList', () => {
     byResult.flush(page([entryRefused]));
     await settle(fixture);
 
-    const fromInput = el.querySelector('[data-testid="filter-from"]') as HTMLInputElement;
-    fromInput.value = '2026-11-10';
-    fromInput.dispatchEvent(new Event('change'));
+    fillDate(el, '[data-testid="filter-from"] input', '2026-11-10');
     const byFrom = listRequest();
     expect(byFrom.request.params.get('from')).toBe('2026-11-10T00:00:00Z');
     byFrom.flush(page([entryRefused]));
     await settle(fixture);
 
-    const toInput = el.querySelector('[data-testid="filter-to"]') as HTMLInputElement;
-    toInput.value = '2026-11-14';
-    toInput.dispatchEvent(new Event('change'));
+    fillDate(el, '[data-testid="filter-to"] input', '2026-11-14');
     const byTo = listRequest();
     expect(byTo.request.params.get('to')).toBe('2026-11-15T00:00:00Z');
     byTo.flush(page([entryRefused]));
@@ -174,6 +170,130 @@ describe('AuditList', () => {
     expect(byTarget.request.params.get('targetUserId')).toBe('99');
     byTarget.flush(page([entryRefused]));
     await settle(fixture);
+  });
+
+  it('os filtros de período são campos de data próprios (gef-date-field), sem input de data do navegador', async () => {
+    const { el } = await setup();
+
+    expect(el.querySelectorAll('gef-date-field')).toHaveLength(2);
+    expect(el.querySelector('input[type="date"], input[type="datetime-local"], input[type="month"], input[type="time"]')).toBeNull();
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    const to = el.querySelector('[data-testid="filter-to"] input') as HTMLInputElement;
+    expect(from.type).toBe('text');
+    expect(from.placeholder).toBe('dd/mm/aaaa');
+    expect(from.labels?.[0]?.textContent?.trim()).toBe('De (data inicial)');
+    expect(to.labels?.[0]?.textContent?.trim()).toBe('Até (data final)');
+    expect(el.querySelectorAll('button[aria-label="Abrir calendário"]')).toHaveLength(2);
+  });
+
+  it('data inválida (31/02/2026) mostra o erro do campo e não consulta', async () => {
+    const { fixture, el } = await setup();
+
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    from.value = '31022026';
+    from.dispatchEvent(new Event('input'));
+    await settle(fixture);
+
+    expect(from.value).toBe('31/02/2026');
+    expect(from.getAttribute('aria-invalid')).toBe('true');
+    expect(text(el.querySelector('.gef-field-error'))).toContain('Informe uma data válida');
+    http.expectNone((r) => r.url.endsWith('/admin/audit'));
+  });
+
+  it('apagar uma data já aplicada volta a consultar sem o período', async () => {
+    const { fixture, el } = await setup();
+
+    fillDate(el, '[data-testid="filter-from"] input', '2026-11-10');
+    listRequest().flush(page([entryRefused]));
+    await settle(fixture);
+
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    from.value = '';
+    from.dispatchEvent(new Event('input'));
+    const cleared = listRequest();
+    expect(cleared.request.params.has('from')).toBe(false);
+    cleared.flush(page([entrySuspended]));
+    await settle(fixture);
+  });
+
+  it('digitar uma data ainda incompleta não dispara consultas', async () => {
+    const { fixture, el } = await setup();
+
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    for (const partial of ['1', '10', '1011', '101120']) {
+      from.value = partial;
+      from.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      http.expectNone((r) => r.url.endsWith('/admin/audit'));
+    }
+  });
+
+  it('"Limpar filtros" zera os dois campos de data e recarrega sem período', async () => {
+    const { fixture, el } = await setup();
+
+    fillDate(el, '[data-testid="filter-from"] input', '2026-11-10');
+    listRequest().flush(page([]));
+    await settle(fixture);
+    fillDate(el, '[data-testid="filter-to"] input', '2026-11-14');
+    listRequest().flush(page([]));
+    await settle(fixture);
+
+    (el.querySelector('gef-empty button') as HTMLButtonElement).click();
+    const cleared = listRequest();
+    expect(cleared.request.params.has('from')).toBe(false);
+    expect(cleared.request.params.has('to')).toBe(false);
+    cleared.flush(page([entrySuspended]));
+    await settle(fixture);
+
+    expect((el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement).value).toBe('');
+    expect((el.querySelector('[data-testid="filter-to"] input') as HTMLInputElement).value).toBe('');
+  });
+
+  it('"Limpar filtros" também apaga o texto parcial de uma data ainda incompleta (o sinal já estava vazio)', async () => {
+    const { fixture, el } = await setup(page([]));
+
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    const to = el.querySelector('[data-testid="filter-to"] input') as HTMLInputElement;
+    from.value = '120';
+    from.dispatchEvent(new Event('input'));
+    to.value = '3';
+    to.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(from.value).toBe('12/0');
+    expect(to.value).toBe('3');
+    http.expectNone((r) => r.url.endsWith('/admin/audit'));
+
+    (el.querySelector('gef-empty button') as HTMLButtonElement).click();
+    listRequest().flush(page([]));
+    await settle(fixture);
+
+    expect(from.value).toBe('');
+    expect(to.value).toBe('');
+  });
+
+  it('depois de "Limpar filtros", um novo texto parcial não mostra "data incompleta" até o campo perder o foco', async () => {
+    const { fixture, el } = await setup(page([]));
+
+    const from = el.querySelector('[data-testid="filter-from"] input') as HTMLInputElement;
+    from.value = '120';
+    from.dispatchEvent(new Event('input'));
+    from.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="filter-from"] .gef-field-error')).not.toBeNull();
+
+    (el.querySelector('gef-empty button') as HTMLButtonElement).click();
+    listRequest().flush(page([]));
+    await settle(fixture);
+    expect(el.querySelector('[data-testid="filter-from"] .gef-field-error')).toBeNull();
+
+    from.value = '120';
+    from.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="filter-from"] .gef-field-error')).toBeNull();
+
+    from.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    expect(el.querySelector('[data-testid="filter-from"] .gef-field-error')).not.toBeNull();
   });
 
   it('paginação por cursor mostra "Carregar mais", anexa os novos registros e esconde o botão no fim', async () => {

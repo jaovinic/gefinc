@@ -13,6 +13,8 @@ import { KindSwitch } from './kind-switch';
 import { formatBRL, invoiceDueDate, isoToBR, monthLabelBR, scheduleInstallments, todayIso } from '@gefinc/utils';
 import { type AmountMode, belowMinimumPerInstallment, effectiveTotal, installmentSummary } from './installment-amount';
 
+let nextFormId = 0;
+
 /** O valor precisa ser maior que zero (sem nenhum dígito diferente de zero, é zero). */
 function positiveAmount(control: AbstractControl): ValidationErrors | null {
   const value = control.value as string | null;
@@ -37,7 +39,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   host: { class: 'block' },
   imports: [AccountPicker, AmountModeSwitch, DateField, KindSwitch, ReactiveFormsModule, MoneyInput, Select],
   template: `
-    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 gef-card p-4" novalidate>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4 gef-card gef-form-card" novalidate>
       <h2 class="text-title-md font-semibold">Novo lançamento</h2>
       @if (error(); as message) {
         <p class="gef-alert-error" role="alert">{{ message }}</p>
@@ -94,9 +96,15 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           <p class="mt-1 text-caption text-gefinc-warning" aria-live="polite" data-testid="account-notice">{{ accountNotice() }}</p>
         </div>
         <div>
-          <gef-select label="Categoria" formControlName="categoryId" [options]="categoryOptions()" />
+          <gef-select
+            label="Categoria"
+            formControlName="categoryId"
+            [options]="categoryOptions()"
+            [invalid]="form.controls.categoryId.touched && form.controls.categoryId.value === 0"
+            [describedBy]="form.controls.categoryId.touched && form.controls.categoryId.value === 0 ? categoryErrorId : ''"
+          />
           @if (form.controls.categoryId.touched && form.controls.categoryId.value === 0) {
-            <p class="gef-field-error">Escolha a categoria.</p>
+            <p [id]="categoryErrorId" class="gef-field-error">Escolha a categoria.</p>
           }
         </div>
         @if (recurrence() === 'INSTALLMENT') {
@@ -197,7 +205,7 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
           </div>
         </div>
       }
-      <div class="flex gap-3">
+      <div class="gef-sheet-actions flex gap-3">
         <button type="submit" class="gef-btn-primary max-w-40" [disabled]="busy()">Salvar</button>
         <button type="button" class="gef-btn-secondary" (click)="cancelled.emit()">Cancelar</button>
       </div>
@@ -208,6 +216,7 @@ export class GroupForm implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(TransactionsApi);
   protected readonly reference = inject(ReferenceData);
+  protected readonly categoryErrorId = `gef-group-category-error-${nextFormId++}`;
 
   readonly saved = output<void>();
   readonly cancelled = output<void>();

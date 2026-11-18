@@ -4,23 +4,25 @@ import { formatBRL } from '@gefinc/utils';
 import { ThemeService } from '../theme/theme.service';
 import { ChartSlice } from './chart-slice';
 
+// Este registro precisa ficar no mesmo módulo do componente: com "sideEffects": false no package.json, um módulo
+// separado que ninguém use por binding seria removido do bundle de produção e o gráfico quebraria só lá.
 Chart.register(DoughnutController, ArcElement, Tooltip);
 
 /** Rosca de gastos por categoria, com a cor de cada categoria e uma legenda acessível com os valores. */
 @Component({
   selector: 'gef-category-donut',
-  host: { class: 'block' },
+  host: { class: 'block @container' },
   template: `
-    <div class="flex flex-col items-center gap-4 sm:flex-row">
+    <div class="flex flex-col items-center gap-4 @lg:flex-row">
       <div class="relative h-56 w-56 shrink-0">
         <canvas #canvas role="img" [attr.aria-label]="summary()"></canvas>
       </div>
-      <ul class="w-full space-y-2 text-body-base" aria-label="Legenda do gráfico por categoria">
+      <ul class="w-full min-w-0 space-y-2 text-body-base" aria-label="Legenda do gráfico por categoria">
         @for (slice of slices(); track slice.label) {
           <li class="flex items-center justify-between gap-3">
             <span class="flex min-w-0 items-center gap-2">
               <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="slice.color" aria-hidden="true"></span>
-              <span class="min-w-0 break-words">{{ slice.label }}</span>
+              <span class="min-w-0 wrap-anywhere">{{ slice.label }}</span>
             </span>
             <span class="flex shrink-0 items-baseline gap-2">
               <span class="text-caption text-gefinc-muted" data-testid="slice-percent">{{ percent(slice) }}</span>

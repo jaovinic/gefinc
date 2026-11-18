@@ -58,9 +58,37 @@ describe('PrivacyNoticePage', () => {
     expect(el.querySelectorAll('h2').length).toBeGreaterThanOrEqual(4);
   });
 
-  it('leva de volta para o login', async () => {
+  it('os títulos das seções usam o tamanho de título médio (18 px), acima do corpo', async () => {
     const { el } = await setup();
 
-    expect(el.querySelector('a[href="/login"]')).not.toBeNull();
+    for (const h2 of Array.from(el.querySelectorAll('h2'))) {
+      expect(h2.className).toContain('text-title-md');
+      expect(h2.className).not.toContain('text-title-sm');
+    }
+  });
+
+  it('leva de volta para o login pelo botão do fim', async () => {
+    const { el } = await setup();
+    const button = el.querySelector('a.gef-btn-secondary');
+
+    expect(button?.getAttribute('href')).toBe('/login');
+    expect(button?.textContent?.trim()).toBe('Voltar para o login');
+  });
+
+  it('tem um link Voltar no topo do cartão, para o login e com nome distinto do botão do fim', async () => {
+    const { el } = await setup();
+    const top = el.querySelector('section > a[href="/login"]') as HTMLElement;
+
+    expect(top).not.toBeNull();
+    expect(top.textContent?.trim()).toBe('Voltar');
+    expect(top.className).toContain('min-h-11');
+    expect(top.compareDocumentPosition(el.querySelector('h1') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(el.querySelectorAll('a[href="/login"]')).filter((a) => /Voltar para o login/.test(a.textContent ?? ''))).toHaveLength(1);
+  });
+
+  it('reserva espaço acima do cartão para o botão de tema em telas estreitas', async () => {
+    const { el } = await setup();
+
+    expect(el.querySelector('gef-auth-card > div')?.className).toContain('pt-[calc(env(safe-area-inset-top)+4.5rem)]');
   });
 });

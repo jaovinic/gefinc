@@ -224,7 +224,12 @@ export class DateField implements ControlValueAccessor, Validator {
   private onValidatorChange: () => void = () => undefined;
 
   writeValue(value: string | null | undefined): void {
-    this.text.set(value && parseIso(value) ? isoToBR(value) : '');
+    const text = value && parseIso(value) ? isoToBR(value) : '';
+    this.text.set(text);
+    if (!text) {
+      // reset de fora (ex.: "Limpar filtros"): o próximo texto parcial só reclama depois de um novo blur
+      this.blurred.set(false);
+    }
     this.onValidatorChange();
   }
 

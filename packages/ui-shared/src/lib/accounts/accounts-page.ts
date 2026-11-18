@@ -146,7 +146,7 @@ import { blockedAccountMessage } from './account-usage';
                       <span class="text-gefinc-muted">Inativa</span>
                     }
                   </td>
-                  <td class="px-4 py-3"><div class="flex flex-wrap justify-end gap-2">
+                  <td class="px-4 py-2"><div class="flex flex-wrap justify-end gap-2">
                     <button type="button" class="gef-btn-sm" (click)="startEdit(account)">Editar</button>
                     @if (canTransferFrom(account)) {
                       <button type="button" class="gef-btn-sm" data-testid="account-transfer" [attr.aria-label]="'Transferir de ' + account.name" (click)="startTransfer(account)">Transferir</button>
@@ -194,7 +194,7 @@ import { blockedAccountMessage } from './account-usage';
         <p>A conta "{{ pending.account.name }}" será excluída definitivamente. Esta ação não pode ser desfeita.</p>
       }
       @if (deleteBlocked() && deleting()?.account?.active) {
-        <button type="button" gefConfirmExtra class="gef-btn-secondary min-h-11 whitespace-normal text-center md:min-h-11" data-testid="confirm-inactivate" (click)="inactivateInstead(deleting()!.account)">Inativar conta</button>
+        <button type="button" gefConfirmExtra class="gef-btn-secondary min-h-11 whitespace-normal text-center" data-testid="confirm-inactivate" (click)="inactivateInstead(deleting()!.account)">Inativar conta</button>
       }
     </gef-confirm-dialog>
     <gef-sheet heading="Inativar conta com cartões" [open]="!!confirming()" (closed)="confirming.set(null)">

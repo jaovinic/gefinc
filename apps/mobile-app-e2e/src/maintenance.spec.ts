@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { chooseAccount, chooseOption, fillDate, newUser, openTab, signIn, todayIso } from './support';
+import { apiPost, chooseAccount, chooseOption, newUser, openTab, signIn } from './support';
 
 test.describe('modo de manutenção no aplicativo móvel', () => {
   test('exibe o banner de manutenção amigável quando o sistema entra em manutenção', async ({
@@ -48,7 +48,7 @@ test.describe('modo de manutenção no aplicativo móvel', () => {
     await expect(banner).toHaveCount(0);
   });
 
-  test('lançamentos realizados durante manutenção são preservados na fila offline e sincronizados após o término', async ({
+  test('lançamento tentado durante a manutenção mostra o aviso, mantém o que foi digitado e é registrado ao repetir depois do término', async ({
     page,
     request,
   }) => {
@@ -85,36 +85,37 @@ test.describe('modo de manutenção no aplicativo móvel', () => {
     });
 
     const user = await newUser(request);
+    await apiPost(request, user, '/accounts', { name: 'Carteira', type: 'CASH' });
     await signIn(page, user.email);
 
     // Banner de manutenção visível no app
     const maintBanner = page.getByTestId('maintenance-banner');
     await expect(maintBanner).toBeVisible();
 
-    // Navega para novo lançamento
-    await openTab(page, 'Lançamentos');
+    // Tenta lançar uma despesa pela tela de novo lançamento (rota /novo): o envio recebe 503 MAINTENANCE
     await page.getByRole('link', { name: 'Novo lançamento' }).click();
-    const form = page.locator('gef-group-form');
-    await form.getByLabel('Descrição ou loja').fill('Almoço');
-    await chooseAccount(page, form, 'Carteira');
-    await chooseOption(page, form, 'Categoria', 'Alimentação');
-    await form.getByLabel('Valor').fill('3500');
-    await fillDate(form.getByLabel(/vencimento/i), todayIso());
-    await form.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByLabel('Valor', { exact: true })).toBeFocused(); // a tela carrega sob demanda: espera abrir
+    await page.keyboard.type('3500');
+    await page.getByLabel('Descrição (opcional)').fill('Almoço');
+    await chooseAccount(page, page, 'Carteira');
+    await chooseOption(page, page, 'Categoria', 'Alimentação');
+    await page.getByRole('button', { name: 'Salvar' }).click();
 
-    // Lançamento aparece na listagem local marcado como pendente de envio
+    // A fila do aparelho só guarda lançamentos quando falta rede (status 0); a manutenção (503) é recusada com
+    // aviso, e a tela mantém tudo o que foi digitado para repetir o envio.
+    await expect(page.getByRole('alert').filter({ hasText: 'Sistema em manutenção.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Novo lançamento' })).toBeVisible();
+    await expect(page.getByLabel('Valor', { exact: true })).toHaveValue(/35,00/);
+    await expect(page.getByLabel('Descrição (opcional)')).toHaveValue('Almoço');
+
+    // Manutenção é encerrada no servidor: repetir o envio, sem redigitar, registra o lançamento
+    inMaintenance = false;
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
+
+    await openTab(page, 'Lançamentos');
     const card = page.getByTestId('transaction-card').filter({ hasText: 'Almoço' });
     await expect(card).toBeVisible();
-    await expect(card).toContainText('Pendente de envio');
-
-    // Manutenção é encerrada no servidor
-    inMaintenance = false;
-
-    // Dispara nova tentativa ao mudar de aba e aguarda envio da fila
-    await openTab(page, 'Painel');
-    await openTab(page, 'Lançamentos');
-
-    // Ao restabelecer a conexão com a API, o lançamento deixa de ficar pendente
-    await expect(card).not.toContainText('Pendente de envio', { timeout: 15_000 });
+    await expect(card).not.toContainText('Pendente de envio');
   });
 });

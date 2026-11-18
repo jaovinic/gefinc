@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { Page, expect, test } from '@playwright/test';
-import { PASSWORD, promoteToRoot, register } from './support';
+import { API, apiLogin, promoteToRoot, register } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
@@ -22,7 +22,7 @@ test.describe('painel: convidar e editar usuários', () => {
     promoteToRoot(rootEmail);
   });
 
-  test('administrador convida usuário, gerencia convites e renomeia usuário', async ({ page }) => {
+  test('administrador convida usuário, gerencia convites e renomeia usuário', async ({ page, request }) => {
     // 1. Navega para a página de convites
     await page.goto('/admin/invitations');
     await expect(page.getByRole('heading', { name: 'Convites' })).toBeVisible();
@@ -36,7 +36,10 @@ test.describe('painel: convidar e editar usuários', () => {
     // 3. Preenche e envia o convite
     const invitedEmail = `convidado.${stamp}@example.com`;
     await page.getByTestId('invite-email-input').fill(invitedEmail);
+    // o id do convite criado vem da resposta do POST: é com ele que se confere o estado final pela API
+    const created = page.waitForResponse((r) => r.url().endsWith('/admin/invitations') && r.request().method() === 'POST');
     await page.getByTestId('invite-submit-btn').click();
+    const { id } = (await (await created).json()) as { id: number };
 
     // Modal fecha e convite aparece na lista como Pendente
     await expect(page.getByTestId('invite-modal')).toHaveCount(0);
@@ -50,8 +53,20 @@ test.describe('painel: convidar e editar usuários', () => {
 
     // 5. Cancela o convite
     await row.getByTestId('cancel-btn').click();
+    const confirm = page.getByRole('alertdialog', { name: 'Cancelar convite' });
+    await expect(confirm).toContainText('deixa de funcionar');
+    await confirm.getByTestId('confirm-confirm').click();
     await expect(page.getByText('Convite cancelado com sucesso.')).toBeVisible();
-    await expect(row.getByTestId('inv-status')).toContainText('Cancelado');
+    // depois de cancelado o e-mail deixa de ser exibido ("—")
+    await expect(page.getByTestId('invitation-row').filter({ hasText: invitedEmail })).toHaveCount(0);
+    // a situação é conferida pelo id na API (a lista é global e a linha cancelada não tem e-mail nem id na tela)
+    const headers = { Authorization: `Bearer ${await apiLogin(request, rootEmail)}` };
+    await expect
+      .poll(async () => {
+        const list = (await (await request.get(`${API}/admin/invitations`, { headers })).json()) as { id: number; status: string }[];
+        return list.find((i) => i.id === id)?.status;
+      })
+      .toBe('CANCELED');
 
     // 6. Teste de renomeação no detalhe de usuário
     await page.goto('/admin/users');

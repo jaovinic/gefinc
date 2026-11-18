@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { APIRequestContext, Page, expect, test } from '@playwright/test';
-import { API, PASSWORD, apiLogin, chooseOption, promoteToRoot, register } from './support';
+import { API, PASSWORD, apiLogin, chooseOption, fillDate, promoteToRoot, register } from './support';
 
 /** Falhas de acessibilidade graves (WCAG 2 A e AA) da página aberta. */
 async function violations(page: Page) {
@@ -18,6 +18,13 @@ async function createUser(request: APIRequestContext, email: string) {
 }
 
 const rows = (page: Page) => page.getByTestId('audit-row');
+
+/** Data local (AAAA-MM-DD) a `offset` dias de hoje: o campo de data trabalha com o dia do calendário, não com UTC. */
+function isoOffset(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 test.describe('painel: consulta do registro de auditoria', () => {
   let stamp: string;
@@ -70,5 +77,42 @@ test.describe('painel: consulta do registro de auditoria', () => {
     await expect(page.getByRole('button', { name: /exportar|excluir|apagar|editar/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /exportar/i })).toHaveCount(0);
     expect(await violations(page), 'auditoria com detalhe aberto').toEqual([]);
+  });
+
+  test('o período usa campos de data próprios (sem seletor do navegador): filtra, mostra vazio e "Limpar filtros" zera os campos', async ({ page }) => {
+    const nativeControls = await page.evaluate(
+      () => document.querySelectorAll('select, input[type="date"], input[type="color"], input[type="month"], input[type="time"], input[type="datetime-local"], input[type="week"]').length,
+    );
+    expect(nativeControls).toBe(0);
+    await expect(page.locator('gef-date-field')).toHaveCount(2);
+
+    const from = page.getByLabel('De (data inicial)', { exact: true });
+    const to = page.getByLabel('Até (data final)', { exact: true });
+
+    // período que cobre hoje: as ações do beforeEach continuam na lista
+    await fillDate(from, isoOffset(-1));
+    await fillDate(to, isoOffset(1));
+    await expect(rows(page).first()).toBeVisible();
+
+    // início no futuro: nada para mostrar
+    await fillDate(from, isoOffset(1));
+    await fillDate(to, isoOffset(2));
+    await expect(page.getByText('Nenhum registro encontrado.').first()).toBeVisible();
+    await expect(rows(page)).toHaveCount(0);
+
+    // data inválida mostra o erro do campo
+    await to.fill('');
+    await to.pressSequentially('31022026');
+    await expect(to).toHaveAttribute('aria-invalid', 'true');
+    await expect(page.getByText('Informe uma data válida no formato dd/mm/aaaa.')).toBeVisible();
+
+    // texto parcial ("12/0") não vira filtro, mas "Limpar filtros" também o apaga da tela
+    await to.fill('');
+    await to.pressSequentially('12/0');
+    await expect(to).toHaveValue('12/0');
+    await page.getByRole('button', { name: 'Limpar filtros' }).click();
+    await expect(from).toHaveValue('');
+    await expect(to).toHaveValue('');
+    await expect(rows(page).first()).toBeVisible();
   });
 });

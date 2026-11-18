@@ -228,6 +228,17 @@ describe('Shell (menu lateral)', () => {
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('outro dispositivo');
   });
 
+  it('o aviso global tem respiro responsivo e o botão Fechar com alvo de 44 px', async () => {
+    const { fixture, el } = await setup();
+    TestBed.inject(NoticeService).staleVersion();
+    fixture.detectChanges();
+    const banner = el.querySelector('[role="alert"]') as HTMLElement;
+    expect(banner.className).toContain('px-4');
+    expect(banner.className).toContain('md:px-6');
+    expect(banner.className).not.toMatch(/(^|\s)px-6/);
+    expect(banner.querySelector('button')?.className).toContain('gef-action');
+  });
+
   describe('grupo Administração', () => {
     const group = (el: HTMLElement) => el.querySelector('aside nav[aria-label="Administração"]') as HTMLElement | null;
 
@@ -300,6 +311,179 @@ describe('Shell (menu lateral)', () => {
 
       const drawerGroup = el.querySelector('[role="dialog"] nav[aria-label="Administração"]') as HTMLElement;
       expect(drawerGroup.querySelector('a[href="/admin/users"]')).not.toBeNull();
+    });
+
+    it('menu e grupo de administração ficam na região que rola; o rodapé (com Sair) fica fora dela, no menu e na gaveta', async () => {
+      const { fixture, el } = await setup(true);
+      const side = el.querySelector('aside[data-testid="sidenav"]') as HTMLElement;
+      const scroll = side.querySelector('.gef-sidenav-scroll') as HTMLElement;
+      const footer = side.querySelector('[data-testid="sidenav-footer"]') as HTMLElement;
+      expect(scroll.contains(side.querySelector('nav[aria-label="Principal"]'))).toBe(true);
+      expect(scroll.contains(side.querySelector('[data-testid="admin-nav-group"]'))).toBe(true);
+      expect(scroll.contains(footer)).toBe(false);
+      expect(footer.parentElement).toBe(side);
+      expect(footer.querySelector('button[aria-label="Sair"]')).not.toBeNull();
+
+      (el.querySelector('button[aria-label="Abrir menu"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const dialog = el.querySelector('[role="dialog"]') as HTMLElement;
+      const dScroll = dialog.querySelector('.gef-sidenav-scroll') as HTMLElement;
+      const dFooter = dialog.querySelector('.gef-sidenav-footer') as HTMLElement;
+      expect(dScroll.contains(dialog.querySelector('nav[aria-label="Menu"]'))).toBe(true);
+      expect(dScroll.contains(dialog.querySelector('nav[aria-label="Administração"]'))).toBe(true);
+      expect(dScroll.contains(dFooter)).toBe(false);
+      expect(dFooter.querySelector('button[aria-label="Sair"]')).not.toBeNull();
+    });
+
+    describe('dica do menu recolhido', () => {
+      const rect = (top: number, height = 44) => ({ top, height, bottom: top + height, left: 0, right: 64, width: 64, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+      const tip = (el: HTMLElement) => el.style.getPropertyValue('--gef-tip-y');
+
+      async function collapsed() {
+        const ctx = await setup(true);
+        (ctx.el.querySelector('button[aria-label="Recolher menu"]') as HTMLButtonElement).click();
+        ctx.fixture.detectChanges();
+        const link = group(ctx.el)?.querySelector('a.gef-nav-link') as HTMLAnchorElement;
+        const region = link.closest('.gef-sidenav-scroll') as HTMLElement;
+        jest.spyOn(region, 'getBoundingClientRect').mockReturnValue(rect(80, 400));
+        return { ...ctx, link, region };
+      }
+
+      it('entrar no item (mouse) grava a altura do centro dele, também no Sair', async () => {
+        const { el, link } = await collapsed();
+        const spy = jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(tip(link)).toBe('222px');
+        spy.mockRestore();
+
+        const logout = el.querySelector('aside button[aria-label="Sair"]') as HTMLButtonElement;
+        logout.dispatchEvent(new FocusEvent('focus'));
+        expect(tip(logout)).toMatch(/^-?[\d.]+px$/);
+      });
+
+      it('o foco agenda um segundo cálculo no próximo quadro (depois de o navegador rolar o item para a vista)', async () => {
+        const { link } = await collapsed();
+        let top = 200;
+        jest.spyOn(link, 'getBoundingClientRect').mockImplementation(() => rect(top));
+        const frames: FrameRequestCallback[] = [];
+        const raf = jest.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => frames.push(cb));
+
+        link.dispatchEvent(new FocusEvent('focus'));
+        expect(raf).toHaveBeenCalled();
+        expect(tip(link)).toBe('222px');
+        top = 120; // o navegador rolou o item para cima antes do quadro seguinte
+        frames.forEach((frame) => frame(0));
+        expect(tip(link)).toBe('142px');
+      });
+
+      it('rolar a região de rolagem refaz a posição; item fora da área visível esconde a dica', async () => {
+        const { link, region } = await collapsed();
+        let top = 200;
+        jest.spyOn(link, 'getBoundingClientRect').mockImplementation(() => rect(top));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(tip(link)).toBe('222px');
+
+        top = 150;
+        region.dispatchEvent(new Event('scroll'));
+        expect(tip(link)).toBe('172px');
+
+        top = 600; // abaixo da região (80 a 480)
+        region.dispatchEvent(new Event('scroll'));
+        expect(tip(link)).toBe('-9999px');
+      });
+
+      it('sair do item (mouse ou foco) limpa a posição e a rolagem deixa de mexer nele', async () => {
+        const { link, region } = await collapsed();
+        jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(tip(link)).toBe('222px');
+
+        link.dispatchEvent(new MouseEvent('mouseleave'));
+        expect(tip(link)).toBe('');
+        region.dispatchEvent(new Event('scroll'));
+        expect(tip(link)).toBe('');
+
+        link.dispatchEvent(new FocusEvent('focus'));
+        expect(tip(link)).toBe('222px');
+        link.dispatchEvent(new FocusEvent('blur'));
+        expect(tip(link)).toBe('');
+      });
+
+      it('o mouse sai do item que continua com o foco: a posição fica, e só perder o foco a limpa', async () => {
+        const { fixture, link } = await collapsed();
+        document.body.appendChild(fixture.nativeElement);
+        jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        link.focus();
+        expect(document.activeElement).toBe(link);
+        link.dispatchEvent(new FocusEvent('focus'));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(tip(link)).toBe('222px');
+
+        link.dispatchEvent(new MouseEvent('mouseleave'));
+        expect(tip(link)).toBe('222px');
+
+        link.blur();
+        link.dispatchEvent(new FocusEvent('blur'));
+        expect(tip(link)).toBe('');
+      });
+
+      it('o foco sai do item que continua sob o mouse: a posição fica, e só o mouse sair (sem foco) a limpa', async () => {
+        const { fixture, link } = await collapsed();
+        document.body.appendChild(fixture.nativeElement);
+        jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        const hover = jest.spyOn(link, 'matches').mockImplementation((selector) => selector === ':hover');
+        link.focus();
+        link.dispatchEvent(new FocusEvent('focus'));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(tip(link)).toBe('222px');
+
+        link.blur();
+        link.dispatchEvent(new FocusEvent('blur'));
+        expect(tip(link)).toBe('222px');
+
+        hover.mockImplementation(() => false);
+        link.dispatchEvent(new MouseEvent('mouseleave'));
+        expect(tip(link)).toBe('');
+      });
+
+      it('o foco sai do item com o mouse já fora dele: a posição é limpa', async () => {
+        const { fixture, link } = await collapsed();
+        document.body.appendChild(fixture.nativeElement);
+        jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        jest.spyOn(link, 'matches').mockImplementation(() => false);
+        link.focus();
+        link.dispatchEvent(new FocusEvent('focus'));
+        expect(tip(link)).toBe('222px');
+
+        link.blur();
+        link.dispatchEvent(new FocusEvent('blur'));
+        expect(tip(link)).toBe('');
+      });
+
+      it('o mouse sai de um item sem foco: a posição é limpa', async () => {
+        const { fixture, link } = await collapsed();
+        document.body.appendChild(fixture.nativeElement);
+        jest.spyOn(link, 'getBoundingClientRect').mockReturnValue(rect(200));
+        link.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(document.activeElement).not.toBe(link);
+
+        link.dispatchEvent(new MouseEvent('mouseleave'));
+        expect(tip(link)).toBe('');
+      });
+    });
+
+    it('os alvos do menu têm 44 px: logo, recolher e abrir menu usam a classe de 44 px (sem h-9)', async () => {
+      const { el } = await setup(true);
+      const logo = el.querySelector('aside a[aria-label="GEFINC, ir para o painel"]') as HTMLElement;
+      expect(logo.className).toContain('min-h-11');
+      expect(logo.className).toContain('min-w-11');
+      for (const label of ['Recolher menu', 'Abrir menu']) {
+        const button = el.querySelector(`button[aria-label="${label}"]`) as HTMLElement;
+        expect(button.className).toContain('gef-sidenav-toggle');
+        expect(button.className).not.toMatch(/\bh-9\b|\bw-9\b/);
+      }
     });
 
     it('pede o perfil ao abrir, para o menu saber se é administrador', async () => {

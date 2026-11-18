@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
-import { ConfirmDialog, Icon } from '@gefinc/ui-shared';
+import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal, viewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ConfirmDialog, Select, type SelectOption } from '@gefinc/ui-shared';
 import type { DeletionReason, DeletionRequestInput } from '../admin.api';
 
 export const DELETION_JUSTIFICATION_MAX = 1000;
@@ -18,7 +19,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-deletion-dialog',
-  imports: [ConfirmDialog, Icon],
+  imports: [ConfirmDialog, FormsModule, Select],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <gef-confirm-dialog
@@ -40,21 +41,16 @@ let nextId = 0;
 
         <!-- Motivo -->
         <div>
-          <label class="gef-label" [attr.for]="reasonSelectId">Motivo da exclusão</label>
-          <select
-            class="gef-input"
+          <gef-select
             data-testid="deletion-reason-select"
-            [id]="reasonSelectId"
-            [value]="reasonId() ?? ''"
-            (change)="onReasonChange($event)"
-            [attr.aria-invalid]="reasonError() ? 'true' : null"
-            [attr.aria-describedby]="reasonError() ? reasonErrorId : null"
-          >
-            <option value="">Selecione um motivo…</option>
-            @for (reason of activeReasons(); track reason.id) {
-              <option [value]="reason.id">{{ reason.name }}</option>
-            }
-          </select>
+            label="Motivo da exclusão"
+            placeholder="Selecione um motivo…"
+            [options]="reasonOptions()"
+            [invalid]="!!reasonError()"
+            [describedBy]="reasonError() ? reasonErrorId : ''"
+            [ngModel]="reasonId()"
+            (ngModelChange)="onReasonChange($event)"
+          />
           @if (reasonError()) {
             <p class="gef-field-error" [id]="reasonErrorId" data-testid="deletion-reason-error">
               {{ reasonError() }}
@@ -73,7 +69,7 @@ let nextId = 0;
 
           <!-- Aviso de Privacidade / LGPD -->
           <div
-            class="mb-2 rounded border border-gefinc-warning/40 bg-gefinc-warning/10 p-2.5 text-caption text-gefinc-warning"
+            class="mb-2 rounded-lg border border-gefinc-warning/40 bg-gefinc-warning/10 p-2.5 text-caption text-gefinc-warning"
             role="note"
             data-testid="privacy-notice"
           >
@@ -106,8 +102,8 @@ let nextId = 0;
         <!-- Modo e Prazo -->
         <fieldset class="space-y-2">
           <legend class="gef-label">Prazo para execução</legend>
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
-            <label class="inline-flex items-center gap-2 text-body-base cursor-pointer">
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <label class="gef-segment">
               <input
                 type="radio"
                 name="deletion-mode"
@@ -118,7 +114,7 @@ let nextId = 0;
               />
               <span>Com prazo de carência</span>
             </label>
-            <label class="inline-flex items-center gap-2 text-body-base cursor-pointer">
+            <label class="gef-segment" data-tone="danger">
               <input
                 type="radio"
                 name="deletion-mode"
@@ -127,7 +123,7 @@ let nextId = 0;
                 (change)="setMode('IMMEDIATE')"
                 data-testid="mode-immediate"
               />
-              <span class="font-semibold text-gefinc-danger">Exclusão imediata</span>
+              <span>Exclusão imediata</span>
             </label>
           </div>
 
@@ -153,7 +149,7 @@ let nextId = 0;
 
         <!-- Efeito e Alerta -->
         <div
-          class="rounded border p-3 text-caption"
+          class="rounded-lg border p-3 text-caption"
           [class]="mode() === 'IMMEDIATE' ? 'border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger' : 'border-gefinc-border bg-gefinc-surface text-gefinc-text'"
           data-testid="deletion-effect-warning"
         >
@@ -223,7 +219,6 @@ let nextId = 0;
 })
 export class DeletionDialog {
   private readonly uid = nextId++;
-  protected readonly reasonSelectId = `del-reason-${this.uid}`;
   protected readonly reasonErrorId = `del-reason-err-${this.uid}`;
   protected readonly justificationId = `del-just-${this.uid}`;
   protected readonly justificationErrorId = `del-just-err-${this.uid}`;
@@ -242,10 +237,13 @@ export class DeletionDialog {
   readonly busy = input(false);
   readonly error = input<string | null>(null);
 
+  private readonly reasonSelect = viewChild(Select);
+
   readonly confirmed = output<DeletionRequestInput>();
   readonly cancelled = output<void>();
 
   protected readonly activeReasons = computed(() => this.reasons().filter((r) => r.active));
+  protected readonly reasonOptions = computed<SelectOption[]>(() => this.activeReasons().map((r) => ({ value: r.id, label: r.name })));
   protected readonly isAnticipation = computed(() => !!this.currentDueAt());
   protected readonly heading = computed(() =>
     this.isAnticipation() ? 'Antecipar exclusão da conta' : 'Excluir conta de usuário',
@@ -305,9 +303,8 @@ export class DeletionDialog {
     this.mode.set(m);
   }
 
-  protected onReasonChange(event: Event): void {
-    const val = (event.target as HTMLSelectElement).value;
-    this.reasonId.set(val ? Number(val) : null);
+  protected onReasonChange(value: string | number | null): void {
+    this.reasonId.set(value === null || value === '' ? null : Number(value));
     this.reasonError.set(null);
   }
 
@@ -375,6 +372,9 @@ export class DeletionDialog {
     }
 
     if (hasError || rId === null) {
+      if (this.reasonError()) {
+        this.reasonSelect()?.focus();
+      }
       return;
     }
 

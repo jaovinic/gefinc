@@ -76,6 +76,12 @@ describe('SessionList', () => {
 
   afterEach(() => http.verify());
 
+  it('o host é de bloco, para o espaçamento vertical do pai (space-y) valer entre os cartões', async () => {
+    const { el } = await setup();
+    const host = el.querySelector('gef-admin-session-list') as HTMLElement;
+    expect(host.className).toContain('block');
+  });
+
   it('mostra o carregamento enquanto a lista não chega', async () => {
     const { fixture, el } = await setup('pending');
     expect(el.querySelector('gef-loading')).not.toBeNull();

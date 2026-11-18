@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Icon } from '../../icons/icon';
 import { AuthCard } from '../auth-card';
 
 /**
@@ -9,12 +10,19 @@ import { AuthCard } from '../auth-card';
  */
 @Component({
   selector: 'gef-privacy-notice',
-  imports: [AuthCard, RouterLink],
+  imports: [AuthCard, Icon, RouterLink],
   template: `
     <gef-auth-card heading="Privacidade">
-      <div class="space-y-5 text-body-base" data-testid="privacy-notice">
+      <a
+        cardTop
+        class="-ml-2 -mt-2 mb-2 flex min-h-11 w-fit items-center gap-1 px-2 text-body-base text-gefinc-primary underline-offset-2 hover:underline"
+        routerLink="/login"
+      >
+        <gef-icon name="chevron-left" [size]="16" />Voltar
+      </a>
+      <div class="space-y-6 text-body-base" data-testid="privacy-notice">
         <section class="space-y-2" aria-labelledby="privacy-what">
-          <h2 id="privacy-what" class="text-title-sm font-semibold">O que guardamos</h2>
+          <h2 id="privacy-what" class="text-title-md font-semibold">O que guardamos</h2>
           <p>
             Cada vez que você entra, a sessão guarda o endereço IP e o tipo de dispositivo e de navegador usados
             (por exemplo, "Chrome em Windows"). Por isso não guardamos o texto completo que o navegador envia,
@@ -23,7 +31,7 @@ import { AuthCard } from '../auth-card';
         </section>
 
         <section class="space-y-2" aria-labelledby="privacy-why">
-          <h2 id="privacy-why" class="text-title-sm font-semibold">Para quê</h2>
+          <h2 id="privacy-why" class="text-title-md font-semibold">Para quê</h2>
           <p>
             Para a segurança da sua conta: reconhecer acessos incomuns e permitir que a administração encerre uma
             sessão suspeita. Esses dados não são usados para publicidade nem compartilhados.
@@ -31,7 +39,7 @@ import { AuthCard } from '../auth-card';
         </section>
 
         <section class="space-y-2" aria-labelledby="privacy-how-long">
-          <h2 id="privacy-how-long" class="text-title-sm font-semibold">Por quanto tempo</h2>
+          <h2 id="privacy-how-long" class="text-title-md font-semibold">Por quanto tempo</h2>
           <p>
             Os dados da sessão ficam enquanto ela estiver aberta e por mais 30 dias depois de encerrada ou
             expirada. Registros de acesso de visitantes (quem não tem conta) são guardados por até 90 dias.
@@ -43,7 +51,7 @@ import { AuthCard } from '../auth-card';
         </section>
 
         <section class="space-y-2" aria-labelledby="privacy-erase">
-          <h2 id="privacy-erase" class="text-title-sm font-semibold">Como são apagados</h2>
+          <h2 id="privacy-erase" class="text-title-md font-semibold">Como são apagados</h2>
           <p>
             Quando você exclui a conta, o IP e o dispositivo ligados a você são apagados. Os dados de visitantes
             são apagados automaticamente depois de 90 dias.

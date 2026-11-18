@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const css = readFileSync(join(__dirname, 'theme.css'), 'utf8');
+/** Estilos só do web (menu lateral, barra do topo, tabelas do painel): fora do pacote do app móvel. */
+const webCss = readFileSync(join(__dirname, 'web.css'), 'utf8');
+const mobileStyles = readFileSync(join(__dirname, '../../../../apps/mobile-app/src/styles.css'), 'utf8');
+const webStyles = readFileSync(join(__dirname, '../../../../apps/web-app/src/styles.css'), 'utf8');
 
 describe('theme.css - foco neutro nos campos de digitação', () => {
   it('define o token de foco neutro', () => {
@@ -230,6 +234,19 @@ describe('theme.css - contraste WCAG AA (4,5:1) nos dois temas', () => {
       const onAccent = value(scope, '--color-gefinc-on-accent');
       for (const name of ['primary-fill', 'danger-fill']) {
         expect(contrast(onAccent, value(scope, `--color-gefinc-${name}`))).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it.each(['.gef-btn-primary', '.gef-btn-danger'])('%s passa em 4,5:1 também com o ponteiro em cima (hover reduz a opacidade do botão todo)', (selector) => {
+      const start = css.indexOf(`${selector} {`);
+      const rule = css.slice(start, css.indexOf('}', start));
+      const hover = Number(rule.match(/hover:opacity-(\d+)/)?.[1] ?? '100') / 100;
+      const fill = value(scope, `--color-gefinc-${selector === '.gef-btn-danger' ? 'danger' : 'primary'}-fill`);
+      const onAccent = value(scope, '--color-gefinc-on-accent');
+      for (const behind of [bg, surface]) {
+        const text = over([onAccent[0], onAccent[1], onAccent[2], hover], behind);
+        const background = over([fill[0], fill[1], fill[2], hover], behind);
+        expect(contrast(text, background)).toBeGreaterThanOrEqual(4.5);
       }
     });
 
@@ -533,7 +550,7 @@ describe('theme.css - contraste dos controles próprios (lista, calendário e pa
     const glass = over(pick(scope, '--glass-bg'), bg);
 
     /** Fundos onde a lista e o calendário aparecem: o painel (vidro forte) sobre a página escurecida pelo fundo do painel. */
-    const sheets = [bg, surface].map((page) => over(pick(scope, '--glass-bg-strong'), over(scrim, page)));
+    const sheets = [bg, surface].map((page) => over(pick(scope, '--glass-sheet-bg'), over(scrim, page)));
     /** Fundos onde a paleta aparece: a página, o cartão de vidro ou o painel. */
     const swatchGrounds = [bg, surface, glass, ...sheets];
 
@@ -605,5 +622,337 @@ describe('theme.css - contraste dos controles próprios (lista, calendário e pa
         expect(contrast(text, ground)).toBeGreaterThanOrEqual(GRAPHIC);
       }
     });
+  });
+});
+
+describe('theme.css - painel (.gef-sheet) opaco e véu forte, sem texto da página aparecendo através', () => {
+  const scopes: [string, string][] = [
+    ['escuro', ':root'],
+    ['claro', "html[data-theme='light']"],
+  ];
+  const FALLBACKS = ['@media (prefers-reduced-transparency: reduce) {', '@media (prefers-contrast: more) {', '@supports not ('];
+  const pick = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope, name));
+    } catch {
+      return parseColor(token(':root', name));
+    }
+  };
+  const themeColor = (scope: string, name: string): Rgba => {
+    try {
+      return parseColor(token(scope === ':root' ? '@theme' : scope, name));
+    } catch {
+      return parseColor(token('@theme', name));
+    }
+  };
+
+  it('o fundo do painel é quase opaco (alfa mínimo de 0,96) nos dois temas', () => {
+    for (const [, scope] of scopes) {
+      expect(pick(scope, '--glass-sheet-bg')[3]).toBeGreaterThanOrEqual(0.96);
+    }
+  });
+
+  it('o vidro forte compartilhado (barras, avisos) não é alterado: continua translúcido', () => {
+    expect(pick(':root', '--glass-bg-strong')[3]).toBe(0.74);
+    expect(pick("html[data-theme='light']", '--glass-bg-strong')[3]).toBe(0.8);
+  });
+
+  it('o painel lê o fundo e a borda das variáveis próprias e continua sem nenhum filtro', () => {
+    const sheet = css.match(/\n {2}\.gef-sheet \{[^}]*\}/)?.[0] ?? '';
+    expect(sheet).toContain('background-color: var(--glass-sheet-bg)');
+    expect(sheet).toContain('border-color: var(--glass-sheet-border)');
+    expect(sheet).not.toMatch(/(backdrop-filter|\bfilter|transform):/);
+    expect(css).toMatch(/\.gef-sheet-backdrop \{[^}]*backdrop-filter: var\(--glass-filter-scrim\)/);
+    expect(token(':root', '--glass-filter-scrim')).toBe('blur(6px)');
+  });
+
+  it('o véu é forte: alfa mínimo de 0,7 no tema escuro e de 0,5 no claro', () => {
+    expect(themeColor(':root', '--color-gefinc-scrim')[3]).toBeGreaterThanOrEqual(0.7);
+    expect(themeColor("html[data-theme='light']", '--color-gefinc-scrim')[3]).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('os três fallbacks do sistema e o modo sólido deixam o painel sólido pela variável', () => {
+    for (const marker of FALLBACKS) {
+      const start = css.indexOf(marker);
+      expect(css.slice(start, css.indexOf('\n}', start))).toContain('--glass-sheet-bg: var(--color-gefinc-surface)');
+    }
+    expect(block("html[data-glass='flat']")).toContain('--glass-sheet-bg: var(--color-gefinc-surface)');
+  });
+
+  it('com contraste alto o painel ganha borda forte e o véu fica mais escuro', () => {
+    const start = css.indexOf('@media (prefers-contrast: more) {');
+    const body = css.slice(start, css.indexOf('\n}', start));
+    expect(body).toContain('--glass-sheet-border: var(--color-gefinc-muted)');
+    expect(body).toMatch(/--color-gefinc-scrim:\s*rgb\(0 0 0 \/ 0\.85\)/);
+  });
+
+  it('campos dentro do painel usam o token de borda de campo, sem rebaixar a especificidade dos estados', () => {
+    expect(css).toMatch(/:where\(\.gef-sheet\) \.gef-input,\s*:where\(\.gef-sheet\) \.gef-money-field \{[^}]*border-color: var\(--color-gefinc-field-border\)/);
+    expect(css).toMatch(/:where\(\.gef-sheet\) \.gef-btn-secondary,[^{]*:where\(\.gef-sheet\) \.gef-seg-track \{[^}]*border-color: var\(--color-gefinc-field-border\)/);
+    // as variantes de marca e perigo dos botões compactos vêm depois e vencem a borda de campo
+    expect(css.indexOf(':where(.gef-sheet) .gef-btn-sm')).toBeLessThan(css.indexOf('.gef-btn-sm-primary {'));
+  });
+
+  describe.each(scopes)('tema %s', (_label, scope) => {
+    const bg = themeColor(scope, '--color-gefinc-bg');
+    const surface = themeColor(scope, '--color-gefinc-surface');
+    const scrim = themeColor(scope, '--color-gefinc-scrim');
+    const pages = [bg, surface];
+    const sheets = pages.map((page) => over(pick(scope, '--glass-sheet-bg'), over(scrim, page)));
+
+    it('a borda de campo passa em 3:1 contra a superfície, o fundo e o painel (WCAG 1.4.11)', () => {
+      const border = themeColor(scope, '--color-gefinc-field-border');
+      for (const ground of [bg, surface, ...sheets]) {
+        expect(contrast(border, ground)).toBeGreaterThanOrEqual(3);
+      }
+    });
+
+    it.each(['text', 'muted', 'primary', 'secondary', 'danger', 'warning'])('texto %s sobre o painel (com o véu e a página atrás) passa em 4,5:1', (name) => {
+      const fg = themeColor(scope, `--color-gefinc-${name}`);
+      for (const sheet of sheets) {
+        expect(contrast(fg, sheet)).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it('texto de marca sobre o tom translúcido da própria cor dentro do painel passa em 4,5:1', () => {
+      for (const [name, alpha] of [['primary', 0.1], ['danger', 0.1], ['warning', 0.1]] as const) {
+        const fg = themeColor(scope, `--color-gefinc-${name}`);
+        for (const sheet of sheets) {
+          expect(contrast(fg, over([fg[0], fg[1], fg[2], alpha], sheet))).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+
+    it('o pior caso do texto da página atrás (cor do texto) não atravessa o painel: a mistura muda menos de 3% da luminância', () => {
+      const text = themeColor(scope, '--color-gefinc-text');
+      const sheetBg = pick(scope, '--glass-sheet-bg');
+      const behind = over(scrim, text);
+      const withText = over(sheetBg, behind);
+      const withoutText = over(sheetBg, over(scrim, bg));
+      expect(Math.abs(luminance(withText) - luminance(withoutText))).toBeLessThan(0.03);
+    });
+  });
+
+  it('os novos tokens de tipografia e de borda de campo existem no @theme', () => {
+    const theme = block('@theme');
+    expect(theme).toContain('--text-title-sm: 1rem');
+    expect(theme).toContain('--text-title-sm--line-height: 1.5rem');
+    expect(theme).toContain('--color-gefinc-field-border: #64748b');
+  });
+});
+
+describe('theme.css - segmentos, gaveta e menu lateral (2ª rodada)', () => {
+  const rule = (selector: string, source = css): string => {
+    const start = source.indexOf(`${selector} {`);
+    expect(start).toBeGreaterThan(-1);
+    return source.slice(start, source.indexOf('}', start));
+  };
+
+  it('o segmento tem respiro vertical (py-2) além do alvo de 44 px', () => {
+    expect(rule('.gef-segment')).toContain('py-2');
+  });
+
+  it('só a região .gef-sidenav-scroll rola; o nav não tem overflow próprio', () => {
+    const scroll = rule('.gef-sidenav-scroll', webCss);
+    expect(scroll).toContain('overflow-y-auto');
+    expect(scroll).toContain('overflow-x-hidden');
+    expect(scroll).toContain('min-h-0');
+    expect(rule('.gef-sidenav-nav', webCss)).not.toContain('overflow');
+  });
+
+  it('a gaveta lateral é uma coluna sem rolagem própria; cabeçalho e rodapé não encolhem', () => {
+    const left = rule('.gef-sheet-left');
+    expect(left).toContain('flex-col');
+    expect(left).toContain('overflow-hidden');
+    expect(rule('.gef-sidenav-footer', webCss)).toContain('shrink-0');
+    expect(rule('.gef-sidenav-head', webCss)).toContain('shrink-0');
+  });
+
+  it('o menu lateral fica acima do conteúdo (z-40) e abaixo da gaveta e do aviso', () => {
+    expect(rule('.gef-sidenav', webCss)).toContain('z-40');
+  });
+
+  it('a dica do menu recolhido é fixed, fora da rolagem, e usa a altura do item (--gef-tip-y)', () => {
+    const start = webCss.indexOf(".gef-sidenav[data-collapsed='true'] .gef-nav-link:focus-visible::after {");
+    expect(start).toBeGreaterThan(-1);
+    const tip = webCss.slice(start, webCss.indexOf('}', start));
+    expect(tip).toContain('fixed');
+    expect(tip).not.toContain('absolute');
+    expect(tip).not.toContain('left-full');
+    expect(tip).toContain('var(--gef-tip-y');
+    expect(tip).toContain('left-20');
+  });
+
+  it('a dica parte da origem da janela: o menu é sticky top-0, colado à esquerda, sem outro top-, left- nem translação', () => {
+    const sidenav = rule('.gef-sidenav', webCss);
+    expect(sidenav).toContain('sticky');
+    expect(sidenav).toContain('top-0');
+    expect(sidenav.match(/(^|\s)-?top-[^\s;]+/g)).toEqual([' top-0']);
+    expect(sidenav).not.toMatch(/(^|\s)-?left-/);
+    expect(sidenav).not.toMatch(/translate|transform/);
+    expect(sidenav).toContain('h-screen');
+    expect(rule(".gef-sidenav[data-collapsed='true']", webCss)).toContain('w-[4.5rem]');
+  });
+
+  it('a premissa da dica está documentada no CSS (fixed relativo à janela; origem 0,0)', () => {
+    expect(webCss).toContain('Premissa da posição');
+  });
+
+  it('o tom de perigo do segmento vem depois da regra de marcado e usa borda, fundo e texto de perigo', () => {
+    const danger = rule(".gef-segment[data-tone='danger']:has(input:checked)");
+    expect(danger).toContain('border-gefinc-danger');
+    expect(danger).toContain('bg-gefinc-danger/10');
+    expect(danger).toContain('text-gefinc-danger');
+    expect(css.indexOf(".gef-segment[data-tone='danger']:has(input:checked)")).toBeGreaterThan(css.indexOf('.gef-segment:has(input:checked) {'));
+  });
+});
+
+describe('theme.css - alvo de 44 px em todas as larguras (3ª rodada)', () => {
+  const rule = (selector: string, source = css): string => {
+    const start = source.indexOf(`${selector} {`);
+    expect(start).toBeGreaterThan(-1);
+    return source.slice(start, source.indexOf('}', start));
+  };
+  const components = css.slice(css.indexOf('@layer components')) + webCss;
+
+  it('nenhum componente reduz o alvo no desktop: sem md:min-h-/md:min-w-, salvo o md:min-h-20 do campo de valor grande', () => {
+    const reductions = (components.match(/md:min-[hw]-[^\s;]+/g) ?? []).filter((token) => token !== 'md:min-h-20');
+    expect(reductions).toEqual([]);
+  });
+
+  it.each([
+    '.gef-input',
+    '.gef-money-field',
+    '.gef-btn-primary',
+    '.gef-btn-danger',
+    '.gef-btn-secondary',
+    '.gef-icon-btn',
+    '.gef-btn-sm',
+    '.gef-seg-btn',
+    '.gef-switch-row',
+    '.gef-segment',
+    '.gef-nav-link',
+    '.gef-account-chip',
+    '.gef-action',
+  ])('%s tem min-h-11', (selector) => {
+    expect(rule(selector, selector === '.gef-nav-link' ? webCss : css)).toContain('min-h-11');
+  });
+
+  it('o botão de ícone e a ação também têm min-w-11, e o botão de recolher o menu é h-11 w-11', () => {
+    expect(rule('.gef-icon-btn')).toContain('min-w-11');
+    expect(rule('.gef-action')).toContain('min-w-11');
+    const toggle = rule('.gef-sidenav-toggle', webCss);
+    expect(toggle).toContain('h-11');
+    expect(toggle).toContain('w-11');
+    expect(toggle).toContain('shrink-0'); // numa barra apertada (360 px) o botão não pode encolher abaixo de 44 px
+    expect(toggle).not.toMatch(/\bh-9\b|\bw-9\b/);
+  });
+
+  it('célula de tabela com botão compacto usa py-2 (linha segue com 60 px); linhas só de texto ficam com py-3', () => {
+    const start = webCss.indexOf('.gef-table td:has(');
+    expect(start).toBeGreaterThan(-1);
+    expect(webCss.slice(start, webCss.indexOf('}', start))).toContain('py-2');
+    expect(rule('.gef-table td', webCss)).toBeDefined();
+  });
+
+  it('link solto ou de célula ganha área de toque de 44 px por pseudo-elemento, sem aumentar a linha', () => {
+    expect(css).toMatch(/\.gef-hit-area::after \{[^}]*inset: -0\.75rem -0\.25rem/);
+    expect(css).toMatch(/\.gef-hit-area \{\s*@apply relative/);
+    expect(webCss).toMatch(/\.gef-table td a:not\([^)]*\)::after \{[^}]*inset: -0\.75rem -0\.25rem/);
+    expect(webCss).toMatch(/\.gef-table td a:not\([^)]*\) \{\s*@apply relative/);
+  });
+});
+
+describe('theme.css - cabeçalho e rodapé fixos do painel (3ª rodada)', () => {
+  const rule = (selector: string): string => {
+    const start = css.indexOf(`${selector} {`);
+    expect(start).toBeGreaterThan(-1);
+    return css.slice(start, css.indexOf('}', start));
+  };
+
+  it('o painel guarda o respiro inferior numa variável e ajusta a rolagem para não esconder o foco atrás do cabeçalho/rodapé', () => {
+    const sheet = css.match(/\n {2}\.gef-sheet \{[^}]*\}/)?.[0] ?? '';
+    expect(sheet).toContain('--gef-sheet-pb: 1rem');
+    expect(sheet).toContain('scroll-padding-block: 4rem 5.5rem');
+    expect(sheet).toContain('padding-bottom: var(--gef-sheet-pb)');
+    expect(sheet).not.toMatch(/(backdrop-filter|\bfilter|transform):/);
+  });
+
+  it('no celular a barra de gestos entra pela variável (o painel de baixo mantém o rodapé colado)', () => {
+    const start = css.indexOf('.gef-sheet-backdrop:not(.gef-sheet-backdrop-left) .gef-sheet {');
+    expect(start).toBeGreaterThan(-1);
+    const mobile = css.slice(start, css.indexOf('}', start));
+    expect(mobile).toContain('--gef-sheet-pb: calc(env(safe-area-inset-bottom) + 1rem)');
+    expect(mobile).not.toMatch(/\n\s+padding-bottom:/);
+  });
+
+  it('o cabeçalho do painel é sticky, com o fundo do painel, e nunca recebe filtro, desfoque nem transformação', () => {
+    const head = rule('.gef-sheet-head');
+    expect(head).toContain('position: sticky');
+    expect(head).toContain('top: -1rem'); // o sticky conta da borda interna do respiro (1rem): negativo para colar na borda
+    expect(head).toContain('background-color: var(--glass-sheet-bg)');
+    expect(head).not.toMatch(/(backdrop-filter|\bfilter|transform)\b/);
+  });
+
+  it('o formulário em cartão (group-form) perde respiro, borda, sombra e fundo dentro do painel, para o rodapé fixo colar na borda', () => {
+    const base = css.indexOf('.gef-form-card {');
+    const inSheet = css.indexOf('.gef-sheet .gef-form-card {');
+    expect(base).toBeGreaterThan(-1);
+    expect(inSheet).toBeGreaterThan(base);
+    const rule = css.slice(inSheet, css.indexOf('}', inSheet));
+    for (const declaration of ['padding: 0', 'border-width: 0', 'box-shadow: none', 'background-color: transparent']) {
+      expect(rule).toContain(declaration);
+    }
+    expect(inSheet).toBeGreaterThan(css.indexOf('.gef-card {\n    @apply rounded-xl'));
+  });
+
+  it('as ações do painel são sticky no fim, só dentro de .gef-sheet (seletor descendente), e sem filtro nem transformação', () => {
+    const actions = rule('.gef-sheet .gef-sheet-actions');
+    expect(actions).toContain('position: sticky');
+    expect(actions).toContain('bottom: calc(-1 * var(--gef-sheet-pb))');
+    expect(actions).toContain('padding: 0.75rem 1rem var(--gef-sheet-pb)');
+    expect(actions).toContain('background-color: var(--glass-sheet-bg)');
+    expect(actions).toContain('border-top: 1px solid var(--glass-sheet-border)');
+    expect(actions).not.toMatch(/(backdrop-filter|\bfilter|transform)\b/);
+    expect(css).not.toMatch(/\n {2}\.gef-sheet-actions \{/);
+  });
+});
+
+describe('theme.css / web.css - CSS só do web fora do pacote do celular (3ª rodada)', () => {
+  it('web.css é importado só pelo app web, depois do theme.css; o app móvel não o importa', () => {
+    expect(webStyles).toContain("styles/web.css';");
+    expect(webStyles.indexOf('styles/web.css')).toBeGreaterThan(webStyles.indexOf('styles/theme.css'));
+    expect(mobileStyles).not.toContain('web.css');
+  });
+
+  it('o theme.css (compartilhado com o celular) não tem mais o menu lateral, a barra do topo, as dicas nem a tabela', () => {
+    const selectors = ['.gef-sidenav-scroll {', '.gef-sidenav-head {', '.gef-sidenav-toggle {', '.gef-nav-link {', '.gef-nav-active {', '.gef-nav-group-title {', '.gef-topbar {', '.gef-table {', '.gef-table-wrap {'];
+    for (const selector of selectors) {
+      expect(css).not.toContain(`\n  ${selector}`);
+      expect(webCss).toContain(`\n  ${selector}`);
+    }
+  });
+
+  it('a moldura da tabela é relative: o texto só-leitor-de-tela (sr-only, absoluto) fica contido no recorte e não alarga a página', () => {
+    const start = webCss.indexOf('.gef-table-wrap {');
+    expect(start).toBeGreaterThan(-1);
+    const wrap = webCss.slice(start, webCss.indexOf('}', start));
+    expect(wrap).toContain('relative');
+    expect(wrap).toContain('overflow-x-auto');
+  });
+
+  it('as listas de vidro continuam no theme.css (o desfoque do menu e da barra vem das variáveis)', () => {
+    expect(css).toMatch(/\.gef-glass-strong,\s*\.gef-sidenav,\s*\.gef-topbar,\s*\.gef-toast \{/);
+  });
+
+  it('o web.css segue as mesmas regras do theme.css: sem hex solto, sem desfoque fixo, sem filtro no menu', () => {
+    expect(webCss).not.toMatch(/#[0-9a-fA-F]{6}/);
+    expect(webCss).not.toContain('bg-black');
+    for (const declaration of webCss.match(/backdrop-filter:[^;]+;/g) ?? []) {
+      expect(declaration).toMatch(/var\(--glass-filter(-light|-scrim)?\)/);
+    }
+    expect(webCss).not.toMatch(/backdrop-filter:\s*(blur|none)/);
+    expect(webCss).not.toMatch(/(^|[\s;{])(filter|backdrop-filter):/);
+    expect(webCss).not.toMatch(/\bdark:/);
   });
 });

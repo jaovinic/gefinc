@@ -19,10 +19,10 @@ import { PendingAlert } from './alerts/pending-alert';
         <p class="text-body-base text-gefinc-muted">Gerencie usuários e acompanhe o sistema. Você não vê dados financeiros de ninguém.</p>
       </header>
 
-      <div role="alert" data-testid="admin-alert">
+      <div role="alert" data-testid="admin-alert" class="not-has-[[data-testid=pending-communications-alert]]:-mt-4">
         <gef-pending-alert />
       </div>
-      <div role="status" aria-live="polite" data-testid="admin-status">{{ status() }}</div>
+      <div role="status" aria-live="polite" data-testid="admin-status" class="sr-only">{{ status() }}</div>
 
       <router-outlet />
     </section>

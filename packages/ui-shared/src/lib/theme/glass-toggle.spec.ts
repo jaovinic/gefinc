@@ -51,6 +51,16 @@ describe('GlassToggle', () => {
     expect(description?.textContent?.trim().length).toBeGreaterThan(10);
   });
 
+  it('o host é de bloco, com respiro entre o interruptor e a descrição, alinhada ao texto do rótulo', () => {
+    const { el, input } = render();
+    const host = el.querySelector('gef-glass-toggle') as HTMLElement;
+    expect(host.className).toContain('block');
+    expect(host.className).toContain('space-y-1.5');
+    const description = el.querySelector(`#${input.getAttribute('aria-describedby')}`) as HTMLElement;
+    expect(description.classList.contains('pl-14')).toBe(true);
+    expect(input.closest('label')).not.toBeNull();
+  });
+
   it('começa ligado e desligar grava "flat" (e ligar grava "blur")', () => {
     const { fixture, service, input } = render();
     expect(input.checked).toBe(true);

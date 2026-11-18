@@ -11,13 +11,13 @@ export interface StatusBadge {
 export function statusBadges(account: { suspended: boolean; deletionPending: boolean }): StatusBadge[] {
   const badges: StatusBadge[] = [];
   if (account.suspended) {
-    badges.push({ label: 'Suspenso', icon: 'alert', tone: 'border-gefinc-danger/40 text-gefinc-danger' });
+    badges.push({ label: 'Suspenso', icon: 'alert', tone: 'border-gefinc-danger/40 bg-gefinc-danger/10 text-gefinc-danger' });
   }
   if (account.deletionPending) {
-    badges.push({ label: 'Aguardando exclusão', icon: 'clock', tone: 'border-gefinc-warning/40 text-gefinc-warning' });
+    badges.push({ label: 'Aguardando exclusão', icon: 'clock', tone: 'border-gefinc-warning/40 bg-gefinc-warning/10 text-gefinc-warning' });
   }
   if (badges.length === 0) {
-    badges.push({ label: 'Ativo', icon: 'check', tone: 'border-gefinc-primary/40 text-gefinc-primary' });
+    badges.push({ label: 'Ativo', icon: 'check', tone: 'border-gefinc-primary/40 bg-gefinc-primary/10 text-gefinc-primary' });
   }
   return badges;
 }

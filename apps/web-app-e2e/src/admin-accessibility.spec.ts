@@ -91,7 +91,7 @@ test.describe('acessibilidade do painel administrativo (WCAG 2 A/AA e SC-009)', 
     // 3. Verifica o alerta de exclusão pendente
     const alert = page.getByRole('alert');
     await expect(alert).toBeVisible();
-    await expect(alert).toContainText('Exclusão agendada');
+    await expect(alert).toContainText(/exclusão desta conta está agendada/i);
     expect(await violations(page), 'Aviso de exclusão no login').toEqual([]);
   });
 

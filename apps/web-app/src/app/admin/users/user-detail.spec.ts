@@ -725,6 +725,24 @@ describe('UserDetail', () => {
       expect(field(el, 'name')).toContain('Sem nome');
     });
 
+    it('abre como painel opaco acessível (gef-sheet): diálogo modal, foco no campo, Escape fecha e some do DOM', async () => {
+      const { harness, el } = await setup({ ...base, name: 'Ana' });
+
+      (el.querySelector('[data-testid="action-rename"]') as HTMLElement).click();
+      await settle(harness);
+
+      const dialog = el.querySelector('.gef-sheet[role="dialog"]') as HTMLElement;
+      expect(dialog.getAttribute('aria-modal')).toBe('true');
+      expect(dialog.getAttribute('aria-label')).toBe('Alterar nome');
+      expect(dialog.contains(el.querySelector('[data-testid="rename-modal"]'))).toBe(true);
+      expect(document.activeElement).toBe(el.querySelector('[data-testid="rename-input"]'));
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      await settle(harness);
+      expect(el.querySelector('[data-testid="rename-modal"]')).toBeNull();
+      expect(el.querySelector('.gef-sheet[aria-label="Alterar nome"]')).toBeNull();
+    });
+
     it('exibe erro de validação retornado pela API', async () => {
       const { harness, el } = await setup({ ...base, name: 'Ana' });
 

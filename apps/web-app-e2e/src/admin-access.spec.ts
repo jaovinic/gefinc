@@ -63,7 +63,7 @@ test.describe('acesso restrito ao perfil de administrador', () => {
     expect(await violations(page), 'menu recolhido').toEqual([]);
   });
 
-  test('conceder e retirar o perfil valem na requisição seguinte, sem novo login', async ({ page, browser, request }) => {
+  test('conceder o perfil vale logo; retirar revoga os tokens e a sessão cai no login, e um novo login volta como usuário comum', async ({ page, browser, request }) => {
     const rootEmail = uniqueEmail();
     await register(page, rootEmail);
     promoteToRoot(rootEmail);
@@ -87,11 +87,25 @@ test.describe('acesso restrito ao perfil de administrador', () => {
     await expect(adminNav(other)).toBeVisible();
     await other.goto('/admin/users');
     await expect(other.getByRole('heading', { name: 'Administração', exact: true })).toBeVisible();
+    const adminToken = await apiLogin(request, otherEmail);
+    const listUsers = (token: string) => request.get(`${API}/admin/users`, { headers: { Authorization: `Bearer ${token}` } });
+    expect((await listUsers(adminToken)).status()).toBe(200);
 
     expect((await setRole('USER')).status()).toBe(204);
+    // Retirar o perfil revoga todos os tokens do usuário (AdminRoleService): o token de administrador deixa de valer
+    // e a sessão do navegador não se renova, então recarregar /admin/users termina no login (e não em "/").
+    expect((await listUsers(adminToken)).status()).toBe(401);
+    await other.goto('/admin/users');
+    await expect(other).toHaveURL(/\/login/);
+    await expect(other.getByRole('heading', { name: 'Administração', exact: true })).toHaveCount(0);
+
+    // Com um novo login, a conta já volta como usuário comum: sem menu Administração e barrada em /admin.
+    await login(other, otherEmail, PASSWORD);
+    await expect(other.getByRole('heading', { name: 'Painel do mês' })).toBeVisible();
+    await expect(adminNav(other)).toHaveCount(0);
+    expect((await listUsers(await apiLogin(request, otherEmail))).status()).toBe(403);
     await other.goto('/admin/users');
     await expect(other).toHaveURL(/\/$/);
-    await expect(adminNav(other)).toHaveCount(0);
 
     await otherContext.close();
   });

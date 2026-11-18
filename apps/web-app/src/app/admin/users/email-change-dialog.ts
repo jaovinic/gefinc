@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import type { PendingEmailChange } from '@gefinc/core-models';
-import { ConfirmDialog, Icon } from '@gefinc/ui-shared';
+import { ConfirmDialog } from '@gefinc/ui-shared';
 
 let nextId = 0;
 
@@ -12,7 +11,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'gef-email-change-dialog',
-  imports: [ConfirmDialog, FormsModule, Icon],
+  imports: [ConfirmDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <gef-confirm-dialog
@@ -50,7 +49,7 @@ let nextId = 0;
         </div>
       } @else {
         <div class="mt-3 space-y-3">
-          <div class="rounded border border-gefinc-border p-3 text-caption text-gefinc-muted" data-testid="pending-info">
+          <div class="rounded-lg border border-gefinc-border p-3 text-caption text-gefinc-muted" data-testid="pending-info">
             <p>Novo e-mail: <strong class="text-gefinc-text">{{ pending()?.newEmail }}</strong></p>
             <p>Tentativas restantes: <strong class="text-gefinc-text">{{ pending()?.attemptsLeft ?? 5 }}</strong> de 5</p>
           </div>
@@ -79,7 +78,7 @@ let nextId = 0;
           <div class="pt-1">
             <button
               type="button"
-              class="text-caption text-gefinc-danger underline-offset-2 hover:underline"
+              class="gef-btn-sm gef-btn-sm-danger"
               data-testid="cancel-pending-btn"
               [disabled]="busy()"
               (click)="cancelPending.emit()"
